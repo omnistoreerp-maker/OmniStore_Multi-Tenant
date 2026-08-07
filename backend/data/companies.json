@@ -1,0 +1,20 @@
+[
+  {
+    "id": "digitronics",
+    "code": "DIGI",
+    "name": "DigiTronics",
+    "active": true
+  },
+  {
+    "id": "nile",
+    "code": "NILE",
+    "name": "Nile Electronics",
+    "active": true
+  },
+  {
+    "id": "astra",
+    "code": "ASTRA",
+    "name": "Astra Components",
+    "active": false
+  }
+]

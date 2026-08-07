@@ -1,0 +1,18 @@
+{
+  "tenant_id": "mario_fely",
+  "workspace_slug": "mario-fely-auto-accessories",
+  "business_type": "car_accessories",
+  "language": "ar",
+  "country": "Egypt",
+  "currency": "EGP",
+  "timezone": "Africa/Cairo",
+  "categories": [
+    "إكسسوارات سيارات",
+    "استيكر",
+    "فيبر",
+    "قطع غيار",
+    "منظفات سيارات"
+  ],
+  "status": "workflow_prepared",
+  "created": false
+}

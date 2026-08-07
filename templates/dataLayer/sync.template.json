@@ -1,0 +1,11 @@
+{
+  "sourceProvider": "memory-preview",
+  "targetProvider": "{{TARGET_PROVIDER}}",
+  "direction": "one-way-preview",
+  "collections": [],
+  "status": "preview_only",
+  "syncEnabled": false,
+  "uploadEnabled": false,
+  "downloadEnabled": false,
+  "conflictStrategy": "manual_review"
+}

@@ -1,0 +1,5 @@
+(function(root){
+  'use strict';const ns=root.OmniGoLive=root.OmniGoLive||{};
+  function create(){let state=Object.freeze({enabled:false,ownerAuthenticated:false,serverEnabled:false,source:'phase34-controlled-execution',defaultOff:true});return Object.freeze({snapshot:()=>state,applyStatus:value=>{const trusted=Boolean(value&&value.verifiedBy==='phase34-secure-gateway');state=Object.freeze({enabled:trusted&&Boolean(value.enabled),ownerAuthenticated:trusted&&Boolean(value.ownerAuthenticated),serverEnabled:trusted&&Boolean(value.serverEnabled),source:'phase34-controlled-execution',defaultOff:true});return state;},enablePreview:ownerId=>Object.freeze({action:'enable-production-mode',ownerId:ownerId||null,confirmation:`ENABLE_PRODUCTION:${ownerId||''}`,executed:false,requiresPhase34Gateway:true}),reset:()=>{state=Object.freeze({enabled:false,ownerAuthenticated:false,serverEnabled:false,source:'phase34-controlled-execution',defaultOff:true});return state;}});}
+  ns.ProductionModeManager=Object.freeze({version:'1.0.0',create});
+})(typeof globalThis!=='undefined'?globalThis:window);

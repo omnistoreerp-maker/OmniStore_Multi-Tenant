@@ -1,0 +1,31 @@
+# DigiTronics backend — systemd unit example
+# Install:
+#   sudo cp deploy/digitronics-backend.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now digitronics-backend
+# Logs: journalctl -u digitronics-backend -f
+[Unit]
+Description=DigiTronics ERP Backend API
+After=network.target
+
+[Service]
+Type=simple
+User=digitronics
+Group=digitronics
+WorkingDirectory=/opt/digitronics/backend
+Environment=NODE_ENV=production
+Environment=PORT=3001
+EnvironmentFile=-/opt/digitronics/backend/.env
+ExecStart=/usr/bin/node scripts/start-production.js
+Restart=on-failure
+RestartSec=2
+# Graceful stop: SIGTERM, then wait for flushAll() + logger close.
+TimeoutStopSec=15
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

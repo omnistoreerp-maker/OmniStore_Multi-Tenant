@@ -1,0 +1,20 @@
+-- PHASE 24 DRAFT ROLLBACK ONLY. Destructive by nature: review and back up first.
+drop table if exists public.report_snapshots_multi_tenant;
+drop table if exists public.report_definitions_multi_tenant;
+drop table if exists public.journal_lines_multi_tenant;
+drop table if exists public.journal_vouchers_multi_tenant;
+drop table if exists public.chart_of_accounts_multi_tenant;
+drop table if exists public.inventory_transactions_multi_tenant;
+drop table if exists public.warehouses_multi_tenant;
+drop table if exists public.purchase_invoice_lines_multi_tenant;
+drop table if exists public.purchase_invoices_multi_tenant;
+drop table if exists public.sales_invoice_lines_multi_tenant;
+drop table if exists public.sales_invoices_multi_tenant;
+drop table if exists public.suppliers_multi_tenant;
+drop table if exists public.customers_multi_tenant;
+drop table if exists public.products_multi_tenant;
+drop table if exists public.customer_workspaces;
+drop table if exists public.auth_profiles;
+drop table if exists public.tenant_settings;
+drop table if exists public.tenant_branding;
+drop table if exists public.tenants;

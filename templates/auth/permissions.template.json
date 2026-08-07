@@ -1,0 +1,18 @@
+{
+  "previewOnly": true,
+  "permissions": [
+    "dashboard.view",
+    "products.read",
+    "products.write",
+    "sales.read",
+    "sales.create",
+    "purchases.read",
+    "purchases.create",
+    "inventory.read",
+    "inventory.adjust",
+    "reports.view",
+    "accounting.preview",
+    "settings.preview",
+    "users.preview"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "id": "MOCK-SESSION-PREVIEW",
+  "userId": "{{MOCK_USER_ID}}",
+  "role": "{{MOCK_ROLE}}",
+  "durationMinutes": 30,
+  "mock": true,
+  "realSession": false,
+  "active": false,
+  "persisted": false,
+  "stored": false
+}

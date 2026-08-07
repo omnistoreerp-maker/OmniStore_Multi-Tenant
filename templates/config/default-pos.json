@@ -1,0 +1,10 @@
+{
+  "barcodeSearch": true,
+  "quickProductSearch": true,
+  "allowDiscountPreview": true,
+  "maxDiscountPercent": 20,
+  "defaultPaymentMethod": "cash",
+  "showStockDuringSale": true,
+  "warnLowStock": true,
+  "receiptAfterSale": true
+}

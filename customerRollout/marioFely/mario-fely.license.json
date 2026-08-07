@@ -1,0 +1,9 @@
+{
+  "customer_number": "001",
+  "tenant_id": "mario_fely",
+  "plan": "commercial_v1",
+  "license_status": "not_generated",
+  "license_key": null,
+  "generation_location": "server-side controlled production executor",
+  "activation_requires_production_mode": true
+}

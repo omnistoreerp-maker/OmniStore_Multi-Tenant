@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omnistore.local/schemas/accounting-profile.schema.json",
+  "title": "OmniStore Accounting Profile",
+  "type": "object",
+  "required": ["id", "name", "version"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+    "name": { "type": "string", "minLength": 1 },
+    "nameAr": { "type": "string" },
+    "version": { "type": "string" },
+    "aliases": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "settings": {
+      "type": "object",
+      "properties": {
+        "defaultTaxRate": { "type": "number", "minimum": 0, "maximum": 100 },
+        "inventoryMethod": { "enum": ["weighted_average", "fifo", "specific_identification"] },
+        "profitCalculationMethod": { "enum": ["invoice_cost", "serial_cost", "batch_cost", "recipe_cost"] },
+        "currency": { "type": "string" },
+        "allowNegativeStock": { "type": "boolean" },
+        "defaultAccounts": { "type": "object", "additionalProperties": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "templates": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "rules": { "type": "array", "items": { "$ref": "rule.schema.json" } }
+  },
+  "oneOf": [{ "required": ["templates"] }, { "required": ["rules"] }],
+  "additionalProperties": true
+}

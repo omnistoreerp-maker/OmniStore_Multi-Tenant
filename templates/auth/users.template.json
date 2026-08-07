@@ -1,0 +1,12 @@
+{
+  "previewOnly": true,
+  "storage": "none",
+  "users": [
+    { "id": "mock-owner", "displayName": "مالك تجريبي", "role": "owner", "enabled": true },
+    { "id": "mock-admin", "displayName": "مدير نظام تجريبي", "role": "admin", "enabled": true },
+    { "id": "mock-manager", "displayName": "مدير فرع تجريبي", "role": "manager", "enabled": true },
+    { "id": "mock-accountant", "displayName": "محاسب تجريبي", "role": "accountant", "enabled": true },
+    { "id": "mock-auditor", "displayName": "مراجع تجريبي", "role": "auditor", "enabled": true },
+    { "id": "mock-cashier", "displayName": "كاشير تجريبي", "role": "cashier", "enabled": true }
+  ]
+}

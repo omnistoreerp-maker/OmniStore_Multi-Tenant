@@ -1,0 +1,15 @@
+{
+  "adapterId": "{{ADAPTER_ID}}",
+  "kind": "preview",
+  "collections": [
+    "products",
+    "customers",
+    "suppliers",
+    "sales",
+    "purchases",
+    "inventory"
+  ],
+  "readOnly": true,
+  "writesEnabled": false,
+  "connectionEnabled": false
+}

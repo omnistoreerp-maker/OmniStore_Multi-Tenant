@@ -1,0 +1,1693 @@
+openapi: 3.1.0
+info:
+  title: DigiTronics V2 API
+  description: |
+    DigiTronics V2 Enterprise ERP API
+    
+    ## Authentication
+    This API supports multiple authentication methods:
+    - **JWT Bearer Token**: Standard JWT authentication
+    - **OAuth2**: Google and GitHub OAuth2 providers
+    - **API Key**: For service integrations (planned)
+    
+    ## Rate Limiting
+    - General API: 1000 requests per 15 minutes
+    - Login endpoints: 20 requests per 15 minutes
+    - MFA endpoints: 5 requests per 15 minutes
+    
+    ## Error Format
+    All errors follow a standard format:
+    ```json
+    {
+      "success": false,
+      "error": "Error message",
+      "data": null
+    }
+    ```
+  version: 2.0.0
+  contact:
+    name: DigiTronics Support
+    email: support@digitronics.com
+
+servers:
+  - url: http://localhost:3001
+    description: Development server
+  - url: https://api.digitronics.com
+    description: Production server
+
+tags:
+  - name: Authentication
+    description: User authentication endpoints
+  - name: OAuth2
+    description: OAuth2 provider authentication
+  - name: MFA
+    description: Multi-Factor Authentication
+  - name: Users
+    description: User management
+  - name: Sales
+    description: Sales invoice management
+  - name: Purchases
+    description: Purchase order management
+  - name: Inventory
+    description: Inventory management
+  - name: Customers
+    description: Customer management
+  - name: Suppliers
+    description: Supplier management
+  - name: Treasury
+    description: Treasury/cash management
+  - name: Employees
+    description: Employee management
+  - name: Partners
+    description: Partner management
+  - name: Vouchers
+    description: Voucher management
+  - name: Dashboard
+    description: Dashboard statistics
+  - name: Reports
+    description: Report generation
+  - name: Health
+    description: Health check endpoints
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token
+    
+    OAuth2:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: /auth/google
+          tokenUrl: /auth/google/callback
+          scopes:
+            openid: OpenID Connect
+            profile: User profile
+            email: User email
+    
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key authentication (planned)
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: User ID
+        username:
+          type: string
+          description: Username
+        fullName:
+          type: string
+          description: Full name
+        email:
+          type: string
+          format: email
+          description: Email address
+        role:
+          type: string
+          enum: [Owner, Admin, Manager, Cashier, Technician, WarehouseSales, Viewer]
+          description: User role
+        phone:
+          type: string
+          description: Phone number
+        mfaEnabled:
+          type: boolean
+          description: Whether MFA is enabled
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update timestamp
+    
+    LoginRequest:
+      type: object
+      required:
+        - username
+        - password
+      properties:
+        username:
+          type: string
+          description: Username or email
+        password:
+          type: string
+          format: password
+          description: Password
+        mfaToken:
+          type: string
+          description: MFA code (required if MFA is enabled)
+    
+    LoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            user:
+              $ref: '#/components/schemas/User'
+            accessToken:
+              type: string
+              description: JWT access token
+            refreshToken:
+              type: string
+              description: JWT refresh token
+        message:
+          type: string
+    
+    MfaRequiredResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            mfaRequired:
+              type: boolean
+              enum: [true]
+            tempToken:
+              type: string
+              description: Temporary token for MFA verification
+            userId:
+              type: string
+              description: User ID
+        message:
+          type: string
+    
+    Product:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        sku:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+          format: float
+        cost:
+          type: number
+          format: float
+        quantity:
+          type: integer
+        category:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    
+    Sale:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        invoiceNumber:
+          type: string
+        customerName:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SaleItem'
+        total:
+          type: number
+          format: float
+        paymentType:
+          type: string
+          enum: [cash, card, transfer, credit]
+        status:
+          type: string
+          enum: [pending, completed, cancelled]
+        createdAt:
+          type: string
+          format: date-time
+    
+    SaleItem:
+      type: object
+      properties:
+        productId:
+          type: string
+        productName:
+          type: string
+        quantity:
+          type: integer
+        unitPrice:
+          type: number
+          format: float
+        total:
+          type: number
+          format: float
+    
+    Purchase:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        orderNumber:
+          type: string
+        supplierName:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PurchaseItem'
+        total:
+          type: number
+          format: float
+        status:
+          type: string
+          enum: [pending, received, cancelled]
+        createdAt:
+          type: string
+          format: date-time
+    
+    PurchaseItem:
+      type: object
+      properties:
+        productId:
+          type: string
+        productName:
+          type: string
+        quantity:
+          type: integer
+        unitCost:
+          type: number
+          format: float
+        total:
+          type: number
+          format: float
+    
+    Inventory:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        productId:
+          type: string
+        productName:
+          type: string
+        quantity:
+          type: integer
+        minStock:
+          type: integer
+        maxStock:
+          type: integer
+        location:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+    
+    Customer:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        address:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    
+    Supplier:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        address:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    
+    Employee:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        position:
+          type: string
+        department:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+        error:
+          type: string
+          description: Error message
+        data:
+          type: null
+    
+    PaginationMeta:
+      type: object
+      properties:
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+        totalPages:
+          type: integer
+    
+    HealthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            version:
+              type: string
+            status:
+              type: string
+            uptimeSeconds:
+              type: integer
+
+paths:
+  /api/v1/health:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: Returns service health status
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  
+  /api/v1/liveness:
+    get:
+      tags: [Health]
+      summary: Liveness probe
+      description: Returns process liveness status
+      responses:
+        '200':
+          description: Process is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                      uptimeSeconds:
+                        type: integer
+                      pid:
+                        type: integer
+                      node:
+                        type: string
+  
+  /api/v1/ready:
+    get:
+      tags: [Health]
+      summary: Readiness probe
+      description: Returns service readiness status
+      responses:
+        '200':
+          description: Service is ready
+        '503':
+          description: Service is not ready
+
+  /api/v1/auth/login:
+    post:
+      tags: [Authentication]
+      summary: User login
+      description: |
+        Authenticate user with username and password.
+        If MFA is enabled, returns mfaRequired with tempToken.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Refresh access token
+      description: Refresh an expired access token using refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refreshToken
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      accessToken:
+                        type: string
+        '401':
+          description: Invalid refresh token
+
+  /api/v1/auth/logout:
+    post:
+      tags: [Authentication]
+      summary: User logout
+      description: Revoke tokens and clear session
+      responses:
+        '200':
+          description: Logout successful
+
+  /api/v1/auth/me:
+    get:
+      tags: [Authentication]
+      summary: Get current user
+      description: Returns the authenticated user's profile
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User profile retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        $ref: '#/components/schemas/User'
+        '401':
+          description: Authentication required
+
+  /api/v1/auth/roles:
+    get:
+      tags: [Authentication]
+      summary: Get available roles
+      description: Returns list of available user roles
+      responses:
+        '200':
+          description: Roles retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      roles:
+                        type: array
+                        items:
+                          type: string
+
+  /api/v1/auth/permissions:
+    get:
+      tags: [Authentication]
+      summary: Get user permissions
+      description: Returns permissions for a specific user
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: username
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Permissions retrieved
+        '401':
+          description: Authentication required
+        '403':
+          description: Insufficient permission
+
+  /api/v1/auth/mfa/enable:
+    post:
+      tags: [MFA]
+      summary: Enable MFA
+      description: Enable Multi-Factor Authentication for the authenticated user
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - secret
+                - token
+              properties:
+                secret:
+                  type: string
+                  description: MFA secret from /mfa/secret endpoint
+                token:
+                  type: string
+                  description: 6-digit TOTP code
+      responses:
+        '200':
+          description: MFA enabled successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      backupCodes:
+                        type: array
+                        items:
+                          type: string
+                      message:
+                        type: string
+        '400':
+          description: Invalid MFA code
+        '401':
+          description: Authentication required
+
+  /api/v1/auth/mfa/disable:
+    post:
+      tags: [MFA]
+      summary: Disable MFA
+      description: Disable Multi-Factor Authentication for the authenticated user
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+              properties:
+                token:
+                  type: string
+                  description: 6-digit TOTP code
+      responses:
+        '200':
+          description: MFA disabled successfully
+        '400':
+          description: Invalid MFA code or MFA not enabled
+        '401':
+          description: Authentication required
+
+  /api/v1/auth/mfa/verify:
+    post:
+      tags: [MFA]
+      summary: Verify MFA code
+      description: Verify a TOTP code for the authenticated user
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+              properties:
+                token:
+                  type: string
+                  description: 6-digit TOTP code or backup code
+      responses:
+        '200':
+          description: MFA verification result
+        '401':
+          description: Invalid MFA code
+
+  /api/v1/auth/mfa/secret:
+    get:
+      tags: [MFA]
+      summary: Get MFA secret
+      description: Generate and return a new MFA secret with QR code
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: MFA secret generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      secret:
+                        type: string
+                        description: Base32 encoded secret
+                      qrCode:
+                        type: string
+                        description: QR code data URL
+        '401':
+          description: Authentication required
+
+  /api/v1/auth/mfa/status:
+    get:
+      tags: [MFA]
+      summary: Get MFA status
+      description: Returns MFA status for the authenticated user
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: MFA status retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                      enabledAt:
+                        type: string
+                        format: date-time
+                      backupCodesCount:
+                        type: integer
+        '401':
+          description: Authentication required
+
+  /api/v1/auth/mfa/backup-codes:
+    post:
+      tags: [MFA]
+      summary: Generate new backup codes
+      description: Generate new backup codes for MFA recovery
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+              properties:
+                token:
+                  type: string
+                  description: 6-digit TOTP code
+      responses:
+        '200':
+          description: Backup codes generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      backupCodes:
+                        type: array
+                        items:
+                          type: string
+        '401':
+          description: Invalid MFA code
+
+  /auth/google:
+    get:
+      tags: [OAuth2]
+      summary: Initiate Google OAuth
+      description: Redirect to Google OAuth consent screen
+      responses:
+        '302':
+          description: Redirect to Google
+        '501':
+          description: Google OAuth not configured
+
+  /auth/google/callback:
+    get:
+      tags: [OAuth2]
+      summary: Google OAuth callback
+      description: Handle Google OAuth callback
+      parameters:
+        - name: code
+          in: query
+          schema:
+            type: string
+        - name: state
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OAuth login successful
+        '401':
+          description: OAuth authentication failed
+
+  /auth/github:
+    get:
+      tags: [OAuth2]
+      summary: Initiate GitHub OAuth
+      description: Redirect to GitHub OAuth consent screen
+      responses:
+        '302':
+          description: Redirect to GitHub
+        '501':
+          description: GitHub OAuth not configured
+
+  /auth/github/callback:
+    get:
+      tags: [OAuth2]
+      summary: GitHub OAuth callback
+      description: Handle GitHub OAuth callback
+      parameters:
+        - name: code
+          in: query
+          schema:
+            type: string
+        - name: state
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OAuth login successful
+        '401':
+          description: OAuth authentication failed
+
+  /auth/providers:
+    get:
+      tags: [OAuth2]
+      summary: List OAuth providers
+      description: Returns list of available OAuth providers
+      responses:
+        '200':
+          description: Providers retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      providers:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            name:
+                              type: string
+                            displayName:
+                              type: string
+
+  /api/v1/users:
+    get:
+      tags: [Users]
+      summary: List users
+      description: Returns paginated list of users
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: role
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Users retrieved
+        '401':
+          description: Authentication required
+    
+    post:
+      tags: [Users]
+      summary: Create user
+      description: Create a new user
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+                  format: password
+                fullName:
+                  type: string
+                email:
+                  type: string
+                  format: email
+                role:
+                  type: string
+                phone:
+                  type: string
+      responses:
+        '201':
+          description: User created
+        '400':
+          description: Validation error
+        '401':
+          description: Authentication required
+
+  /api/v1/users/stats:
+    get:
+      tags: [Users]
+      summary: Get user statistics
+      description: Returns user count and role distribution
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Statistics retrieved
+        '401':
+          description: Authentication required
+
+  /api/v1/users/{id}:
+    get:
+      tags: [Users]
+      summary: Get user by ID
+      description: Returns a specific user
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User retrieved
+        '404':
+          description: User not found
+    
+    put:
+      tags: [Users]
+      summary: Update user
+      description: Update an existing user
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: User updated
+        '404':
+          description: User not found
+    
+    delete:
+      tags: [Users]
+      summary: Delete user
+      description: Delete a user
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User deleted
+        '404':
+          description: User not found
+
+  /api/v1/sales:
+    get:
+      tags: [Sales]
+      summary: List sales
+      description: Returns paginated list of sales invoices
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: customerName
+          in: query
+          schema:
+            type: string
+        - name: paymentType
+          in: query
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Sales retrieved
+        '401':
+          description: Authentication required
+    
+    post:
+      tags: [Sales]
+      summary: Create sale
+      description: Create a new sales invoice
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Sale'
+      responses:
+        '201':
+          description: Sale created
+        '400':
+          description: Validation error
+        '401':
+          description: Authentication required
+
+  /api/v1/sales/stats:
+    get:
+      tags: [Sales]
+      summary: Get sales statistics
+      description: Returns sales count, totals, and profit
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Statistics retrieved
+        '401':
+          description: Authentication required
+
+  /api/v1/sales/{id}:
+    get:
+      tags: [Sales]
+      summary: Get sale by ID
+      description: Returns a specific sales invoice
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sale retrieved
+        '404':
+          description: Sale not found
+    
+    put:
+      tags: [Sales]
+      summary: Update sale
+      description: Update a sales invoice
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Sale'
+      responses:
+        '200':
+          description: Sale updated
+        '404':
+          description: Sale not found
+    
+    delete:
+      tags: [Sales]
+      summary: Delete sale
+      description: Delete a sales invoice
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sale deleted
+        '404':
+          description: Sale not found
+
+  /api/v1/inventory:
+    get:
+      tags: [Inventory]
+      summary: List inventory
+      description: Returns paginated list of inventory items
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Inventory retrieved
+        '401':
+          description: Authentication required
+    
+    post:
+      tags: [Inventory]
+      summary: Create inventory item
+      description: Add a new item to inventory
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Inventory'
+      responses:
+        '201':
+          description: Inventory item created
+        '400':
+          description: Validation error
+        '401':
+          description: Authentication required
+
+  /api/v1/inventory/stats:
+    get:
+      tags: [Inventory]
+      summary: Get inventory statistics
+      description: Returns inventory count and value
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Statistics retrieved
+        '401':
+          description: Authentication required
+
+  /api/v1/inventory/{id}:
+    get:
+      tags: [Inventory]
+      summary: Get inventory item by ID
+      description: Returns a specific inventory item
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Inventory item retrieved
+        '404':
+          description: Item not found
+    
+    put:
+      tags: [Inventory]
+      summary: Update inventory item
+      description: Update an inventory item
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Inventory'
+      responses:
+        '200':
+          description: Inventory item updated
+        '404':
+          description: Item not found
+    
+    delete:
+      tags: [Inventory]
+      summary: Delete inventory item
+      description: Delete an inventory item
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Inventory item deleted
+        '404':
+          description: Item not found
+
+  /api/v1/customers:
+    get:
+      tags: [Customers]
+      summary: List customers
+      description: Returns paginated list of customers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Customers retrieved
+        '401':
+          description: Authentication required
+    
+    post:
+      tags: [Customers]
+      summary: Create customer
+      description: Create a new customer
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Customer'
+      responses:
+        '201':
+          description: Customer created
+        '400':
+          description: Validation error
+        '401':
+          description: Authentication required
+
+  /api/v1/suppliers:
+    get:
+      tags: [Suppliers]
+      summary: List suppliers
+      description: Returns paginated list of suppliers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Suppliers retrieved
+        '401':
+          description: Authentication required
+    
+    post:
+      tags: [Suppliers]
+      summary: Create supplier
+      description: Create a new supplier
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Supplier'
+      responses:
+        '201':
+          description: Supplier created
+        '400':
+          description: Validation error
+        '401':
+          description: Authentication required
+
+  /api/v1/employees:
+    get:
+      tags: [Employees]
+      summary: List employees
+      description: Returns paginated list of employees
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Employees retrieved
+        '401':
+          description: Authentication required
+    
+    post:
+      tags: [Employees]
+      summary: Create employee
+      description: Create a new employee
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Employee'
+      responses:
+        '201':
+          description: Employee created
+        '400':
+          description: Validation error
+        '401':
+          description: Authentication required
+
+  /api/v1/purchases:
+    get:
+      tags: [Purchases]
+      summary: List purchases
+      description: Returns paginated list of purchase orders
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: supplierName
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Purchases retrieved
+        '401':
+          description: Authentication required
+    
+    post:
+      tags: [Purchases]
+      summary: Create purchase
+      description: Create a new purchase order
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Purchase'
+      responses:
+        '201':
+          description: Purchase created
+        '400':
+          description: Validation error
+        '401':
+          description: Authentication required
+
+  /api/v1/treasury:
+    get:
+      tags: [Treasury]
+      summary: List treasury transactions
+      description: Returns paginated list of treasury transactions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Transactions retrieved
+        '401':
+          description: Authentication required
+    
+    post:
+      tags: [Treasury]
+      summary: Create treasury transaction
+      description: Create a new treasury transaction
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Transaction created
+        '400':
+          description: Validation error
+        '401':
+          description: Authentication required
+
+  /api/v1/partners:
+    get:
+      tags: [Partners]
+      summary: List partners
+      description: Returns paginated list of partners
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Partners retrieved
+        '401':
+          description: Authentication required
+    
+    post:
+      tags: [Partners]
+      summary: Create partner
+      description: Create a new partner
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Partner created
+        '400':
+          description: Validation error
+        '401':
+          description: Authentication required
+
+  /api/v1/vouchers:
+    get:
+      tags: [Vouchers]
+      summary: List vouchers
+      description: Returns paginated list of vouchers
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Vouchers retrieved
+        '401':
+          description: Authentication required
+    
+    post:
+      tags: [Vouchers]
+      summary: Create voucher
+      description: Create a new voucher
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '201':
+          description: Voucher created
+        '400':
+          description: Validation error
+        '401':
+          description: Authentication required
+
+  /api/v1/dashboard:
+    get:
+      tags: [Dashboard]
+      summary: Get dashboard statistics
+      description: Returns dashboard overview statistics
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Dashboard data retrieved
+        '401':
+          description: Authentication required
+
+  /api/v1/reports:
+    get:
+      tags: [Reports]
+      summary: Generate report
+      description: Generate various business reports
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [sales, purchases, inventory, financial]
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Report generated
+        '400':
+          description: Invalid report type
+        '401':
+          description: Authentication required

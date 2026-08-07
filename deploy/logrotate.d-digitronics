@@ -1,0 +1,15 @@
+# logrotate example for the DigiTronics backend file logs.
+# Install: sudo cp deploy/logrotate.d-digitronics /etc/logrotate.d/digitronics
+# Applies when LOG_FILE=/var/log/digitronics/backend.log (or the PM2 logs
+# directory) is used. systemd journald users do not need this file.
+
+/var/log/digitronics/*.log /opt/digitronics/backend/logs/*.log {
+    daily
+    rotate 14
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+    su digitronics digitronics
+}

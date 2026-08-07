@@ -1,0 +1,26 @@
+{
+  "invoices": [
+    {
+      "id": "INV-035248",
+      "invoiceNumber": "TEST-001",
+      "customerName": "Baseline Test",
+      "paymentType": "Cash",
+      "items": [
+        {
+          "productId": "p1",
+          "productName": "Test Item",
+          "quantity": 2,
+          "unitPrice": 50,
+          "lineTotal": 100
+        }
+      ],
+      "total": 100,
+      "subtotal": 100,
+      "tax": 0,
+      "discount": 0,
+      "grandTotal": 100,
+      "createdAt": "2026-08-07T16:10:35.248Z",
+      "updatedAt": "2026-08-07T16:10:35.248Z"
+    }
+  ]
+}

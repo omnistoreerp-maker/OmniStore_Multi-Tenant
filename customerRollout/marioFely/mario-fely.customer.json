@@ -1,0 +1,14 @@
+{
+  "customer_number": "001",
+  "customer_name": "Mario Fely",
+  "business_name": "Mario Fely Auto Accessories",
+  "business_name_ar": "ماريو فيلي لإكسسوارات السيارات",
+  "phone": "01273635036",
+  "email": "Mariohani203@gmail.com",
+  "address_ar": "شارع يلبغة متفرع من شبرا مصر الرئيسي",
+  "activity": "Car accessories, stickers, fiberglass, spare parts, car cleaning products.",
+  "business_type": "car_accessories",
+  "tenant_id": "mario_fely",
+  "workspace_slug": "mario-fely-auto-accessories",
+  "production_status": "prepared_not_created"
+}

@@ -1,0 +1,5 @@
+(function(root){
+  'use strict';const ns=root.OmniPerformanceScale=root.OmniPerformanceScale||{};
+  function analyze(input){input=input||{};const used=Math.max(0,Number(input.usedBytes||0)),limit=Math.max(1,Number(input.limitBytes||1)),objects=Object.freeze((input.objects||[]).filter(x=>Number(x.bytes||0)>=Number(input.largeObjectBytes||1048576)).map(x=>Object.freeze({...x}))),snapshots=Object.freeze(input.snapshots||[]),growth=snapshots.length>1?Number(snapshots[snapshots.length-1].usedBytes||0)-Number(snapshots[0].usedBytes||0):0;return Object.freeze({usedBytes:used,limitBytes:limit,usagePercent:Math.round(used/limit*10000)/100,memorySnapshots:snapshots,largeObjects:objects,leakDetectorPreview:Object.freeze({suspected:growth>Number(input.leakThresholdBytes||10485760),growthBytes:growth,executed:false}),garbageCollectionHints:Object.freeze(['release detached references','bound caches','reuse render buffers']),gcTriggered:false,readOnly:true});}
+  ns.MemoryProfiler=Object.freeze({version:'1.0.0',analyze});
+})(typeof globalThis!=='undefined'?globalThis:window);

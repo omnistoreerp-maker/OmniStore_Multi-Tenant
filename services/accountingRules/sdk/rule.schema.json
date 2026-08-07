@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omnistore.local/schemas/accounting-rule.schema.json",
+  "title": "OmniStore Accounting Rule",
+  "type": "object",
+  "required": ["ruleName", "ruleId", "description", "enabled", "requiredAccounts", "affectedModules", "validationRules", "journalPreview", "inventoryImpact", "cashImpact", "taxImpact", "profitImpact"],
+  "properties": {
+    "ruleName": { "type": "string", "minLength": 1 },
+    "ruleId": { "type": "string", "minLength": 1 },
+    "templateId": { "type": "string" },
+    "description": { "type": "string" },
+    "enabled": { "type": "boolean" },
+    "requiredAccounts": { "type": "array", "items": { "type": "string" } },
+    "affectedModules": { "type": "array", "items": { "type": "string" } },
+    "validationRules": { "type": "array", "items": { "type": "string" } },
+    "journalPreview": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "account": { "type": "string" },
+          "side": { "enum": ["debit", "credit"] },
+          "amount": { "type": ["string", "number"] },
+          "when": { "type": "string" },
+          "source": { "enum": ["manual_entries"] }
+        },
+        "additionalProperties": false
+      }
+    },
+    "inventoryImpact": { "type": "string" },
+    "cashImpact": { "type": "string" },
+    "taxImpact": { "type": "string" },
+    "profitImpact": { "type": "string" }
+  },
+  "additionalProperties": true
+}

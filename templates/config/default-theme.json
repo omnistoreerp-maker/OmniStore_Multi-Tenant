@@ -1,0 +1,9 @@
+{
+  "mode": "light",
+  "primaryColor": "#2563eb",
+  "accentColor": "#0ea5e9",
+  "fontSize": "medium",
+  "direction": "rtl",
+  "compactSidebar": true,
+  "reducedMotion": false
+}
