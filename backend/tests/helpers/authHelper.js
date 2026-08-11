@@ -17,10 +17,12 @@ async function createUser(app, user) {
   return res.body.data;
 }
 
-async function login(app, username, password) {
+async function login(app, username, password, company) {
+  const body = { username, password };
+  if (company !== undefined) body.company = company;
   const res = await request(app)
     .post('/api/v1/auth/login')
-    .send({ username, password });
+    .send(body);
   if (res.statusCode !== 200) {
     throw new Error(`login(${username}) failed: ${res.statusCode} ${JSON.stringify(res.body)}`);
   }

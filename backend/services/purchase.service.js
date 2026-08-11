@@ -1,10 +1,48 @@
 const { v4: uuidv4 } = require('uuid');
 const logger = require('../utils/logger');
+const { eventBus } = require('./eventBus');
+const config = require('../config');
+const BaseRepository = require('../repositories/BaseRepository');
 const repository = require('../repositories').purchases;
 
 class PurchaseService {
-  _load() { return repository.read(); }
+  _load(tenantContext) {
+    const repo = this._repoFor(tenantContext);
+    return repo.read();
+  }
   _save(db) { return repository.write(db); }
+
+  // Phase 25 — Purchases tenant isolation. OPT-IN via
+  // ENABLE_TENANT_PURCHASES_ISOLATION and active only when a TRUSTED tenant
+  // context is present. The tenant id is taken exclusively from
+  // `req.tenantContext` (reconstructed from the signed JWT by tenantCarry) —
+  // never from body/query/headers. Mirrors the proven Phase 24 Sales pattern:
+  // delegate to the existing Phase 21/22 entity API on an accessor-wired
+  // repository. No storageAdapter / fileStore / JWT changes are involved.
+  _isIsolationActive(tenantContext) {
+    return config.tenantPurchasesIsolationEnabled && !!(tenantContext && tenantContext.tenantId != null);
+  }
+
+  _repoFor(tenantContext) {
+    if (!this._isIsolationActive(tenantContext)) return repository;
+    const tenantId = String(tenantContext.tenantId);
+    return new BaseRepository('purchases', { getCurrentTenant: () => ({ tenantId }) });
+  }
+
+  // Phase 25 — READ-scope the loaded invoice list to the trusted tenant using
+  // the exact Phase 13/22 rule:
+  //   - record with NO tenantId  -> legacy -> ALWAYS visible (read-only)
+  //   - record tenantId == current -> visible
+  //   - record tenantId != current -> hidden (never leaks)
+  _visibleInvoices(invoices, tenantContext) {
+    if (!this._isIsolationActive(tenantContext)) return invoices;
+    const tenantId = String(tenantContext.tenantId);
+    return invoices.filter(inv => {
+      if (!inv || typeof inv !== 'object') return true;
+      if (inv.tenantId === undefined || inv.tenantId === null || inv.tenantId === '') return true;
+      return String(inv.tenantId) === tenantId;
+    });
+  }
 
   _validateRequired(data, forCreate) {
     const errors = [];
@@ -23,9 +61,9 @@ class PurchaseService {
     return str;
   }
 
-  list(query = {}) {
-    const db = this._load();
-    let invoices = db.invoices || [];
+  list(query = {}, tenantContext) {
+    const db = this._load(tenantContext);
+    let invoices = this._visibleInvoices(db.invoices || [], tenantContext);
 
     if (query.supplier) {
       const q = query.supplier.toLowerCase();
@@ -78,9 +116,9 @@ class PurchaseService {
     return { invoices: paginated, total, page, limit, totalPages };
   }
 
-  stats() {
-    const db = this._load();
-    const invoices = db.invoices || [];
+  stats(tenantContext) {
+    const db = this._load(tenantContext);
+    const invoices = this._visibleInvoices(db.invoices || [], tenantContext);
     const count = invoices.length;
     let totalPurchases = 0, cashPurchases = 0, creditPurchases = 0;
     invoices.forEach(inv => {
@@ -93,15 +131,33 @@ class PurchaseService {
     return { count, totalPurchases: Math.round(totalPurchases * 100) / 100, cashPurchases: Math.round(cashPurchases * 100) / 100, creditPurchases: Math.round(creditPurchases * 100) / 100 };
   }
 
-  getById(id) {
+  getById(id, tenantContext) {
+    if (this._isIsolationActive(tenantContext)) {
+      const repo = this._repoFor(tenantContext);
+      return repo.findEntity('invoices', this._normalizeId(id));
+    }
     const db = this._load();
     const normalized = this._normalizeId(id);
     return (db.invoices || []).find(inv => this._normalizeId(inv.id) === normalized || this._normalizeId(inv.invoiceId) === normalized) || null;
   }
 
-  create(data) {
+  create(data, tenantContext) {
     const errors = this._validateRequired(data, true);
     if (errors.length) return { error: errors.join('; ') };
+
+    if (this._isIsolationActive(tenantContext)) {
+      const repo = this._repoFor(tenantContext);
+      const invoice = {
+        id: data.id || data.invoiceId || 'INV-' + String(Date.now()).slice(-6),
+        ...data,
+        createdAt: data.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      const created = repo.createEntity('invoices', invoice);
+      if (!created) return { error: 'Failed to persist invoice' };
+      try { eventBus.publish('purchase.created', created); } catch (_) {}
+      return { invoice: created };
+    }
 
     const db = this._load();
     const invoice = {
@@ -122,21 +178,35 @@ class PurchaseService {
     return { error: 'Failed to persist invoice' };
   }
 
-  update(id, data) {
+  update(id, data, tenantContext) {
+    const errors = this._validateRequired(data, false);
+    if (errors.length) return { error: errors.join('; ') };
+
+    if (this._isIsolationActive(tenantContext)) {
+      const repo = this._repoFor(tenantContext);
+      const merged = repo.updateEntity('invoices', this._normalizeId(id), data);
+      if (!merged) return { error: 'Invoice not found' };
+      return { invoice: merged };
+    }
+
     const db = this._load();
     const normalized = this._normalizeId(id);
     const idx = (db.invoices || []).findIndex(inv => this._normalizeId(inv.id) === normalized);
     if (idx === -1) return { error: 'Invoice not found' };
-
-    const errors = this._validateRequired(data, false);
-    if (errors.length) return { error: errors.join('; ') };
 
     db.invoices[idx] = { ...db.invoices[idx], ...data, id: db.invoices[idx].id, updatedAt: new Date().toISOString() };
     if (this._save(db)) return { invoice: db.invoices[idx] };
     return { error: 'Failed to persist update' };
   }
 
-  delete(id) {
+  delete(id, tenantContext) {
+    if (this._isIsolationActive(tenantContext)) {
+      const repo = this._repoFor(tenantContext);
+      const ok = repo.deleteEntity('invoices', this._normalizeId(id));
+      if (!ok) return { error: 'Invoice not found' };
+      return { success: true };
+    }
+
     const db = this._load();
     const normalized = this._normalizeId(id);
     const idx = (db.invoices || []).findIndex(inv => this._normalizeId(inv.id) === normalized);

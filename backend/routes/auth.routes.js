@@ -85,6 +85,42 @@ router.post('/logout', ctrl.logout);
 
 /**
  * @openapi
+ * /api/v1/auth/change-password:
+ *   post:
+ *     tags: [Authentication]
+ *     summary: Change the authenticated user's password
+ *     description: Verifies the current password, enforces the password
+ *       policy, and invalidates all outstanding tokens for the user.
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [currentPassword, newPassword]
+ *             properties:
+ *               currentPassword:
+ *                 type: string
+ *                 format: password
+ *               newPassword:
+ *                 type: string
+ *                 format: password
+ *     responses:
+ *       200:
+ *         description: Password changed successfully
+ *       400:
+ *         description: Policy violation or missing fields
+ *       401:
+ *         description: Authentication required or incorrect current password
+ *       404:
+ *         description: User not found
+ */
+router.post('/change-password', ctrl.changePassword);
+
+/**
+ * @openapi
  * /api/v1/auth/me:
  *   get:
  *     tags: [Authentication]

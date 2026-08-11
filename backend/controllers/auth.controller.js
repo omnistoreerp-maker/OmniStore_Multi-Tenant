@@ -1,10 +1,17 @@
 const usersService = require('../services/users.service');
 const mfaService = require('../services/mfa.service');
+const config = require('../config');
+const tenantMembership = require('../services/tenantMembership.service');
+const tenantRole = require('../services/tenantRole.service');
+const authorization = require('../services/authorization.service');
+const auditService = require('../services/audit.service');
 const { success, error } = require('../utils/apiResponse');
 const logger = require('../utils/logger');
 const { signAccessToken, signRefreshToken, verifyRefreshToken } = require('../utils/jwt');
 const { revokeToken, isRevoked } = require('../utils/tokenStore');
 const { extractToken, parseCookies } = require('../middleware/auth');
+const { verifyPassword } = require('../utils/password');
+const { validatePassword } = require('../utils/passwordPolicy');
 
 const KNOWN_ROLES = ['Owner', 'Admin', 'Manager', 'Cashier', 'Technician', 'WarehouseSales'];
 const IS_PROD = (process.env.NODE_ENV || 'development') === 'production';
@@ -36,9 +43,30 @@ function login(req, res) {
     const user = usersService.authenticate(username, password);
     if (!user) return error(res, 'Invalid username or password', 401);
 
+    // Phase E — a disabled account cannot authenticate at all (fresh logins
+    // are blocked in addition to the tokenVersion invalidation of outstanding
+    // tokens performed by the disable endpoint). Status is only honored for
+    // the exact literal 'disabled' so legacy records stay unaffected.
+    if (user.status === 'disabled') {
+      return error(res, 'User is disabled', 403, { code: 'ACCOUNT_DISABLED' });
+    }
+
+    // Phase 16 — tenant membership enforcement at the company-selection
+    // boundary. Runs BEFORE any token is generated and only when the feature
+    // is enabled. `req.tenantContext` is present here only when companyContext
+    // successfully resolved a valid, ACTIVE selected company; for any other
+    // selection (missing / unknown / inactive company) it is absent and the
+    // GoLive-1 legacy fallback is preserved unchanged. Users with no membership
+    // (or an empty membership) are never denied.
+    if (config.tenantUserMembershipEnabled && req.tenantContext && req.tenantContext.tenantId != null) {
+      if (tenantMembership.isTenantDenied(user, req.tenantContext.tenantId)) {
+        return error(res, 'User is not a member of the selected company', 403);
+      }
+    }
+
     if (user.mfaEnabled) {
       if (!mfaToken) {
-        const tempToken = signAccessToken({ ...user, mfaPending: true }, '5m');
+        const tempToken = signAccessToken({ ...user, mfaPending: true });
         return success(res, {
           mfaRequired: true,
           tempToken,
@@ -53,10 +81,39 @@ function login(req, res) {
       }
     }
 
-    const accessToken = signAccessToken(user);
-    const refreshToken = signRefreshToken(user);
+    // PHASE 19 — secure tenant carry. Only bind a tenant into the signed
+    // tokens when (a) the feature is enabled, (b) a VALID, ACTIVE company was
+    // resolved into req.tenantContext, and (c) membership enforcement already
+    // passed. tenantId is taken EXCLUSIVELY from the server-resolved
+    // TenantContext — never from client-supplied fields. Legacy login (no /
+    // unknown / inactive company) signs an ordinary token with NO tenant claim,
+    // exactly as before.
+    const carryTenantId =
+      (config.tenantCarryEnabled &&
+       req.tenantContext &&
+       req.tenantContext.tenantId != null)
+        ? String(req.tenantContext.tenantId)
+        : undefined;
+
+    const tokenIdentity = carryTenantId ? { ...user, tenantId: carryTenantId } : user;
+
+    const accessToken = signAccessToken(tokenIdentity);
+    const refreshToken = signRefreshToken(tokenIdentity);
     _setAuthCookies(res, accessToken, refreshToken);
-    success(res, { user: usersService.sanitizeUser(user), accessToken, refreshToken }, 'Login successful');
+
+    // Phase 17 — tenant-scoped role resolution. When enabled and a valid ACTIVE
+    // company was resolved into req.tenantContext, compute the effective role
+    // the user acts as in that tenant (per-tenant role when present, else the
+    // global role). Additive only: the field is absent whenever the feature is
+    // off or no tenant context exists, so existing responses are unchanged.
+    let effectiveRole;
+    if (config.tenantRolesEnabled && req.tenantContext && req.tenantContext.tenantId != null) {
+      effectiveRole = tenantRole.resolveEffectiveRole(user, req.tenantContext.tenantId);
+    }
+
+    const result = { user: usersService.sanitizeUser(user), accessToken, refreshToken };
+    if (effectiveRole !== undefined) result.effectiveRole = effectiveRole;
+    success(res, result, 'Login successful');
   } catch (err) {
     logger.error('auth.login error:', err.message);
     error(res, 'Failed to login', 500);
@@ -72,7 +129,24 @@ function refresh(req, res) {
     if (!payload) return error(res, 'Invalid or expired refresh token', 401);
     const user = usersService.getById(payload.sub);
     if (!user) return error(res, 'User not found', 401);
-    const accessToken = signAccessToken(user);
+
+    // Phase D — refresh tokens are invalidated by a tokenVersion bump too.
+    if (payload.ver !== undefined && Number(payload.ver) !== (Number(user.tokenVersion) || 0)) {
+      return error(res, 'Invalid or expired refresh token', 401);
+    }
+
+    // Phase 19 — preserve the securely-carried tenant across a refresh. The
+    // refresh token embeds tenantId via the same _claims; forward it into the
+    // freshly minted access token ONLY when the feature is enabled and the
+    // refresh payload actually carries a tenant. Otherwise the token is signed
+    // exactly as before (no tenant claim).
+    const carriedTenantId =
+      (config.tenantCarryEnabled && payload.tenantId !== undefined && payload.tenantId !== null)
+        ? String(payload.tenantId)
+        : undefined;
+
+    const tokenIdentity = carriedTenantId ? { ...user, tenantId: carriedTenantId } : user;
+    const accessToken = signAccessToken(tokenIdentity);
     res.cookie('access_token', accessToken, { httpOnly: true, sameSite: 'lax', secure: IS_PROD, path: '/', maxAge: 15 * 60 * 1000 });
     success(res, { accessToken }, 'Token refreshed');
   } catch (err) {
@@ -95,16 +169,83 @@ function logout(req, res) {
   }
 }
 
+// Phase D — self-service password change. Requires the CURRENT password,
+// enforces the centralized policy on the new one, persists the new hash,
+// bumps tokenVersion (invalidating every outstanding token), and records an
+// audit event. The new password is redacted from the audit trail.
+function changePassword(req, res) {
+  try {
+    if (!req.user) return error(res, 'Authentication required', 401);
+    const { currentPassword, newPassword } = req.body || {};
+    if (currentPassword === undefined || currentPassword === null || newPassword === undefined || newPassword === null) {
+      return error(res, 'currentPassword and newPassword are required', 400);
+    }
+    const user = usersService.getById(req.user.id);
+    if (!user) return error(res, 'User not found', 404);
+
+    const verify = verifyPassword(currentPassword, user.password);
+    if (!verify.match) return error(res, 'Incorrect current password', 401);
+
+    const policy = validatePassword(newPassword);
+    if (!policy.valid) {
+      return error(res, 'Password does not meet policy requirements: ' + policy.errors.join('; '), 400, { code: 'PASSWORD_POLICY_VIOLATION' });
+    }
+
+    const updated = usersService.update(req.user.id, { password: newPassword });
+    if (updated.error === 'User not found') return error(res, updated.error, 404);
+    if (updated.error) return error(res, updated.error, 400);
+
+    const bump = usersService.bumpTokenVersion(req.user.id);
+    if (bump.error) return error(res, bump.error, 400);
+
+    try {
+      auditService.record({
+        method: 'POST',
+        path: '/api/v1/auth/change-password',
+        statusCode: 200,
+        userId: req.user.id,
+        action: 'USER_PASSWORD_CHANGED',
+        resource: 'user',
+        resourceId: req.user.id,
+        changes: { before: {}, after: { password: newPassword, tokenVersion: bump.tokenVersion } }
+      });
+    } catch (err) {
+      logger.error('auth.changePassword audit error:', err.message);
+    }
+
+    return success(res, null, 'Password changed successfully');
+  } catch (err) {
+    logger.error('auth.changePassword error:', err.message);
+    error(res, 'Failed to change password', 500);
+  }
+}
+
 function me(req, res) {
   try {
     if (req.user) {
       const username = req.query.username;
-      if (username && String(username) !== String(req.user.username) && req.user.role !== 'Owner' && req.user.role !== 'Admin') {
+      const queryingOther = Boolean(username);
+      if (queryingOther && String(username) !== String(req.user.username) && req.user.role !== 'Owner' && req.user.role !== 'Admin') {
         return error(res, 'Insufficient permission', 403);
       }
       const user = username ? usersService.getByUsername(username) : usersService.getById(req.user.id);
       if (!user) return error(res, 'User not found', 404);
-      return success(res, { user: usersService.sanitizeUser(user) }, 'Current user retrieved');
+      const result = { user: usersService.sanitizeUser(user) };
+      // Phase C — additive authorization enrichment for the requester's own
+      // record only. Exposes the effective role and effective permissions in
+      // the CURRENT trusted tenant (never another tenant's view). Fields stay
+      // absent whenever no trusted tenant resolves, leaving legacy responses
+      // byte-for-byte unchanged.
+      if (!queryingOther) {
+        const tenantId = (config.tenantRolesEnabled && req.tenantContext && req.tenantContext.tenantId != null)
+          ? String(req.tenantContext.tenantId)
+          : undefined;
+        if (tenantId !== undefined) {
+          result.effectiveRole = tenantRole.resolveEffectiveRole(user, tenantId);
+          result.effectivePermissions = authorization.getEffectivePermissions(user, tenantId);
+        }
+      }
+      return success(res, result, 'Current user retrieved');
     }
     const username = req.query.username;
     if (!username) return error(res, 'username is required', 400);
@@ -145,4 +286,4 @@ function permissions(req, res) {
   }
 }
 
-module.exports = { login, refresh, logout, me, roles, permissions };
+module.exports = { login, refresh, logout, changePassword, me, roles, permissions };

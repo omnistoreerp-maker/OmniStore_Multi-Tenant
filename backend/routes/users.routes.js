@@ -1,5 +1,7 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/users.controller');
+const { requireAuth } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/authorize');
 
 /**
  * @openapi
@@ -152,5 +154,169 @@ router.get('/stats', ctrl.getStats);
 router.get('/:id', ctrl.getById);
 router.put('/:id', ctrl.update);
 router.delete('/:id', ctrl.remove);
+
+/**
+ * @openapi
+ * /api/v1/users/{id}/reset-password:
+ *   post:
+ *     tags: [Users]
+ *     summary: Reset a user's password (admin)
+ *     description: Sets a new password for another user, invalidates their
+ *       outstanding tokens, and records an audit event. Requires the
+ *       users.password.reset permission. Self-reset is refused (use
+ *       /auth/change-password instead). Cross-tenant targets are rejected.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [newPassword]
+ *             properties:
+ *               newPassword:
+ *                 type: string
+ *                 format: password
+ *     responses:
+ *       200:
+ *         description: Password reset successfully
+ *       400:
+ *         description: Validation error or self-reset
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Insufficient permission or cross-tenant target
+ *       404:
+ *         description: User not found
+ */
+router.post('/:id/reset-password', requireAuth, requirePermission('users.password.reset'), ctrl.resetPassword);
+
+/**
+ * @openapi
+ * /api/v1/users/{id}/permissions:
+ *   get:
+ *     tags: [Users]
+ *     summary: Get user permissions for a tenant
+ *     description: Returns the effective permissions, baseline, and overrides for a user in the current tenant context.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Permissions retrieved
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Insufficient permission or cross-tenant target
+ *       404:
+ *         description: User not found
+ *   put:
+ *     tags: [Users]
+ *     summary: Update user permission overrides for a tenant
+ *     description: Sets additive permission overrides (boolean map) for a user in the current tenant. Requires users.permissions.edit and canGrantPermission for each granted permission. Self-modification is forbidden. Last-Owner protection applies.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [overrides]
+ *             properties:
+ *               overrides:
+ *                 type: object
+ *                 additionalProperties:
+ *                   type: boolean
+ *                 description: Permission name to boolean (true=grant, false=revoke). Only known permissions allowed.
+ *     responses:
+ *       200:
+ *         description: Permissions updated
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Insufficient permission, self-modification, or cross-tenant
+ *       404:
+ *         description: User not found
+ *       409:
+ *         description: Last-Owner protection triggered
+ */
+router.get('/:id/permissions', requireAuth, requirePermission('users.permissions.view'), ctrl.getPermissions);
+router.put('/:id/permissions', requireAuth, requirePermission('users.permissions.edit'), ctrl.updatePermissions);
+
+/**
+ * @openapi
+ * /api/v1/users/{id}/disable:
+ *   post:
+ *     tags: [Users]
+ *     summary: Disable a user
+ *     description: Sets user status to disabled and invalidates all outstanding tokens by bumping tokenVersion. Requires users.disable. Self-disable forbidden. Last-Owner protection applies.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: User disabled
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Insufficient permission, self-disable, or cross-tenant
+ *       404:
+ *         description: User not found
+ *       409:
+ *         description: Last-Owner protection triggered
+ */
+/**
+ * @openapi
+ * /api/v1/users/{id}/enable:
+ *   post:
+ *     tags: [Users]
+ *     summary: Enable a user
+ *     description: Sets user status to active. Requires users.enable. Cross-tenant targets rejected.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: User enabled
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Insufficient permission or cross-tenant
+ *       404:
+ *         description: User not found
+ */
+router.post('/:id/disable', requireAuth, requirePermission('users.disable'), ctrl.disableUser);
+router.post('/:id/enable', requireAuth, requirePermission('users.enable'), ctrl.enableUser);
 
 module.exports = router;

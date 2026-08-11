@@ -75,6 +75,11 @@ function validateResource(resource) {
   const validate = SCHEMAS[resource];
   return function (req, res, next) {
     if (req.method !== 'POST' && req.method !== 'PUT') return next();
+    // Action routes beneath an entity (e.g. POST /users/:id/reset-password)
+    // carry their OWN payload contract and must not be forced through the
+    // entity create/update schema (which would demand username/password).
+    const segments = String(req.path || '').replace(/^\/+/, '').split('/').filter(Boolean);
+    if (segments.length > 1) return next();
     const data = req.body;
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
       return errorResponse(res, 'Request body must be a JSON object', 400);

@@ -32,29 +32,60 @@ function record(entry) {
     changes: entry.changes || null
   };
 
-  // Sanitize: never store passwords, secrets, tokens, or sensitive credentials
-  if (record.changes) {
-    _sanitizeChanges(record.changes);
-  }
+  // Sanitize: never store passwords, secrets, tokens, or sensitive credentials.
+  // Cloned so the caller's `changes` object is never mutated.
+  record.changes = _sanitizeValue(entry.changes);
 
   store.entries.push(record);
   _save(store);
   return record;
 }
 
-// Remove sensitive fields from audit changes
-function _sanitizeChanges(changes) {
-  const sensitive = ['password', 'secret', 'token', 'accessToken', 'refreshToken', 'mfaSecret', 'backupCodes', 'keyHash'];
-  if (changes.before && typeof changes.before === 'object') {
-    for (const key of sensitive) {
-      if (key in changes.before) changes.before[key] = '[REDACTED]';
-    }
+// Every key that must never reach the audit trail, matched case-insensitively.
+const SENSITIVE_KEYS = new Set([
+  'password',
+  'passwordhash',
+  'currentpassword',
+  'newpassword',
+  'secret',
+  'mfasecret',
+  'mfabackupcodes',
+  'backupcodes',
+  'tokens',
+  'token',
+  'accesstoken',
+  'refreshtoken',
+  'apikey',
+  'apikeyhash',
+  'keyhash',
+  'otp',
+  'otpsecret',
+  'totp',
+  'totpsecret',
+  'verificationcode',
+  'clientsecret'
+]);
+
+function _isSensitiveKey(key) {
+  return SENSITIVE_KEYS.has(String(key).toLowerCase());
+}
+
+// Recursive clone-and-redact: any sensitive property value becomes
+// '[REDACTED]' at any depth, arrays are recursed element-wise, and non-sensitive
+// structure is preserved. The ORIGINAL input is never mutated.
+function _sanitizeValue(value) {
+  if (Array.isArray(value)) {
+    return value.map(item => _sanitizeValue(item));
   }
-  if (changes.after && typeof changes.after === 'object') {
-    for (const key of sensitive) {
-      if (key in changes.after) changes.after[key] = '[REDACTED]';
+  if (value && typeof value === 'object') {
+    const out = {};
+    for (const [key, v] of Object.entries(value)) {
+      if (_isSensitiveKey(key)) out[key] = '[REDACTED]';
+      else out[key] = _sanitizeValue(v);
     }
+    return out;
   }
+  return value;
 }
 
 // Query audit log with filtering and pagination.

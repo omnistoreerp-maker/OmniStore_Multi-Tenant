@@ -68,6 +68,12 @@ if (config.requestContextEnabled) {
 app.use(authMiddleware);
 app.use(apiKeyMiddleware);
 
+// Phase 19 — Tenant Carry: reconstruct req.tenantContext from the tenant
+// securely bound into the authenticated token (no-op when ENABLE_TENANT_CARRY
+// is off, or when the user/request has no bound tenant).
+const tenantCarry = require('./middleware/tenantCarry');
+app.use(tenantCarry);
+
 // Audit capture: records mutating operations (POST/PUT/DELETE) after response
 app.use(auditCapture);
 

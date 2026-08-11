@@ -2,6 +2,9 @@ const fs = require('fs');
 const router = require('express').Router();
 const { success, error } = require('../utils/apiResponse');
 const fileStore = require('../utils/fileStore');
+const { requireAuth } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/authorize');
+const permissionRegistryController = require('../controllers/permissionRegistry.controller');
 
 const startedAt = Date.now();
 
@@ -77,5 +80,23 @@ router.get('/ready', (req, res) => {
     error(res, 'Service is not ready: persistence check failed', 503);
   }
 });
+
+/**
+ * @openapi
+ * /api/v1/permissions:
+ *   get:
+ *     tags: [Admin]
+ *     summary: Permission registry
+ *     description: Returns the enforceable permission registry, grouped by
+ *       business area. Requires authentication and users.permissions.view.
+ *     responses:
+ *       200:
+ *         description: Permission registry retrieved
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Insufficient permission
+ */
+router.get('/permissions', requireAuth, requirePermission('users.permissions.view'), permissionRegistryController.listPermissions);
 
 module.exports = router;

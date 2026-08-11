@@ -21,6 +21,17 @@ module.exports = {
   apiKeyRateLimitMax: parseInt(process.env.API_KEY_RATE_LIMIT_MAX, 10) || 500,
   bodyLimit: process.env.BODY_LIMIT || '10mb',
 
+  // Password policy (Phase D). Every flag defaults to false so the minimum
+  // length is the only rule enforced out of the box; legacy credentials and
+  // existing test data are unaffected unless a site explicitly opts in.
+  passwordPolicy: {
+    minLength: parseInt(process.env.PASSWORD_POLICY_MIN_LENGTH, 10) || 8,
+    uppercase: process.env.PASSWORD_POLICY_UPPERCASE === 'true',
+    lowercase: process.env.PASSWORD_POLICY_LOWERCASE === 'true',
+    number: process.env.PASSWORD_POLICY_NUMBER === 'true',
+    special: process.env.PASSWORD_POLICY_SPECIAL === 'true'
+  },
+
   // Observability / integration
   metricsEnabled: process.env.METRICS_ENABLED !== 'false',
   etagEnabled: process.env.ETAG_ENABLED !== 'false',
@@ -29,6 +40,12 @@ module.exports = {
   tenantMetadataEnabled: process.env.ENABLE_TENANT_METADATA === 'true',
   tenantFilteringEnabled: process.env.ENABLE_TENANT_FILTERING === 'true',
   multiCompanyLoginEnabled: process.env.ENABLE_MULTI_COMPANY_LOGIN === 'true',
+  tenantUserMembershipEnabled: process.env.ENABLE_TENANT_USER_MEMBERSHIP === 'true',
+  tenantRolesEnabled: process.env.ENABLE_TENANT_ROLES === 'true',
+  tenantCarryEnabled: process.env.ENABLE_TENANT_CARRY === 'true',
+  tenantEntityIsolationEnabled: process.env.ENABLE_TENANT_ENTITY_ISOLATION === 'true',
+  tenantSalesIsolationEnabled: process.env.ENABLE_TENANT_SALES_ISOLATION === 'true',
+  tenantPurchasesIsolationEnabled: process.env.ENABLE_TENANT_PURCHASES_ISOLATION === 'true',
   defaultTenantId: process.env.DEFAULT_TENANT_ID || 'default',
   webhookTimeout: parseInt(process.env.WEBHOOK_TIMEOUT, 10) || 10000,
   webhookMaxRetries: parseInt(process.env.WEBHOOK_MAX_RETRIES, 10) || 3,

@@ -88,11 +88,19 @@ class BaseRepository {
   _readOnDisk() {
     const filePath = storageAdapter.path(this.storeName);
     try {
-      if (!fs.existsSync(filePath)) return this.storeName === 'sales' ? { invoices: [] } : {};
+      if (!fs.existsSync(filePath)) return (this.storeName === 'sales' || this.storeName === 'purchases') ? { invoices: [] } : {};
       return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
     } catch (err) {
-      return this.storeName === 'sales' ? { invoices: [] } : {};
+      return (this.storeName === 'sales' || this.storeName === 'purchases') ? { invoices: [] } : {};
     }
+  }
+
+  // The FULL, unfiltered store document (fresh from disk). Entity WRITE
+  // operations must persist against the complete document so a tenant-scoped
+  // mutation can never drop another tenant's records in the shared store.
+  // Ownership gating is applied explicitly inside each entity operation.
+  _rawStore() {
+    return this._readOnDisk();
   }
 
   _currentTenantId() {
@@ -151,6 +159,24 @@ class BaseRepository {
     return config.tenantFilteringEnabled && this.hasTenant();
   }
 
+  // Phase 22 — optional WRITE/READ ownership isolation on the entity API.
+  //
+  // Dormant by default, exactly like Phases 12/13: enforcement turns ON only
+  // when BOTH a tenant accessor is wired AND config.tenantEntityIsolationEnabled
+  // (ENABLE_TENANT_ENTITY_ISOLATION=true) is set. The current tenant is taken
+  // exclusively from the trusted accessor (tenant context carried by the
+  // authenticated request chain — never from body/query/headers).
+  _shouldEnforceIsolation() {
+    // Per-domain gating: the general entity isolation flag applies to every
+    // store; ENABLE_TENANT_SALES_ISOLATION (Phase 24) and
+    // ENABLE_TENANT_PURCHASES_ISOLATION (Phase 25) activate the SAME Phase 22
+    // boundary but ONLY for their pilot store. This keeps all other
+    // repositories 100% unaffected when either flag is set globally.
+    const salesIsolation = config.tenantSalesIsolationEnabled && this.storeName === 'sales';
+    const purchasesIsolation = config.tenantPurchasesIsolationEnabled && this.storeName === 'purchases';
+    return (config.tenantEntityIsolationEnabled || salesIsolation || purchasesIsolation) && this.hasTenant();
+  }
+
   // Visibility rule for a single record under the current tenant. Legacy
   // records (no tenantId) and matching records pass; other-tenancy records are
   // hidden.
@@ -201,6 +227,230 @@ class BaseRepository {
   findIndexIn(arr, predicate) {
     if (!Array.isArray(arr)) return -1;
     return arr.findIndex(predicate);
+  }
+
+  // Phase 21 — Repository Entity API Foundation (additive, opt-in).
+  //
+  // Entity-level overlay ON TOP of the existing read()/write() primitives.
+  // It exists so future phases can enforce tenant ownership on a single
+  // explicit record (deferred Phase 14) without touching write().
+  //
+  // This phase enforces NOTHING tenant-related: no tenantId injection, no
+  // filtering, no cross-tenant rejection. Every method is a pure read→mutate→
+  // persist through the EXACT same path services already use:
+  //   - reads go through this.read()  -> Phase 13 read-time filtering applies
+  //   - writes go through this.write() -> Phase 12 CREATE stamping applies
+  //     (both dormant until a tenant accessor is wired AND the flag is on).
+  //
+  // Identity (reused, NOT invented): the same ordered key set _entityKey()
+  // already uses for Phase 12 diffing — id, _id, invoiceId, recordId, code,
+  // userId. The first present key is the record's identity; matching is done
+  // case-preserving, trimmed, string-coerced, exactly like the services.
+  //
+  // Return contract (documented, matches the repo's safe non-throwing style):
+  //   createEntity -> the persisted entity, or null (invalid / duplicate / rejected / write failed)
+  //   updateEntity -> the merged entity, or null (not found / rejected / write failed)
+  //   deleteEntity -> boolean (true removed+persisted; false not-found / rejected / write failed)
+  //   findEntity   -> the entity, or null (not found / filtered out by Phase 13+22)
+  //
+  // Phase 22 tenant ownership isolation (additive, flag+accessor gated):
+  //   CREATE  -> entity WITHOUT a tenantId is bound to the current tenant;
+  //              entity claiming a different tenantId is rejected (null).
+  //   FIND    -> visible only when owned by the current tenant or legacy
+  //              (no tenantId); other-tenancy records return null.
+  //   UPDATE  -> only records owned by the current tenant; legacy and
+  //              other-tenancy records are rejected (null); a patch cannot
+  //              move or reassign ownership.
+  //   DELETE  -> only records owned by the current tenant; legacy and
+  //              other-tenancy records are rejected (false).
+  //   Legacy (no tenantId) records stay readable (Phase 13 rule) but are
+  //   read-only: they cannot be updated or deleted under isolation.
+  //   Rejections happen BEFORE persistence — no partial writes ever occur.
+  //   When the flag/accessor are off, every method keeps its Phase 21
+  //   behaviour byte-for-byte.
+
+  _identityKeys() {
+    return ['id', '_id', 'invoiceId', 'recordId', 'code', 'userId'];
+  }
+
+  // First present identity value for a record, or undefined.
+  _identityValue(entity) {
+    if (!entity || typeof entity !== 'object') return undefined;
+    for (const key of this._identityKeys()) {
+      if (entity[key] !== undefined && entity[key] !== null && String(entity[key]).trim() !== '') {
+        return String(entity[key]).trim();
+      }
+    }
+    return undefined;
+  }
+
+  // Whether `record` carries the given identity value (any identity key).
+  _matchesIdentity(record, id) {
+    if (!record || typeof record !== 'object') return false;
+    const value = this._identityValue(record);
+    return value !== undefined && value === String(id).trim();
+  }
+
+  // The collection array at `collectionName` inside the store document, or
+  // undefined when the field is present but is NOT an array.
+  _collection(db, collectionName) {
+    if (db == null || typeof db !== 'object') return undefined;
+    const value = db[collectionName];
+    if (value === undefined || value === null) return undefined;
+    return Array.isArray(value) ? value : undefined;
+  }
+
+  // Single persistence chokepoint for the entity API. Assigns the (already
+  // mutated) collection array back onto the store document and persists the
+  // whole document through this.write() exactly as services do. Returns the
+  // boolean result of write().
+  //
+  // The baseline document is read UNFILTERED from disk (NOT this.read()):
+  // persist must never depend on the caller's tenant-filtered view, or one
+  // tenant's write could silently drop another tenant's records from the
+  // shared document. Ownership gating already happens inside the operation
+  // itself; the document persisted is always the full store.
+  _saveCollection(collectionName, collection) {
+    if (typeof collectionName !== 'string' || collectionName === '') return false;
+    const db = this._readOnDisk();
+    if (db == null || typeof db !== 'object') return false;
+    db[collectionName] = collection;
+    return this.write(db);
+  }
+
+  // Append `entity` to the collection. Refuses (returns null) when the entity
+  // carries an identity that already exists — mirroring the duplicate-id guard
+  // every service already applies. Entities without a resolvable identity are
+  // appended as-is. Persists through _saveCollection -> this.write().
+  createEntity(collectionName, entity) {
+    if (typeof collectionName !== 'string' || collectionName === '') return null;
+    if (!entity || typeof entity !== 'object' || Array.isArray(entity)) return null;
+
+    if (this._shouldEnforceIsolation()) {
+      const tenantId = this._currentTenantId();
+      if (tenantId == null) return null;
+      const claimed = entity.tenantId;
+      if (claimed !== undefined && claimed !== null && claimed !== '') {
+        if (String(claimed) !== String(tenantId)) return null;
+      } else {
+        entity = Object.assign({}, entity, { tenantId });
+      }
+    }
+
+    // Baseline = the FULL store document (unfiltered). Persisting must never be
+    // derived from a tenant-filtered view or one tenant's create could erase
+    // another tenant's records in the shared document. Ownership gating is done
+    // explicitly above (Phase 22 / Phase 24).
+    const db = this._rawStore();
+    const collection = this._collection(db, collectionName);
+
+    const identity = this._identityValue(entity);
+    if (identity !== undefined) {
+      const list = collection || [];
+      if (list.some(record => this._matchesIdentity(record, identity))) return null;
+    }
+
+    const target = collection ? collection.slice() : [];
+    target.push(entity);
+    if (!this._saveCollection(collectionName, target)) return null;
+
+    // Return the record as it now exists in the store (Phase 12 CREATE
+    // stamping may have enriched the persisted copy), not the raw input.
+    const stored = this.read();
+    const list = this._collection(stored, collectionName) || [];
+    if (identity !== undefined) {
+      return list.find(record => this._matchesIdentity(record, identity)) || entity;
+    }
+    return list.length ? list[list.length - 1] : entity;
+  }
+
+  // Merge `patchOrEntity` into the record matching `id`. Returns the merged
+  // entity, or null when no record matches. Identity keys on the original are
+  // preserved (a patch cannot silently rename a record). Persists through
+  // _saveCollection -> this.write().
+  updateEntity(collectionName, id, patchOrEntity) {
+    if (typeof collectionName !== 'string' || collectionName === '' || id == null) return null;
+    if (!patchOrEntity || typeof patchOrEntity !== 'object' || Array.isArray(patchOrEntity)) return null;
+
+    const db = this._rawStore(); // unfiltered baseline — see createEntity
+    const collection = this._collection(db, collectionName);
+    if (!collection) return null;
+
+    const idx = collection.findIndex(record => this._matchesIdentity(record, id));
+    if (idx === -1) return null;
+
+    const existing = collection[idx];
+
+    if (this._shouldEnforceIsolation()) {
+      const tenantId = this._currentTenantId();
+      if (tenantId == null) return null;
+      const ownership = existing.tenantId;
+      if (ownership === undefined || ownership === null || ownership === '') return null;
+      if (String(ownership) !== String(tenantId)) return null;
+      const claimed = patchOrEntity.tenantId;
+      if (claimed !== undefined && claimed !== null && claimed !== '') {
+        if (String(claimed) !== String(tenantId)) return null;
+      }
+    }
+
+    const merged = Object.assign({}, existing, patchOrEntity);
+    for (const key of this._identityKeys()) {
+      if (existing[key] !== undefined && existing[key] !== null) merged[key] = existing[key];
+    }
+    if (this._shouldEnforceIsolation()) merged.tenantId = existing.tenantId;
+
+    const target = collection.slice();
+    target[idx] = merged;
+    if (!this._saveCollection(collectionName, target)) return null;
+    return merged;
+  }
+
+  // Remove the record matching `id`. Returns true when removed and persisted,
+  // false when nothing matched or the write failed.
+  deleteEntity(collectionName, id) {
+    if (typeof collectionName !== 'string' || collectionName === '' || id == null) return false;
+
+    const db = this._rawStore(); // unfiltered baseline — see createEntity
+    const collection = this._collection(db, collectionName);
+    if (!collection) return false;
+
+    const idx = collection.findIndex(record => this._matchesIdentity(record, id));
+    if (idx === -1) return false;
+
+    if (this._shouldEnforceIsolation()) {
+      const tenantId = this._currentTenantId();
+      if (tenantId == null) return false;
+      const ownership = collection[idx].tenantId;
+      if (ownership === undefined || ownership === null || ownership === '') return false;
+      if (String(ownership) !== String(tenantId)) return false;
+    }
+
+    const target = collection.slice();
+    target.splice(idx, 1);
+    return this._saveCollection(collectionName, target);
+  }
+
+  // Return the record matching `id`, or null. Reads via this.read(), so Phase
+  // 13 tenant filtering applies: a record hidden from the current tenant is
+  // simply not found. Under Phase 22 isolation the same visibility rule is
+  // applied explicitly (legacy or same-tenant -> found; other tenancy -> null)
+  // even when Phase 13 filtering is off. No write is performed.
+  findEntity(collectionName, id) {
+    if (typeof collectionName !== 'string' || collectionName === '' || id == null) return null;
+
+    const db = this.read();
+    const collection = this._collection(db, collectionName);
+    if (!collection) return null;
+
+    const found = collection.find(record => this._matchesIdentity(record, id)) || null;
+    if (!found) return null;
+
+    if (this._shouldEnforceIsolation()) {
+      const tenantId = this._currentTenantId();
+      if (tenantId == null) return null;
+      return this._isVisibleToTenant(found, tenantId) ? found : null;
+    }
+    return found;
   }
 
   // Storage-level primitives (readiness/health probes). Behaviour identical

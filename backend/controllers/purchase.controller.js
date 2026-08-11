@@ -4,7 +4,7 @@ const logger = require('../utils/logger');
 
 function list(req, res) {
   try {
-    const result = purchaseService.list(req.query);
+    const result = purchaseService.list(req.query, req.tenantContext);
     success(res, result, 'Purchase invoices retrieved');
   } catch (err) {
     logger.error('purchase.list error:', err.message);
@@ -14,7 +14,7 @@ function list(req, res) {
 
 function getStats(req, res) {
   try {
-    const result = purchaseService.stats();
+    const result = purchaseService.stats(req.tenantContext);
     success(res, result, 'Purchase stats retrieved');
   } catch (err) {
     logger.error('purchase.stats error:', err.message);
@@ -24,7 +24,7 @@ function getStats(req, res) {
 
 function getById(req, res) {
   try {
-    const inv = purchaseService.getById(req.params.id);
+    const inv = purchaseService.getById(req.params.id, req.tenantContext);
     if (!inv) return error(res, 'Purchase invoice not found', 404);
     success(res, inv, 'Purchase invoice retrieved');
   } catch (err) {
@@ -35,7 +35,7 @@ function getById(req, res) {
 
 function create(req, res) {
   try {
-    const result = purchaseService.create(req.body);
+    const result = purchaseService.create(req.body, req.tenantContext);
     if (result.error) return error(res, result.error, 400);
     success(res, result.invoice, 'Purchase invoice created', 201);
   } catch (err) {
@@ -46,7 +46,7 @@ function create(req, res) {
 
 function update(req, res) {
   try {
-    const result = purchaseService.update(req.params.id, req.body);
+    const result = purchaseService.update(req.params.id, req.body, req.tenantContext);
     if (result.error === 'Invoice not found') return error(res, result.error, 404);
     if (result.error) return error(res, result.error, 400);
     success(res, result.invoice, 'Purchase invoice updated');
@@ -58,7 +58,7 @@ function update(req, res) {
 
 function remove(req, res) {
   try {
-    const result = purchaseService.delete(req.params.id);
+    const result = purchaseService.delete(req.params.id, req.tenantContext);
     if (result.error === 'Invoice not found') return error(res, result.error, 404);
     if (result.error) return error(res, result.error, 500);
     success(res, null, 'Purchase invoice deleted');
