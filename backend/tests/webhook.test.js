@@ -96,14 +96,27 @@ describe('webhook.service', () => {
     expect(service.verifySignature(payload, 's', 'md5=abc')).toBe(false);
   });
 
-  test('dispatch is non-blocking and does not throw synchronously', () => {
+  test('dispatch is non-blocking and does not throw synchronously', async () => {
+    const origFetch = global.fetch;
+    jest.useFakeTimers();
+    global.fetch = () => Promise.reject(new Error('fetch failed'));
+
     service.register({
       url: 'http://127.0.0.1:1/unreachable',
       events: ['sale.created'],
       secret: 'x'
     });
+
     expect(() => service.dispatch('sale.created', { id: 123 })).not.toThrow();
     expect(service.dispatch('sale.created', { id: 124 })).toBeUndefined();
+
+    jest.advanceTimersByTime(6000);
+    await Promise.resolve();
+    await Promise.resolve();
+    jest.clearAllTimers();
+
+    global.fetch = origFetch;
+    jest.useRealTimers();
   });
 
   test('dispatch ignores webhooks not subscribed to the event', async () => {

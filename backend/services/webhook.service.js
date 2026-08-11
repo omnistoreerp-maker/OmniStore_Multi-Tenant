@@ -124,6 +124,7 @@ function _deliver(hook, eventType, payload, attempt = 0) {
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  if (typeof timer.unref === 'function') timer.unref();
 
   fetch(hook.url, {
     method: 'POST',
@@ -145,7 +146,8 @@ function _deliver(hook, eventType, payload, attempt = 0) {
     .catch((err) => {
       logger.warn(`Webhook delivery ${deliveryId} to ${hook.url} failed (attempt ${attempt + 1}):`, err.message);
       if (attempt < MAX_RETRIES - 1) {
-        setTimeout(() => _deliver(hook, eventType, payload, attempt + 1), RETRY_DELAYS[attempt]);
+        const retryTimer = setTimeout(() => _deliver(hook, eventType, payload, attempt + 1), RETRY_DELAYS[attempt]);
+        if (typeof retryTimer.unref === 'function') retryTimer.unref();
       } else {
         logger.error(`Webhook delivery ${deliveryId} to ${hook.url} exhausted retries`);
         try {
