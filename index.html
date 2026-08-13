@@ -1403,19 +1403,35 @@ document.addEventListener('DOMContentLoaded', function() {
   const googleBtn = document.getElementById('googleSignInBtn');
   if (googleBtn) {
     googleBtn.addEventListener('click', function() {
-      console.log('[Google OAuth] button clicked');
-      this.disabled = true;
-      this.textContent = 'جارٍ فتح تسجيل الدخول عبر Google...';
+      // Stage 1/4
+      document.getElementById('loginError').style.display = 'none';
+      const stages = ['1/4 Google button clicked', '2/4 Checking Supabase...', '3/4 Requesting OAuth URL...', '4/4 Redirecting to Google...'];
+      let stageIdx = 0;
+      function showStage() {
+        if (stageIdx < stages.length) {
+          document.getElementById('loginError').style.display = 'block';
+          document.getElementById('loginError').textContent = stages[stageIdx];
+          stageIdx++;
+          setTimeout(showStage, 300);
+        }
+      }
+      showStage();
       
+      this.disabled = true;
+      
+      // Stage 2/4
       const supa = getSupabaseClient();
       if (!supa) {
         document.getElementById('loginError').style.display = 'block';
         document.getElementById('loginError').textContent = '❌ Supabase not configured';
         this.disabled = false;
-        this.textContent = '🔵 Continue with Google';
+        // Reset to initial text after error
+        setTimeout(() => { this.textContent = '🔵 Continue with Google'; }, 1500);
         return;
       }
+      document.getElementById('loginError').textContent = '✅ Supabase client ready';
       
+      // Stage 3/4
       supa.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -1423,18 +1439,26 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       }).then(({ data, error }) => {
         if (error) {
-          console.error('Google OAuth error:', error.message);
-          document.getElementById('loginError').style.display = 'block';
-          document.getElementById('loginError').textContent = '❌ ' + error.message;
+          document.getElementById('loginError').textContent = '❌ Google OAuth error: ' + error.message;
           this.disabled = false;
-          this.textContent = '🔵 Continue with Google';
+          setTimeout(() => { this.textContent = '🔵 Continue with Google'; this.style.display = 'block'; }, 2000);
+          return;
         }
+        if (!data || !data.url) {
+          document.getElementById('loginError').textContent = '❌ Supabase did not return OAuth URL';
+          this.disabled = false;
+          setTimeout(() => { this.textContent = '🔵 Continue with Google'; this.style.display = 'block'; }, 2000);
+          return;
+        }
+        // Stage 4/4
+        document.getElementById('loginError').textContent = '✅ Redirecting to Google...';
+        setTimeout(() => {
+          window.location.assign(data.url);
+        }, 1000);
       }).catch((err) => {
-        console.error('Google OAuth exception:', err);
-        document.getElementById('loginError').style.display = 'block';
-        document.getElementById('loginError').textContent = '❌ خطأ في تسجيل الدخول';
+        document.getElementById('loginError').textContent = '❌ Google OAuth exception: ' + err.message;
         this.disabled = false;
-        this.textContent = '🔵 Continue with Google';
+        setTimeout(() => { this.textContent = '🔵 Continue with Google'; this.style.display = 'block'; }, 2000);
       });
     });
   }
