@@ -7107,6 +7107,7 @@ const PREMIUM_UI_V12_PREFS_KEY = 'digitronics_premium_ui_prefs_v12';
 const PREMIUM_UI_LEGACY_PREFS_KEY = 'digitronics_premium_ui_prefs_v11';
 const ERROR_LOG_KEY = 'digitronics_error_log_v1';
 const OMNISTORE_SETTINGS_KEY = 'omnistore_settings_v1';
+const DEMO_CATALOG_VERSION = 2;
 const BUSINESS_TYPES = ['computer_shop', 'auto_parts', 'auto_accessories', 'restaurant', 'supermarket', 'pharmacy', 'mobile_shop', 'electronics', 'home_office', 'grocery', 'beauty', 'automotive', 'tools', 'book_store', 'general_store', 'furniture', 'custom'];
 const BUSINESS_TYPE_ALIASES = {
   car_parts: 'auto_parts',
@@ -13191,6 +13192,48 @@ function ensureDBIntegrity() {
       ...(existingBusinessProfile?.features && typeof existingBusinessProfile.features === 'object' ? existingBusinessProfile.features : {})
     }
   };
+  ensureOmniStoreSettings();
+  ensureBranches();
+
+  // Demo catalog migration: replace old clothing/demo products with generic OmniStore demo products
+  // This runs once per session; version is stored in DB.settings to make it idempotent
+  if (DB.settings.demoCatalogVersion !== DEMO_CATALOG_VERSION) {
+    // Only replace products that match old demo patterns (clothing/fashion items)
+    const oldDemoPatterns = ['shirt', 'tshirt', 't-shirt', 'fashion', 'clothing', 'apparel', 'hoodie'];
+    let replaced = 0;
+    DB.products = DB.products.filter(p => {
+      const isOldDemo = oldDemoPatterns.some(pattern =>
+        (p.name || '').toLowerCase().includes(pattern) ||
+        (p.tags || []).some(t => typeof t === 'string' && t.toLowerCase().includes(pattern))
+      );
+      if (isOldDemo) {
+        replaced++;
+        return false; // remove old demo product
+      }
+      return true; // keep real/user product
+    });
+    // Replace with generic OmniStore demo products if all old demos were removed
+    if (replaced > 0) {
+      const genericDemoProducts = [
+        { id: 1, name: 'Barcode Scanner', buyPrice: 150, sellPrice: 250, categoryId: 1, unit: 'piece', tags: ['scanner', 'barcode', 'pos'] },
+        { id: 2, name: 'POS Receipt Printer', buyPrice: 200, sellPrice: 350, categoryId: 1, unit: 'piece', tags: ['printer', 'receipt', 'pos'] },
+        { id: 3, name: 'Business Laptop', buyPrice: 800, sellPrice: 1200, categoryId: 1, unit: 'piece', tags: ['laptop', 'business', 'computer'] },
+        { id: 4, name: 'USB Keyboard', buyPrice: 50, sellPrice: 100, categoryId: 1, unit: 'piece', tags: ['keyboard', 'usb', 'input'] },
+        { id: 5, name: 'Label Printer', buyPrice: 120, sellPrice: 200, categoryId: 2, unit: 'piece', tags: ['printer', 'label', 'office'] },
+        { id: 6, name: 'Document Scanner', buyPrice: 300, sellPrice: 500, categoryId: 2, unit: 'piece', tags: ['scanner', 'document', 'office'] },
+        { id: 7, name: 'Thermal Paper Roll', buyPrice: 20, sellPrice: 40, categoryId: 2, unit: 'roll', tags: ['paper', 'thermal', 'pos'] },
+        { id: 8, name: 'Office Chair', buyPrice: 300, sellPrice: 600, categoryId: 2, unit: 'piece', tags: ['chair', 'office', 'furniture'] },
+        { id: 9, name: 'Digital Scale', buyPrice: 80, sellPrice: 150, categoryId: 3, unit: 'piece', tags: ['scale', 'digital', 'retail'] },
+        { id: 10, name: 'Storage Organizer', buyPrice: 45, sellPrice: 90, categoryId: 3, unit: 'piece', tags: ['organizer', 'storage', 'retail'] },
+        { id: 11, name: 'LED Desk Lamp', buyPrice: 60, sellPrice: 120, categoryId: 3, unit: 'piece', tags: ['lamp', 'lighting', 'office'] },
+        { id: 12, name: 'Power Bank', buyPrice: 80, sellPrice: 150, categoryId: 3, unit: 'piece', tags: ['power', 'bank', 'mobile'] }
+      ];
+      DB.products.push(...genericDemoProducts);
+      replaced = -replaced; // negative means products were added
+    }
+    DB.settings.demoCatalogVersion = DEMO_CATALOG_VERSION;
+  }
+
   ensureOmniStoreSettings();
   ensureBranches();
 
