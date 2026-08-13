@@ -107,6 +107,9 @@ body.accent-orange{--accent:#ea580c;--accent2:#c2410c;--accent-color:#ea580c;}
 .social-btn:hover{transform:scale(1.1);}
 .social-btn.whatsapp{background:#25d366;color:#fff;}
 .social-btn.facebook{background:#1877f2;color:#fff;}
+.social-btn.facebook:hover{background:#145cbc;}
+.social-btn.google{background:#4285f4;color:#fff;}
+.social-btn.google:hover{background:#357abd;}
 
 /* Copyright */
 .copyright{margin-top:20px;font-size:0.7rem;color:var(--text2);line-height:1.6;}
@@ -1388,6 +1391,7 @@ window.DIGITRONICS_SUPABASE = window.DIGITRONICS_SUPABASE || {
     <div class="login-social">
       <a href="https://wa.me/201020841414" target="_blank" class="social-btn whatsapp" title="تواصل عبر واتساب">📱</a>
       <a href="https://www.facebook.com/DigiTronicsPlus" target="_blank" class="social-btn facebook" title="صفحة الفيسبوك">📘</a>
+      <button class="social-btn google" onclick="googleSignIn()" title="تسجيل الدخول عبر Google">🟢</a>
     </div>
     
     <div class="copyright">
@@ -13485,6 +13489,34 @@ function doLogin() {
   }
 }
 
+function googleSignIn() {
+  const supa = getSupabaseClient();
+  if (!supa) {
+    document.getElementById('loginError').style.display = 'block';
+    document.getElementById('loginError').textContent = '❌ Supabase not configured';
+    return;
+  }
+  supa.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: `${window.location.origin}/auth/callback`
+    }
+  }).then(({ data, error }) => {
+    if (error) {
+      console.error('Google OAuth error:', error.message);
+      document.getElementById('loginError').style.display = 'block';
+      document.getElementById('loginError').textContent = '❌ ' + error.message;
+    }
+    if (data) {
+      console.log('Google OAuth initiated, redirecting...');
+    }
+  }).catch((err) => {
+    console.error('Google OAuth exception:', err);
+    document.getElementById('loginError').style.display = 'block';
+    document.getElementById('loginError').textContent = '❌ خطأ في تسجيل الدخول';
+  });
+}
+
 function doLogout() {
   logActivity('تسجيل خروج');
   // Phase 23B: notify backend when enabled
@@ -13570,6 +13602,42 @@ function restoreSessionOnLoad() {
   startUserRegistrationTimer();
   updateGhStatusCard();
   return true;
+}
+
+function handleGoogleOAuthCallback() {
+  if (window.location.pathname !== '/auth/callback') return;
+  const code = new URLSearchParams(window.location.search).get('code');
+  if (!code) return;
+  const supa = getSupabaseClient();
+  if (!supa) { window.location.href = '/auth/login'; return; }
+  supa.auth.exchangeCodeForSession(code).then(({ data, error }) => {
+    if (error) {
+      console.error('Google OAuth session exchange error:', error.message);
+      document.getElementById('loginError').style.display = 'block';
+      document.getElementById('loginError').textContent = '❌ ' + error.message;
+      return;
+    }
+    if (data && data.session) {
+      currentUser = data.session.user;
+      ensureBranches();
+      if (!currentUser.branchId) currentUser.branchId = 'MAIN';
+      currentBranchId = currentUser.branchId || 'MAIN';
+      currentUser.branchName = getBranchNameById(currentBranchId);
+      // Clear OAuth params from URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete('code');
+      window.history.replaceState({}, document.title, url.pathname);
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+      scheduleSupabaseDiagnosticAutoTest('session-restore');
+      showPage(getDefaultPageForCurrentRole());
+      startUserRegistrationTimer();
+    }
+  }).catch((err) => {
+    console.error('Google OAuth exception:', err);
+    document.getElementById('loginError').style.display = 'block';
+    document.getElementById('loginError').textContent = '❌ خطأ في التحقق من الهوية';
+  });
 }
 
 function getRoleLabel(role) {
@@ -40357,6 +40425,7 @@ loadDB();
 applyBusinessBranding();
 const sessionRestored = restoreSessionOnLoad();
 if (sessionRestored) showPage(getDefaultPageForCurrentRole());
+handleGoogleOAuthCallback();
 registerDigiTronicsPWA();
 // Phase 22A: restore last-known backend connectivity, render real status, and probe when enabled.
 restoreBackendStatus();
