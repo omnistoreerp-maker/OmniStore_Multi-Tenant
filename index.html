@@ -1392,11 +1392,54 @@ window.DIGITRONICS_SUPABASE = window.DIGITRONICS_SUPABASE || {
       <a href="https://wa.me/201020841414" target="_blank" class="social-btn whatsapp" title="تواصل عبر واتساب">📱</a>
       <a href="https://www.facebook.com/DigiTronicsPlus" target="_blank" class="social-btn facebook" title="صفحة الفيسبوك">📘</a>
       <button
+  id="googleSignInBtn"
   type="button"
   class="social-btn google"
-  onclick="googleSignIn()"
   title="تسجيل الدخول عبر Google"
->🟢</button>
+>🔵 Continue with Google</button>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const googleBtn = document.getElementById('googleSignInBtn');
+  if (googleBtn) {
+    googleBtn.addEventListener('click', function() {
+      console.log('[Google OAuth] button clicked');
+      this.disabled = true;
+      this.textContent = 'جارٍ فتح تسجيل الدخول عبر Google...';
+      
+      const supa = getSupabaseClient();
+      if (!supa) {
+        document.getElementById('loginError').style.display = 'block';
+        document.getElementById('loginError').textContent = '❌ Supabase not configured';
+        this.disabled = false;
+        this.textContent = '🔵 Continue with Google';
+        return;
+      }
+      
+      supa.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`
+        }
+      }).then(({ data, error }) => {
+        if (error) {
+          console.error('Google OAuth error:', error.message);
+          document.getElementById('loginError').style.display = 'block';
+          document.getElementById('loginError').textContent = '❌ ' + error.message;
+          this.disabled = false;
+          this.textContent = '🔵 Continue with Google';
+        }
+      }).catch((err) => {
+        console.error('Google OAuth exception:', err);
+        document.getElementById('loginError').style.display = 'block';
+        document.getElementById('loginError').textContent = '❌ خطأ في تسجيل الدخول';
+        this.disabled = false;
+        this.textContent = '🔵 Continue with Google';
+      });
+    });
+  }
+});
+</script>
     </div>
     
     <div class="copyright">
@@ -5127,8 +5170,8 @@ window.DIGITRONICS_SUPABASE = window.DIGITRONICS_SUPABASE || {
               <option value="pharmacy">صيدلية</option>
               <option value="supermarket">سوبر ماركت</option>
               <option value="restaurant">مطعم</option>
-              <option value="fashion">ملابس وأزياء</option>
-              <option value="clothes">ملابس (Plugin)</option>
+              <option value="home_office">مكتب منزلي</option>
+              <option value="beauty">جمال وعناية شخصية</option>
               <option value="jewelry">مجوهرات</option>
               <option value="grocery">بقالة</option>
               <option value="hardware">أدوات ومعدات</option>
@@ -7040,7 +7083,7 @@ const PREMIUM_UI_V12_PREFS_KEY = 'digitronics_premium_ui_prefs_v12';
 const PREMIUM_UI_LEGACY_PREFS_KEY = 'digitronics_premium_ui_prefs_v11';
 const ERROR_LOG_KEY = 'digitronics_error_log_v1';
 const OMNISTORE_SETTINGS_KEY = 'omnistore_settings_v1';
-const BUSINESS_TYPES = ['computer_shop', 'auto_parts', 'auto_accessories', 'restaurant', 'supermarket', 'pharmacy', 'mobile_shop', 'clothes', 'jewelry', 'hardware', 'bookstore', 'agriculture', 'generic_store', 'electronics', 'fashion', 'grocery', 'book_store', 'general_store', 'furniture', 'custom'];
+const BUSINESS_TYPES = ['computer_shop', 'auto_parts', 'auto_accessories', 'restaurant', 'supermarket', 'pharmacy', 'mobile_shop', 'electronics', 'home_office', 'grocery', 'beauty', 'automotive', 'tools', 'book_store', 'general_store', 'furniture', 'custom'];
 const BUSINESS_TYPE_ALIASES = {
   car_parts: 'auto_parts',
   car_accessories: 'auto_accessories'
@@ -7073,13 +7116,13 @@ const BUSINESS_TYPE_PRESETS = {
   pharmacy:        { serial_enabled:false, barcode_enabled:true, part_number_enabled:false, brand_enabled:true, model_enabled:false,car_make_enabled:false, car_model_enabled:false, car_year_enabled:false, color_enabled:false, size_enabled:false, unit_enabled:true,  storage_location_enabled:true },
   supermarket:     { serial_enabled:false, barcode_enabled:true, part_number_enabled:false, brand_enabled:true, model_enabled:false,car_make_enabled:false, car_model_enabled:false, car_year_enabled:false, color_enabled:false, size_enabled:true,  unit_enabled:true,  storage_location_enabled:true },
   restaurant:      { serial_enabled:false, barcode_enabled:false,part_number_enabled:false, brand_enabled:false,model_enabled:false,car_make_enabled:false, car_model_enabled:false, car_year_enabled:false, color_enabled:false, size_enabled:false, unit_enabled:true,  storage_location_enabled:true },
-  fashion:         { serial_enabled:false, barcode_enabled:true, part_number_enabled:false, brand_enabled:true, model_enabled:true, car_make_enabled:false, car_model_enabled:false, car_year_enabled:false, color_enabled:true,  size_enabled:true,  unit_enabled:true,  storage_location_enabled:true },
+  home_office:       { serial_enabled:false, barcode_enabled:true, part_number_enabled:true,  brand_enabled:true, model_enabled:true, car_make_enabled:false, car_model_enabled:false, car_year_enabled:false, color_enabled:true,  size_enabled:true,  unit_enabled:true,  storage_location_enabled:true },
   hardware:        { serial_enabled:false, barcode_enabled:true, part_number_enabled:true,  brand_enabled:true, model_enabled:true, car_make_enabled:false, car_model_enabled:false, car_year_enabled:false, color_enabled:false, size_enabled:true,  unit_enabled:true,  storage_location_enabled:true },
   furniture:       { serial_enabled:false, barcode_enabled:true, part_number_enabled:true,  brand_enabled:true, model_enabled:true, car_make_enabled:false, car_model_enabled:false, car_year_enabled:false, color_enabled:true,  size_enabled:true,  unit_enabled:true,  storage_location_enabled:true },
   grocery:         { serial_enabled:false, barcode_enabled:true, part_number_enabled:false, brand_enabled:true, model_enabled:false,car_make_enabled:false, car_model_enabled:false, car_year_enabled:false, color_enabled:false, size_enabled:false, unit_enabled:true,  storage_location_enabled:true },
   book_store:      { serial_enabled:false, barcode_enabled:true, part_number_enabled:false, brand_enabled:true, model_enabled:false,car_make_enabled:false, car_model_enabled:false, car_year_enabled:false, color_enabled:false, size_enabled:false, unit_enabled:true,  storage_location_enabled:true },
   general_store:   { serial_enabled:false, barcode_enabled:true, part_number_enabled:true,  brand_enabled:true, model_enabled:true, car_make_enabled:false, car_model_enabled:false, car_year_enabled:false, color_enabled:true,  size_enabled:true,  unit_enabled:true,  storage_location_enabled:true },
-  clothes:         { serial_enabled:false, barcode_enabled:true, part_number_enabled:false, brand_enabled:true, model_enabled:true, car_make_enabled:false, car_model_enabled:false, car_year_enabled:false, color_enabled:true,  size_enabled:true,  unit_enabled:true,  storage_location_enabled:true },
+  beauty:          { serial_enabled:false, barcode_enabled:true, part_number_enabled:false, brand_enabled:true, model_enabled:true, car_make_enabled:false, car_model_enabled:false, car_year_enabled:false, color_enabled:true,  size_enabled:true,  unit_enabled:true,  storage_location_enabled:true },
   jewelry:         { serial_enabled:true,  barcode_enabled:true, part_number_enabled:true,  brand_enabled:true, model_enabled:true, car_make_enabled:false, car_model_enabled:false, car_year_enabled:false, color_enabled:true,  size_enabled:true,  unit_enabled:true,  storage_location_enabled:true },
   bookstore:       { serial_enabled:false, barcode_enabled:true, part_number_enabled:false, brand_enabled:true, model_enabled:false,car_make_enabled:false, car_model_enabled:false, car_year_enabled:false, color_enabled:false, size_enabled:false, unit_enabled:true,  storage_location_enabled:true },
   agriculture:     { serial_enabled:false, barcode_enabled:true, part_number_enabled:false, brand_enabled:true, model_enabled:false,car_make_enabled:false, car_model_enabled:false, car_year_enabled:false, color_enabled:false, size_enabled:false, unit_enabled:true,  storage_location_enabled:true },
@@ -7111,7 +7154,7 @@ const PRODUCT_SCHEMA_PRESETS = {
   restaurant: [
     { key:'ingredients', label:'المكونات', type:'textarea' }, { key:'kitchenCategory', label:'قسم المطبخ' }
   ],
-  fashion: [{ key:'material', label:'الخامة' }, { key:'season', label:'الموسم' }],
+  general: [{ key:'name', label:'اسم المنتج' }, { key:'sku', label:'رمز المنتج' }],
   hardware: [{ key:'material', label:'الخامة' }, { key:'specification', label:'المواصفات', type:'textarea' }],
   furniture: [{ key:'material', label:'الخامة' }, { key:'dimensions', label:'الأبعاد' }],
   custom: [{ key:'customField1', label:'حقل مخصص 1' }, { key:'customField2', label:'حقل مخصص 2' }]
@@ -13492,34 +13535,6 @@ function doLogin() {
       proceed();
     }
   }
-}
-
-function googleSignIn() {
-  const supa = getSupabaseClient();
-  if (!supa) {
-    document.getElementById('loginError').style.display = 'block';
-    document.getElementById('loginError').textContent = '❌ Supabase not configured';
-    return;
-  }
-  supa.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo: `${window.location.origin}/auth/callback`
-    }
-  }).then(({ data, error }) => {
-    if (error) {
-      console.error('Google OAuth error:', error.message);
-      document.getElementById('loginError').style.display = 'block';
-      document.getElementById('loginError').textContent = '❌ ' + error.message;
-    }
-    if (data) {
-      console.log('Google OAuth initiated, redirecting...');
-    }
-  }).catch((err) => {
-    console.error('Google OAuth exception:', err);
-    document.getElementById('loginError').style.display = 'block';
-    document.getElementById('loginError').textContent = '❌ خطأ في تسجيل الدخول';
-  });
 }
 
 function doLogout() {
