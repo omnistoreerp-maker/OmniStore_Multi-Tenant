@@ -23,6 +23,43 @@ Private paths (`backend/`, dotfiles, `node_modules/`, backups, docs) are
 never served. `npm run check` validates the environment (JWT_SECRET etc.)
 before production startup; `npm test` runs the backend suite.
 
+## 0.1 Environment requirements
+
+All configuration is via environment variables (see `backend/.env.example`
+and the root `.env.example`). Nothing else is required:
+
+| Variable | Required | Purpose |
+| -------- | -------- | ------- |
+| `NODE_ENV` | Yes (prod) | `production` disables dev request logging |
+| `PORT` | No | HTTP port (default `3001`) |
+| `JWT_SECRET` | **Yes (prod)** | ≥32 random chars; server warns if default |
+| `JWT_REFRESH_SECRET` | No | Optional; defaults to `JWT_SECRET` + `:refresh` |
+| `JWT_ACCESS_TTL` / `JWT_REFRESH_TTL` | No | Token lifetimes (`15m` / `7d`) |
+| `AUTH_REQUIRED` | No | `true` = protect all `/api/v1` routes (default `false`) |
+| `CORS_ORIGINS` | No | Comma-separated allowlist; empty = open (legacy) |
+| `RATE_LIMIT_MAX` | No | Requests per 15 min per IP (default `1000`) |
+| `BODY_LIMIT` | No | Max JSON body (default `10mb`) |
+| `DIGITRONICS_DATA_DIR` | No | JSON persistence dir (default `backend/data`) |
+| `ENABLE_MULTI_COMPANY_LOGIN` | No | Company selector on login (`false` default) |
+| `ENABLE_TENANT_ROLES` | No | Per-tenant effective roles (`false` default) |
+| `ENABLE_TENANT_CARRY` | No | Bind tenant into signed tokens (`false` default) |
+| `ENABLE_TENANT_USER_MEMBERSHIP` | No | Company membership check at login (`false` default) |
+| `LOG_FILE` / `SLOW_REQUEST_MS` | No | Structured logs / slow-request threshold |
+| `SUPABASE_URL` / `SUPABASE_KEY` | No | Legacy Supabase integration (optional) |
+
+Validation: `npm run check` (backend `node scripts/checkEnv.js`) fails fast
+on missing/unsafe production settings. There is no separate database —
+persistence is JSON files under the data dir (back them up; see
+DISASTER_RECOVERY.md).
+
+## 0.2 Render (single service)
+
+`render.yaml` at the repo root is a complete Render blueprint: one Node web
+service that runs `npm install && npm start`, health-checks
+`/api/v1/health`, and mounts a 1 GB disk at `backend/data` for persistence.
+Create a Render service from the Blueprint, then set `JWT_SECRET` in the
+dashboard (it is deliberately not stored in the file).
+
 ## 1. Installation
 
 ### Option A — Docker (recommended)
