@@ -5,6 +5,24 @@ Node/Express backend (`backend/`) with JSON file persistence
 (`backend/data/`). The frontend runs fully standalone when
 `USE_BACKEND = false` (default); the backend is an opt-in persistence layer.
 
+## 0. Official single-command startup
+
+The canonical way to run the entire application locally or on a single
+host (e.g. Render) is:
+
+```bash
+cd <repo root>
+npm install        # installs the backend too (postinstall)
+npm start          # node backend/server.js
+```
+
+The API process serves BOTH the backend (`/api/v1/*`, `/api-docs`) and the
+static frontend (`/` → `index.html` plus `services/`, `plugins/`, `icons/`,
+`manifest.json`, `sw.js`). Open http://localhost:3001/ (PORT env to change).
+Private paths (`backend/`, dotfiles, `node_modules/`, backups, docs) are
+never served. `npm run check` validates the environment (JWT_SECRET etc.)
+before production startup; `npm test` runs the backend suite.
+
 ## 1. Installation
 
 ### Option A — Docker (recommended)

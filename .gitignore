@@ -26,3 +26,9 @@ test-results/
 backend/login.json
 backend/sale.json
 backend/jest-results.json
+backend/.env
+backend/.env.local
+
+# Runtime JSON stores (regenerated on every run — never version them)
+backend/data/apiKeys.json
+backend/data/auditLog.json

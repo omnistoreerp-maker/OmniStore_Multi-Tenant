@@ -1724,6 +1724,12 @@ document.addEventListener('DOMContentLoaded', function() {
         <span id="supabaseStatusText">🔴 Disconnected</span>
       </div>
 
+      <!-- Change my password (Phase F, self-service /auth/change-password) -->
+      <button class="sidebar-action-btn" onclick="openChangeMyPasswordModal()" title="تغيير كلمة المرور">
+        <span>🔑</span>
+        <span class="btn-label">كلمة المرور</span>
+      </button>
+
       <!-- Logout -->
       <button class="sidebar-action-btn logout-btn" onclick="doLogout()" title="تسجيل الخروج">
         <span>🚪</span>
@@ -4928,7 +4934,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <div class="page-title">👤 المستخدمين</div>
         <div style="display:flex;gap:6px">
           <button class="btn btn-accent btn-sm" id="addUserBtn" onclick="openUserModal()">➕ إضافة مستخدم</button>
-          <button class="btn btn-yellow btn-sm" onclick="openChangePassModal()">🔑 تغيير كلمة مرور</button>
+          <button class="btn btn-yellow btn-sm" onclick="openChangePassModal()">🔑 إعادة تعيين كلمة مرور</button>
         </div>
       </div>
       <div class="table-container">
@@ -6692,6 +6698,42 @@ document.addEventListener('DOMContentLoaded', function() {
   </div>
 </div></div>
 
+<!-- Change MY password Modal (Phase F — self-service /auth/change-password) -->
+<div class="modal-overlay" id="changeMyPasswordModal"><div class="modal">
+  <div class="modal-title">🔑 تغيير كلمة المرور الخاصة بي<button class="modal-close" onclick="closeModal('changeMyPasswordModal')">&times;</button></div>
+  <div class="form-group"><label>كلمة المرور الحالية</label><input type="password" id="mypCurrentPass" placeholder="كلمة المرور الحالية" autocomplete="current-password"></div>
+  <div class="form-group"><label>كلمة المرور الجديدة</label><input type="password" id="mypNewPass" placeholder="كلمة المرور الجديدة" autocomplete="new-password"></div>
+  <div class="form-group"><label>تأكيد كلمة المرور الجديدة</label><input type="password" id="mypConfirmPass" placeholder="تأكيد..."></div>
+  <div id="mypError" style="display:none;color:var(--red);font-size:.78rem;margin-bottom:8px"></div>
+  <div class="modal-footer">
+    <button class="btn btn-outline" onclick="closeModal('changeMyPasswordModal')">إلغاء</button>
+    <button class="btn btn-accent" onclick="saveChangeMyPassword()">💾 حفظ</button>
+  </div>
+</div></div>
+
+<!-- User View Modal (Phase F) -->
+<div class="modal-overlay" id="userViewModal"><div class="modal">
+  <div class="modal-title">👤 بيانات المستخدم<button class="modal-close" onclick="closeModal('userViewModal')">&times;</button></div>
+  <div id="userViewBody" style="font-size:.85rem"></div>
+  <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal('userViewModal')">إغلاق</button></div>
+</div></div>
+
+<!-- Permission Matrix Modal (Phase F — MODULE x VIEW/CREATE/EDIT/DELETE) -->
+<div class="modal-overlay" id="permissionsModal"><div class="modal modal-lg">
+  <div class="modal-title">🧩 الصلاحيات — <span id="permMatrixTitle"></span><button class="modal-close" onclick="closeModal('permissionsModal')">&times;</button></div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+    <button class="btn btn-sm btn-primary" onclick="permMatrixSetAll(true)">✓ تحديد الكل</button>
+    <button class="btn btn-sm btn-outline" onclick="permMatrixSetAll(false)">✗ مسح الكل</button>
+    <span style="font-size:.75rem;color:var(--text2)">الصلاحية عن يمين الصف = خلية الرأس (تحديد/مسح وحدة أو فعل كامل)</span>
+  </div>
+  <div id="permMatrixBody" style="max-height:52vh;overflow:auto"></div>
+  <div id="permMatrixError" style="display:none;color:var(--red);font-size:.78rem;margin-top:8px"></div>
+  <div class="modal-footer">
+    <button class="btn btn-outline" onclick="closeModal('permissionsModal')">إلغاء</button>
+    <button class="btn btn-accent" onclick="savePermissionsMatrix()">💾 حفظ</button>
+  </div>
+</div></div>
+
 <!-- Warranty Modal -->
 <div class="modal-overlay" id="warrantyModal"><div class="modal">
   <div class="modal-title">➕ إضافة ضمان<button class="modal-close" onclick="closeModal('warrantyModal')">&times;</button></div>
@@ -7004,7 +7046,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <!-- User Modal -->
 <div class="modal-overlay" id="userModal"><div class="modal">
-  <div class="modal-title">➕ إضافة مستخدم<button class="modal-close" onclick="closeModal('userModal')">&times;</button></div>
+  <div class="modal-title"><span id="userModalTitle">➕ إضافة مستخدم</span><button class="modal-close" onclick="closeModal('userModal')">&times;</button></div>
   <div class="form-group"><label>الاسم الكامل</label><input type="text" id="newFullName" placeholder="الاسم الثلاثي"></div>
   <div class="form-group"><label>اسم المستخدم (للدخول)</label><input type="text" id="newUsername" placeholder="username"></div>
   <div class="form-group"><label>كلمة المرور</label><input type="password" id="newPassword" placeholder="password"></div>
@@ -7023,7 +7065,7 @@ document.addEventListener('DOMContentLoaded', function() {
   <div class="alert alert-info" style="font-size:0.75rem;margin-top:8px">
     🔐 المستخدمون غير الإداريين سيحتاجون تأكيد PIN عبر الواتساب عند أول دخول
   </div>
-  <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal('userModal')">إلغاء</button><button class="btn btn-accent" onclick="addNewUser()">💾 حفظ</button></div>
+  <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal('userModal')">إلغاء</button><button class="btn btn-accent" onclick="saveUserForm()">💾 حفظ</button></div>
 </div></div>
 
 <!-- Invoice Print Modal -->
@@ -11200,7 +11242,13 @@ const backendApi = {
     getStats: () => USE_BACKEND ? backendApi._fetch('GET', '/users/stats') : null,
     create: (data) => USE_BACKEND ? backendApi._fetch('POST', '/users', data) : null,
     update: (id, data) => USE_BACKEND ? backendApi._fetch('PUT', '/users/' + id, data) : null,
-    delete: (id) => USE_BACKEND ? backendApi._fetch('DELETE', '/users/' + id) : null
+    delete: (id) => USE_BACKEND ? backendApi._fetch('DELETE', '/users/' + id) : null,
+    // Phase F — permission matrix + user lifecycle actions (backend remains authoritative).
+    getPermissions: (id) => USE_BACKEND ? backendApi._fetch('GET', '/users/' + encodeURIComponent(id) + '/permissions') : null,
+    updatePermissions: (id, overrides) => USE_BACKEND ? backendApi._fetch('PUT', '/users/' + encodeURIComponent(id) + '/permissions', { overrides }) : null,
+    resetPassword: (id, newPassword) => USE_BACKEND ? backendApi._fetch('POST', '/users/' + encodeURIComponent(id) + '/reset-password', { newPassword }) : null,
+    disable: (id) => USE_BACKEND ? backendApi._fetch('POST', '/users/' + encodeURIComponent(id) + '/disable') : null,
+    enable: (id) => USE_BACKEND ? backendApi._fetch('POST', '/users/' + encodeURIComponent(id) + '/enable') : null
   },
   companies: {
     getActive: () => USE_BACKEND ? backendApi._fetch('GET', '/companies/active') : null,
@@ -11209,9 +11257,15 @@ const backendApi = {
   auth: {
     login: (username, password, company) => USE_BACKEND ? backendApi._fetch('POST', '/auth/login', (company ? { username, password, company } : { username, password })) : null,
     logout: () => USE_BACKEND ? backendApi._fetch('POST', '/auth/logout') : null,
-    me: (username) => USE_BACKEND ? backendApi._fetch('GET', '/auth/me?username=' + encodeURIComponent(username)) : null,
+    // username is OPTIONAL: when omitted the backend enriches the response
+    // with the authenticated user's effectiveRole + effectivePermissions.
+    // Passing a username queries THAT user (no enrichment) — the Phase F
+    // session-binding call sites must therefore call me() without arguments.
+    me: (username) => USE_BACKEND ? backendApi._fetch('GET', '/auth/me' + (username ? '?username=' + encodeURIComponent(username) : '')) : null,
     roles: () => USE_BACKEND ? backendApi._fetch('GET', '/auth/roles') : null,
-    permissions: (username) => USE_BACKEND ? backendApi._fetch('GET', '/auth/permissions?username=' + encodeURIComponent(username)) : null
+    permissions: (username) => USE_BACKEND ? backendApi._fetch('GET', '/auth/permissions?username=' + encodeURIComponent(username)) : null,
+    // Phase F — self-service password change (Phase D endpoint; tokenVersion bump forces re-login).
+    changePassword: (currentPassword, newPassword) => USE_BACKEND ? backendApi._fetch('POST', '/auth/change-password', { currentPassword, newPassword }) : null
   }
 };
 
@@ -13529,7 +13583,7 @@ function doLogin() {
     const elN = document.getElementById('userName');
     const elR = document.getElementById('userRole');
     const elA = document.getElementById('userAvatar');
-    const roleLabel = getRoleLabel(usr.role);
+    const roleLabel = getRoleLabel(_effectiveRole() || usr.role);
     if (elN) elN.textContent = usr.fullName || usr.username;
     if (elR) elR.textContent = `${roleLabel} · ${currentUser.branchName || getBranchNameById(currentBranchId)}`;
     if (elA) elA.textContent = (usr.fullName || usr.username).charAt(0).toUpperCase();
@@ -13543,12 +13597,42 @@ function doLogin() {
     if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = '🔐 تسجيل الدخول'; }
   };
 
+  // Phase F — bind the backend-computed effective role + effective
+  // permissions from /auth/me into the live session (backend-only). Runs after
+  // login because the login envelope omits effectivePermissions.
+  function refreshEffectivePermissions() {
+    if (!USE_BACKEND || !backendApi || !backendApi.auth) return Promise.resolve(false);
+    if (!currentUser) return Promise.resolve(false);
+    // No username argument: the backend enriches with the AUTHENTICATED user's
+    // effectiveRole/effectivePermissions only when the query is absent.
+    return backendApi.auth.me().then(meRes => {
+      if (!meRes || !meRes.success || !meRes.data) return false;
+      if (meRes.data.effectiveRole !== undefined) currentUser.effectiveRole = meRes.data.effectiveRole;
+      if (Array.isArray(meRes.data.effectivePermissions)) currentUser.effectivePermissions = meRes.data.effectivePermissions;
+      const elR = document.getElementById('userRole');
+      if (elR) elR.textContent = `${getRoleLabel(_effectiveRole() || currentUser.role)} · ${currentUser.branchName || getBranchNameById(currentBranchId)}`;
+      applyPermissions();
+      return true;
+    }).catch(() => false);
+  }
+
   // Phase 23B: route through backend when enabled
   if (USE_BACKEND && backendApi && backendApi.auth) {
     if (loginBtn) { loginBtn.disabled = true; loginBtn.textContent = '⏳ ...'; }
     backendApi.auth.login(u, p, companySelected).then(res => {
+      const showLoginError = (msg) => {
+        const el = document.getElementById('loginError');
+        if (el) { el.textContent = msg; el.style.display = 'block'; }
+      };
       if (!res || !res.success || !res.data || !res.data.user) {
-        document.getElementById('loginError').style.display = 'block';
+        // Phase 23: a 403 membership denial is a normal login outcome for the
+        // selected company — surface a clear, user-friendly message (not the
+        // internal backend wording, and never the raw transport details).
+        if (res && res.statusCode === 403) {
+          showLoginError('🔒 لا تملك صلاحية الوصول لهذه الشركة');
+        } else {
+          showLoginError('❌ بيانات الدخول غلط');
+        }
         if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = '🔐 تسجيل الدخول'; }
         return;
       }
@@ -13556,6 +13640,11 @@ function doLogin() {
       if (d.accessToken) localStorage.setItem('access_token', d.accessToken);
       if (d.refreshToken) localStorage.setItem('refresh_token', d.refreshToken);
       launchApp(d.user);
+      // Phase F — the login envelope carries only user + effectiveRole; fetch
+      // /auth/me to bind the backend-computed effectivePermissions too, then
+      // re-apply the permission-driven UI (backend remains authoritative).
+      if (d.effectiveRole !== undefined) currentUser.effectiveRole = d.effectiveRole;
+      refreshEffectivePermissions();
     }).catch(() => {
       document.getElementById('loginError').style.display = 'block';
       if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = '🔐 تسجيل الدخول'; }
@@ -13623,10 +13712,16 @@ function restoreSessionOnLoad() {
 
   // Phase 23B: restore session from backend when enabled
   if (USE_BACKEND && backendApi && backendApi.auth && localStorage.getItem('access_token')) {
-    backendApi.auth.me(rememberedUser).then(res => {
+    // No username argument so the backend binds effectiveRole/
+    // effectivePermissions for the authenticated session (see auth.me helper).
+    backendApi.auth.me().then(res => {
       if (res && res.success && res.data && res.data.user) {
         const usr = res.data.user;
         currentUser = usr;
+        // Phase F — bind the backend-computed effective role + permissions
+        // returned by this same /auth/me call (backend-authoritative).
+        if (res.data.effectiveRole !== undefined) currentUser.effectiveRole = res.data.effectiveRole;
+        if (Array.isArray(res.data.effectivePermissions)) currentUser.effectivePermissions = res.data.effectivePermissions;
         ensureBranches();
         if (!currentUser.branchId) currentUser.branchId = 'MAIN';
         currentBranchId = currentUser.branchId || 'MAIN';
@@ -13636,7 +13731,7 @@ function restoreSessionOnLoad() {
         const elN = document.getElementById('userName');
         const elR = document.getElementById('userRole');
         const elA = document.getElementById('userAvatar');
-        const roleLabel = getRoleLabel(usr.role);
+        const roleLabel = getRoleLabel(_effectiveRole() || usr.role);
         if (elN) elN.textContent = usr.fullName || usr.username;
         if (elR) elR.textContent = `${roleLabel} · ${currentUser.branchName || getBranchNameById(currentBranchId)}`;
         if (elA) elA.textContent = (usr.fullName || usr.username).charAt(0).toUpperCase();
@@ -13752,21 +13847,88 @@ function requirePermission(action) {
   return false;
 }
 
+// ============ Phase F — backend-authoritative permission wiring ============
+// `currentUser.effectivePermissions` is populated from /auth/me when the
+// backend resolves a trusted tenant context. When present, `can()` decides
+// through those effective (backend-computed) permissions; Owner/Admin bypass.
+// Capabilities the registry does NOT model keep their legacy per-role default
+// so unmodeled features behave exactly as before — the backend simply has
+// nothing to authorize for them. Legacy/local mode uses the original role map.
+const LEGACY_ROLE_PERMS = {
+  Owner:          ['all'],
+  Admin:          ['all'],
+  Manager:        ['viewDashboard','viewSmartBusiness','viewAiOwnerAssistant','viewAutomationCenter','viewWorkflow','approveWorkflow','viewPluginCenter','viewLiveSync','createInvoices','viewInvoices','editInvoices','viewCustomers','viewSuppliers','viewProducts','editProducts','viewPurchases','editPurchases','viewInventory','viewSerials','viewReports','exportReports','viewFinancial','viewFinancialCenter','cashOperations','viewMaintenance','manageMaintenance','viewDevices','viewWarranty','viewAlerts','viewHealth','viewAudit','viewBranches','backupExport','manageCRM','useRepMobile','manageEmployees'],
+  WarehouseSales: ['viewDashboard','viewProducts','editProducts','createInvoices','viewCustomers','viewInvoices','viewMaintenance','manageMaintenance','viewSerials','viewDevices','manageCRM','useRepMobile'],
+  Cashier:        ['createInvoices','viewInvoices','viewCustomers','printInvoices','manageCRM','useRepMobile','viewAlerts','viewAudit','viewFinancialCenter','cashOperations','viewSmartBusinessSales','submitWorkflow'],
+  Technician:     ['viewMaintenance','manageMaintenance','viewDevices','viewSerials','viewWarranty','viewAlerts','viewAudit','viewOwnAttendance','viewSmartBusinessRepairs','submitRepairWorkflow'],
+  Sales:          ['createInvoices','viewCustomers','viewInvoices','printInvoices','manageCRM','useRepMobile'],
+  Support:        ['viewProducts','viewSerials','viewMaintenance','viewDevices','viewWarranty','viewAlerts','useRepMobile'],
+  Viewer:         ['viewProducts','viewInvoices']
+};
+// Legacy action name -> registry permission (permissions/registry.js REAL).
+const REGISTRY_PERM_BY_ACTION = {
+  'viewDashboard': 'dashboard.view',
+  'createInvoices': 'sales.create',
+  'viewInvoices': 'sales.view',
+  'editInvoices': 'sales.edit',
+  'printInvoices': 'sales.view',
+  'viewCustomers': 'customers.view',
+  'viewSuppliers': 'suppliers.view',
+  'viewProducts': 'products.view',
+  'editProducts': 'products.edit',
+  'viewPurchases': 'purchases.view',
+  'editPurchases': 'purchases.edit',
+  'viewInventory': 'inventory.view',
+  'editInventory': 'inventory.edit',
+  'viewReports': 'reports.view',
+  'exportReports': 'reports.view',
+  'viewFinancial': 'treasury.view',
+  'viewFinancialCenter': 'treasury.view',
+  'cashOperations': 'treasury.create',
+  'editTreasury': 'treasury.edit',
+  'viewAudit': 'audit.view',
+  'manageUsers': 'users.view',
+  'viewUsers': 'users.view',
+  'manageSettings': 'settings.view',
+  'editSettings': 'settings.edit',
+  'viewCompany': 'company.view'
+};
+
+function _effectiveRole() {
+  return (currentUser && (currentUser.effectiveRole || currentUser.role)) || '';
+}
+
+function _effectivePermissions() {
+  return (currentUser && Array.isArray(currentUser.effectivePermissions)) ? currentUser.effectivePermissions : null;
+}
+
+function _legacyRoleCan(action) {
+  const role = _effectiveRole() || (currentUser ? currentUser.role : '');
+  const userPerms = LEGACY_ROLE_PERMS[role] || [];
+  return userPerms.includes('all') || userPerms.includes(action);
+}
+
 function can(action) {
   if (!currentUser) return false;
-  const perms = {
-    Owner:          ['all'],
-    Admin:          ['all'],
-    Manager:        ['viewDashboard','viewSmartBusiness','viewAiOwnerAssistant','viewAutomationCenter','viewWorkflow','approveWorkflow','viewPluginCenter','viewLiveSync','createInvoices','viewInvoices','editInvoices','viewCustomers','viewSuppliers','viewProducts','editProducts','viewPurchases','editPurchases','viewInventory','viewSerials','viewReports','exportReports','viewFinancial','viewFinancialCenter','cashOperations','viewMaintenance','manageMaintenance','viewDevices','viewWarranty','viewAlerts','viewHealth','viewAudit','viewBranches','backupExport','manageCRM','useRepMobile','manageEmployees'],
-    WarehouseSales: ['viewDashboard','viewProducts','editProducts','createInvoices','viewCustomers','viewInvoices','viewMaintenance','manageMaintenance','viewSerials','viewDevices','manageCRM','useRepMobile'],
-    Cashier:        ['createInvoices','viewInvoices','viewCustomers','printInvoices','manageCRM','useRepMobile','viewAlerts','viewAudit','viewFinancialCenter','cashOperations','viewSmartBusinessSales','submitWorkflow'],
-    Technician:     ['viewMaintenance','manageMaintenance','viewDevices','viewSerials','viewWarranty','viewAlerts','viewAudit','viewOwnAttendance','viewSmartBusinessRepairs','submitRepairWorkflow'],
-    Sales:          ['createInvoices','viewCustomers','viewInvoices','printInvoices','manageCRM','useRepMobile'],
-    Support:        ['viewProducts','viewSerials','viewMaintenance','viewDevices','viewWarranty','viewAlerts','useRepMobile'],
-    Viewer:         ['viewProducts','viewInvoices']
-  };
-  const userPerms = perms[currentUser.role] || [];
-  return userPerms.includes('all') || userPerms.includes(action);
+  const role = _effectiveRole();
+  if (role === 'Owner' || role === 'Admin') return true;
+  if (action === 'all') return false;
+  const effectivePerms = _effectivePermissions();
+  if (effectivePerms) {
+    const mapped = REGISTRY_PERM_BY_ACTION[action];
+    if (mapped) return effectivePerms.includes(mapped);
+    return _legacyRoleCan(action);
+  }
+  return _legacyRoleCan(action);
+}
+
+// Direct registry-permission check for the Phase F management UI actions.
+function canEffective(permission) {
+  if (!currentUser) return false;
+  if (_effectiveRole() === 'Owner' || _effectiveRole() === 'Admin') return true;
+  const effectivePerms = _effectivePermissions();
+  if (effectivePerms) return effectivePerms.includes(permission);
+  return false;
 }
 
 function canAccessPage(page) {
@@ -13777,22 +13939,22 @@ function canAccessPage(page) {
   }
   if (page === 'capital-partners') return canViewCapitalPartners();
   if (page === 'customer-accounts') return canViewArApAccounts();
-  if (page === 'supplier-accounts') return canViewArApAccounts() && currentUser.role !== 'Cashier';
+  if (page === 'supplier-accounts') return canViewArApAccounts() && _effectiveRole() !== 'Cashier';
   if (page === 'fixed-assets') return canViewFixedAssets();
   if (page === 'production') return canViewProductionChecklist();
-  if (page === 'exec-dashboard') return can('all') || can('viewExecutiveDashboard') || currentUser.role === 'Owner' || currentUser.role === 'Admin' || currentUser.role === 'Manager';
+  if (page === 'exec-dashboard') return can('all') || can('viewExecutiveDashboard') || _effectiveRole() === 'Owner' || _effectiveRole() === 'Admin' || _effectiveRole() === 'Manager';
   if (page === 'smart-business') return can('all') || can('viewSmartBusiness') || can('viewSmartBusinessSales') || can('viewSmartBusinessRepairs');
   if (page === 'ai-owner') return can('all') || can('viewAiOwnerAssistant');
   if (page === 'automation') return can('all') || can('viewAutomationCenter');
   if (page === 'approvals') return can('all') || can('viewWorkflow') || can('approveWorkflow') || can('submitWorkflow') || can('submitRepairWorkflow');
   if (page === 'plugins') return can('all') || can('viewPluginCenter');
-  if (page === 'documents') return currentUser && ['Owner','Admin','Manager','Cashier','Technician'].includes(currentUser.role);
-  if (page === 'recovery') return currentUser && ['Owner','Admin','Manager','Cashier','Technician'].includes(currentUser.role);
-  if (page === 'performance-engine') return can('all') || currentUser.role === 'Admin';
-  if (page === 'qa-center') return can('all') || currentUser.role === 'Admin' || currentUser.role === 'Manager';
-  if (page === 'supabase-diagnostic') return can('all') || currentUser.role === 'Manager';
-  if (page === 'training-center') return currentUser && ['Owner','Admin','Manager','Cashier','Technician'].includes(currentUser.role);
-  if (page === 'command-center') return can('all') || currentUser.role === 'Manager';
+  if (page === 'documents') return currentUser && ['Owner','Admin','Manager','Cashier','Technician'].includes(_effectiveRole());
+  if (page === 'recovery') return currentUser && ['Owner','Admin','Manager','Cashier','Technician'].includes(_effectiveRole());
+  if (page === 'performance-engine') return can('all') || _effectiveRole() === 'Admin';
+  if (page === 'qa-center') return can('all') || _effectiveRole() === 'Admin' || _effectiveRole() === 'Manager';
+  if (page === 'supabase-diagnostic') return can('all') || _effectiveRole() === 'Manager';
+  if (page === 'training-center') return currentUser && ['Owner','Admin','Manager','Cashier','Technician'].includes(_effectiveRole());
+  if (page === 'command-center') return can('all') || _effectiveRole() === 'Manager';
   if (page === 'live-sync') return !!currentUser;
   if (page === 'pwa') return !!currentUser;
   if (can('all')) return true;
@@ -14039,7 +14201,7 @@ function applyPermissions() {
     const page = el.dataset.page;
     let show = true;
     if (page && !canAccessPage(page)) show = false;
-    if (page === 'alerts-center' && !['Owner', 'Admin', 'Manager'].includes(currentUser?.role)) show = false;
+    if (page === 'alerts-center' && !['Owner', 'Admin', 'Manager'].includes(_effectiveRole())) show = false;
     el.style.display = show ? 'flex' : 'none';
   });
   document.querySelectorAll('.nav-dropdown').forEach(drop => {
@@ -34653,64 +34815,414 @@ function exportAuditTrail(type = 'csv') {
 }
 
 // ================= USERS =================
+const MODULE_LABELS = {
+  sales: 'المبيعات', purchases: 'المشتريات', inventory: 'المخزون', products: 'المنتجات',
+  customers: 'العملاء', suppliers: 'الموردين', treasury: 'الخزينة', reports: 'التقارير',
+  dashboard: 'لوحة التحكم', users: 'المستخدمين', audit: 'سجل المراجعة', company: 'الشركة',
+  settings: 'الإعدادات', expenses: 'المصروفات'
+};
+
+// Phase F — uniform backend error surfacing. Backend is authoritative; every
+// 4xx envelope reaches here with { message, statusCode, details:{code} }.
+function friendlyBackendError(res) {
+  if (!res || !res.statusCode) {
+    return { msg: 'تعذر الاتصال بالخادم', code: null };
+  }
+  const code = (res.details && res.details.code) || null;
+  if (res.statusCode === 409 && code === 'LAST_OWNER_PROTECTION') {
+    return { msg: 'لا يمكن تعديل أو تعطيل أو حذف آخر مالك في الشركة', code };
+  }
+  if (code === 'ACCOUNT_DISABLED') return { msg: 'الحساب معطّل', code };
+  if (res.statusCode === 403) return { msg: 'ليس لديك صلاحية لهذا الإجراء', code };
+  if (res.statusCode === 401) return { msg: 'انتهت صلاحية الجلسة — سجّل الدخول مرة أخرى', code };
+  if (res.statusCode >= 500) return { msg: 'خطأ في الخادم — حاول مرة أخرى', code };
+  return { msg: res.message ? String(res.message) : 'حدث خطأ أثناء تنفيذ العملية', code };
+}
+
+let phaseFUsersCache = [];
+let userModalMode = 'create';
+let userEditId = null;
+
 function openUserModal() {
+  userModalMode = 'create';
+  userEditId = null;
+  document.getElementById('userModalTitle').textContent = '➕ إضافة مستخدم';
   document.getElementById('newFullName').value = '';
   document.getElementById('newUsername').value = '';
+  document.getElementById('newUsername').readOnly = false;
   document.getElementById('newPassword').value = '';
   document.getElementById('newUserPhone').value = '';
   document.getElementById('newRole').value = 'Sales';
   openModal('userModal');
 }
 
+function openEditUserModal(idx) {
+  if (!canEffective('users.edit')) { permissionDenied(); return; }
+  const u = phaseFUsersCache[idx];
+  if (!u || u.id == null) { showToast('المستخدم غير موجود', 'error'); return; }
+  userModalMode = 'edit';
+  userEditId = String(u.id);
+  document.getElementById('userModalTitle').textContent = '✏️ تعديل مستخدم — ' + (u.username || '');
+  document.getElementById('newFullName').value = u.fullName || '';
+  document.getElementById('newUsername').value = u.username || '';
+  document.getElementById('newUsername').readOnly = true;
+  document.getElementById('newPassword').value = '';
+  document.getElementById('newUserPhone').value = u.phone || '';
+  document.getElementById('newRole').value = ['Manager', 'Admin', 'Cashier', 'Technician', 'Sales', 'Support', 'Viewer'].includes(u.role) ? u.role : 'Sales';
+  openModal('userModal');
+}
+
+async function saveUserForm() {
+  if (userModalMode === 'edit') return saveEditUser();
+  return addNewUser();
+}
+
 async function addNewUser() {
-  if (!requirePermission('manageUsers')) return;
+  if (USE_BACKEND) {
+    if (!canEffective('users.create')) { permissionDenied(); return; }
+  } else if (!requirePermission('manageUsers')) return;
   const fullName = document.getElementById('newFullName').value.trim();
   const username = document.getElementById('newUsername').value.trim();
   const password = document.getElementById('newPassword').value;
   const phone = document.getElementById('newUserPhone').value.trim();
   const role = document.getElementById('newRole').value;
   if (!username || !password) { showToast('أدخل اسم المستخدم وكلمة المرور', 'error'); return; }
-  if (DB.users.find(u => u.username === username)) { showToast('اسم المستخدم موجود مسبقاً', 'error'); return; }
-  const newUser = { username, password, role, fullName, phone, pinVerified: true };
-  // Phase 23B: create in backend when enabled
+  const newUser = { username, password, role, fullName, phone };
   if (USE_BACKEND && backendApi && backendApi.users) {
-    try {
-      const res = await backendApi.users.create(newUser);
-      if (res && res.success && res.data) {
-        newUser._backendId = res.data.id || null;
-        newUser._syncedToBackend = true;
-      }
-    } catch (_) {}
+    const res = await backendApi.users.create(newUser);
+    if (!res || !res.success || !res.data) {
+      const f = friendlyBackendError(res);
+      showToast(f.msg, 'error');
+      return;
+    }
+    newUser._backendId = res.data.id || null;
+    newUser._syncedToBackend = true;
+  } else {
+    if (DB.users.find(u => u.username === username)) { showToast('اسم المستخدم موجود مسبقاً', 'error'); return; }
+    DB.users.push({ ...newUser, pinVerified: true });
+    saveDB();
   }
-  DB.users.push(newUser);
-  saveDB();
   closeModal('userModal');
   renderUsers();
-  showToast('تم إضافة المستخدم');
+  showToast('✅ تم إضافة المستخدم');
   logActivity('إضافة مستخدم', username);
+}
+
+async function saveEditUser() {
+  if (!canEffective('users.edit')) { permissionDenied(); return; }
+  const username = document.getElementById('newUsername').value.trim();
+  const fullName = document.getElementById('newFullName').value.trim();
+  const phone = document.getElementById('newUserPhone').value.trim();
+  const role = document.getElementById('newRole').value;
+  const password = document.getElementById('newPassword').value;
+  const payload = { fullName, phone, role };
+  if (password) payload.password = password;
+  if (!USE_BACKEND) {
+    const u = DB.users.find(x => x.username === username);
+    if (!u) return;
+    Object.assign(u, payload);
+    saveDB();
+    closeModal('userModal');
+    renderUsers();
+    showToast('✅ تم تحديث المستخدم');
+    logActivity('تعديل مستخدم', username);
+    return;
+  }
+  const res = await backendApi.users.update(userEditId, payload);
+  if (res && res.success) {
+    closeModal('userModal');
+    renderUsers();
+    showToast('✅ تم تحديث المستخدم');
+    logActivity('تعديل مستخدم', username);
+  } else {
+    const f = friendlyBackendError(res);
+    showToast(f.msg, 'error');
+  }
 }
 
 async function renderUsers() {
   const tbody = document.getElementById('usersTbody');
-  // Phase 23B: fetch from backend when enabled
-  let users = DB.users;
-  if (USE_BACKEND && typeof digitronicsDataAdapter !== 'undefined') {
-    try { users = await digitronicsDataAdapter.listUsers(); } catch (_) {}
+  if (!USE_BACKEND) {
+    // Legacy/local rendering — untouched prior behavior.
+    let users = DB.users;
+    const visible = (users || []).filter(u => !u.hidden);
+    const roleLabel = r => r==='Manager'?'👑 أدمن':r==='WarehouseSales'?'🛒 بائع/مخزن':r==='Sales'?'💼 مبيعات':r==='Support'?'🔧 دعم':'👁️ مشاهد';
+    tbody.innerHTML = visible.map((u, idx) => `<tr>
+      <td>${idx + 1}</td>
+      <td><div style="font-weight:700">${escapeHtml(u.username)}</div><div style="font-size:0.72rem;color:var(--text2)">${u.fullName || ''}</div></td>
+      <td>${roleLabel(u.role)}</td>
+      <td>${u.phone || '-'}</td>
+      <td>${u.pinVerified ? '<span class="badge badge-green">✅ مؤكد</span>' : '<span class="badge badge-yellow">⏳ بانتظار PIN</span>'}</td>
+      <td>
+        ${isOwnerUser() && u.username !== currentUser.username
+          ? `<button class="btn btn-sm btn-danger" onclick="deleteUser('${escapeHtml(u.username)}')">🗑️</button>`
+          : ''}
+      </td>
+    </tr>`).join('') || '<tr><td colspan="6" style="text-align:center">لا يوجد مستخدمين</td></tr>';
+    return;
   }
-  const visible = (users || []).filter(u => !u.hidden);
-  const roleLabel = r => r==='Manager'?'👑 أدمن':r==='WarehouseSales'?'🛒 بائع/مخزن':r==='Sales'?'💼 مبيعات':r==='Support'?'🔧 دعم':'👁️ مشاهد';
-  tbody.innerHTML = visible.map((u, idx) => `<tr>
-    <td>${idx + 1}</td>
-    <td><div style="font-weight:700">${escapeHtml(u.username)}</div><div style="font-size:0.72rem;color:var(--text2)">${u.fullName || ''}</div></td>
-    <td>${roleLabel(u.role)}</td>
-    <td>${u.phone || '-'}</td>
-    <td>${u.pinVerified ? '<span class="badge badge-green">✅ مؤكد</span>' : '<span class="badge badge-yellow">⏳ بانتظار PIN</span>'}</td>
-    <td>
-      ${isOwnerUser() && u.username !== currentUser.username
-        ? `<button class="btn btn-sm btn-danger" onclick="deleteUser('${escapeHtml(u.username)}')">🗑️</button>`
-        : ''}
-    </td>
-  </tr>`).join('') || '<tr><td colspan="6" style="text-align:center">لا يوجد مستخدمين</td></tr>';
+
+  // Phase F — backend-authoritative rendering, actions gated by the ACTOR's
+  // effective permissions (/auth/me). Backend remains the enforcement layer.
+  let users = [];
+  try { users = await digitronicsDataAdapter.listUsers(); } catch (_) {}
+  const rows = (Array.isArray(users) ? users : []).filter(u => !u.hidden);
+  phaseFUsersCache = rows;
+  const selfUsername = currentUser ? currentUser.username : '';
+  const canView = canEffective('users.view');
+  const canEdit = canEffective('users.edit');
+  const canPermsView = canEffective('users.permissions.view');
+  const canPass = canEffective('users.password.reset');
+  const canDisable = canEffective('users.disable');
+  const canEnable = canEffective('users.enable');
+  const canDelete = canEffective('users.delete');
+  const addBtn = document.getElementById('addUserBtn');
+  if (addBtn) addBtn.style.display = canEffective('users.create') ? '' : 'none';
+  if (!canView) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center">ليس لديك صلاحية لعرض المستخدمين</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map((u, idx) => {
+    const isSelf = String(u.username || '') === String(selfUsername);
+    const disabled = u.status === 'disabled';
+    const statusHtml = disabled
+      ? '<span class="badge badge-red">⏹️ معطل</span>'
+      : '<span class="badge badge-green">✅ نشط</span>';
+    let actions = '';
+    if (canView) actions += `<button class="btn btn-sm btn-outline" title="عرض" onclick="openUserViewModal(${idx})">👁️</button>`;
+    if (canEdit && !isSelf) actions += `<button class="btn btn-sm btn-outline" title="تعديل" onclick="openEditUserModal(${idx})">✏️</button>`;
+    if (canPermsView) actions += `<button class="btn btn-sm btn-outline" title="الصلاحيات" onclick="openPermissionsModal(${idx})">🧩</button>`;
+    if (canPass && !isSelf) actions += `<button class="btn btn-sm btn-outline" title="إعادة تعيين كلمة المرور" onclick="openChangePassModal(${idx})">🔑</button>`;
+    if (canDisable && !disabled && !isSelf) actions += `<button class="btn btn-sm btn-warning" title="تعطيل" onclick="confirmUserEnableState('disable',${idx})">⏹️</button>`;
+    if (canEnable && disabled && !isSelf) actions += `<button class="btn btn-sm btn-outline" title="تفعيل" onclick="confirmUserEnableState('enable',${idx})">▶️</button>`;
+    if (canDelete && !isSelf) actions += `<button class="btn btn-sm btn-danger" title="حذف" onclick="confirmDeleteUser(${idx})">🗑️</button>`;
+    if (!actions) actions = '<span style="color:var(--text2);font-size:.72rem">—</span>';
+    return `<tr>
+      <td>${idx + 1}</td>
+      <td><div style="font-weight:700">${escapeHtml(u.username || '')}</div><div style="font-size:0.72rem;color:var(--text2)">${escapeHtml(u.fullName || '')}</div></td>
+      <td>${getRoleLabel(u.role)}</td>
+      <td>${escapeHtml(u.phone || '-')}</td>
+      <td>${statusHtml}</td>
+      <td><div style="display:flex;gap:4px;flex-wrap:wrap">${actions}</div></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="6" style="text-align:center">لا يوجد مستخدمين</td></tr>';
+}
+
+async function openUserViewModal(idx) {
+  if (!canEffective('users.view')) { permissionDenied(); return; }
+  const u = phaseFUsersCache[idx];
+  if (!u || u.id == null) { showToast('المستخدم غير موجود', 'error'); return; }
+  const body = document.getElementById('userViewBody');
+  body.innerHTML = '<div style="color:var(--text2)">جاري التحميل...</div>';
+  openModal('userViewModal');
+  let rec = u;
+  const res = await backendApi.users.getById(String(u.id));
+  if (res && res.success && res.data) rec = res.data;
+  const rows = [['اسم المستخدم', rec.username], ['الاسم الكامل', rec.fullName], ['الدور', getRoleLabel(rec.role)], ['الموبايل', rec.phone], ['البريد', rec.email], ['الحالة', rec.status === 'disabled' ? '⏹️ معطل' : '✅ نشط'], ['آخر تسجيل دخول', rec.lastLogin], ['تاريخ الإنشاء', rec.createdAt]];
+  body.innerHTML = '<table class="data-table" style="width:100%"><tbody>' + rows.map(r => `<tr><td style="color:var(--text2);width:38%">${escapeHtml(r[0])}</td><td style="font-weight:600">${escapeHtml(r[1] || '-')}</td></tr>`).join('') + '</tbody></table>';
+}
+
+async function confirmUserEnableState(action, idx) {
+  const u = phaseFUsersCache[idx];
+  if (!u || u.id == null) return;
+  const label = action === 'disable' ? 'تعطيل' : 'تفعيل';
+  if (!confirm(`تأكيد ${label} المستخدم "${u.username}"؟`)) return;
+  if (action === 'disable' && !canEffective('users.disable')) { permissionDenied(); return; }
+  if (action === 'enable' && !canEffective('users.enable')) { permissionDenied(); return; }
+  const res = action === 'disable' ? await backendApi.users.disable(String(u.id)) : await backendApi.users.enable(String(u.id));
+  if (res && res.success) { showToast('✅ تم ' + label + ' المستخدم'); renderUsers(); }
+  else { const f = friendlyBackendError(res); showToast(f.msg, 'error'); renderUsers(); }
+}
+
+async function confirmDeleteUser(idx) {
+  const u = phaseFUsersCache[idx];
+  if (!u || u.id == null) return;
+  if (!canEffective('users.delete')) { permissionDenied(); return; }
+  if (!confirm(`حذف المستخدم "${u.username}" نهائياً؟`)) return;
+  const res = await backendApi.users.delete(String(u.id));
+  if (res && res.success) { showToast('✅ تم حذف المستخدم'); renderUsers(); }
+  else { const f = friendlyBackendError(res); showToast(f.msg, 'error'); renderUsers(); }
+}
+
+// ============ Permission Matrix (Phase F) ============
+let permMatrixTarget = null;      // { id, username }
+let permMatrixGroups = [];        // snapshot of permissionGroups from GET
+let permMatrixChecked = {};       // permission name -> desired boolean
+
+async function openPermissionsModal(idx) {
+  if (!canEffective('users.permissions.view')) { permissionDenied(); return; }
+  const u = phaseFUsersCache[idx];
+  if (!u || u.id == null) { showToast('المستخدم غير موجود', 'error'); return; }
+  const errEl = document.getElementById('permMatrixError');
+  if (errEl) errEl.style.display = 'none';
+  document.getElementById('permMatrixTitle').textContent = u.username || u.id;
+  document.getElementById('permMatrixBody').innerHTML = '<div style="padding:16px;color:var(--text2)">جاري تحميل الصلاحيات...</div>';
+  openModal('permissionsModal');
+  const res = await backendApi.users.getPermissions(String(u.id));
+  if (!res || !res.success || !res.data) {
+    const f = friendlyBackendError(res);
+    if (errEl) { errEl.textContent = f.msg; errEl.style.display = 'block'; }
+    document.getElementById('permMatrixBody').innerHTML = '';
+    return;
+  }
+  const d = res.data;
+  permMatrixTarget = { id: String(u.id), username: u.username || u.id };
+  permMatrixGroups = Array.isArray(d.permissionGroups) ? d.permissionGroups : [];
+  permMatrixChecked = {};
+  for (const g of permMatrixGroups) {
+    for (const p of (Array.isArray(g.permissions) ? g.permissions : [])) {
+      permMatrixChecked[String(p.name)] = !!p.effective;
+    }
+  }
+  renderPermissionMatrix();
+}
+
+function renderPermissionMatrix() {
+  const body = document.getElementById('permMatrixBody');
+  if (!permMatrixTarget) { body.innerHTML = ''; return; }
+  const CRUD_VERBS = ['view', 'create', 'edit', 'delete'];
+  const crudModules = [];
+  const specialGroups = [];
+  for (const g of permMatrixGroups) {
+    const names = g.permissions.map(p => String(p.name || ''));
+    const verbs = names.map(n => n.split('.').pop());
+    const isCrud = g.group !== 'users' && names.length === 4 && CRUD_VERBS.every(v => verbs.includes(v));
+    if (isCrud) crudModules.push(g); else specialGroups.push(g);
+  }
+  const cell = (name) => `<input type="checkbox" data-fullperm="${escapeHtml(String(name))}" data-module="${escapeHtml(String(name).split('.')[0])}" data-verb="${escapeHtml(String(name).split('.').pop())}" ${permMatrixChecked[name] ? 'checked' : ''} onchange="permMatrixOnToggle(this)">`;
+  let html = '<table class="data-table" style="width:100%"><thead><tr><th style="text-align:right">الوحدة</th>' +
+    CRUD_VERBS.map(v => `<th style="text-align:center"><span style="cursor:pointer;color:var(--accent)" onclick="permMatrixToggleVerb('${v}')">${v === 'view' ? 'عرض' : v === 'create' ? 'إضافة' : v === 'edit' ? 'تعديل' : 'حذف'}</span></th>`).join('') +
+    '</tr></thead><tbody>';
+  if (crudModules.length) {
+    for (const g of crudModules) {
+      const byVerb = {};
+      g.permissions.forEach(p => { byVerb[p.name.split('.').pop()] = p.name; });
+      html += `<tr>
+        <td style="text-align:right"><span style="cursor:pointer;font-weight:700" onclick="permMatrixToggleModule('${escapeHtml(String(g.group))}')">${escapeHtml(MODULE_LABELS[g.group] || g.group)}</span></td>
+        <td style="text-align:center">${cell(byVerb.view)}</td>
+        <td style="text-align:center">${cell(byVerb.create)}</td>
+        <td style="text-align:center">${cell(byVerb.edit)}</td>
+        <td style="text-align:center">${cell(byVerb.delete)}</td>
+      </tr>`;
+    }
+  } else {
+    html += '<tr><td colspan="5" style="text-align:center;color:var(--text2)">لا توجد وحدات CRUD</td></tr>';
+  }
+  html += '</tbody></table>';
+  if (specialGroups.length) {
+    html += '<div style="margin-top:14px;font-weight:700;font-size:.85rem">صلاحيات خاصة</div>';
+    for (const g of specialGroups) {
+      html += `<div style="margin:8px 0 4px;font-size:.75rem;color:var(--text2);font-weight:700">${escapeHtml(MODULE_LABELS[g.group] || g.group)}</div>`;
+      for (const p of g.permissions) {
+        const name = String(p.name);
+        html += `<label style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;margin:2px;font-size:.8rem;cursor:pointer;background:var(--surface2);border-radius:7px;border:1px solid var(--border)">
+          <input type="checkbox" data-fullperm="${escapeHtml(name)}" ${permMatrixChecked[name] ? 'checked' : ''} onchange="permMatrixOnToggle(this)"> ${escapeHtml(name)}
+        </label>`;
+      }
+    }
+  }
+  body.innerHTML = html;
+}
+
+function permMatrixUpdateState(cb) {
+  const full = cb.getAttribute('data-fullperm');
+  if (full) permMatrixChecked[full] = cb.checked;
+}
+
+function permMatrixOnToggle(cb) {
+  permMatrixUpdateState(cb);
+}
+
+function permMatrixToggleModule(module) {
+  const body = document.getElementById('permMatrixBody');
+  const boxes = body.querySelectorAll('input[data-module="' + module + '"]');
+  let count = boxes.length, checked = 0;
+  boxes.forEach(cb => { if (cb.checked) checked++; });
+  const setTo = checked === count ? false : true;
+  boxes.forEach(cb => { cb.checked = setTo; permMatrixUpdateState(cb); });
+}
+
+function permMatrixToggleVerb(verb) {
+  const body = document.getElementById('permMatrixBody');
+  const boxes = body.querySelectorAll('input[data-verb="' + verb + '"]');
+  let count = boxes.length, checked = 0;
+  boxes.forEach(cb => { if (cb.checked) checked++; });
+  const setTo = checked === count ? false : true;
+  boxes.forEach(cb => { cb.checked = setTo; permMatrixUpdateState(cb); });
+}
+
+function permMatrixSetAll(value) {
+  const body = document.getElementById('permMatrixBody');
+  body.querySelectorAll('input[type="checkbox"]').forEach(cb => { cb.checked = value; permMatrixUpdateState(cb); });
+}
+
+async function savePermissionsMatrix() {
+  const errEl = document.getElementById('permMatrixError');
+  if (errEl) errEl.style.display = 'none';
+  if (!permMatrixTarget) return;
+  const overrides = {};
+  for (const name of Object.keys(permMatrixChecked)) overrides[name] = !!permMatrixChecked[name];
+  const res = await backendApi.users.updatePermissions(permMatrixTarget.id, overrides);
+  if (res && res.success) {
+    closeModal('permissionsModal');
+    showToast('✅ تم حفظ الصلاحيات');
+    renderUsers();
+  } else {
+    const f = friendlyBackendError(res);
+    if (errEl) { errEl.textContent = f.msg; errEl.style.display = 'block'; }
+  }
+}
+
+// ============ My Account change password (Phase F, self-service) ============
+function openChangeMyPasswordModal() {
+  ['mypCurrentPass', 'mypNewPass', 'mypConfirmPass'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+  const err = document.getElementById('mypError');
+  if (err) err.style.display = 'none';
+  openModal('changeMyPasswordModal');
+}
+
+function forceReturnToLogin(message) {
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+  localStorage.removeItem(SESSION_USER_KEY);
+  showToast(message);
+  setTimeout(() => location.reload(), 1200);
+}
+
+async function saveChangeMyPassword() {
+  const cur = document.getElementById('mypCurrentPass').value;
+  const np = document.getElementById('mypNewPass').value;
+  const cp = document.getElementById('mypConfirmPass').value;
+  const errEl = document.getElementById('mypError');
+  const showErr = (m) => { if (errEl) { errEl.textContent = m; errEl.style.display = 'block'; } };
+  if (!cur || !np) { showErr('أدخل كلمة المرور الحالية والجديدة'); return; }
+  if (np.length < 8) { showErr('كلمة المرور الجديدة أقل من 8 أحرف'); return; }
+  if (np !== cp) { showErr('كلمتا المرور غير متطابقتين'); return; }
+  if (!USE_BACKEND) {
+    const u = DB.users.find(x => x.username === currentUser.username);
+    if (!u || u.password !== cur) { showErr('كلمة المرور الحالية غير صحيحة'); return; }
+    u.password = np;
+    saveDB();
+    closeModal('changeMyPasswordModal');
+    showToast('✅ تم تغيير كلمة المرور');
+    logActivity('تغيير كلمة المرور الخاصة', currentUser.username);
+    return;
+  }
+  const res = await backendApi.auth.changePassword(cur, np);
+  if (res && res.success) {
+    closeModal('changeMyPasswordModal');
+    // tokenVersion bump invalidates the current access/refresh tokens.
+    forceReturnToLogin('✅ تم تغيير كلمة المرور — الرجاء تسجيل الدخول من جديد');
+    return;
+  }
+  const f = friendlyBackendError(res);
+  // 401 on change-password means the CURRENT password is wrong (not a session
+  // problem) — surface that specifically instead of the generic session message.
+  let msg;
+  if (res && res.statusCode === 401) msg = 'كلمة المرور الحالية غير صحيحة';
+  else if (f.code === 'PASSWORD_POLICY_VIOLATION') msg = 'كلمة المرور لا تطابق سياسة النظام';
+  else msg = f.msg;
+  showErr(msg);
 }
 
 // ================= PIN / WHATSAPP AUTH =================
@@ -38861,27 +39373,53 @@ function applyAdminControls() {
 }
 
 // ================= CHANGE PASSWORD (ADMIN ONLY) =================
-function openChangePassModal() {
-  if (!can('manageUsers')) { showToast('للإدمن فقط', 'error'); return; }
-  const sel = document.getElementById('cpUserSel');
-  sel.innerHTML = DB.users.map(u => `<option value="${escapeHtml(u.username)}">${escapeHtml(u.username)} (${u.role})</option>`).join('');
+function openChangePassModal(idx) {
+  if (USE_BACKEND) {
+    if (!canEffective('users.password.reset')) { permissionDenied(); return; }
+    const options = (phaseFUsersCache || []).filter(u => String(u.username || '') !== String(currentUser ? currentUser.username : ''))
+      .map(u => `<option value="${escapeHtml(String(u.id))}">${escapeHtml(u.username || u.id)} (${getRoleLabel(u.role)})</option>`).join('');
+    document.getElementById('cpUserSel').innerHTML = options;
+    if (idx !== undefined && idx !== null && phaseFUsersCache[idx]) {
+      const tid = String(phaseFUsersCache[idx].id);
+      const o = document.getElementById('cpUserSel').querySelector('option[value="' + escapeHtml(tid) + '"]');
+      if (o) o.selected = true;
+    }
+  } else {
+    if (!can('manageUsers')) { showToast('للإدمن فقط', 'error'); return; }
+    document.getElementById('cpUserSel').innerHTML = DB.users.map(u => `<option value="${escapeHtml(u.username)}">${escapeHtml(u.username)} (${u.role})</option>`).join('');
+  }
   document.getElementById('cpNewPass').value = '';
   document.getElementById('cpConfirmPass').value = '';
   openModal('changePassModal');
 }
-function saveChangePassword() {
-  const username = document.getElementById('cpUserSel').value;
+async function saveChangePassword() {
   const np = document.getElementById('cpNewPass').value;
   const cp = document.getElementById('cpConfirmPass').value;
   if (!np) { showToast('أدخل كلمة المرور', 'error'); return; }
   if (np !== cp) { showToast('كلمتا المرور غير متطابقتين', 'error'); return; }
-  const u = DB.users.find(x => x.username === username);
-  if (!u) return;
-  u.password = np;
-  saveDB();
-  closeModal('changePassModal');
-  showToast(`✅ تم تغيير كلمة مرور ${username}`);
-  logActivity('تغيير كلمة مرور', username);
+  const sel = document.getElementById('cpUserSel');
+  if (!sel.value) { showToast('اختر مستخدماً', 'error'); return; }
+  if (!USE_BACKEND) {
+    const username = sel.value;
+    const u = DB.users.find(x => x.username === username);
+    if (!u) return;
+    u.password = np;
+    saveDB();
+    closeModal('changePassModal');
+    showToast(`✅ تم تغيير كلمة مرور ${username}`);
+    logActivity('تغيير كلمة مرور', username);
+    return;
+  }
+  const selText = sel.selectedOptions && sel.selectedOptions[0] ? sel.selectedOptions[0].text : sel.value;
+  const res = await backendApi.users.resetPassword(sel.value, np);
+  if (res && res.success) {
+    closeModal('changePassModal');
+    showToast('✅ تم إعادة تعيين كلمة المرور');
+    logActivity('إعادة تعيين كلمة مرور', selText);
+  } else {
+    const f = friendlyBackendError(res);
+    showToast(f.msg, 'error');
+  }
 }
 
 // ================= QUOTATIONS =================

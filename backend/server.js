@@ -1,3 +1,4 @@
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -29,8 +30,31 @@ const schedulerService = require('./services/scheduler.service');
 
 const app = express();
 
-// Global middleware
-app.use(helmet());
+// Global middleware. The default helmet CSP would block the frontend's
+// inline scripts and CDN modules when the API process also serves the static
+// app (single-process mode). The directives below mirror the project's own
+// nginx.conf posture ('unsafe-inline' for the app's inline scripts/styles)
+// plus the exact external hosts index.html loads. Everything else stays
+// locked down (no eval, no frames, no objects).
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      // script-src-attr must NOT be pinned to 'none': the app is a legacy
+      // single-file build with inline onclick handlers, and the project's own
+      // nginx.conf already allows 'unsafe-inline'. Leaving the directive out
+      // makes attribute handlers fall back to script-src ('unsafe-inline').
+      scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdnjs.cloudflare.com', 'https://cdn.jsdelivr.net'],
+      scriptSrcAttr: ["'self'", "'unsafe-inline'"], // overrides helmet's default 'none'
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
+      imgSrc: ["'self'", 'data:'],
+      connectSrc: ["'self'", 'https://api.github.com', 'https://fkcaexpuagvxaljremzm.supabase.co', 'wss://fkcaexpuagvxaljremzm.supabase.co', 'https://cdn.jsdelivr.net'],
+      frameSrc: ["'none'"],
+      objectSrc: ["'none'"]
+    }
+  }
+}));
 if (config.corsOrigins) {
   // Restricted CORS: comma-separated allowlist via CORS_ORIGINS.
   app.use(cors({ origin: config.corsOrigins.split(',').map(s => s.trim()), credentials: true }));
@@ -172,6 +196,41 @@ app.use('/api/v1/vouchers', validateResource('vouchers'), voucherRoutes);
 app.use('/api/v1/dashboard', validateResource('dashboard'), dashboardRoutes);
 app.use('/api/v1/reports', validateResource('reports'), reportsRoutes);
 app.use('/api/v1/users', validateResource('users'), usersRoutes);
+
+// ===== Static frontend (single-process production serving) =====
+// The frontend is a plain static tree at the repository root (index.html,
+// services/, plugins/, icons/, manifest.json, sw.js). Serving it from the
+// API process makes ONE command run the entire application:
+//   npm start   (repo root)  ->  node backend/server.js
+// This mount runs last, so /api/* and /api-docs keep priority. Only the
+// frontend-visible tree is exposed: backend internals, dotfiles, VCS
+// metadata and runtime stores are denied outright (never served).
+const FRONTEND_ROOT = path.resolve(__dirname, '..');
+const PRIVATE_PREFIXES = [
+  'backend', '.git', '.github', '.freebuff', '.vercel', '.vscode',
+  'node_modules', 'releases', 'release', 'backups', 'archive', 'database',
+  'deploy', 'docs', 'documentation', 'tests', 'test-results',
+  'customerrollout', 'supabase', 'coverage', 'dist', 'build'
+];
+// Scratch/dev files at the repo root that must never be served.
+const PRIVATE_FILE_PATTERNS = ['diffnames.txt', 'diffstat.txt', 'PHASE72_DISCOVERY.txt', '.bak', '.log', '.tmp'];
+function frontendPrivateGuard(req, res, next) {
+  const decoded = decodeURIComponent(req.path || '/');
+  const first = decoded.replace(/^\/+/, '').split('/')[0] || '';
+  if (first && PRIVATE_PREFIXES.includes(first.toLowerCase())) {
+    return res.status(403).end();
+  }
+  const lower = decoded.toLowerCase();
+  if (PRIVATE_FILE_PATTERNS.some((p) => lower.includes(p.toLowerCase()))) {
+    return res.status(403).end();
+  }
+  next();
+}
+app.use('/', frontendPrivateGuard, express.static(FRONTEND_ROOT, {
+  dotfiles: 'deny',
+  index: 'index.html',
+  fallthrough: true
+}));
 
 // Error handling
 app.use(notFound);
