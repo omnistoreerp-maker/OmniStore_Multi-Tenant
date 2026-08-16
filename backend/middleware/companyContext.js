@@ -25,6 +25,7 @@ const ContextFactory = require('../context/ContextFactory');
 const RequestContext = require('../context/RequestContext');
 const TenantContext = require('../tenant/TenantContext');
 const CompanyService = require('../services/company.service');
+const tenantStore = require('./tenantStore');
 
 function companyContext(req, res, next) {
   if (!config.multiCompanyLoginEnabled) {
@@ -67,6 +68,11 @@ function companyContext(req, res, next) {
   req.requestContext = context;
   req.tenantContext = tenant;
   req.company = company;
+
+  // Wire the tenant context into the request-scoped store
+  // so repositories can access it during login.
+  tenantStore.set({ tenantId: String(company.id) });
+
   return next();
 }
 

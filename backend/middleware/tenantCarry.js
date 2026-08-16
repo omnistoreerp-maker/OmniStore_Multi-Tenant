@@ -36,8 +36,13 @@ const CompanyService = require('../services/company.service');
 const ContextFactory = require('../context/ContextFactory');
 const requestContextLike = require('../context/RequestContext');
 const TenantContext = require('../tenant/TenantContext');
+const tenantStore = require('./tenantStore');
 
 function tenantCarry(req, res, next) {
+  // Always clear the tenant store at the start of each request
+  // to prevent stale tenant context from a previous request.
+  tenantStore.clear();
+
   if (!config.tenantCarryEnabled) return next();
 
   const user = req.user;
@@ -72,6 +77,11 @@ function tenantCarry(req, res, next) {
   req.requestContext = context;
   req.tenantContext = tenant;
   req.company = company;
+
+  // Wire the tenant context into the request-scoped store
+  // so repositories can access it without the request object.
+  tenantStore.set({ tenantId: String(company.id) });
+
   return next();
 }
 

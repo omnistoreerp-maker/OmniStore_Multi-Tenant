@@ -5,6 +5,7 @@ const tenantMembership = require('../services/tenantMembership.service');
 const tenantRole = require('../services/tenantRole.service');
 const authorization = require('../services/authorization.service');
 const auditService = require('../services/audit.service');
+const CompanyService = require('../services/company.service');
 const { success, error } = require('../utils/apiResponse');
 const logger = require('../utils/logger');
 const { signAccessToken, signRefreshToken, verifyRefreshToken } = require('../utils/jwt');
@@ -135,6 +136,13 @@ function refresh(req, res) {
       return error(res, 'Invalid or expired refresh token', 401);
     }
 
+    // P0-004 — a disabled account cannot obtain a fresh access token. Mirrors
+    // the Phase E login gate so refresh can never become a bypass for disabled
+    // users.
+    if (user.status === 'disabled') {
+      return error(res, 'User is disabled', 403, { code: 'ACCOUNT_DISABLED' });
+    }
+
     // Phase 19 — preserve the securely-carried tenant across a refresh. The
     // refresh token embeds tenantId via the same _claims; forward it into the
     // freshly minted access token ONLY when the feature is enabled and the
@@ -145,10 +153,36 @@ function refresh(req, res) {
         ? String(payload.tenantId)
         : undefined;
 
+    // P0-004 — a carried tenant is a context HINT, never an authorization
+    // grant. Before minting a new access token, re-validate against CURRENT
+    // server-side state:
+    //   1. the company must still exist and be active;
+    //   2. the user's membership must still include that tenant (when the
+    //      membership feature is on and the user holds a membership).
+    // Any lapse rejects the refresh — no new token, no stale context.
+    if (carriedTenantId) {
+      const company = CompanyService.getCompany(carriedTenantId);
+      if (!company || company.active === false) {
+        return error(res, 'Invalid or expired refresh token', 401);
+      }
+      if (config.tenantUserMembershipEnabled && tenantMembership.isTenantDenied(user, carriedTenantId)) {
+        return error(res, 'User is not a member of the selected company', 403);
+      }
+    }
+
     const tokenIdentity = carriedTenantId ? { ...user, tenantId: carriedTenantId } : user;
     const accessToken = signAccessToken(tokenIdentity);
+
+    // P0-004 — resolve the effective role from the CURRENT user record so a
+    // role change (e.g. Admin -> Cashier) is reflected immediately. Additive
+    // field mirroring the login response; absent when the feature is off or no
+    // tenant is carried, exactly like login.
+    const result = { accessToken };
+    if (config.tenantRolesEnabled && carriedTenantId) {
+      result.effectiveRole = tenantRole.resolveEffectiveRole(user, carriedTenantId);
+    }
     res.cookie('access_token', accessToken, { httpOnly: true, sameSite: 'lax', secure: IS_PROD, path: '/', maxAge: 15 * 60 * 1000 });
-    success(res, { accessToken }, 'Token refreshed');
+    success(res, result, 'Token refreshed');
   } catch (err) {
     logger.error('auth.refresh error:', err.message);
     error(res, 'Failed to refresh token', 500);

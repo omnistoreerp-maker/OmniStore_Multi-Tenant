@@ -16,12 +16,21 @@ class OAuthService {
 
       const existingByProvider = this._findByProvider(provider, providerId);
       if (existingByProvider) {
+        // P0-004 — a disabled account must not mint fresh tokens through a
+        // second authentication path. Mirrors the Phase E login gate.
+        if (existingByProvider.status === 'disabled') {
+          return { error: 'User is disabled' };
+        }
         return { user: existingByProvider, isNew: false };
       }
 
       if (email) {
         const existingByEmail = usersService.getByUsername(email);
         if (existingByEmail) {
+          // P0-004 — same disabled-account gate for the email-match path.
+          if (existingByEmail.status === 'disabled') {
+            return { error: 'User is disabled' };
+          }
           if (!existingByEmail.oauth) existingByEmail.oauth = {};
           existingByEmail.oauth[provider] = providerId;
           existingByEmail.oauthProvider = provider;

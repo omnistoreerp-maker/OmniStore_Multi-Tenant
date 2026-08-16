@@ -9,9 +9,15 @@
 // store (e.g. future tenant registry) only requires a new entry here.
 
 const BaseRepository = require('./BaseRepository');
+const tenantStore = require('../middleware/tenantStore');
+
+// Tenant accessor that reads from the request-scoped tenant store.
+// This allows repositories to obtain the current tenant without
+// requiring the request object.
+const tenantAccessor = tenantStore.createAccessor();
 
 function repository(storeName) {
-  return new BaseRepository(storeName);
+  return new BaseRepository(storeName, tenantAccessor);
 }
 
 module.exports = {
