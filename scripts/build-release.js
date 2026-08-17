@@ -32,6 +32,7 @@ const INCLUDE = [
   'manifest.json',
   'sw.js',
   'icons',
+  'services',
   'backend',
   'scripts/install-windows.ps1',
   'scripts/build-release.js'

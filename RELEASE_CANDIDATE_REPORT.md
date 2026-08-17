@@ -156,3 +156,23 @@ Tests:       1049 passed, 1049 total
 provisioning, daily operations, restart persistence, tenant isolation, in-app updates with
 checksum verification and atomic swap, and automatic rollback on failure. **First-company go-live:
 READY.**
+
+---
+
+## 14. Phase 37 Refresh (2026-08-17)
+
+A fresh `releases/OmniStore-1.0.0.zip` was rebuilt from HEAD (`b99591a` + Phase 37 hardening) and
+re-validated:
+
+- SHA-256: `9c8d0defe00666176776efaa6743bdf3315a6f3f1868d3426bc90b8bb6cb1845`
+- Includes Phase 34 navigation/UX, Phase 35 tenant/platform/async consolidation, the dashboard
+  builder fix, and the UAT version fixes.
+- **Release-build defect fixed:** `scripts/build-release.js` previously omitted the `services/`
+  tree even though `sw.js` caches `./services/**` (331 references) and `index.html` loads 29
+  `services/` files at runtime — the shipped PWA shell would have failed to install. The INCLUDE
+  list now ships `services/`.
+- Update/rollback re-validated end-to-end in an isolated install: 1.0.0 → 1.0.1 update applied
+  (SHA-256 verified, backup retained, health OK) and a deliberately broken 1.0.2 rolled back to
+  1.0.1 (health-fail → restore → restart → ROLLBACK OK).
+- Test matrix at refresh: Jest 87 suites / 1182 tests PASS; modulePlatform 10/10, pluginSdk 16/16,
+  uat 1/1, uatFeedback 1/1.

@@ -50,7 +50,7 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
       imgSrc: ["'self'", 'data:'],
-      connectSrc: ["'self'", 'https://api.github.com', 'https://fkcaexpuagvxaljremzm.supabase.co', 'wss://fkcaexpuagvxaljremzm.supabase.co', 'https://cdn.jsdelivr.net'],
+      connectSrc: ["'self'", 'https://api.github.com', 'https://cdn.jsdelivr.net'],
       frameSrc: ["'none'"],
       objectSrc: ["'none'"]
     }
@@ -294,14 +294,22 @@ if (require.main === module) {
     process.exit(1);
   });
 
+  // Phase 37 — production startup safety: refuse to boot with the weak
+  // development JWT secret, and loudly warn about disabled auth / open CORS
+  // (both are legitimately used during bootstrap / same-origin installs).
+  const prodChecks = config.validateProductionConfig();
+  if (prodChecks.fatal.length > 0) {
+    logger.error('Refusing to start: unsafe production configuration.');
+    prodChecks.fatal.forEach(msg => logger.error('  - ' + msg));
+    process.exit(1);
+  }
+  prodChecks.warnings.forEach(msg => logger.warn('Production warning: ' + msg));
+
   // Start background job worker and scheduler (recoverable, in-process).
   jobService.startWorker({ concurrency: 1 });
   schedulerService.start();
 
   const server = app.listen(config.port, () => {
-    if (config.isProduction && config.jwtSecret === 'dev-secret') {
-      logger.warn('JWT_SECRET is not set — using the development default. Set JWT_SECRET in production.');
-    }
     logger.info(`DigiTronics API v1.0 running on port ${config.port}`);
     logger.info(`Health check: http://localhost:${config.port}/api/v1/health`);
   });

@@ -32,3 +32,4 @@ backend/.env.local
 # Runtime JSON stores (regenerated on every run — never version them)
 backend/data/apiKeys.json
 backend/data/auditLog.json
+backend/data/users.json

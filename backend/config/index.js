@@ -80,3 +80,34 @@ module.exports = {
     key: process.env.SUPABASE_KEY || ''
   }
 };
+
+// Production safety validation (Phase 37). Pure and side-effect free so it can
+// be unit-tested without booting the server. Returns { fatal, warnings }.
+// Development / test environments always pass (no-op).
+//
+// Policy:
+//   - FATAL (refuse to boot): the weak development JWT secret in production.
+//     No documented production flow ever uses 'dev-secret'; an attacker who
+//     knows it can forge any access token.
+//   - WARN (loud, non-fatal): authentication disabled or open CORS. These are
+//     legitimate in two documented flows — the Koyeb bootstrap creates the
+//     first Owner with AUTH_REQUIRED=false, and the single-process Windows
+//     install serves same-origin with CORS_ORIGINS empty — so they must not
+//     block boot, but they must never be silent.
+function validateProductionConfig(cfg = module.exports) {
+  const fatal = [];
+  const warnings = [];
+  if (!cfg.isProduction) return { fatal, warnings };
+  if (!cfg.jwtSecret || cfg.jwtSecret === 'dev-secret') {
+    fatal.push('JWT_SECRET is not set to a strong value in production (the development default is unsafe). Set JWT_SECRET before boot.');
+  }
+  if (!cfg.authRequired) {
+    warnings.push('AUTH_REQUIRED is false in production: all /api/v1 business routes are open. Enable it after the first Owner bootstrap.');
+  }
+  if (!cfg.corsOrigins) {
+    warnings.push('CORS_ORIGINS is empty in production: CORS is open. Set a comma-separated allowlist unless the API is served same-origin.');
+  }
+  return { fatal, warnings };
+}
+
+module.exports.validateProductionConfig = validateProductionConfig;
