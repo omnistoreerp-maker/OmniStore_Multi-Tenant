@@ -164,7 +164,7 @@ READY.**
 A fresh `releases/OmniStore-1.0.0.zip` was rebuilt from HEAD (`b99591a` + Phase 37 hardening) and
 re-validated:
 
-- SHA-256: `9c8d0defe00666176776efaa6743bdf3315a6f3f1868d3426bc90b8bb6cb1845`
+- SHA-256: `a05b2f5533a28d8b01b14cf8b3ecd7f4cabcd69e77ef396972f5aba58021e415`
 - Includes Phase 34 navigation/UX, Phase 35 tenant/platform/async consolidation, the dashboard
   builder fix, and the UAT version fixes.
 - **Release-build defect fixed:** `scripts/build-release.js` previously omitted the `services/`
@@ -176,3 +176,13 @@ re-validated:
   1.0.1 (health-fail → restore → restart → ROLLBACK OK).
 - Test matrix at refresh: Jest 87 suites / 1182 tests PASS; modulePlatform 10/10, pluginSdk 16/16,
   uat 1/1, uatFeedback 1/1.
+
+### Final artifact (Phase 38.1)
+
+The release was rebuilt after Phase 38.1 with the final SHA above (20,464,553 bytes, version
+1.0.0) and verified:
+
+- plugins 24/24, templates 19/19, services complete
+- SW shell assets 381/381, index.html local scripts 331/331 (0 missing)
+- real isolated update 1.0.0 → 1.0.1 applied with plugins/templates surviving the swap
+  (SHA-256 verified, backup retained, health OK)
