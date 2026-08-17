@@ -33,6 +33,8 @@ const INCLUDE = [
   'sw.js',
   'icons',
   'services',
+  'plugins',
+  'templates',
   'backend',
   'scripts/install-windows.ps1',
   'scripts/build-release.js'
