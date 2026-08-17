@@ -95,7 +95,7 @@ function run() {
   assert.strictEqual(manifest.name, 'OmniStore ERP');
   assert.ok(manifest.icons.length >= 2);
   const sw = fs.readFileSync(path.join(projectRoot, 'sw.js'), 'utf8');
-  assert.ok(/omnistore-erp-v(22-uat-readiness|23-demo-polish|24-uat-feedback|25-client-handoff|26-master-release|27-configuration-preview|28-data-layer-preview|29-auth-preview|30-tenancy-preview|31-deployment-simulation|32-real-supabase-installer|33-customer-provisioning)/.test(sw));
+  assert.ok(/omnistore-erp-v(22-uat-readiness|23-demo-polish|24-uat-feedback|25-client-handoff|26-master-release|27-configuration-preview|28-data-layer-preview|29-auth-preview|30-tenancy-preview|31-deployment-simulation|32-real-supabase-installer|33-customer-provisioning|44-dashboard-v6-sw-reload-v2|45-cairotech-isolation-v1)/.test(sw));
   assert.ok(sw.includes('./services/uat/UATEngine.js'));
   assert.ok(sw.includes('./services/uat/uatUi.js'));
 

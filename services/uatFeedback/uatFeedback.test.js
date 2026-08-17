@@ -82,7 +82,7 @@ function run() {
   assert.strictEqual(/حفظ الملاحظة|Save Feedback|Post Feedback/i.test(source), false);
 
   const sw = fs.readFileSync(path.join(projectRoot, 'sw.js'), 'utf8');
-  assert.ok(/omnistore-erp-v(24-uat-feedback|25-client-handoff|26-master-release|27-configuration-preview|28-data-layer-preview|29-auth-preview|30-tenancy-preview|31-deployment-simulation|32-real-supabase-installer|33-customer-provisioning)/.test(sw));
+  assert.ok(/omnistore-erp-v(24-uat-feedback|25-client-handoff|26-master-release|27-configuration-preview|28-data-layer-preview|29-auth-preview|30-tenancy-preview|31-deployment-simulation|32-real-supabase-installer|33-customer-provisioning|44-dashboard-v6-sw-reload-v2|45-cairotech-isolation-v1)/.test(sw));
   assert.ok(sw.includes('./services/uatFeedback/UATFeedbackEngine.js'));
   assert.ok(sw.includes('./services/uatFeedback/uatFeedbackUi.js'));
 
@@ -92,7 +92,7 @@ function run() {
     'PHASE18_FEEDBACK_REPORT_20260629.md',
     'PHASE18_ROLLBACK_REPORT_20260629.md',
     'CUSTOMER_FEEDBACK_TEMPLATE_20260629.md'
-  ].forEach(file => assert.ok(fs.existsSync(path.join(projectRoot, file)), `Missing ${file}`));
+  ].forEach(file => assert.ok(fs.existsSync(path.join(projectRoot, 'docs', file)), `Missing docs/${file}`));
 
   return { tests: 40, temporaryFeedbackItems: engine.count(), categories: feedback.FeedbackCategoryRegistry.CATEGORIES.length };
 }
