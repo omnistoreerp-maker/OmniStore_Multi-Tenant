@@ -6,9 +6,24 @@ const { validatePassword } = require('../utils/passwordPolicy');
 const { trustedTenantId } = require('../middleware/authorize');
 const authorization = require('../services/authorization.service');
 const registry = require('../permissions/registry');
+const CompanyService = require('../services/company.service');
+
+// Phase: company-scoped user management — authenticated READ access to the
+// user directory requires `users.view` (Owner/Admin/Manager). Unauthenticated
+// requests keep the historical legacy view exactly as before (backward
+// compatible; the userDto suite exercises it). Permission is checked against
+// the trusted tenant so it can never be bypassed with a forged tenant header.
+function _requireReadPermission(req, res) {
+  if (!req.user) return true;
+  const tenantId = trustedTenantId(req);
+  if (authorization.hasPermission(req.user, 'users.view', tenantId)) return true;
+  error(res, 'Insufficient permission', 403, { code: 'PERMISSION_DENIED' });
+  return false;
+}
 
 function list(req, res) {
   try {
+    if (!_requireReadPermission(req, res)) return;
     const scope = _readTenantScope(req);
     const result = usersService.list(req.query, scope);
     result.users = result.users.map(usersService.sanitizeUser);
@@ -21,6 +36,7 @@ function list(req, res) {
 
 function getById(req, res) {
   try {
+    if (!_requireReadPermission(req, res)) return;
     const user = usersService.getById(req.params.id);
     if (!user) return error(res, 'User not found', 404);
     // Phase G — trusted-tenant read scope: a record bound to another tenant is
@@ -38,6 +54,7 @@ function getById(req, res) {
 
 function getStats(req, res) {
   try {
+    if (!_requireReadPermission(req, res)) return;
     const scope = _readTenantScope(req);
     const result = usersService.stats(scope);
     success(res, result, 'User stats retrieved');
@@ -58,6 +75,16 @@ function _readTenantScope(req) {
 
 function create(req, res) {
   try {
+    const tenantId = trustedTenantId(req);
+
+    // Tenant mode — creating a user inside the current company. The server
+    // binds the new user to the TRUSTED tenant (never a client-chosen one),
+    // validates the role and branch, and records USER_CREATED.
+    if (tenantId !== undefined && tenantId !== null) {
+      return createTenantScoped(req, res, String(tenantId));
+    }
+
+    // Legacy / unauthenticated — exactly the historical behavior, unchanged.
     const result = usersService.create(req.body);
     if (result.error) return error(res, result.error, 400);
     success(res, usersService.sanitizeUser(result.user), 'User created', 201);
@@ -65,6 +92,86 @@ function create(req, res) {
     logger.error('users.create error:', err.message);
     error(res, 'Failed to create user', 500);
   }
+}
+
+// Company-scoped user creation. The signed JWT tenantId / tenantContext is the
+// ONLY authority for the tenant; the client can never choose the company the
+// user is created in. Enforces: authentication, cross-tenant POST protection,
+// role-assignment rank, branch membership, and secret-free audit.
+function createTenantScoped(req, res, tenantId) {
+  if (!req.user) return error(res, 'Authentication required', 401);
+
+  const body = req.body || {};
+  const role = String(body.role || 'Cashier');
+  const branchId = body.branchId === undefined || body.branchId === null ? undefined : String(body.branchId);
+
+  // 1. Cross-tenant POST protection: any client-supplied tenant identity must
+  //    agree with the trusted tenant. A foreign tenantId/tenantIds/tenantRoles
+  //    is rejected outright — membership is bound server-side only.
+  const claimed = [];
+  if (body.tenantId !== undefined && body.tenantId !== null) claimed.push(body.tenantId);
+  if (Array.isArray(body.tenantIds)) claimed.push(...body.tenantIds);
+  else if (body.tenantIds !== undefined && body.tenantIds !== null) claimed.push(body.tenantIds);
+  if (body.tenantRoles && typeof body.tenantRoles === 'object' && !Array.isArray(body.tenantRoles)) {
+    claimed.push(...Object.keys(body.tenantRoles));
+  }
+  for (const c of claimed) {
+    if (c != null && String(c) !== tenantId) {
+      return error(res, 'Cannot create a user outside the current tenant', 403, { code: 'PERMISSION_DENIED' });
+    }
+  }
+
+  // 2. The actor needs the users.create permission in this tenant
+  //    (Owner/Admin bypass via hasPermission), then role assignment must be
+  //    rank-permitted (a Manager can never create an equal-or-higher role).
+  if (!authorization.hasPermission(req.user, 'users.create', tenantId)) {
+    return error(res, 'Insufficient permission to create users', 403, { code: 'PERMISSION_DENIED' });
+  }
+  if (!authorization.canManageRole(req.user, role, tenantId)) {
+    return error(res, 'Insufficient permission to assign this role', 403, { code: 'PERMISSION_DENIED' });
+  }
+
+  // 3. Branch (when provided) must belong to the current company — never to
+  //    another company.
+  if (branchId && branchId !== '') {
+    const company = CompanyService.getCompany(tenantId);
+    const branches = (company && Array.isArray(company.branches)) ? company.branches : [];
+    const valid = branches.some(b => b && (String(b.id || '') === branchId || String(b.code || '') === branchId));
+    if (!valid) {
+      return error(res, 'Branch does not belong to the current company', 400, { code: 'INVALID_BRANCH' });
+    }
+  }
+
+  // 4. Server-authoritative payload: strip any client tenant claims and stamp
+  //    the trusted tenant's membership + role onto the record.
+  const payload = { ...body };
+  delete payload.tenantId;
+  payload.tenantIds = [tenantId];
+  payload.tenantRoles = { ...(body.tenantRoles && typeof body.tenantRoles === 'object' ? body.tenantRoles : {}), [tenantId]: role };
+  if (branchId) payload.branchId = branchId;
+
+  const result = usersService.create(payload);
+  if (result.error) {
+    const status = /^Duplicate /.test(result.error) ? 409 : 400;
+    return error(res, result.error, status);
+  }
+
+  try {
+    auditService.record({
+      method: 'POST',
+      path: '/api/v1/users',
+      statusCode: 201,
+      userId: req.user.id,
+      action: 'USER_CREATED',
+      resource: 'user',
+      resourceId: result.user.id,
+      changes: { tenantId, role, branchId: branchId || null, targetUsername: result.user.username }
+    });
+  } catch (err) {
+    logger.error('users.create audit error:', err.message);
+  }
+
+  success(res, usersService.sanitizeUser(result.user), 'User created', 201);
 }
 
 function update(req, res) {
@@ -100,7 +207,20 @@ function update(req, res) {
       }
     }
 
-    const result = usersService.update(targetId, req.body);
+    // Phase: company-scoped user management — a role change on a user that has
+    // an explicit per-tenant role must also update that tenant's entry, or the
+    // change would be a silent no-op (effective role resolves from tenantRoles).
+    // Legacy users WITHOUT a per-tenant role keep the historical global-role
+    // update exactly as before (record shape untouched).
+    const updatePayload = { ...req.body };
+    if (tenantId && req.body && req.body.role !== undefined && req.body.role !== target.role) {
+      const existing = (target.tenantRoles && typeof target.tenantRoles === 'object') ? target.tenantRoles : {};
+      if (Object.prototype.hasOwnProperty.call(existing, tenantId)) {
+        updatePayload.tenantRoles = { ...existing, [tenantId]: req.body.role };
+      }
+    }
+
+    const result = usersService.update(targetId, updatePayload);
     if (result.error === 'User not found') return error(res, result.error, 404);
     if (result.error) return error(res, result.error, 400);
 

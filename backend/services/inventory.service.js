@@ -3,13 +3,25 @@ const logger = require('../utils/logger');
 const repository = require('../repositories').products;
 
 class InventoryService {
-  _load() {
-    const db = repository.read();
+  async _load() {
+    const db = await repository.readAsync();
     if (!db || typeof db !== 'object') return { products: [] };
     if (!Array.isArray(db.products)) db.products = [];
     return db;
   }
-  _save(db) { return repository.write(db); }
+  async _save(db) { return repository.writeAsync(db); }
+
+  // FULL, unfiltered store document for WRITES (BaseRepository._rawStore
+  // rule): a write must never persist a tenant-filtered snapshot that could
+  // drop other tenants' records from the shared document. Products are
+  // GLOBAL (no tenantId) so this is a no-op safety net today, kept for the
+  // same reason Customers uses it.
+  async _loadRaw() {
+    const db = await repository._rawStoreAsync();
+    if (!db || typeof db !== 'object') return { products: [] };
+    if (!Array.isArray(db.products)) db.products = [];
+    return db;
+  }
 
   _validateRequired(data, forCreate) {
     const errors = [];
@@ -29,8 +41,8 @@ class InventoryService {
     return this._normalizeId(product.id) === normalized || this._normalizeId(product._backendId || '') === normalized;
   }
 
-  list(query = {}) {
-    const db = this._load();
+  async list(query = {}) {
+    const db = await this._load();
     let products = db.products || [];
 
     if (query.search || query.name) {
@@ -75,14 +87,14 @@ class InventoryService {
     return { products: paginated, total, page, limit, totalPages };
   }
 
-  getById(id) {
-    const db = this._load();
+  async getById(id) {
+    const db = await this._load();
     const normalized = this._normalizeId(id);
     return (db.products || []).find(p => this._matchesId(p, normalized)) || null;
   }
 
-  stats() {
-    const db = this._load();
+  async stats() {
+    const db = await this._load();
     const products = db.products || [];
     const categories = new Set();
     const brands = new Set();
@@ -95,11 +107,11 @@ class InventoryService {
     return { count: products.length, serialized, categories: categories.size, brands: brands.size };
   }
 
-  create(data) {
+  async create(data) {
     const errors = this._validateRequired(data, true);
     if (errors.length) return { error: errors.join('; ') };
 
-    const db = this._load();
+    const db = await this._loadRaw();
     const product = {
       id: data.id !== undefined && data.id !== null ? data.id : uuidv4(),
       ...data,
@@ -114,12 +126,12 @@ class InventoryService {
 
     if (!Array.isArray(db.products)) db.products = [];
     db.products.push(product);
-    if (this._save(db)) return { product };
+    if (await this._save(db)) return { product };
     return { error: 'Failed to persist product' };
   }
 
-  update(id, data) {
-    const db = this._load();
+  async update(id, data) {
+    const db = await this._loadRaw();
     const normalized = this._normalizeId(id);
     const idx = (db.products || []).findIndex(p => this._matchesId(p, normalized));
     if (idx === -1) return { error: 'Product not found' };
@@ -128,17 +140,17 @@ class InventoryService {
     if (errors.length) return { error: errors.join('; ') };
 
     db.products[idx] = { ...db.products[idx], ...data, id: db.products[idx].id, updatedAt: new Date().toISOString() };
-    if (this._save(db)) return { product: db.products[idx] };
+    if (await this._save(db)) return { product: db.products[idx] };
     return { error: 'Failed to persist update' };
   }
 
-  delete(id) {
-    const db = this._load();
+  async delete(id) {
+    const db = await this._loadRaw();
     const normalized = this._normalizeId(id);
     const idx = (db.products || []).findIndex(p => this._matchesId(p, normalized));
     if (idx === -1) return { error: 'Product not found' };
     db.products.splice(idx, 1);
-    if (this._save(db)) return { success: true };
+    if (await this._save(db)) return { success: true };
     return { error: 'Failed to persist deletion' };
   }
 }

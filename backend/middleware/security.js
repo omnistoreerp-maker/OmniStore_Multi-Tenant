@@ -1,4 +1,5 @@
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
 const { error: errorResponse } = require('../utils/apiResponse');
 
 // Recursively remove dangerous keys from parsed JSON bodies:
@@ -58,7 +59,9 @@ function loginRateLimiter() {
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator(req) {
-      const ip = req.ip || req.connection.remoteAddress || 'unknown';
+      // Use the library's ipKeyGenerator helper (normalizes IPv6 subnets and
+      // satisfies express-rate-limit v8's keyGeneratorIpFallback validation).
+      const ip = ipKeyGenerator(req.ip || req.connection.remoteAddress || 'unknown');
       const username = (req.body && req.body.username) ? String(req.body.username).toLowerCase() : '';
       return `${ip}:${username}`;
     },
@@ -75,7 +78,7 @@ function apiKeyRateLimiter(max) {
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator(req) {
-      return (req.apiKey && req.apiKey.id) ? req.apiKey.id : (req.ip || 'unknown');
+      return (req.apiKey && req.apiKey.id) ? req.apiKey.id : ipKeyGenerator(req.ip || 'unknown');
     },
     message: { success: false, message: 'API key rate limit exceeded, please try again later', data: null }
   });

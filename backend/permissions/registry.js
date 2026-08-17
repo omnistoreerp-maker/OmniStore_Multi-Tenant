@@ -31,7 +31,7 @@ const REAL_GROUPS = [
     ]
   },
   { group: 'audit', permissions: ['audit.view'] },
-  { group: 'company', permissions: ['company.view'] },
+  { group: 'company', permissions: ['company.view', 'company.create'] },
   { group: 'settings', permissions: ['settings.view', 'settings.edit'] }
 ];
 

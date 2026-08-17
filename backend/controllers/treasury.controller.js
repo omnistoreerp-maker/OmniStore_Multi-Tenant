@@ -2,9 +2,9 @@ const treasuryService = require('../services/treasury.service');
 const { success, error } = require('../utils/apiResponse');
 const logger = require('../utils/logger');
 
-function list(req, res) {
+async function list(req, res) {
   try {
-    const result = treasuryService.list(req.query);
+    const result = await treasuryService.list(req.query);
     success(res, result, 'Treasury entries retrieved');
   } catch (err) {
     logger.error('treasury.list error:', err.message);
@@ -12,9 +12,9 @@ function list(req, res) {
   }
 }
 
-function getById(req, res) {
+async function getById(req, res) {
   try {
-    const entry = treasuryService.getById(req.params.id);
+    const entry = await treasuryService.getById(req.params.id);
     if (!entry) return error(res, 'Treasury entry not found', 404);
     success(res, entry, 'Treasury entry retrieved');
   } catch (err) {
@@ -23,9 +23,9 @@ function getById(req, res) {
   }
 }
 
-function getStats(req, res) {
+async function getStats(req, res) {
   try {
-    const result = treasuryService.stats();
+    const result = await treasuryService.stats();
     success(res, result, 'Treasury stats retrieved');
   } catch (err) {
     logger.error('treasury.stats error:', err.message);
@@ -33,9 +33,9 @@ function getStats(req, res) {
   }
 }
 
-function create(req, res) {
+async function create(req, res) {
   try {
-    const result = treasuryService.create(req.body);
+    const result = await treasuryService.create(req.body);
     if (result.error) return error(res, result.error, 400);
     success(res, result.entry, 'Treasury entry created', 201);
   } catch (err) {
@@ -44,9 +44,9 @@ function create(req, res) {
   }
 }
 
-function update(req, res) {
+async function update(req, res) {
   try {
-    const result = treasuryService.update(req.params.id, req.body);
+    const result = await treasuryService.update(req.params.id, req.body);
     if (result.error === 'Treasury entry not found') return error(res, result.error, 404);
     if (result.error) return error(res, result.error, 400);
     success(res, result.entry, 'Treasury entry updated');
@@ -56,9 +56,9 @@ function update(req, res) {
   }
 }
 
-function remove(req, res) {
+async function remove(req, res) {
   try {
-    const result = treasuryService.delete(req.params.id);
+    const result = await treasuryService.delete(req.params.id);
     if (result.error === 'Treasury entry not found') return error(res, result.error, 404);
     if (result.error) return error(res, result.error, 500);
     success(res, null, 'Treasury entry deleted');

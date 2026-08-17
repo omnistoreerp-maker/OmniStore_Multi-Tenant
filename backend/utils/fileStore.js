@@ -64,6 +64,21 @@ const fileStore = {
     }
   },
 
+  // Fresh durable-state read that BYPASSES the in-memory read cache.
+  // Returns the current on-disk document even when the cached copy may have
+  // been mutated in memory by a caller (the repository whole-document diff
+  // needs the state as it was at the START of a write). Read-only: never
+  // mutates the cache and never creates the file.
+  readRaw(name) {
+    const filePath = this._path(name);
+    try {
+      if (!fs.existsSync(filePath)) return _empty(name);
+      return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    } catch (err) {
+      return _empty(name);
+    }
+  },
+
   write(name, data) {
     this._ensureDir();
     const filePath = this._path(name);

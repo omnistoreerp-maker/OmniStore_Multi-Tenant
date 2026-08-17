@@ -39,7 +39,7 @@ const { requireAuth } = require('../middleware/auth');
  *                 type: array
  *                 items:
  *                   type: string
- *                 description: Event types to receive (default: sale/inventory events)
+ *                 description: Event types to receive (defaults to sale and inventory events)
  *               secret:
  *                 type: string
  *                 description: Optional custom signing secret (auto-generated if omitted)

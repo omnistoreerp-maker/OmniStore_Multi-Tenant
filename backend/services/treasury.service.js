@@ -3,13 +3,39 @@ const logger = require('../utils/logger');
 const repository = require('../repositories').treasury;
 
 class TreasuryService {
-  _load() {
-    const db = repository.read();
+  // Tenant-FILTERED read view (list/get/stats). With ENABLE_TENANT_FILTERING
+  // on, the repository hides other tenants' records here.
+  async _load() {
+    const db = await repository.readAsync();
     if (!db || typeof db !== 'object') return { entries: [] };
     if (!Array.isArray(db.entries)) db.entries = [];
     return db;
   }
-  _save(db) { return repository.write(db); }
+  async _save(db) { return repository.writeAsync(db); }
+
+  // FULL, unfiltered store document for WRITES (BaseRepository._rawStore
+  // rule): a write must never persist a tenant-filtered snapshot that could
+  // drop other tenants' records. Ownership is gated explicitly below.
+  async _loadRaw() {
+    const db = await repository._rawStoreAsync();
+    if (!db || typeof db !== 'object') return { entries: [] };
+    if (!Array.isArray(db.entries)) db.entries = [];
+    return db;
+  }
+
+  // Cross-tenant write guard (same rule as Customers / InventoryTransactions):
+  // a record claiming a DIFFERENT tenantId is never modified/deleted by this
+  // request — treated as not-found (404). Legacy records (no tenantId) stay
+  // writable. No-op when no tenant is carried (legacy single-company mode).
+  _ownershipBlocked(entry) {
+    if (!repository.hasTenant()) return false;
+    if (!entry || typeof entry !== 'object') return true;
+    const tid = entry.tenantId;
+    if (tid === undefined || tid === null || tid === '') return false;
+    const current = repository.getCurrentTenant();
+    const currentId = current && (current.tenantId != null ? current.tenantId : current.id);
+    return currentId == null || String(tid) !== String(currentId);
+  }
 
   _validateRequired(data, forCreate) {
     const errors = [];
@@ -33,8 +59,8 @@ class TreasuryService {
     return this._normalizeId(entry.id) === normalized || this._normalizeId(entry._backendId || '') === normalized;
   }
 
-  list(query = {}) {
-    const db = this._load();
+  async list(query = {}) {
+    const db = await this._load();
     let entries = db.entries || [];
 
     if (query.search) {
@@ -93,14 +119,14 @@ class TreasuryService {
     return { entries: paginated, total, page, limit, totalPages };
   }
 
-  getById(id) {
-    const db = this._load();
+  async getById(id) {
+    const db = await this._load();
     const normalized = this._normalizeId(id);
     return (db.entries || []).find(e => this._matchesId(e, normalized)) || null;
   }
 
-  stats() {
-    const db = this._load();
+  async stats() {
+    const db = await this._load();
     const entries = db.entries || [];
     let cashIn = 0, cashOut = 0;
     entries.forEach(e => {
@@ -111,11 +137,11 @@ class TreasuryService {
     return { count: entries.length, cashIn, cashOut };
   }
 
-  create(data) {
+  async create(data) {
     const errors = this._validateRequired(data, true);
     if (errors.length) return { error: errors.join('; ') };
 
-    const db = this._load();
+    const db = await this._loadRaw();
     const entry = {
       id: data.id !== undefined && data.id !== null ? data.id : uuidv4(),
       ...data,
@@ -128,33 +154,47 @@ class TreasuryService {
       return { error: 'Duplicate treasury entry ID: ' + entry.id };
     }
 
+    // Client-supplied tenantId cannot override the server context: when a
+    // tenant is carried, a claimed tenantId must match it (mirrors the entity
+    // API rule used by Sales/Purchases isolation). Foreign claims are rejected
+    // before any persistence.
+    if (entry.tenantId !== undefined && entry.tenantId !== null && entry.tenantId !== '' && repository.hasTenant()) {
+      const current = repository.getCurrentTenant();
+      const currentId = current && (current.tenantId != null ? current.tenantId : current.id);
+      if (currentId != null && String(entry.tenantId) !== String(currentId)) {
+        return { error: 'Invalid tenant claim' };
+      }
+    }
+
     if (!Array.isArray(db.entries)) db.entries = [];
     db.entries.push(entry);
-    if (this._save(db)) return { entry };
+    if (await this._save(db)) return { entry };
     return { error: 'Failed to persist treasury entry' };
   }
 
-  update(id, data) {
-    const db = this._load();
+  async update(id, data) {
+    const db = await this._loadRaw();
     const normalized = this._normalizeId(id);
     const idx = (db.entries || []).findIndex(e => this._matchesId(e, normalized));
     if (idx === -1) return { error: 'Treasury entry not found' };
+    if (this._ownershipBlocked(db.entries[idx])) return { error: 'Treasury entry not found' };
 
     const errors = this._validateRequired(data, false);
     if (errors.length) return { error: errors.join('; ') };
 
     db.entries[idx] = { ...db.entries[idx], ...data, id: db.entries[idx].id, updatedAt: new Date().toISOString() };
-    if (this._save(db)) return { entry: db.entries[idx] };
+    if (await this._save(db)) return { entry: db.entries[idx] };
     return { error: 'Failed to persist update' };
   }
 
-  delete(id) {
-    const db = this._load();
+  async delete(id) {
+    const db = await this._loadRaw();
     const normalized = this._normalizeId(id);
     const idx = (db.entries || []).findIndex(e => this._matchesId(e, normalized));
     if (idx === -1) return { error: 'Treasury entry not found' };
+    if (this._ownershipBlocked(db.entries[idx])) return { error: 'Treasury entry not found' };
     db.entries.splice(idx, 1);
-    if (this._save(db)) return { success: true };
+    if (await this._save(db)) return { success: true };
     return { error: 'Failed to persist deletion' };
   }
 }

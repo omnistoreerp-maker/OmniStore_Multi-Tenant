@@ -284,7 +284,7 @@ class UsersService {
 // persistence) keep the full record untouched.
 const SAFE_USER_FIELDS = [
   'id', 'username', 'fullName', 'role', 'phone', 'email',
-  'tenantIds', 'tenantRoles', 'tenantPermissions',
+  'tenantIds', 'tenantRoles', 'tenantPermissions', 'branchId',
   'mfaEnabled', 'status', 'lastLogin', 'createdAt', 'updatedAt'
 ];
 

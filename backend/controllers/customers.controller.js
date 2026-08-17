@@ -2,9 +2,9 @@ const customersService = require('../services/customers.service');
 const { success, error } = require('../utils/apiResponse');
 const logger = require('../utils/logger');
 
-function list(req, res) {
+async function list(req, res) {
   try {
-    const result = customersService.list(req.query);
+    const result = await customersService.list(req.query);
     success(res, result, 'Customers retrieved');
   } catch (err) {
     logger.error('customers.list error:', err.message);
@@ -12,9 +12,9 @@ function list(req, res) {
   }
 }
 
-function getById(req, res) {
+async function getById(req, res) {
   try {
-    const customer = customersService.getById(req.params.id);
+    const customer = await customersService.getById(req.params.id);
     if (!customer) return error(res, 'Customer not found', 404);
     success(res, customer, 'Customer retrieved');
   } catch (err) {
@@ -23,9 +23,9 @@ function getById(req, res) {
   }
 }
 
-function getStats(req, res) {
+async function getStats(req, res) {
   try {
-    const result = customersService.stats();
+    const result = await customersService.stats();
     success(res, result, 'Customer stats retrieved');
   } catch (err) {
     logger.error('customers.stats error:', err.message);
@@ -33,9 +33,9 @@ function getStats(req, res) {
   }
 }
 
-function create(req, res) {
+async function create(req, res) {
   try {
-    const result = customersService.create(req.body);
+    const result = await customersService.create(req.body);
     if (result.error) return error(res, result.error, 400);
     success(res, result.customer, 'Customer created', 201);
   } catch (err) {
@@ -44,9 +44,9 @@ function create(req, res) {
   }
 }
 
-function update(req, res) {
+async function update(req, res) {
   try {
-    const result = customersService.update(req.params.id, req.body);
+    const result = await customersService.update(req.params.id, req.body);
     if (result.error === 'Customer not found') return error(res, result.error, 404);
     if (result.error) return error(res, result.error, 400);
     success(res, result.customer, 'Customer updated');
@@ -56,9 +56,9 @@ function update(req, res) {
   }
 }
 
-function remove(req, res) {
+async function remove(req, res) {
   try {
-    const result = customersService.delete(req.params.id);
+    const result = await customersService.delete(req.params.id);
     if (result.error === 'Customer not found') return error(res, result.error, 404);
     if (result.error) return error(res, result.error, 500);
     success(res, null, 'Customer deleted');

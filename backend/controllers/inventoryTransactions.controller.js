@@ -2,9 +2,9 @@ const inventoryTransactionsService = require('../services/inventoryTransactions.
 const { success, error } = require('../utils/apiResponse');
 const logger = require('../utils/logger');
 
-function list(req, res) {
+async function list(req, res) {
   try {
-    const result = inventoryTransactionsService.list(req.query);
+    const result = await inventoryTransactionsService.list(req.query);
     success(res, result, 'Inventory transactions retrieved');
   } catch (err) {
     logger.error('inventoryTransactions.list error:', err.message);
@@ -12,9 +12,9 @@ function list(req, res) {
   }
 }
 
-function getById(req, res) {
+async function getById(req, res) {
   try {
-    const transaction = inventoryTransactionsService.getById(req.params.id);
+    const transaction = await inventoryTransactionsService.getById(req.params.id);
     if (!transaction) return error(res, 'Transaction not found', 404);
     success(res, transaction, 'Inventory transaction retrieved');
   } catch (err) {
@@ -23,9 +23,9 @@ function getById(req, res) {
   }
 }
 
-function getStats(req, res) {
+async function getStats(req, res) {
   try {
-    const result = inventoryTransactionsService.stats();
+    const result = await inventoryTransactionsService.stats();
     success(res, result, 'Inventory transaction stats retrieved');
   } catch (err) {
     logger.error('inventoryTransactions.stats error:', err.message);
@@ -33,9 +33,9 @@ function getStats(req, res) {
   }
 }
 
-function create(req, res) {
+async function create(req, res) {
   try {
-    const result = inventoryTransactionsService.create(req.body);
+    const result = await inventoryTransactionsService.create(req.body);
     if (result.error) return error(res, result.error, 400);
     success(res, result.transaction, 'Inventory transaction created', 201);
   } catch (err) {
@@ -44,9 +44,9 @@ function create(req, res) {
   }
 }
 
-function update(req, res) {
+async function update(req, res) {
   try {
-    const result = inventoryTransactionsService.update(req.params.id, req.body);
+    const result = await inventoryTransactionsService.update(req.params.id, req.body);
     if (result.error === 'Transaction not found') return error(res, result.error, 404);
     if (result.error) return error(res, result.error, 400);
     success(res, result.transaction, 'Inventory transaction updated');
@@ -56,9 +56,9 @@ function update(req, res) {
   }
 }
 
-function remove(req, res) {
+async function remove(req, res) {
   try {
-    const result = inventoryTransactionsService.delete(req.params.id);
+    const result = await inventoryTransactionsService.delete(req.params.id);
     if (result.error === 'Transaction not found') return error(res, result.error, 404);
     if (result.error) return error(res, result.error, 500);
     success(res, null, 'Inventory transaction deleted');

@@ -1,4 +1,5 @@
 const dotenv = require('dotenv');
+const path = require('path');
 dotenv.config();
 
 const env = process.env.NODE_ENV || 'development';
@@ -7,6 +8,18 @@ module.exports = {
   env,
   isProduction: env === 'production',
   port: parseInt(process.env.PORT, 10) || 3001,
+
+  // Authoritative application version (single source of truth — read from the
+  // backend package.json). Used by the in-app update rail.
+  appVersion: require('../package.json').version,
+
+  // In-app update rail (Phase C).
+  update: {
+    enabled: process.env.UPDATE_ENABLED !== 'false',
+    manifestPath: process.env.UPDATE_MANIFEST_PATH || path.join(__dirname, '..', 'data', 'updateManifest.json'),
+    checkIntervalMs: parseInt(process.env.UPDATE_CHECK_INTERVAL_MS, 10) || 21600000, // 6h default
+    appRoot: path.resolve(__dirname, '..', '..')
+  },
 
   // Authentication / JWT
   jwtSecret: process.env.JWT_SECRET || 'dev-secret',
@@ -31,6 +44,14 @@ module.exports = {
     number: process.env.PASSWORD_POLICY_NUMBER === 'true',
     special: process.env.PASSWORD_POLICY_SPECIAL === 'true'
   },
+
+  // Platform / Master Control Center (Phase 33).
+  // PLATFORM_ADMINS: comma-separated usernames granted MASTER_OWNER at first
+  // boot of the platform store (server-authoritative; the store can be edited
+  // directly for additional admins). Never derived from tenant state.
+  platformAdmins: (process.env.PLATFORM_ADMINS || '').split(',').map(s => s.trim()).filter(Boolean),
+  // Presence online window: a heartbeat within this many ms counts as online.
+  platformOnlineTimeoutMs: parseInt(process.env.PLATFORM_ONLINE_TIMEOUT_MS, 10) || 90000,
 
   // Observability / integration
   metricsEnabled: process.env.METRICS_ENABLED !== 'false',

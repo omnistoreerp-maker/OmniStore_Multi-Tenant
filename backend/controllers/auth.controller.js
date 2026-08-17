@@ -52,6 +52,17 @@ function login(req, res) {
       return error(res, 'User is disabled', 403, { code: 'ACCOUNT_DISABLED' });
     }
 
+    // Phase 33 — a SUSPENDED company cannot be logged into at all. This is an
+    // explicit rejection (unlike unknown/inactive companies, which silently
+    // fall back to legacy login) so suspended tenants can never re-enter
+    // through the company selector.
+    if (req.body && req.body.company) {
+      const selected = CompanyService.getCompany(req.body.company);
+      if (selected && String(selected.status || '').toUpperCase() === 'SUSPENDED') {
+        return error(res, 'Company is suspended', 403, { code: 'COMPANY_SUSPENDED' });
+      }
+    }
+
     // Phase 16 — tenant membership enforcement at the company-selection
     // boundary. Runs BEFORE any token is generated and only when the feature
     // is enabled. `req.tenantContext` is present here only when companyContext

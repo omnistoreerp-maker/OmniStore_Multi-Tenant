@@ -1,4 +1,4 @@
-const DIGITRONICS_PWA_VERSION = 'omnistore-erp-v44-dashboard-v6-sw-reload-v2';
+const DIGITRONICS_PWA_VERSION = 'omnistore-erp-v45-cairotech-isolation-v1';
 const APP_SHELL_CACHE = DIGITRONICS_PWA_VERSION;
 const APP_SHELL_ASSETS = [
   './',

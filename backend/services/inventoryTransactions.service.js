@@ -3,13 +3,38 @@ const logger = require('../utils/logger');
 const repository = require('../repositories').inventoryTransactions;
 
 class InventoryTransactionsService {
-  _load() {
-    const db = repository.read();
+  // Tenant-FILTERED read view (list/get/stats). With ENABLE_TENANT_FILTERING
+  // on, the repository hides other tenants' records here.
+  async _load() {
+    const db = await repository.readAsync();
     if (!db || typeof db !== 'object') return { transactions: [] };
     if (!Array.isArray(db.transactions)) db.transactions = [];
     return db;
   }
-  _save(db) { return repository.write(db); }
+  async _save(db) { return repository.writeAsync(db); }
+
+  // FULL, unfiltered store document for WRITES (BaseRepository._rawStore
+  // rule): a write must never persist a tenant-filtered snapshot that could
+  // drop other tenants' records. Ownership is gated explicitly below.
+  async _loadRaw() {
+    const db = await repository._rawStoreAsync();
+    if (!db || typeof db !== 'object') return { transactions: [] };
+    if (!Array.isArray(db.transactions)) db.transactions = [];
+    return db;
+  }
+
+  // Cross-tenant write guard (same rule as Customers): a record claiming a
+  // DIFFERENT tenantId is never modified/deleted by this request — treated
+  // as not-found (404). Legacy records (no tenantId) stay writable.
+  _ownershipBlocked(record) {
+    if (!repository.hasTenant()) return false;
+    if (!record || typeof record !== 'object') return true;
+    const tid = record.tenantId;
+    if (tid === undefined || tid === null || tid === '') return false;
+    const current = repository.getCurrentTenant();
+    const currentId = current && (current.tenantId != null ? current.tenantId : current.id);
+    return currentId == null || String(tid) !== String(currentId);
+  }
 
   _validateRequired(data, forCreate) {
     const errors = [];
@@ -29,8 +54,8 @@ class InventoryTransactionsService {
     return this._normalizeId(transaction.id) === normalized || this._normalizeId(transaction._backendId || '') === normalized;
   }
 
-  list(query = {}) {
-    const db = this._load();
+  async list(query = {}) {
+    const db = await this._load();
     let transactions = db.transactions || [];
 
     if (query.productId !== undefined && query.productId !== '') {
@@ -84,14 +109,14 @@ class InventoryTransactionsService {
     return { transactions: paginated, total, page, limit, totalPages };
   }
 
-  getById(id) {
-    const db = this._load();
+  async getById(id) {
+    const db = await this._load();
     const normalized = this._normalizeId(id);
     return (db.transactions || []).find(t => this._matchesId(t, normalized)) || null;
   }
 
-  stats() {
-    const db = this._load();
+  async stats() {
+    const db = await this._load();
     const transactions = db.transactions || [];
     let stockIn = 0, stockOut = 0, adjustments = 0;
     transactions.forEach(t => {
@@ -103,11 +128,11 @@ class InventoryTransactionsService {
     return { count: transactions.length, stockIn, stockOut, adjustments };
   }
 
-  create(data) {
+  async create(data) {
     const errors = this._validateRequired(data, true);
     if (errors.length) return { error: errors.join('; ') };
 
-    const db = this._load();
+    const db = await this._loadRaw();
     const transaction = {
       id: data.id !== undefined && data.id !== null ? data.id : uuidv4(),
       ...data,
@@ -120,33 +145,46 @@ class InventoryTransactionsService {
       return { error: 'Duplicate transaction ID: ' + transaction.id };
     }
 
+    // Client-supplied tenantId cannot override the server context: when a
+    // tenant is carried, a claimed tenantId must match it. Foreign claims are
+    // rejected before any persistence (same rule as Treasury).
+    if (transaction.tenantId !== undefined && transaction.tenantId !== null && transaction.tenantId !== '' && repository.hasTenant()) {
+      const current = repository.getCurrentTenant();
+      const currentId = current && (current.tenantId != null ? current.tenantId : current.id);
+      if (currentId != null && String(transaction.tenantId) !== String(currentId)) {
+        return { error: 'Invalid tenant claim' };
+      }
+    }
+
     if (!Array.isArray(db.transactions)) db.transactions = [];
     db.transactions.push(transaction);
-    if (this._save(db)) return { transaction };
+    if (await this._save(db)) return { transaction };
     return { error: 'Failed to persist transaction' };
   }
 
-  update(id, data) {
-    const db = this._load();
+  async update(id, data) {
+    const db = await this._loadRaw();
     const normalized = this._normalizeId(id);
     const idx = (db.transactions || []).findIndex(t => this._matchesId(t, normalized));
     if (idx === -1) return { error: 'Transaction not found' };
+    if (this._ownershipBlocked(db.transactions[idx])) return { error: 'Transaction not found' };
 
     const errors = this._validateRequired(data, false);
     if (errors.length) return { error: errors.join('; ') };
 
     db.transactions[idx] = { ...db.transactions[idx], ...data, id: db.transactions[idx].id, updatedAt: new Date().toISOString() };
-    if (this._save(db)) return { transaction: db.transactions[idx] };
+    if (await this._save(db)) return { transaction: db.transactions[idx] };
     return { error: 'Failed to persist update' };
   }
 
-  delete(id) {
-    const db = this._load();
+  async delete(id) {
+    const db = await this._loadRaw();
     const normalized = this._normalizeId(id);
     const idx = (db.transactions || []).findIndex(t => this._matchesId(t, normalized));
     if (idx === -1) return { error: 'Transaction not found' };
+    if (this._ownershipBlocked(db.transactions[idx])) return { error: 'Transaction not found' };
     db.transactions.splice(idx, 1);
-    if (this._save(db)) return { success: true };
+    if (await this._save(db)) return { success: true };
     return { error: 'Failed to persist deletion' };
   }
 }

@@ -15,6 +15,14 @@ const fs = require('fs');
 const storageAdapter = require('./storageAdapter');
 const config = require('../config');
 
+// Platform-GLOBAL store names (3B.2-C). These collections are shared across
+// ALL tenants/companies and must NEVER be tenant-stamped, tenant-filtered, or
+// entity-isolated. `products` (the catalog) is the canonical example;
+// apiKeys/errors/jobs/webhooks are the platform-level stores documented as
+// GLOBAL in the 3B.2 discovery report. `companies` is handled separately
+// (company.service.js uses storageAdapter directly, not a repository).
+const GLOBAL_STORES = new Set(['products', 'apiKeys', 'errors', 'jobs', 'webhooks']);
+
 class BaseRepository {
   constructor(storeName, tenantAccessor) {
     this.storeName = storeName;
@@ -65,7 +73,13 @@ class BaseRepository {
   // (updates/imports/old data), and is a pure no-op when the flag is off or
   // no tenant is resolved, keeping existing JSON byte-for-byte identical.
 
+  // Whether this store holds platform-GLOBAL data (never tenant-scoped).
+  _isGlobalStore() {
+    return GLOBAL_STORES.has(this.storeName);
+  }
+
   _shouldStampTenant() {
+    if (this._isGlobalStore()) return false;
     return config.tenantMetadataEnabled && this.hasTenant();
   }
 
@@ -156,6 +170,7 @@ class BaseRepository {
   // wired, no tenant is resolved, or the record has no tenant metadata.
 
   _shouldFilterTenant() {
+    if (this._isGlobalStore()) return false;
     return config.tenantFilteringEnabled && this.hasTenant();
   }
 
@@ -172,6 +187,7 @@ class BaseRepository {
     // ENABLE_TENANT_PURCHASES_ISOLATION (Phase 25) activate the SAME Phase 22
     // boundary but ONLY for their pilot store. This keeps all other
     // repositories 100% unaffected when either flag is set globally.
+    if (this._isGlobalStore()) return false;
     const salesIsolation = config.tenantSalesIsolationEnabled && this.storeName === 'sales';
     const purchasesIsolation = config.tenantPurchasesIsolationEnabled && this.storeName === 'purchases';
     return (config.tenantEntityIsolationEnabled || salesIsolation || purchasesIsolation) && this.hasTenant();
@@ -451,6 +467,190 @@ class BaseRepository {
       return this._isVisibleToTenant(found, tenantId) ? found : null;
     }
     return found;
+  }
+
+  // ============================================================
+  // 3B.2-A — ASYNC API (additive).
+  //
+  // Promise-based counterparts of the synchronous read()/write() and the
+  // Phase 21/22 entity API. They apply the EXACT same tenant rules
+  // (filtering, stamping, ownership isolation) through the same helpers;
+  // only persistence is awaitable. The synchronous methods above remain
+  // untouched, so every existing caller keeps working unchanged.
+  //
+  // The async path never touches the filesystem directly: it goes through
+  // storageAdapter.readRawAsync()/writeAsync(), so a future PostgreSQL
+  // adapter can implement the same contract without repository changes.
+  // ============================================================
+
+  // Async whole-document read with the same read-time tenant filtering as
+  // the synchronous read(). Returns a Promise of the (filtered) document.
+  async readAsync() {
+    const data = await storageAdapter.readAsync(this.storeName);
+    return this._filterTenantData(data);
+  }
+
+  // Async whole-document write with the same CREATE-time tenant stamping as
+  // the synchronous write(). Returns a Promise of the write result.
+  async writeAsync(data) {
+    if (this._shouldStampTenant()) {
+      data = this._stampTenantOnCreate(data);
+    }
+    return storageAdapter.writeAsync(this.storeName, data);
+  }
+
+  // Async counterpart of _readOnDisk(): reads the FULL store document fresh
+  // from the adapter (bypassing the read cache). Entity WRITE operations use
+  // this so a tenant-scoped mutation can never drop another tenant's records
+  // from the shared document; ownership gating is applied explicitly inside
+  // each entity operation (same rules as the synchronous entity API).
+  async _readOnDiskAsync() {
+    return storageAdapter.readRawAsync(this.storeName);
+  }
+
+  async _rawStoreAsync() {
+    return this._readOnDiskAsync();
+  }
+
+  // Async persistence chokepoint for the entity API: assigns the (already
+  // mutated) collection array onto the full store document and persists it
+  // through writeAsync(). Returns a Promise of the write result.
+  async _saveCollectionAsync(collectionName, collection) {
+    if (typeof collectionName !== 'string' || collectionName === '') return false;
+    const db = await this._readOnDiskAsync();
+    if (db == null || typeof db !== 'object') return false;
+    db[collectionName] = collection;
+    return this.writeAsync(db);
+  }
+
+  // Async append with the same duplicate-id guard, tenant stamping and
+  // ownership gating as createEntity(). Returns a Promise of the persisted
+  // entity (or null when invalid/duplicate/rejected/write failed).
+  async createAsync(collectionName, entity) {
+    if (typeof collectionName !== 'string' || collectionName === '') return null;
+    if (!entity || typeof entity !== 'object' || Array.isArray(entity)) return null;
+
+    if (this._shouldEnforceIsolation()) {
+      const tenantId = this._currentTenantId();
+      if (tenantId == null) return null;
+      const claimed = entity.tenantId;
+      if (claimed !== undefined && claimed !== null && claimed !== '') {
+        if (String(claimed) !== String(tenantId)) return null;
+      } else {
+        entity = Object.assign({}, entity, { tenantId });
+      }
+    }
+
+    const db = await this._rawStoreAsync();
+    const collection = this._collection(db, collectionName);
+
+    const identity = this._identityValue(entity);
+    if (identity !== undefined) {
+      const list = collection || [];
+      if (list.some(record => this._matchesIdentity(record, identity))) return null;
+    }
+
+    const target = collection ? collection.slice() : [];
+    target.push(entity);
+    if (!(await this._saveCollectionAsync(collectionName, target))) return null;
+
+    const stored = await this.readAsync();
+    const list = this._collection(stored, collectionName) || [];
+    if (identity !== undefined) {
+      return list.find(record => this._matchesIdentity(record, identity)) || entity;
+    }
+    return list.length ? list[list.length - 1] : entity;
+  }
+
+  // Async merge with the same identity preservation and ownership gating as
+  // updateEntity(). Returns a Promise of the merged entity (or null).
+  async updateAsync(collectionName, id, patchOrEntity) {
+    if (typeof collectionName !== 'string' || collectionName === '' || id == null) return null;
+    if (!patchOrEntity || typeof patchOrEntity !== 'object' || Array.isArray(patchOrEntity)) return null;
+
+    const db = await this._rawStoreAsync();
+    const collection = this._collection(db, collectionName);
+    if (!collection) return null;
+
+    const idx = collection.findIndex(record => this._matchesIdentity(record, id));
+    if (idx === -1) return null;
+
+    const existing = collection[idx];
+
+    if (this._shouldEnforceIsolation()) {
+      const tenantId = this._currentTenantId();
+      if (tenantId == null) return null;
+      const ownership = existing.tenantId;
+      if (ownership === undefined || ownership === null || ownership === '') return null;
+      if (String(ownership) !== String(tenantId)) return null;
+      const claimed = patchOrEntity.tenantId;
+      if (claimed !== undefined && claimed !== null && claimed !== '') {
+        if (String(claimed) !== String(tenantId)) return null;
+      }
+    }
+
+    const merged = Object.assign({}, existing, patchOrEntity);
+    for (const key of this._identityKeys()) {
+      if (existing[key] !== undefined && existing[key] !== null) merged[key] = existing[key];
+    }
+    if (this._shouldEnforceIsolation()) merged.tenantId = existing.tenantId;
+
+    const target = collection.slice();
+    target[idx] = merged;
+    if (!(await this._saveCollectionAsync(collectionName, target))) return null;
+    return merged;
+  }
+
+  // Async remove with the same ownership gating as deleteEntity(). Returns a
+  // Promise of boolean (true removed+persisted; false otherwise).
+  async deleteAsync(collectionName, id) {
+    if (typeof collectionName !== 'string' || collectionName === '' || id == null) return false;
+
+    const db = await this._rawStoreAsync();
+    const collection = this._collection(db, collectionName);
+    if (!collection) return false;
+
+    const idx = collection.findIndex(record => this._matchesIdentity(record, id));
+    if (idx === -1) return false;
+
+    if (this._shouldEnforceIsolation()) {
+      const tenantId = this._currentTenantId();
+      if (tenantId == null) return false;
+      const ownership = collection[idx].tenantId;
+      if (ownership === undefined || ownership === null || ownership === '') return false;
+      if (String(ownership) !== String(tenantId)) return false;
+    }
+
+    const target = collection.slice();
+    target.splice(idx, 1);
+    return this._saveCollectionAsync(collectionName, target);
+  }
+
+  // Async single-record read with the same visibility rules as findEntity().
+  // Returns a Promise of the entity (or null).
+  async findAsync(collectionName, id) {
+    if (typeof collectionName !== 'string' || collectionName === '' || id == null) return null;
+
+    const db = await this.readAsync();
+    const collection = this._collection(db, collectionName);
+    if (!collection) return null;
+
+    const found = collection.find(record => this._matchesIdentity(record, id)) || null;
+    if (!found) return null;
+
+    if (this._shouldEnforceIsolation()) {
+      const tenantId = this._currentTenantId();
+      if (tenantId == null) return null;
+      return this._isVisibleToTenant(found, tenantId) ? found : null;
+    }
+    return found;
+  }
+
+  // Async collection read (same shape as readCollection()). Returns a
+  // Promise of the primary array inside the store document, if present.
+  async readCollectionAsync(key) {
+    const db = await this.readAsync();
+    return Array.isArray(key) ? key : ((db && db[key]) || []);
   }
 
   // Storage-level primitives (readiness/health probes). Behaviour identical

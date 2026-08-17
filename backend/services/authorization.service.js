@@ -139,10 +139,20 @@ function assertTargetInTenant(actor, target, tenantId) {
 
 // Whether the actor may create/edit/delete the given target user. A Manager
 // may manage any user they satisfy users.edit for, except Owner/Admin and
-// users bound to a different tenant. Owner/Admin manage everyone.
+// users bound to a different tenant. Owner/Admin manage everyone WITHIN the
+// tenant — the tenant boundary always holds, even for privileged actors: a
+// target bound to a DIFFERENT tenant is off-limits no matter the actor's rank
+// (cross-tenant mutation closure). Unbound (legacy) targets stay reachable,
+// and legacy mode (no tenantId) keeps the historical behavior.
 function canManageUser(actor, target, tenantId) {
   if (!actor || typeof actor !== 'object') return false;
   const role = resolveEffectiveRole(actor, tenantId);
+  // Tenant boundary first — never bypassed by privilege. A bound target that
+  // does not include the trusted tenant is unreachable from this tenant.
+  if (tenantId !== undefined && tenantId !== null && target && typeof target === 'object') {
+    const targetTenants = _boundTenants(target);
+    if (targetTenants.size > 0 && !targetTenants.has(String(tenantId))) return false;
+  }
   if (role === 'Owner' || role === 'Admin') return true;
   if (!hasPermission(actor, 'users.edit', tenantId)) return false;
   if (!assertTargetInTenant(actor, target, tenantId)) return false;

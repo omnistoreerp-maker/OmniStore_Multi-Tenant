@@ -2,9 +2,9 @@ const salesService = require('../services/sales.service');
 const { success, error } = require('../utils/apiResponse');
 const logger = require('../utils/logger');
 
-function list(req, res) {
+async function list(req, res) {
   try {
-    const result = salesService.list(req.query, req.tenantContext);
+    const result = await salesService.list(req.query, req.tenantContext);
     success(res, result, 'Sales invoices retrieved');
   } catch (err) {
     logger.error('sales.list error:', err.message);
@@ -12,9 +12,9 @@ function list(req, res) {
   }
 }
 
-function getStats(req, res) {
+async function getStats(req, res) {
   try {
-    const result = salesService.stats(req.tenantContext);
+    const result = await salesService.stats(req.tenantContext);
     success(res, result, 'Sales stats retrieved');
   } catch (err) {
     logger.error('sales.stats error:', err.message);
@@ -22,9 +22,9 @@ function getStats(req, res) {
   }
 }
 
-function getById(req, res) {
+async function getById(req, res) {
   try {
-    const inv = salesService.getById(req.params.id, req.tenantContext);
+    const inv = await salesService.getById(req.params.id, req.tenantContext);
     if (!inv) return error(res, 'Sale invoice not found', 404);
     success(res, inv, 'Sale invoice retrieved');
   } catch (err) {
@@ -33,9 +33,9 @@ function getById(req, res) {
   }
 }
 
-function create(req, res) {
+async function create(req, res) {
   try {
-    const result = salesService.create(req.body, req.tenantContext);
+    const result = await salesService.create(req.body, req.tenantContext);
     if (result.error) return error(res, result.error, 400);
     success(res, result.invoice, 'Sale invoice created', 201);
   } catch (err) {
@@ -44,9 +44,9 @@ function create(req, res) {
   }
 }
 
-function update(req, res) {
+async function update(req, res) {
   try {
-    const result = salesService.update(req.params.id, req.body, req.tenantContext);
+    const result = await salesService.update(req.params.id, req.body, req.tenantContext);
     if (result.error === 'Invoice not found') return error(res, result.error, 404);
     if (result.error) return error(res, result.error, 400);
     success(res, result.invoice, 'Sale invoice updated');
@@ -56,9 +56,9 @@ function update(req, res) {
   }
 }
 
-function remove(req, res) {
+async function remove(req, res) {
   try {
-    const result = salesService.delete(req.params.id, req.tenantContext);
+    const result = await salesService.delete(req.params.id, req.tenantContext);
     if (result.error === 'Invoice not found') return error(res, result.error, 404);
     if (result.error) return error(res, result.error, 500);
     success(res, null, 'Sale invoice deleted');

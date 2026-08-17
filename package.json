@@ -10,6 +10,9 @@
     "postinstall": "cd backend && npm install",
     "start": "node backend/server.js",
     "check": "node backend/scripts/checkEnv.js",
+    "provision": "node backend/scripts/provision-company.js",
+    "update:manifest": "node backend/scripts/update/generate-manifest.js",
+    "build:release": "node scripts/build-release.js",
     "test": "cd backend && npm test",
     "test:e2e": "node tests/e2e/verify.js"
   }

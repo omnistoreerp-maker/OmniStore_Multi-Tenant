@@ -6,11 +6,38 @@ const BaseRepository = require('../repositories/BaseRepository');
 const repository = require('../repositories').sales;
 
 class SalesService {
-  _load(tenantContext) {
+  async _load(tenantContext) {
     const repo = this._repoFor(tenantContext);
-    return repo.read();
+    return repo.readAsync();
   }
-  _save(db) { return repository.write(db); }
+  async _save(db) { return repository.writeAsync(db); }
+
+  // FULL, unfiltered store document for WRITES (BaseRepository._rawStore
+  // rule): a write must never persist a tenant-filtered snapshot that could
+  // drop other tenants' records from the shared document. Ownership is gated
+  // explicitly below. Used by the legacy (isolation-off) read-modify-write
+  // path; the Phase 24 isolation path uses the async entity API instead.
+  async _loadRaw(tenantContext) {
+    const repo = this._repoFor(tenantContext);
+    const db = await repo._rawStoreAsync();
+    if (!db || typeof db !== 'object') return { invoices: [] };
+    if (!Array.isArray(db.invoices)) db.invoices = [];
+    return db;
+  }
+
+  // Cross-tenant write guard (same rule as Customers / InventoryTransactions):
+  // a record claiming a DIFFERENT tenantId is never modified/deleted by this
+  // request — treated as not-found (404). Legacy records (no tenantId) stay
+  // writable. No-op when no tenant is carried (legacy single-company mode).
+  _ownershipBlocked(invoice) {
+    if (!repository.hasTenant()) return false;
+    if (!invoice || typeof invoice !== 'object') return true;
+    const tid = invoice.tenantId;
+    if (tid === undefined || tid === null || tid === '') return false;
+    const current = repository.getCurrentTenant();
+    const currentId = current && (current.tenantId != null ? current.tenantId : current.id);
+    return currentId == null || String(tid) !== String(currentId);
+  }
 
   // Phase 24 — Sales tenant isolation. OPT-IN via ENABLE_TENANT_SALES_ISOLATION
   // and active only when a TRUSTED tenant context is present. The tenant id is
@@ -69,8 +96,8 @@ class SalesService {
     return str;
   }
 
-  list(query = {}, tenantContext) {
-    const db = this._load(tenantContext);
+  async list(query = {}, tenantContext) {
+    const db = await this._load(tenantContext);
     let invoices = this._visibleInvoices ? this._visibleInvoices(db.invoices || [], tenantContext) : (db.invoices || []);
 
     // Filtering
@@ -127,8 +154,8 @@ class SalesService {
     return { invoices: paginated, total, page, limit, totalPages };
   }
 
-  stats(tenantContext) {
-    const db = this._load(tenantContext);
+  async stats(tenantContext) {
+    const db = await this._load(tenantContext);
     const invoices = this._visibleInvoices(db.invoices || [], tenantContext);
     const count = invoices.length;
     let totalSales = 0, cashSales = 0, creditSales = 0, totalProfit = 0;
@@ -143,17 +170,17 @@ class SalesService {
     return { count, totalSales: Math.round(totalSales * 100) / 100, cashSales: Math.round(cashSales * 100) / 100, creditSales: Math.round(creditSales * 100) / 100, profit: Math.round(totalProfit * 100) / 100 };
   }
 
-  getById(id, tenantContext) {
+  async getById(id, tenantContext) {
     if (this._isIsolationActive(tenantContext)) {
       const repo = this._repoFor(tenantContext);
-      return repo.findEntity('invoices', this._normalizeId(id));
+      return repo.findAsync('invoices', this._normalizeId(id));
     }
-    const db = this._load();
+    const db = await this._load(tenantContext);
     const normalized = this._normalizeId(id);
     return this._findById(db, normalized);
   }
 
-  create(data, tenantContext) {
+  async create(data, tenantContext) {
     const errors = this._validateRequired(data, true);
     if (errors.length) return { error: errors.join('; ') };
 
@@ -165,13 +192,13 @@ class SalesService {
         createdAt: data.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
-      const created = repo.createEntity('invoices', invoice);
+      const created = await repo.createAsync('invoices', invoice);
       if (!created) return { error: 'Failed to persist invoice' };
       try { eventBus.publish('sale.created', created); } catch (_) {}
       return { invoice: created };
     }
 
-    const db = this._load();
+    const db = await this._loadRaw(tenantContext);
     const invoice = {
       id: data.id || data.invoiceId || 'INV-' + String(Date.now()).slice(-6),
       ...data,
@@ -187,48 +214,50 @@ class SalesService {
 
     if (!Array.isArray(db.invoices)) db.invoices = [];
     db.invoices.push(invoice);
-    if (this._save(db)) {
+    if (await this._save(db)) {
       try { eventBus.publish('sale.created', invoice); } catch (_) {}
       return { invoice };
     }
     return { error: 'Failed to persist invoice' };
   }
 
-  update(id, data, tenantContext) {
+  async update(id, data, tenantContext) {
     const errors = this._validateRequired(data, false);
     if (errors.length) return { error: errors.join('; ') };
 
     if (this._isIsolationActive(tenantContext)) {
       const repo = this._repoFor(tenantContext);
-      const merged = repo.updateEntity('invoices', this._normalizeId(id), data);
+      const merged = await repo.updateAsync('invoices', this._normalizeId(id), data);
       if (!merged) return { error: 'Invoice not found' };
       return { invoice: merged };
     }
 
-    const db = this._load();
+    const db = await this._loadRaw(tenantContext);
     const normalized = this._normalizeId(id);
     const idx = (db.invoices || []).findIndex(inv => this._normalizeId(inv.id) === normalized);
     if (idx === -1) return { error: 'Invoice not found' };
+    if (this._ownershipBlocked(db.invoices[idx])) return { error: 'Invoice not found' };
 
     db.invoices[idx] = { ...db.invoices[idx], ...data, id: db.invoices[idx].id, updatedAt: new Date().toISOString() };
-    if (this._save(db)) return { invoice: db.invoices[idx] };
+    if (await this._save(db)) return { invoice: db.invoices[idx] };
     return { error: 'Failed to persist update' };
   }
 
-  delete(id, tenantContext) {
+  async delete(id, tenantContext) {
     if (this._isIsolationActive(tenantContext)) {
       const repo = this._repoFor(tenantContext);
-      const ok = repo.deleteEntity('invoices', this._normalizeId(id));
+      const ok = await repo.deleteAsync('invoices', this._normalizeId(id));
       if (!ok) return { error: 'Invoice not found' };
       return { success: true };
     }
 
-    const db = this._load();
+    const db = await this._loadRaw(tenantContext);
     const normalized = this._normalizeId(id);
     const idx = (db.invoices || []).findIndex(inv => this._normalizeId(inv.id) === normalized);
     if (idx === -1) return { error: 'Invoice not found' };
+    if (this._ownershipBlocked(db.invoices[idx])) return { error: 'Invoice not found' };
     db.invoices.splice(idx, 1);
-    if (this._save(db)) return { success: true };
+    if (await this._save(db)) return { success: true };
     return { error: 'Failed to persist deletion' };
   }
 }

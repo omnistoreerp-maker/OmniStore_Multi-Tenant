@@ -22,6 +22,7 @@ const { apiKeyMiddleware } = require('./middleware/apiKeyAuth');
 const { correlationId, auditCapture } = require('./middleware/audit');
 const { etagMiddleware } = require('./middleware/etag');
 const requestContext = require('./middleware/requestContext');
+const tenantStore = require('./middleware/tenantStore');
 const metricsMiddleware = require('./middleware/metrics');
 const { eventBus } = require('./services/eventBus');
 const webhookService = require('./services/webhook.service');
@@ -89,6 +90,11 @@ app.use('/api/v1', apiRateLimiter(config.rateLimitMax));
 if (config.requestContextEnabled) {
   app.use(requestContext);
 }
+// Request-scoped tenant context (AsyncLocalStorage): opens a fresh, empty
+// tenant slot for every request so tenantCarry / companyContext / repositories
+// read THEIR OWN request's tenant — safe even once async handlers are
+// introduced (see middleware/tenantStore.js). Must run before tenantCarry.
+app.use(tenantStore.middleware);
 app.use(authMiddleware);
 app.use(apiKeyMiddleware);
 
@@ -131,10 +137,19 @@ const metricsRoutes = require('./routes/metrics.routes');
 const healthRoutes = require('./routes/health.routes');
 const errorTrackerRoutes = require('./routes/errorTracker.routes');
 const companyRoutes = require('./routes/company.routes');
+const updateRoutes = require('./routes/update.routes');
+const platformRoutes = require('./routes/platform.routes');
 const companyContext = require('./middleware/companyContext');
+// Phase 33 — seed the server-authoritative platform admin store from
+// PLATFORM_ADMINS on boot (no-op once the store has entries).
+require('./services/platformAdmin.service').ensureSeeded();
 
 app.use('/api/v1', apiRouter);
 app.use('/api/v1/companies', companyRoutes);
+app.use('/api/v1/update', updateRoutes);
+// Phase 33 — Master Control Center. Mounted before the optional AUTH_REQUIRED
+// guard so platform scope is enforced exclusively by requirePlatformAdmin.
+app.use('/api/v1/platform', platformRoutes);
 // Company selection is applied BEFORE authentication so the chosen company is
 // resolved into RequestContext/TenantContext on the login POST (no-op unless
 // ENABLE_MULTI_COMPANY_LOGIN, so the auth flow is unchanged by default).

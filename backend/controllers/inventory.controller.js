@@ -2,9 +2,9 @@ const inventoryService = require('../services/inventory.service');
 const { success, error } = require('../utils/apiResponse');
 const logger = require('../utils/logger');
 
-function list(req, res) {
+async function list(req, res) {
   try {
-    const result = inventoryService.list(req.query);
+    const result = await inventoryService.list(req.query);
     success(res, result, 'Products retrieved');
   } catch (err) {
     logger.error('inventory.list error:', err.message);
@@ -12,9 +12,9 @@ function list(req, res) {
   }
 }
 
-function getById(req, res) {
+async function getById(req, res) {
   try {
-    const product = inventoryService.getById(req.params.id);
+    const product = await inventoryService.getById(req.params.id);
     if (!product) return error(res, 'Product not found', 404);
     success(res, product, 'Product retrieved');
   } catch (err) {
@@ -23,9 +23,9 @@ function getById(req, res) {
   }
 }
 
-function getStats(req, res) {
+async function getStats(req, res) {
   try {
-    const result = inventoryService.stats();
+    const result = await inventoryService.stats();
     success(res, result, 'Product stats retrieved');
   } catch (err) {
     logger.error('inventory.stats error:', err.message);
@@ -33,9 +33,9 @@ function getStats(req, res) {
   }
 }
 
-function create(req, res) {
+async function create(req, res) {
   try {
-    const result = inventoryService.create(req.body);
+    const result = await inventoryService.create(req.body);
     if (result.error) return error(res, result.error, 400);
     success(res, result.product, 'Product created', 201);
   } catch (err) {
@@ -44,9 +44,9 @@ function create(req, res) {
   }
 }
 
-function update(req, res) {
+async function update(req, res) {
   try {
-    const result = inventoryService.update(req.params.id, req.body);
+    const result = await inventoryService.update(req.params.id, req.body);
     if (result.error === 'Product not found') return error(res, result.error, 404);
     if (result.error) return error(res, result.error, 400);
     success(res, result.product, 'Product updated');
@@ -56,9 +56,9 @@ function update(req, res) {
   }
 }
 
-function remove(req, res) {
+async function remove(req, res) {
   try {
-    const result = inventoryService.delete(req.params.id);
+    const result = await inventoryService.delete(req.params.id);
     if (result.error === 'Product not found') return error(res, result.error, 404);
     if (result.error) return error(res, result.error, 500);
     success(res, null, 'Product deleted');

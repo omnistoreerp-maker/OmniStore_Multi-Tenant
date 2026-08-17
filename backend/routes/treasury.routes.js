@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/treasury.controller');
+const asyncHandler = require('../utils/asyncHandler');
 
 /**
  * @openapi
@@ -58,8 +59,8 @@ const ctrl = require('../controllers/treasury.controller');
  *       401:
  *         description: Authentication required
  */
-router.get('/', ctrl.list);
-router.post('/', ctrl.create);
+router.get('/', asyncHandler(ctrl.list));
+router.post('/', asyncHandler(ctrl.create));
 
 /**
  * @openapi
@@ -76,7 +77,7 @@ router.post('/', ctrl.create);
  *       401:
  *         description: Authentication required
  */
-router.get('/stats', ctrl.getStats);
+router.get('/stats', asyncHandler(ctrl.getStats));
 
 /**
  * @openapi
@@ -139,8 +140,8 @@ router.get('/stats', ctrl.getStats);
  *       404:
  *         description: Transaction not found
  */
-router.get('/:id', ctrl.getById);
-router.put('/:id', ctrl.update);
-router.delete('/:id', ctrl.remove);
+router.get('/:id', asyncHandler(ctrl.getById));
+router.put('/:id', asyncHandler(ctrl.update));
+router.delete('/:id', asyncHandler(ctrl.remove));
 
 module.exports = router;

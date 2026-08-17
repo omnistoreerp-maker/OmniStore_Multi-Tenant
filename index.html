@@ -1004,13 +1004,14 @@ button.settings-link{text-align:start;font-family:inherit;}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
-// Supabase Phase 2.1 configuration:
-// Paste the real Project URL from Supabase Project Settings > API into url.
-// Paste the real publishable/anon key from Supabase Project Settings > API into anonKey.
-// Leave both empty to keep DigiTronics on LocalStorage/GitHub fallback mode.
+// Supabase configuration (CairoTech isolation): the legacy project URL/key
+// were REMOVED — this build must not silently connect to the old Supabase
+// project. Configure a project explicitly via the runtime settings UI or by
+// injecting window.DIGITRONICS_SUPABASE = { url, anonKey } before this script.
+// Empty values keep the app on LocalStorage/GitHub/Backend mode.
 window.DIGITRONICS_SUPABASE = window.DIGITRONICS_SUPABASE || {
-  url: "https://fkcaexpuagvxaljremzm.supabase.co",
-  anonKey: "sb_publishable_Huqa57qBaZYK_TpJw7J13A_zkJVe1-j"
+  url: "",
+  anonKey: ""
 };
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -1382,6 +1383,153 @@ window.DIGITRONICS_SUPABASE = window.DIGITRONICS_SUPABASE || {
 <!-- ===== GITHUB SYNC MODAL (stub - يحوّل لصفحة المزامنة) ===== -->
 <div id="ghSetupModal" style="display:none"></div>
 
+<!-- ===== PROVISION COMPANY WIZARD (تهيئة شركة جديدة) ===== -->
+<div id="provisionCompanyModal" style="display:none;position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,.85);align-items:center;justify-content:center;padding:20px;font-family:'Cairo',sans-serif;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:22px;padding:28px 26px;width:100%;max-width:560px;max-height:92vh;overflow:auto;box-shadow:0 0 80px rgba(0,102,255,.25);animation:fadeInUp .4s ease">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <div style="font-size:1.25rem;font-weight:900;color:var(--accent)">🏢 تهيئة شركة جديدة</div>
+      <button onclick="closeProvisionWizard()" style="background:transparent;border:none;color:var(--text2);font-size:1.4rem;cursor:pointer;line-height:1">✕</button>
+    </div>
+    <div style="font-size:0.78rem;color:var(--text2);margin-bottom:14px">
+      سيتم إنشاء بيئة مستقلة تمامًا للشركة الجديدة. لن يتم حذف أو تعديل بيانات الشركة الحالية.
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap" id="provisionStepDots"></div>
+
+    <!-- STEP 1: company data -->
+    <div id="provisionStep1">
+      <div style="font-size:0.95rem;font-weight:700;margin-bottom:12px">1️⃣ بيانات الشركة</div>
+      <div class="form-group"><label>اسم الشركة <span style="color:var(--red)">*</span></label><input id="pcCompanyName" placeholder="مثال: CairoTech" maxlength="100"></div>
+      <div class="form-group"><label>معرّف الشركة / Tenant ID <span style="color:var(--red)">*</span></label><input id="pcTenantId" placeholder="مثال: cairotech" maxlength="40" style="direction:ltr" oninput="pcTenantIdChanged()"><div style="font-size:0.7rem;color:var(--text2)">أحرف/أرقام/_ و - فقط (2-40). يُستخدم كمفتاح للتخزين المعزول.</div></div>
+      <div class="form-group"><label>اسم الفرع الرئيسي</label><input id="pcBranchName" placeholder="Main Branch" maxlength="100"></div>
+      <div class="form-group"><label>رمز الفرع</label><input id="pcBranchCode" placeholder="MAIN" maxlength="20" style="direction:ltr"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-group"><label>الهاتف</label><input id="pcPhone" maxlength="40" style="direction:ltr"></div>
+        <div class="form-group"><label>البريد الإلكتروني</label><input id="pcEmail" maxlength="120" style="direction:ltr"></div>
+      </div>
+      <div class="form-group"><label>العنوان</label><input id="pcAddress" maxlength="250"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-group"><label>العملة</label><select id="pcCurrency"><option value="EGP">EGP — جنيه مصري</option><option value="SAR">SAR — ريال سعودي</option><option value="AED">AED — درهم إماراتي</option><option value="USD">USD — دولار أمريكي</option><option value="EUR">EUR — يورو</option><option value="KWD">KWD — دينار كويتي</option></select></div>
+        <div class="form-group"><label>اللغة الافتراضية</label><select id="pcLanguage"><option value="ar">العربية</option><option value="en">English</option></select></div>
+      </div>
+    </div>
+
+    <!-- STEP 2: admin user -->
+    <div id="provisionStep2" style="display:none">
+      <div style="font-size:0.95rem;font-weight:700;margin-bottom:12px">2️⃣ المستخدم الرئيسي (Owner)</div>
+      <div class="form-group"><label>اسم المستخدم <span style="color:var(--red)">*</span></label><input id="pcAdminUsername" placeholder="مثال: cairotechadmin" maxlength="40" style="direction:ltr"></div>
+      <div class="form-group"><label>الاسم الظاهر</label><input id="pcAdminDisplayName" placeholder="مثال: CairoTech Admin" maxlength="100"></div>
+      <div class="form-group"><label>كلمة المرور <span style="color:var(--red)">*</span></label><input id="pcAdminPassword" type="password" placeholder="8 أحرف على الأقل" autocomplete="new-password"></div>
+      <div class="form-group"><label>تأكيد كلمة المرور <span style="color:var(--red)">*</span></label><input id="pcAdminPassword2" type="password" placeholder="أعد إدخال كلمة المرور" autocomplete="new-password"></div>
+      <div style="font-size:0.75rem;color:var(--text2)">الدور: Owner — عضوية الشركة الجديدة تُنشأ تلقائيًا (لا تُستخدم عضوية الشركة الحالية).</div>
+    </div>
+
+    <!-- STEP 3: initial data -->
+    <div id="provisionStep3" style="display:none">
+      <div style="font-size:0.95rem;font-weight:700;margin-bottom:12px">3️⃣ البيانات الأولية</div>
+      <div class="form-group"><label>رصيد الخزنة الافتتاحي</label><input id="pcOpeningBalance" type="number" min="0" step="0.01" value="0" style="direction:ltr"><div style="font-size:0.72rem;color:var(--text2)">يُسجَّل كقيد افتتاحي يخص الشركة الجديدة فقط (افتراضي: 0.00).</div></div>
+    </div>
+
+    <!-- STEP 4: integrations (read-only) -->
+    <div id="provisionStep4" style="display:none">
+      <div style="font-size:0.95rem;font-weight:700;margin-bottom:12px">4️⃣ التكاملات — مراجعة نهائية</div>
+      <div style="border:1px solid var(--border);border-radius:12px;padding:12px 14px;font-size:0.85rem">
+        <div style="display:flex;justify-content:space-between;padding:6px 0"><span>GitHub</span><span style="color:var(--text2)">غير متصل</span></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--border)"><span>Supabase</span><span style="color:var(--text2)">غير متصل</span></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;border-top:1px solid var(--border)"><span>API Keys</span><span style="color:var(--text2)">غير مرتبطة</span></div>
+      </div>
+      <div class="alert alert-info" style="margin-top:12px;font-size:0.78rem">الشركة الجديدة لا ترث أي بيانات اعتماد (GitHub/Supabase/API) من الشركة الحالية.</div>
+    </div>
+
+    <!-- STEP 5: success -->
+    <div id="provisionStep5" style="display:none;text-align:center">
+      <div style="font-size:2.4rem;margin:6px 0">✅</div>
+      <div style="font-size:1.2rem;font-weight:900;color:var(--green,#22c55e);margin-bottom:14px">تم إنشاء الشركة بنجاح</div>
+      <div id="provisionSuccessSummary" style="text-align:right;border:1px solid var(--border);border-radius:12px;padding:14px;font-size:0.85rem;line-height:2"></div>
+      <button class="btn-primary" style="width:100%;margin-top:16px" onclick="enterProvisionedCompany()">🚀 الدخول إلى الشركة الجديدة</button>
+    </div>
+
+    <div id="provisionError" style="display:none;font-size:0.82rem;color:var(--red);text-align:center;padding:8px;border-radius:8px;background:rgba(239,68,68,.08);margin-top:10px"></div>
+
+    <div style="display:flex;justify-content:space-between;margin-top:18px" id="provisionStepNav">
+      <button class="btn btn-outline" onclick="provisionPrevStep()">→ السابق</button>
+      <button class="btn btn-accent" id="provisionNextBtn" onclick="provisionNextStep()">التالي ←</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== USERS & PERMISSIONS MANAGER (المستخدمون والصلاحيات) ===== -->
+<div id="usersManagerModal" style="display:none;position:fixed;inset:0;z-index:10002;background:rgba(0,0,0,.85);align-items:center;justify-content:center;padding:20px;font-family:'Cairo',sans-serif;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:22px;padding:26px 24px;width:100%;max-width:900px;max-height:92vh;overflow:auto;box-shadow:0 0 80px rgba(0,102,255,.25);animation:fadeInUp .4s ease">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <div style="font-size:1.2rem;font-weight:900;color:var(--accent)">🔐 المستخدمون والصلاحيات</div>
+      <button onclick="closeUsersManager()" style="background:transparent;border:none;color:var(--text2);font-size:1.4rem;cursor:pointer;line-height:1">✕</button>
+    </div>
+    <div style="font-size:0.78rem;color:var(--text2);margin-bottom:14px">
+      إدارة مستخدمي الشركة الحالية فقط — العضوية والصلاحية يتحقق منها الخادم (JWT + Membership)، وليس من الواجهة.
+    </div>
+
+    <!-- LIST VIEW -->
+    <div id="usersManagerList">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+        <input id="usersSearchInput" class="search-input" placeholder="بحث بالاسم أو اسم المستخدم…" oninput="usersManagerFilter()" style="flex:1;min-width:160px">
+        <select id="usersRoleFilter" class="search-input" style="width:auto" onchange="usersManagerFilter()">
+          <option value="">كل الأدوار</option>
+          <option value="Owner">مالك</option>
+          <option value="Admin">مدير</option>
+          <option value="Manager">مشرف</option>
+          <option value="Cashier">كاشير</option>
+          <option value="Technician">فني</option>
+          <option value="WarehouseSales">مخزن/مبيعات</option>
+          <option value="Viewer">مشاهد</option>
+        </select>
+        <select id="usersStatusFilter" class="search-input" style="width:auto" onchange="usersManagerFilter()">
+          <option value="">كل الحالات</option>
+          <option value="active">فعال</option>
+          <option value="disabled">معطل</option>
+        </select>
+        <button class="btn btn-accent" onclick="openAddUserForm()" id="usersAddBtn" style="display:none">＋ إضافة مستخدم</button>
+      </div>
+      <div id="usersManagerStatus" style="font-size:0.78rem;color:var(--text2);margin-bottom:10px"></div>
+      <div class="overflow-x">
+        <table class="data-table">
+          <thead><tr>
+            <th>الاسم</th><th>اسم المستخدم</th><th>الدور</th><th>الحالة</th><th>الفرع</th><th>آخر دخول</th><th>تاريخ الإنشاء</th><th>إجراءات</th>
+          </tr></thead>
+          <tbody id="usersManagerTbody"></tbody>
+        </table>
+      </div>
+      <div id="usersManagerEmpty" style="display:none;text-align:center;color:var(--muted);padding:24px 0;font-size:0.85rem"></div>
+      <div id="usersManagerDetail" style="display:none;margin-top:10px"></div>
+    </div>
+
+    <!-- ADD USER VIEW -->
+    <div id="usersManagerAdd" style="display:none">
+      <div style="font-size:0.95rem;font-weight:700;margin-bottom:12px">＋ إضافة مستخدم جديد</div>
+      <div class="form-group"><label>الاسم الظاهر <span style="color:var(--red)">*</span></label><input id="umFullName" maxlength="100" placeholder="مثال: محمد أحمد"></div>
+      <div class="form-group"><label>اسم المستخدم <span style="color:var(--red)">*</span></label><input id="umUsername" maxlength="40" placeholder="مثال: mohamed" style="direction:ltr"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-group"><label>كلمة المرور <span style="color:var(--red)">*</span></label><input id="umPassword" type="password" placeholder="8 أحرف على الأقل" autocomplete="new-password"></div>
+        <div class="form-group"><label>تأكيد كلمة المرور <span style="color:var(--red)">*</span></label><input id="umPassword2" type="password" placeholder="أعد إدخال كلمة المرور" autocomplete="new-password"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="form-group"><label>الدور <span style="color:var(--red)">*</span></label><select id="umRole">
+          <option value="Manager">مشرف</option>
+          <option value="Cashier">كاشير</option>
+          <option value="Technician">فني</option>
+          <option value="WarehouseSales">مخزن/مبيعات</option>
+          <option value="Viewer">مشاهد</option>
+        </select></div>
+        <div class="form-group"><label>الفرع</label><select id="umBranch"><option value="">الفرع الافتراضي</option></select></div>
+      </div>
+      <div id="umError" style="display:none;font-size:0.82rem;color:var(--red);text-align:center;padding:8px;border-radius:8px;background:rgba(239,68,68,.08);margin-top:8px"></div>
+      <div style="display:flex;justify-content:space-between;margin-top:16px">
+        <button class="btn btn-outline" onclick="closeAddUserForm()">→ رجوع للقائمة</button>
+        <button class="btn btn-accent" onclick="submitAddUser()">تأكيد وإنشاء المستخدم ✓</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Sync Status Pill -->
 <div id="syncPill" style="display:none;position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:rgba(15,23,42,.9);color:#fff;padding:7px 20px;border-radius:30px;font-size:0.76rem;font-family:'Cairo',sans-serif;z-index:9000;pointer-events:none;white-space:nowrap;transition:opacity .3s"></div>
 
@@ -1422,6 +1570,10 @@ window.DIGITRONICS_SUPABASE = window.DIGITRONICS_SUPABASE || {
   <div class="login-box">
     <div class="login-logo">◈ OmniStore ERP</div>
     <div class="login-sub">نظام الإدارة الاحترافي بالسيريالات v6</div>
+    <div id="loginCompanyIdentity" style="display:none;text-align:center;margin:6px 0 14px;padding:12px 14px;border:1px solid var(--accent);border-radius:14px;background:rgba(0,102,255,.06)">
+      <div style="font-size:1.1rem;font-weight:900;color:var(--accent)" id="loginCompanyIdentityName"></div>
+      <div style="font-size:0.8rem;color:var(--text2);margin-top:3px" id="loginCompanyIdentityBranch"></div>
+    </div>
     <div class="form-group" id="companyField" style="display:none"><label>الشركة</label><input type="text" id="loginCompany" placeholder="البحث عن شركة..." autocomplete="off" oninput="filterCompanyOptions()" onkeydown="onCompanyKey(event)"><input type="hidden" id="loginCompanyId"><div id="companyList" style="display:none;text-align:left;direction:ltr;max-height:180px;overflow:auto;border:1px solid var(--border);border-radius:8px;margin-top:4px;background:var(--surface);box-shadow:0 4px 16px rgba(0,0,0,0.12)"></div></div>
     <div class="form-group"><label>اسم المستخدم</label><input type="text" id="loginUser" placeholder="username" autocomplete="username" onkeypress="if(event.key==='Enter')doLogin()"></div>
     <div class="form-group"><label>كلمة المرور</label><input type="password" id="loginPass" placeholder="password" autocomplete="current-password" onkeypress="if(event.key==='Enter')doLogin()"></div>
@@ -2001,6 +2153,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <div class="nav-dropdown-item" data-page="live-sync"><span class="icon">🌐🔄</span> المزامنة الحية والأجهزة</div>
     <div class="nav-dropdown-item" data-page="pwa"><span class="icon">📲</span> تطبيق OmniStore ERP</div>
     <div class="nav-dropdown-item" data-page="settings"><span class="icon">⚙️</span> الإعدادات</div>
+    <div class="nav-dropdown-item" data-page="platform-master" id="platformMasterNav" style="display:none"><span class="icon">👑</span> مركز تحكم OmniStore</div>
     <div class="nav-dropdown-item" data-page="opshub"><span class="icon">🧠</span> مركز التحكم</div>
     <div class="nav-dropdown-item" data-page="self-platform-dashboard"><span class="icon">👑</span> Self-Managed Platform</div>
     <div class="nav-dropdown-item" data-page="self-platform-customers"><span class="icon">🏢</span> Platform Customers</div>
@@ -5278,6 +5431,35 @@ document.addEventListener('DOMContentLoaded', function() {
       </div>
     </div>
 
+    <!-- PHASE 33: MASTER CONTROL CENTER (platform scope) -->
+    <div class="page" id="page-platform-master">
+      <div class="page-header">
+        <div class="page-title">👑 مركز تحكم OmniStore</div>
+        <div class="table-actions">
+          <button class="btn btn-outline btn-sm" onclick="renderPlatformMaster()">🔄 تحديث</button>
+        </div>
+      </div>
+      <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
+        <div class="stat-card blue"><div class="stat-icon">🏢</div><div class="stat-value" id="pmTotalCompanies">0</div><div class="stat-label">إجمالي الشركات</div></div>
+        <div class="stat-card green"><div class="stat-icon">✅</div><div class="stat-value" id="pmActiveCompanies">0</div><div class="stat-label">الشركات النشطة</div></div>
+        <div class="stat-card red"><div class="stat-icon">⛔</div><div class="stat-value" id="pmSuspendedCompanies">0</div><div class="stat-label">الشركات الموقوفة</div></div>
+        <div class="stat-card purple"><div class="stat-icon">👥</div><div class="stat-value" id="pmTotalUsers">0</div><div class="stat-label">إجمالي المستخدمين</div></div>
+        <div class="stat-card green"><div class="stat-icon">🟢</div><div class="stat-value" id="pmOnlineUsers">0</div><div class="stat-label">المستخدمون المتصلون</div></div>
+        <div class="stat-card yellow"><div class="stat-icon">🎫</div><div class="stat-value" id="pmActiveLicenses">0</div><div class="stat-label">التراخيص النشطة</div></div>
+        <div class="stat-card red"><div class="stat-icon">⏳</div><div class="stat-value" id="pmExpiredLicenses">0</div><div class="stat-label">التراخيص المنتهية</div></div>
+        <div class="stat-card orange"><div class="stat-icon">📅</div><div class="stat-value" id="pmExpiringSoon">0</div><div class="stat-label">تنتهي قريبًا (30 يوم)</div></div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px" id="platformTabs">
+        <button class="btn btn-accent btn-sm platform-tab" data-ptab="companies" onclick="platformTab('companies',this)">🏢 الشركات</button>
+        <button class="btn btn-outline btn-sm platform-tab" data-ptab="users" onclick="platformTab('users',this)">👥 المستخدمون</button>
+        <button class="btn btn-outline btn-sm platform-tab" data-ptab="presence" onclick="platformTab('presence',this)">🟢 المتصلون الآن</button>
+        <button class="btn btn-outline btn-sm platform-tab" data-ptab="licenses" onclick="platformTab('licenses',this)">🎫 التراخيص</button>
+        <button class="btn btn-outline btn-sm platform-tab" data-ptab="integrations" onclick="platformTab('integrations',this)">🔑 التكاملات</button>
+        <button class="btn btn-outline btn-sm platform-tab" data-ptab="audit" onclick="platformTab('audit',this)">📝 سجل المنصة</button>
+      </div>
+      <div id="platformTabBody"></div>
+    </div>
+
     <!-- SETTINGS -->
     <div class="page" id="page-settings">
       <div class="page-header">
@@ -5375,6 +5557,16 @@ document.addEventListener('DOMContentLoaded', function() {
           <div class="stat-icon">💾</div>
           <div class="stat-value" style="font-size:1rem">النسخ الاحتياطي</div>
           <div class="stat-label">تصدير/استيراد البيانات</div>
+        </div>
+        <div class="stat-card" style="padding:18px;cursor:pointer;border-color:var(--accent)" id="provisionCompanyCard" onclick="openProvisionWizard()">
+          <div class="stat-icon">🏢</div>
+          <div class="stat-value" style="font-size:1rem">تهيئة شركة جديدة</div>
+          <div class="stat-label">إدارة الشركة — إنشاء شركة مستقلة</div>
+        </div>
+        <div class="stat-card" style="padding:18px;cursor:pointer;border-color:var(--green)" id="usersManagementCard" onclick="openUsersManager()">
+          <div class="stat-icon">🔐</div>
+          <div class="stat-value" style="font-size:1rem">المستخدمون والصلاحيات</div>
+          <div class="stat-label">إدارة مستخدمي الشركة الحالية فقط</div>
         </div>
       </div>
       <div class="alert alert-info" style="margin-top:10px;font-size:0.82rem">
@@ -7346,6 +7538,72 @@ document.addEventListener('DOMContentLoaded', function() {
 <script>
 // ================= CONFIG =================
 const DB_KEY = 'cairo_db_v7';
+// Company/tenant-scoped business storage (CairoTech isolation). The legacy
+// `cairo_db_v7` key remains the UNASSIGNED legacy namespace — it is never
+// read or written once a company/tenant context is active. Every company
+// gets its own scoped database under `cairo_db_v7_<tenantId>`; no data is
+// copied between scopes, so CairoTech never starts from old-company data.
+let ACTIVE_TENANT_ID = null;
+// Resolve the tenantId claim from the signed JWT currently stored in
+// localStorage (empty when no authenticated session / no tenant claim). The
+// signed JWT is the SOURCE OF TRUTH for tenant-scoped local storage once an
+// authenticated session exists — a tampered ACTIVE_TENANT_ID must never
+// redirect local DB/cache reads into another company's scope.
+function getJwtTenantId() {
+  try {
+    return jwtTenantId(localStorage.getItem('access_token'));
+  } catch (e) {
+    return null;
+  }
+}
+// Effective tenant for local-scope selection: the signed JWT claim wins when
+// present; otherwise fall back to ACTIVE_TENANT_ID (legacy / no-tenant-carry
+// sessions) so pre-existing behavior is preserved.
+function getEffectiveTenantId() {
+  return getJwtTenantId() || ACTIVE_TENANT_ID || null;
+}
+function getDbStorageKey() {
+  const tenantId = getEffectiveTenantId();
+  return tenantId ? (DB_KEY + '_' + tenantId) : DB_KEY;
+}
+function setActiveTenantId(tenantId) {
+  let next = tenantId != null && String(tenantId).trim() !== '' ? String(tenantId).trim() : null;
+  // Reconcile against the signed JWT: when an authenticated session carries a
+  // tenant claim and it differs from the requested tenant, the JWT wins — a
+  // stale/tampered ACTIVE_TENANT_ID is corrected automatically. A null
+  // request (logout / explicit clear) is honored only when no JWT tenant
+  // exists (e.g. tokens already removed), so legacy clear behavior is kept.
+  const jwtTenant = getJwtTenantId();
+  if (jwtTenant && next && jwtTenant !== next) next = jwtTenant;
+  const changed = next !== ACTIVE_TENANT_ID;
+  ACTIVE_TENANT_ID = next;
+  if (changed) {
+    // Reset to the pristine default structure FIRST so the scoped-key merge
+    // in loadDB() never inherits the previous company's in-memory arrays.
+    try { resetDBToPristine(); } catch (e) { console.error('setActiveTenantId reset', e); }
+    try { loadDB(); } catch (e) { console.error('setActiveTenantId loadDB', e); }
+    try { applyBusinessBranding(); } catch (e) {}
+  }
+  return ACTIVE_TENANT_ID;
+}
+// Decode the tenantId claim from a stored JWT (UI hint only — the backend
+// still enforces authorization; used to pick the right scoped storage key on
+// session restore).
+function jwtTenantId(token) {
+  try {
+    if (!token) return null;
+    const part = String(token).split('.')[1];
+    if (!part) return null;
+    // JWT payloads are base64url (- and _); convert to standard base64 first.
+    const b64 = part.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = b64.length % 4 === 0 ? 0 : 4 - (b64.length % 4);
+    const json = decodeURIComponent(Array.prototype.map.call(atob(b64 + '='.repeat(pad)), c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+    const payload = JSON.parse(json);
+    return payload && payload.tenantId ? String(payload.tenantId) : null;
+  } catch (e) {
+    return null;
+  }
+}
 const USER_REG_KEY = 'cairo_user_registered';
 const SESSION_USER_KEY = 'cairo_session_user';
 const CHANGE_LOG_KEY = 'digitronics_change_log_v1';
@@ -7574,7 +7832,7 @@ function persistOmniStoreSettingsLocal(settings) {
 
 function persistMainDatabaseLocalOnly() {
   try {
-    localStorage.setItem(DB_KEY, JSON.stringify(DB));
+    localStorage.setItem(getDbStorageKey(), JSON.stringify(DB));
     return true;
   } catch (error) {
     showToast('تعذر حفظ إعدادات التوافق محلياً', 'error');
@@ -7607,7 +7865,20 @@ function applyBusinessFeatureVisibility() {
 function applyBusinessBranding() {
   const profile = getBusinessProfile();
   const omni = getOmniStoreSettings();
-  const name = String(omni.business.company_name || '').trim();
+  // CairoTech isolation: when a company/tenant context is active, the company
+  // name comes from the AUTHENTICATED company catalog (server-side), not from
+  // the legacy local settings — the header can never show another company's
+  // branding. Falls back to local settings only in legacy mode.
+  let name = '';
+  const effectiveTenant = getEffectiveTenantId();
+  if (effectiveTenant) {
+    const catalogName = companyCatalogList && Array.isArray(companyCatalogList)
+      ? (companyCatalogList.find(c => c && String(c.id) === effectiveTenant) || {}).name
+      : '';
+    name = String(catalogName || '').trim();
+    if (!name && window.__cairoActiveCompanyName) name = String(window.__cairoActiveCompanyName).trim();
+  }
+  if (!name) name = String(omni.business.company_name || '').trim();
   const safeLogo = safeBusinessLogoDataUrl(omni.business.company_logo || profile.logoDataUrl);
   const logoHtml = safeLogo
     ? `<img src="${safeLogo}" alt="" style="width:34px;height:34px;object-fit:contain;border-radius:8px"><span>OmniStore ERP</span>`
@@ -8036,13 +8307,30 @@ function applyOmniPrintLayout() {
   container.style.maxWidth = settings.receipt_size === '80mm' ? '80mm' : settings.receipt_size === '58mm' ? '58mm' : '';
   container.style.margin = '0 auto';
 }
-// Supabase is optional. Phase 2 reads config only from window.DIGITRONICS_SUPABASE.
+// Supabase is optional. Config source (CairoTech isolation):
+//   1. per-company runtime override in localStorage (`eso_supabase_cfg_<tenantId>`
+//      or `eso_supabase_cfg` in legacy mode), set via the settings UI, then
+//   2. window.DIGITRONICS_SUPABASE injected by the host page/deploy config.
+// The legacy hardcoded project URL/key were removed, so a company never
+// silently connects to the old Supabase project.
 function getSupabaseConfig() {
   const globalCfg = window.DIGITRONICS_SUPABASE || {};
+  let override = null;
+  try {
+    const key = getEffectiveTenantId() ? ('eso_supabase_cfg_' + getEffectiveTenantId()) : 'eso_supabase_cfg';
+    const raw = localStorage.getItem(key);
+    if (raw) override = JSON.parse(raw);
+  } catch (e) { override = null; }
   return {
-    url: (globalCfg.url || '').trim(),
-    anonKey: (globalCfg.anonKey || globalCfg.anon_key || '').trim()
+    url: String((override && override.url) || globalCfg.url || '').trim(),
+    anonKey: String((override && override.anonKey) || globalCfg.anonKey || globalCfg.anon_key || '').trim()
   };
+}
+function setSupabaseConfig(cfg) {
+  const key = getEffectiveTenantId() ? ('eso_supabase_cfg_' + getEffectiveTenantId()) : 'eso_supabase_cfg';
+  try { localStorage.setItem(key, JSON.stringify({ url: String(cfg.url || '').trim(), anonKey: String(cfg.anonKey || '').trim() })); } catch (e) {}
+  try { supabaseClient = null; } catch (e) {}
+  return getSupabaseConfig();
 }
 
 let supabaseClient = null;
@@ -10063,12 +10351,14 @@ async function applyUuidLinkMigration() {
   }
 }
 
-function getTreasurySummary() {
-  const entries = getTreasuryEntries();
+// Pure summary computed from an explicit entries array — the single shared
+// source of truth for balance/totals so the KPI, treasury page, and entries
+// table can never disagree (CairoTech treasury consistency fix).
+function computeTreasurySummaryFromEntries(entries) {
   const treasury = { total: 0, totalIn: 0, totalOut: 0, byMethod: {} };
   let calculatedTotal = 0;
   let latestBalance = null;
-  entries.forEach(c => {
+  (Array.isArray(entries) ? entries : []).forEach(c => {
     const normalized = normalizeTreasuryEntry(c);
     const amount = normalized.amount;
     const method = normalized.method;
@@ -10086,6 +10376,10 @@ function getTreasurySummary() {
   });
   treasury.total = latestBalance !== null ? roundMoney(latestBalance) : roundMoney(calculatedTotal);
   return treasury;
+}
+
+function getTreasurySummary() {
+  return computeTreasurySummaryFromEntries(getTreasuryEntries());
 }
 
 function getTreasuryEntries() {
@@ -11459,7 +11753,35 @@ const backendApi = {
   },
   companies: {
     getActive: () => USE_BACKEND ? backendApi._fetch('GET', '/companies/active') : null,
-    getById: (id) => USE_BACKEND ? backendApi._fetch('GET', '/companies/' + encodeURIComponent(id)) : null
+    getById: (id) => USE_BACKEND ? backendApi._fetch('GET', '/companies/' + encodeURIComponent(id)) : null,
+    // Phase: تهيئة شركة جديدة — create a fully independent company/tenant
+    // (backend creates company, branch, owner user + membership, optional
+    // opening balance; requires company.create permission).
+    provision: (data) => USE_BACKEND ? backendApi._fetch('POST', '/companies/provision', data) : null
+  },
+  // Phase 33 — Master Control Center (platform scope, server-authoritative).
+  platform: {
+    me: () => USE_BACKEND ? backendApi._fetch('GET', '/platform/me') : null,
+    summary: () => USE_BACKEND ? backendApi._fetch('GET', '/platform/summary') : null,
+    companies: () => USE_BACKEND ? backendApi._fetch('GET', '/platform/companies') : null,
+    companyDetails: (id) => USE_BACKEND ? backendApi._fetch('GET', '/platform/companies/' + encodeURIComponent(id)) : null,
+    suspendCompany: (id) => USE_BACKEND ? backendApi._fetch('POST', '/platform/companies/' + encodeURIComponent(id) + '/suspend') : null,
+    activateCompany: (id) => USE_BACKEND ? backendApi._fetch('POST', '/platform/companies/' + encodeURIComponent(id) + '/activate') : null,
+    users: () => USE_BACKEND ? backendApi._fetch('GET', '/platform/users') : null,
+    disableUser: (id) => USE_BACKEND ? backendApi._fetch('POST', '/platform/users/' + encodeURIComponent(id) + '/disable') : null,
+    enableUser: (id) => USE_BACKEND ? backendApi._fetch('POST', '/platform/users/' + encodeURIComponent(id) + '/enable') : null,
+    forceLogout: (id) => USE_BACKEND ? backendApi._fetch('POST', '/platform/users/' + encodeURIComponent(id) + '/force-logout') : null,
+    resetPassword: (id, newPassword) => USE_BACKEND ? backendApi._fetch('POST', '/platform/users/' + encodeURIComponent(id) + '/reset-password', { newPassword }) : null,
+    presence: () => USE_BACKEND ? backendApi._fetch('GET', '/platform/presence') : null,
+    heartbeat: (sessionId, branchId) => USE_BACKEND ? backendApi._fetch('POST', '/platform/presence/heartbeat', { sessionId, branchId }) : null,
+    licenses: () => USE_BACKEND ? backendApi._fetch('GET', '/platform/licenses') : null,
+    setLicense: (data) => USE_BACKEND ? backendApi._fetch('PUT', '/platform/licenses', data) : null,
+    integrations: () => USE_BACKEND ? backendApi._fetch('GET', '/platform/integrations') : null,
+    setIntegration: (data) => USE_BACKEND ? backendApi._fetch('PUT', '/platform/integrations', data) : null,
+    audit: (limit) => USE_BACKEND ? backendApi._fetch('GET', '/platform/audit' + (limit ? '?limit=' + encodeURIComponent(limit) : '')) : null,
+    admins: () => USE_BACKEND ? backendApi._fetch('GET', '/platform/admins') : null,
+    grantAdmin: (username, platformRole) => USE_BACKEND ? backendApi._fetch('POST', '/platform/admins', { username, platformRole }) : null,
+    revokeAdmin: (username) => USE_BACKEND ? backendApi._fetch('DELETE', '/platform/admins/' + encodeURIComponent(username)) : null
   },
   auth: {
     login: (username, password, company) => USE_BACKEND ? backendApi._fetch('POST', '/auth/login', (company ? { username, password, company } : { username, password })) : null,
@@ -11507,8 +11829,11 @@ const backendOpQueue = {
     if (existing) {
       existing.payload = op.payload || existing.payload;
       existing._backendId = op._backendId || existing._backendId;
+      if (ACTIVE_TENANT_ID && !existing._tenantId) existing._tenantId = ACTIVE_TENANT_ID;
     } else {
-      q.push({ ...op, attempts: 0, done: false, createdAt: Date.now() });
+      // Tag every queued op with the company context it was created under so
+      // a queued op from another company can never be flushed into this one.
+      q.push({ ...op, _tenantId: ACTIVE_TENANT_ID || null, attempts: 0, done: false, createdAt: Date.now() });
     }
     if (op.type === 'delete') {
       const t = this.loadTombstones();
@@ -11530,6 +11855,11 @@ const backendOpQueue = {
       let changed = false;
       for (const op of q) {
         if (op.done) continue;
+        // Quarantine guard (CairoTech isolation): a queued op tagged for a
+        // DIFFERENT company (or untagged while a company is active) must never
+        // be flushed into the current company's backend. It stays in the queue
+        // (legacy/unknown ownership) instead of being deleted or sent.
+        if (ACTIVE_TENANT_ID && String(op._tenantId || '') !== ACTIVE_TENANT_ID) continue;
         let ok = false;
         try {
           if (op.type === 'delete') {
@@ -12941,7 +13271,9 @@ const syncEngine = {
     this._modules[name] = handlers;
   },
   enqueue(item) {
-    const entry = { id: item.id || Date.now() + '_' + Math.random().toString(36).slice(2, 8), module: item.module, operation: item.operation, payload: item.payload || {}, createdAt: Date.now(), retryCount: 0, status: 'pending', priority: item.priority || 0, metadata: item.metadata || {} };
+    // Tag each queued item with the company context it was created under so
+    // a queued op from another company is never flushed into this one.
+    const entry = { id: item.id || Date.now() + '_' + Math.random().toString(36).slice(2, 8), module: item.module, operation: item.operation, payload: item.payload || {}, createdAt: Date.now(), retryCount: 0, status: 'pending', priority: item.priority || 0, metadata: item.metadata || {}, _tenantId: ACTIVE_TENANT_ID || null };
     this._queue.push(entry);
     this._persistQueue();
     this._updateStats();
@@ -12983,7 +13315,12 @@ const syncEngine = {
     if (!USE_BACKEND || this._running || this._paused) return;
     this._running = true;
     this.status = 'processing';
-    const items = this._queue.filter(q => q.status === 'pending' && (!moduleFilter || q.module === moduleFilter)).sort((a, b) => b.priority - a.priority);
+    // Quarantine guard: items tagged for another company (or untagged while a
+    // company is active) are skipped, never flushed, never deleted.
+    const items = this._queue
+      .filter(q => q.status === 'pending' && (!moduleFilter || q.module === moduleFilter))
+      .filter(q => !ACTIVE_TENANT_ID || String(q._tenantId || '') === ACTIVE_TENANT_ID)
+      .sort((a, b) => b.priority - a.priority);
     for (const item of items) {
       const mod = this._modules[item.module];
       if (!mod || !mod[item.operation]) { item.status = 'failed'; item.error = 'No handler'; continue; }
@@ -13403,6 +13740,30 @@ let DB = {
   }
 };
 
+// Pristine copy of the DEFAULT business structure, captured before any saved
+// data is merged in. Used to reset the in-memory DB when the active company
+// changes so one company's in-memory data can never bleed into another.
+let DB_PRISTINE_DEFAULTS = null;
+function captureDBPristineDefaults() {
+  try { DB_PRISTINE_DEFAULTS = JSON.parse(JSON.stringify(DB)); } catch (e) { DB_PRISTINE_DEFAULTS = null; }
+}
+captureDBPristineDefaults();
+
+// Reset the in-memory DB to the pristine defaults (called on company/tenant
+// switch BEFORE loading the scoped key, so the merge in loadDB() starts from
+// an empty slate).
+function resetDBToPristine() {
+  if (DB_PRISTINE_DEFAULTS) {
+    try {
+      const fresh = JSON.parse(JSON.stringify(DB_PRISTINE_DEFAULTS));
+      Object.keys(DB).forEach(k => { delete DB[k]; });
+      Object.assign(DB, fresh);
+      invalidateStockCache();
+      __stockMapVersion = -1;
+    } catch (e) { console.error('resetDBToPristine', e); }
+  }
+}
+
 let currentUser = null;
 let currentCart = [];
 let posReplaceTargetIdx = -1;
@@ -13696,6 +14057,827 @@ function setCompanySelection(c) {
   if (hid) { hid.value = c ? c.id : ''; }
   if (c) storeSelectedCompanyId();
   hideCompanyList();
+  renderLoginCompanyIdentity(c);
+}
+
+// Show the selected company's identity (name + default branch) on the login
+// screen. Pure UI hint — the backend membership check + JWT tenant claim are
+// the real authorization boundary. Branch shown only when known; never shows
+// tenant-internal ids or tokens.
+function renderLoginCompanyIdentity(c) {
+  const box = document.getElementById('loginCompanyIdentity');
+  if (!box) return;
+  const nameEl = document.getElementById('loginCompanyIdentityName');
+  const branchEl = document.getElementById('loginCompanyIdentityBranch');
+  if (!c) { box.style.display = 'none'; return; }
+  if (nameEl) nameEl.textContent = String(c.name || c.id || '');
+  let branchLabel = '';
+  if (c && c.branches && Array.isArray(c.branches) && c.branches.length) {
+    const b = c.branches.find(x => x && x.isDefault) || c.branches[0];
+    branchLabel = String(b.name || b.code || '');
+  } else if (c && c.defaultBranch) {
+    branchLabel = String(c.defaultBranch);
+  }
+  if (branchEl) branchEl.textContent = branchLabel ? ('الفرع: ' + branchLabel) : '';
+  box.style.display = 'block';
+}
+
+// ================= PROVISION COMPANY WIZARD (تهيئة شركة جديدة) =================
+// Creates a fully independent company/tenant through the backend
+// (POST /api/v1/companies/provision — requires company.create permission).
+// The frontend NEVER writes tenant records directly: the backend creates the
+// company, branch, owner user + membership, and optional opening balance, then
+// audits COMPANY_CREATED. On success, "الدخول إلى الشركة الجديدة" runs the
+// REAL login flow (membership validation → JWT regeneration → tenant binding →
+// scoped cairo_db_v7_<tenantId>).
+let provisionStep = 1;
+let provisionSuccess = null;
+const PROVISION_STEPS = [1, 2, 3, 4];
+
+function openProvisionWizard() {
+  provisionStep = 1;
+  provisionSuccess = null;
+  ['pcCompanyName','pcTenantId','pcBranchName','pcBranchCode','pcPhone','pcEmail','pcAddress','pcAdminUsername','pcAdminDisplayName','pcAdminPassword','pcAdminPassword2'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const ob = document.getElementById('pcOpeningBalance');
+  if (ob) ob.value = '0';
+  const cur = document.getElementById('pcCurrency'); if (cur) cur.value = 'EGP';
+  const lang = document.getElementById('pcLanguage'); if (lang) lang.value = 'ar';
+  hideProvisionError();
+  document.getElementById('provisionStep5').style.display = 'none';
+  showProvisionStep(1);
+  const modal = document.getElementById('provisionCompanyModal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeProvisionWizard() {
+  const modal = document.getElementById('provisionCompanyModal');
+  if (modal) modal.style.display = 'none';
+}
+
+function pcTenantIdChanged() {
+  const el = document.getElementById('pcTenantId');
+  if (!el) return;
+  el.value = String(el.value || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+}
+
+function showProvisionStep(step) {
+  provisionStep = step;
+  PROVISION_STEPS.forEach(s => {
+    const el = document.getElementById('provisionStep' + s);
+    if (el) el.style.display = s === step ? '' : 'none';
+  });
+  const successEl = document.getElementById('provisionStep5');
+  if (successEl) successEl.style.display = step === 5 ? '' : 'none';
+  const dots = document.getElementById('provisionStepDots');
+  if (dots) {
+    dots.innerHTML = PROVISION_STEPS.map(s =>
+      `<span style="flex:1;height:4px;border-radius:2px;background:${s <= step ? 'var(--accent)' : 'var(--border)'}"></span>`
+    ).join('');
+  }
+  const nav = document.getElementById('provisionStepNav');
+  if (nav) nav.style.display = step === 5 ? 'none' : '';
+  const btn = document.getElementById('provisionNextBtn');
+  if (btn) btn.textContent = step === 4 ? 'تأكيد وإنشاء الشركة ✓' : 'التالي ←';
+}
+
+function hideProvisionError() {
+  const el = document.getElementById('provisionError');
+  if (el) el.style.display = 'none';
+}
+
+function showProvisionError(msg) {
+  const el = document.getElementById('provisionError');
+  if (el) { el.textContent = msg; el.style.display = 'block'; }
+}
+
+function provisionPrevStep() {
+  hideProvisionError();
+  if (provisionStep <= 1) return;
+  showProvisionStep(provisionStep - 1);
+}
+
+function provisionNextStep() {
+  hideProvisionError();
+  if (provisionStep === 1) {
+    const name = (document.getElementById('pcCompanyName').value || '').trim();
+    const tid = (document.getElementById('pcTenantId').value || '').trim();
+    if (!name) return showProvisionError('اسم الشركة مطلوب');
+    if (!/^[A-Za-z0-9_-]{2,40}$/.test(tid)) return showProvisionError('معرّف الشركة مطلوب (2-40 حرفًا من الأحرف والأرقام و _ و -)');
+    // Backend enforces uniqueness too — quick client hint against the loaded catalog.
+    if ((companyCatalogList || []).some(c => c && String(c.id || '').toLowerCase() === tid.toLowerCase())) {
+      return showProvisionError('يوجد شركة بهذا المعرّف بالفعل — اختر معرّفًا مختلفًا');
+    }
+    const bc = (document.getElementById('pcBranchCode').value || '').trim();
+    if (bc && !/^[A-Za-z0-9_-]{1,20}$/.test(bc)) return showProvisionError('رمز الفرع غير صالح');
+  } else if (provisionStep === 2) {
+    const u = (document.getElementById('pcAdminUsername').value || '').trim();
+    const p1 = document.getElementById('pcAdminPassword').value || '';
+    const p2 = document.getElementById('pcAdminPassword2').value || '';
+    if (!u) return showProvisionError('اسم المستخدم مطلوب');
+    if (!/^[A-Za-z0-9_.-]{2,40}$/.test(u)) return showProvisionError('اسم المستخدم غير صالح (2-40 حرفًا من الأحرف والأرقام و _ . -)');
+    if (p1.length < 8) return showProvisionError('كلمة المرور يجب ألا تقل عن 8 أحرف');
+    if (p1 !== p2) return showProvisionError('كلمتا المرور غير متطابقتين');
+  } else if (provisionStep === 3) {
+    const ob = parseFloat(document.getElementById('pcOpeningBalance').value);
+    if (isNaN(ob) || ob < 0) return showProvisionError('رصيد الخزنة الافتتاحي يجب أن يكون رقمًا غير سالب');
+  } else if (provisionStep === 4) {
+    return confirmProvisionCompany();
+  }
+  showProvisionStep(provisionStep + 1);
+}
+
+async function confirmProvisionCompany() {
+  hideProvisionError();
+  const btn = document.getElementById('provisionNextBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ جاري الإنشاء...'; }
+  const payload = {
+    companyName: (document.getElementById('pcCompanyName').value || '').trim(),
+    companyId: (document.getElementById('pcTenantId').value || '').trim(),
+    tenantId: (document.getElementById('pcTenantId').value || '').trim(),
+    branchName: (document.getElementById('pcBranchName').value || '').trim() || 'Main Branch',
+    branchCode: (document.getElementById('pcBranchCode').value || '').trim() || 'MAIN',
+    phone: (document.getElementById('pcPhone').value || '').trim(),
+    email: (document.getElementById('pcEmail').value || '').trim(),
+    address: (document.getElementById('pcAddress').value || '').trim(),
+    currency: (document.getElementById('pcCurrency').value || 'EGP'),
+    language: (document.getElementById('pcLanguage').value || 'ar'),
+    adminUsername: (document.getElementById('pcAdminUsername').value || '').trim(),
+    adminDisplayName: (document.getElementById('pcAdminDisplayName').value || '').trim(),
+    adminPassword: document.getElementById('pcAdminPassword').value || '',
+    openingBalance: parseFloat(document.getElementById('pcOpeningBalance').value) || 0
+  };
+  try {
+    const res = await backendApi.companies.provision(payload);
+    if (!res || !res.success || !res.data) {
+      const msg = (res && res.message) ? res.message : 'فشل إنشاء الشركة';
+      return showProvisionError(msg);
+    }
+    provisionSuccess = res.data;
+    renderProvisionSuccess(res.data);
+    // Add the new company to the in-memory catalog so the login selector and
+    // branding pick it up immediately (a fresh catalog fetch also happens on
+    // the next login screen init).
+    if (!(companyCatalogList || []).some(c => c && String(c.id || '') === String(res.data.company.id))) {
+      companyCatalogList = companyCatalogList || [];
+      companyCatalogList.push(res.data.company);
+      companyCatalogList.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+    }
+    showProvisionStep(5);
+  } catch (e) {
+    showProvisionError('فشل إنشاء الشركة: ' + (e && e.message ? e.message : 'خطأ غير معروف'));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'تأكيد وإنشاء الشركة ✓'; }
+  }
+}
+
+function renderProvisionSuccess(data) {
+  const box = document.getElementById('provisionSuccessSummary');
+  if (!box) return;
+  const c = data.company || {};
+  const b = data.branch || {};
+  const a = data.admin || {};
+  box.innerHTML =
+    `<div style="display:flex;justify-content:space-between"><span>اسم الشركة</span><b>${escapeHtml(c.name || '')}</b></div>` +
+    `<div style="display:flex;justify-content:space-between"><span>الفرع</span><b>${escapeHtml(b.name || b.code || '')}</b></div>` +
+    `<div style="display:flex;justify-content:space-between"><span>Owner</span><b>${escapeHtml(a.username || '')}</b></div>` +
+    `<div style="display:flex;justify-content:space-between"><span>Tenant ID</span><b style="direction:ltr">${escapeHtml(c.id || '')}</b></div>` +
+    `<div style="display:flex;justify-content:space-between"><span>رصيد الافتتاح</span><b>${formatMoney(Number(data.openingBalance) || 0)}</b></div>` +
+    `<div style="display:flex;justify-content:space-between"><span>GitHub</span><b style="color:var(--text2)">غير متصل</b></div>` +
+    `<div style="display:flex;justify-content:space-between"><span>Supabase</span><b style="color:var(--text2)">غير متصل</b></div>`;
+}
+
+// Real login into the newly created company: membership validation → JWT with
+// tenantId → setActiveTenantId → scoped cairo_db_v7_<tenantId>. This reuses the
+// exact same login path as the login screen (never a manual ACTIVE_TENANT_ID set).
+async function enterProvisionedCompany() {
+  if (!provisionSuccess || !provisionSuccess.company || !provisionSuccess.admin) return;
+  const company = provisionSuccess.company;
+  const username = provisionSuccess.admin.username;
+  const password = document.getElementById('pcAdminPassword').value || '';
+  closeProvisionWizard();
+  // Show the login screen and drive the real login flow with the new company
+  // selected + the new owner's credentials.
+  const loginScreen = document.getElementById('loginScreen');
+  const appEl = document.getElementById('app');
+  if (loginScreen) loginScreen.style.display = 'flex';
+  if (appEl) appEl.style.display = 'none';
+  setCompanySelection(company);
+  const u = document.getElementById('loginUser'); if (u) u.value = username;
+  const p = document.getElementById('loginPass'); if (p) p.value = password;
+  try { localStorage.removeItem(SESSION_USER_KEY); } catch (e) {}
+  try { localStorage.removeItem('access_token'); } catch (e) {}
+  try { localStorage.removeItem('refresh_token'); } catch (e) {}
+  setActiveTenantId(null);
+  doLogin();
+}
+
+// ================= MASTER CONTROL CENTER (مركز تحكم OmniStore — platform scope) =================
+// Platform-level administration for the OmniStore operator. Server-authoritative
+// ONLY: every number comes from /api/v1/platform/*; the local tenant DB and
+// ACTIVE_TENANT_ID are NEVER read here. Access is gated by the server-side
+// platform admin store (requirePlatformAdmin) — the frontend only hides the UI.
+let platformRole = null;
+let platformTabCurrent = 'companies';
+
+function refreshPlatformRole() {
+  if (!USE_BACKEND || !backendApi || !backendApi.platform) return Promise.resolve(false);
+  return backendApi.platform.me().then(res => {
+    platformRole = (res && res.success && res.data && res.data.platformRole) ? res.data.platformRole : null;
+    const nav = document.getElementById('platformMasterNav');
+    if (nav) nav.style.display = platformRole ? '' : 'none';
+    return !!platformRole;
+  }).catch(() => { platformRole = null; return false; });
+}
+
+function platformSessionId() {
+  try {
+    let s = sessionStorage.getItem('platform_session_id');
+    if (!s) { s = 's-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10); sessionStorage.setItem('platform_session_id', s); }
+    return s;
+  } catch (e) { return null; }
+}
+
+function startPlatformHeartbeat() {
+  stopPlatformHeartbeat();
+  window.__platformHeartbeatTimer = setInterval(() => {
+    if (!currentUser || !USE_BACKEND || !backendApi || !backendApi.platform) return;
+    backendApi.platform.heartbeat(platformSessionId(), (typeof currentBranchId !== 'undefined') ? currentBranchId : null);
+  }, 60000);
+}
+
+function stopPlatformHeartbeat() {
+  if (window.__platformHeartbeatTimer) { clearInterval(window.__platformHeartbeatTimer); window.__platformHeartbeatTimer = null; }
+}
+
+function openPlatformMaster() {
+  if (!platformRole || !USE_BACKEND) { showToast('غير متاح — صلاحية المنصة مطلوبة', 'error'); return; }
+  renderPlatformMaster();
+}
+
+async function renderPlatformMaster() {
+  const body = document.getElementById('platformTabBody');
+  if (!body) return;
+  try {
+    const sum = await backendApi.platform.summary();
+    if (sum && sum.success && sum.data) {
+      const d = sum.data;
+      const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+      set('pmTotalCompanies', d.companies.total);
+      set('pmActiveCompanies', d.companies.active);
+      set('pmSuspendedCompanies', d.companies.suspended);
+      set('pmTotalUsers', d.users.total);
+      set('pmOnlineUsers', d.users.online);
+      set('pmActiveLicenses', d.licenses.active);
+      set('pmExpiredLicenses', d.licenses.expired);
+      set('pmExpiringSoon', d.licenses.expiringSoon);
+    }
+  } catch (e) { /* summary is non-critical */ }
+  platformTab(platformTabCurrent || 'companies');
+}
+
+function platformTab(tab, button) {
+  platformTabCurrent = tab;
+  document.querySelectorAll('.platform-tab').forEach(b => {
+    const active = b.dataset.ptab === tab;
+    b.classList.toggle('btn-accent', active);
+    b.classList.toggle('btn-outline', !active);
+  });
+  if (button) button.blur();
+  if (tab === 'companies') loadPlatformCompanies();
+  else if (tab === 'users') loadPlatformUsers();
+  else if (tab === 'presence') loadPlatformPresence();
+  else if (tab === 'licenses') loadPlatformLicenses();
+  else if (tab === 'integrations') loadPlatformIntegrations();
+  else if (tab === 'audit') loadPlatformAudit();
+}
+
+function platformBody(html) {
+  const body = document.getElementById('platformTabBody');
+  if (body) body.innerHTML = html;
+}
+
+async function loadPlatformCompanies() {
+  platformBody('<div style="color:var(--text2);font-size:0.85rem">⏳ جاري تحميل الشركات…</div>');
+  try {
+    const res = await backendApi.platform.companies();
+    if (!res || !res.success || !res.data) { platformBody('<div style="color:var(--red)">' + escapeHtml((res && res.message) || 'تعذر تحميل الشركات') + '</div>'); return; }
+    const list = res.data.companies || [];
+    const rows = list.map(c => {
+      const suspended = String(c.status || '').toUpperCase() === 'SUSPENDED';
+      const statusBadge = suspended ? '<span class="badge badge-red">موقوفة</span>' : (c.active === false ? '<span class="badge badge-yellow">غير نشطة</span>' : '<span class="badge badge-green">نشطة</span>');
+      const actions = [];
+      if (suspended) actions.push(`<button class="btn btn-green btn-sm" onclick="platformActivateCompany('${escapeHtml(c.id)}')">تفعيل</button>`);
+      else actions.push(`<button class="btn btn-danger btn-sm" onclick="platformSuspendCompany('${escapeHtml(c.id)}')">تعطيل</button>`);
+      actions.push(`<button class="btn btn-outline btn-sm" onclick="platformCompanyDetails('${escapeHtml(c.id)}')">عرض</button>`);
+      return `<tr>
+        <td>${escapeHtml(c.name)}</td>
+        <td style="direction:ltr">${escapeHtml(c.id)}</td>
+        <td>${statusBadge}</td>
+        <td>${escapeHtml(c.plan)}</td>
+        <td>${c.licenseStart ? new Date(c.licenseStart).toLocaleDateString('ar-EG') : '—'}</td>
+        <td>${c.licenseEnd ? new Date(c.licenseEnd).toLocaleDateString('ar-EG') : '—'}</td>
+        <td>${c.userCount}</td>
+        <td>${c.onlineCount}</td>
+        <td>${c.branchCount}</td>
+        <td><div style="display:flex;gap:4px;flex-wrap:wrap">${actions.join('')}</div></td>
+      </tr>`;
+    }).join('');
+    platformBody(`<div class="table-container"><div class="table-header"><div class="table-title">🏢 إدارة الشركات</div></div>
+      <div class="overflow-x"><table class="data-table"><thead><tr><th>اسم الشركة</th><th>Tenant ID</th><th>الحالة</th><th>الخطة</th><th>تاريخ البداية</th><th>تاريخ الانتهاء</th><th>المستخدمون</th><th>متصلون</th><th>الفروع</th><th>إجراءات</th></tr></thead><tbody>${rows}</tbody></table></div></div>`);
+  } catch (e) {
+    platformBody('<div style="color:var(--red)">تعذر تحميل الشركات: ' + escapeHtml(e && e.message ? e.message : 'خطأ') + '</div>');
+  }
+}
+
+async function platformSuspendCompany(id) {
+  if (!confirm('تعطيل الشركة ' + id + '؟ سيتم تسجيل خروج جميع مستخدميها فورًا ولن يتمكنوا من تسجيل الدخول. لن تُحذف أي بيانات.')) return;
+  try {
+    const res = await backendApi.platform.suspendCompany(id);
+    showToast(res && res.success ? '✅ تم تعطيل الشركة' : ((res && res.message) || 'تعذر التعطيل'), res && res.success ? 'success' : 'error');
+    loadPlatformCompanies();
+  } catch (e) { showToast('تعذر تعطيل الشركة', 'error'); }
+}
+
+async function platformActivateCompany(id) {
+  try {
+    const res = await backendApi.platform.activateCompany(id);
+    showToast(res && res.success ? '✅ تم تفعيل الشركة' : ((res && res.message) || 'تعذر التفعيل'), res && res.success ? 'success' : 'error');
+    loadPlatformCompanies();
+  } catch (e) { showToast('تعذر تفعيل الشركة', 'error'); }
+}
+
+async function platformCompanyDetails(id) {
+  try {
+    const res = await backendApi.platform.companyDetails(id);
+    if (!res || !res.success || !res.data) { showToast((res && res.message) || 'تعذر تحميل التفاصيل', 'error'); return; }
+    const d = res.data;
+    const uRows = (d.users || []).map(u => `<tr><td>${escapeHtml(u.fullName || u.username || '')}</td><td style="direction:ltr">${escapeHtml(u.username || '')}</td><td>${escapeHtml(u.role || '')}</td><td>${String(u.status || 'active').toLowerCase() === 'disabled' ? 'معطل' : 'فعال'}</td></tr>`).join('');
+    const bRows = (d.branches || []).map(b => `<tr><td>${escapeHtml(b.name || b.id || '')}</td><td style="direction:ltr">${escapeHtml(b.code || b.id || '')}</td><td>${b.isDefault ? 'افتراضي' : ''}</td></tr>`).join('');
+    const iRows = (d.integrations || []).map(i => `<tr><td>${escapeHtml(i.provider)}</td><td>${i.connected ? 'متصل' : 'غير متصل'}</td><td style="direction:ltr">${escapeHtml(i.masked || '—')}</td></tr>`).join('');
+    platformBody(`<div style="border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;font-size:0.85rem;line-height:2">
+      <b>${escapeHtml(d.company.name)}</b>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:4px 16px">
+        <div>الحالة: <b>${escapeHtml(d.company.status)}</b></div>
+        <div>الخطة: <b>${escapeHtml((d.license && d.license.plan) || '—')}</b></div>
+        <div>المستخدمون: <b>${(d.users || []).length}</b></div>
+        <div>متصلون الآن: <b>${(d.presence || []).filter(p => p.online).length}</b></div>
+        <div>الفروع: <b>${(d.branches || []).length}</b></div>
+      </div>
+    </div>
+    <div class="table-container"><div class="table-header"><div class="table-title">👥 المستخدمون</div></div><div class="overflow-x"><table class="data-table"><thead><tr><th>الاسم</th><th>Username</th><th>الدور</th><th>الحالة</th></tr></thead><tbody>${uRows}</tbody></table></div></div>
+    <div class="table-container"><div class="table-header"><div class="table-title">🏬 الفروع</div></div><div class="overflow-x"><table class="data-table"><thead><tr><th>الاسم</th><th>الكود</th><th>افتراضي</th></tr></thead><tbody>${bRows}</tbody></table></div></div>
+    <div class="table-container"><div class="table-header"><div class="table-title">🔑 التكاملات</div></div><div class="overflow-x"><table class="data-table"><thead><tr><th>المزود</th><th>الحالة</th><th>الرمز</th></tr></thead><tbody>${iRows}</tbody></table></div></div>
+    <button class="btn btn-outline btn-sm" onclick="loadPlatformCompanies()">→ رجوع للشركات</button>`);
+  } catch (e) { showToast('تعذر تحميل التفاصيل', 'error'); }
+}
+
+async function loadPlatformUsers() {
+  platformBody('<div style="color:var(--text2);font-size:0.85rem">⏳ جاري تحميل المستخدمين…</div>');
+  try {
+    const res = await backendApi.platform.users();
+    if (!res || !res.success || !res.data) { platformBody('<div style="color:var(--red)">' + escapeHtml((res && res.message) || 'تعذر تحميل المستخدمين') + '</div>'); return; }
+    const list = res.data.users || [];
+    const rows = list.map(u => {
+      const disabled = String(u.status || 'active').toLowerCase() === 'disabled';
+      const companies = (u.companies || []).map(c => escapeHtml(c.name)).join('، ');
+      const actions = [];
+      if (!disabled) actions.push(`<button class="btn btn-danger btn-sm" onclick="platformDisableUser('${escapeHtml(u.id)}')">تعطيل</button>`);
+      else actions.push(`<button class="btn btn-green btn-sm" onclick="platformEnableUser('${escapeHtml(u.id)}')">تفعيل</button>`);
+      actions.push(`<button class="btn btn-yellow btn-sm" onclick="platformForceLogout('${escapeHtml(u.id)}')">خروج إجباري</button>`);
+      actions.push(`<button class="btn btn-outline btn-sm" onclick="platformResetPassword('${escapeHtml(u.id)}')">كلمة مرور</button>`);
+      return `<tr>
+        <td>${escapeHtml(u.fullName || u.username || '')}</td>
+        <td style="direction:ltr">${escapeHtml(u.username || '')}</td>
+        <td>${companies || '—'}</td>
+        <td>${escapeHtml(u.branchId || '—')}</td>
+        <td>${escapeHtml(u.role || '')}</td>
+        <td>${disabled ? '<span class="badge badge-red">معطل</span>' : '<span class="badge badge-green">فعال</span>'}</td>
+        <td>${u.lastLogin ? new Date(u.lastLogin).toLocaleString('ar-EG') : '—'}</td>
+        <td>${u.createdAt ? new Date(u.createdAt).toLocaleDateString('ar-EG') : '—'}</td>
+        <td><div style="display:flex;gap:4px;flex-wrap:wrap">${actions.join('')}</div></td>
+      </tr>`;
+    }).join('');
+    platformBody(`<div class="table-container"><div class="table-header"><div class="table-title">👥 دليل المستخدمين (كل الشركات)</div></div>
+      <div class="overflow-x"><table class="data-table"><thead><tr><th>الاسم</th><th>Username</th><th>الشركات</th><th>الفرع</th><th>الدور</th><th>الحالة</th><th>آخر دخول</th><th>تاريخ الإنشاء</th><th>إجراءات</th></tr></thead><tbody>${rows}</tbody></table></div></div>`);
+  } catch (e) {
+    platformBody('<div style="color:var(--red)">تعذر تحميل المستخدمين: ' + escapeHtml(e && e.message ? e.message : 'خطأ') + '</div>');
+  }
+}
+
+async function platformDisableUser(id) {
+  try {
+    const res = await backendApi.platform.disableUser(id);
+    showToast(res && res.success ? '✅ تم تعطيل المستخدم' : ((res && res.message) || 'تعذر التعطيل'), res && res.success ? 'success' : 'error');
+    loadPlatformUsers();
+  } catch (e) { showToast('تعذر تعطيل المستخدم', 'error'); }
+}
+
+async function platformEnableUser(id) {
+  try {
+    const res = await backendApi.platform.enableUser(id);
+    showToast(res && res.success ? '✅ تم تفعيل المستخدم' : ((res && res.message) || 'تعذر التفعيل'), res && res.success ? 'success' : 'error');
+    loadPlatformUsers();
+  } catch (e) { showToast('تعذر تفعيل المستخدم', 'error'); }
+}
+
+async function platformForceLogout(id) {
+  if (!confirm('تسجيل خروج إجباري لهذا المستخدم؟ سيتم إبطال جميع جلساته الحالية.')) return;
+  try {
+    const res = await backendApi.platform.forceLogout(id);
+    showToast(res && res.success ? '✅ تم تسجيل الخروج الإجباري' : ((res && res.message) || 'تعذر التنفيذ'), res && res.success ? 'success' : 'error');
+    loadPlatformUsers();
+  } catch (e) { showToast('تعذر التنفيذ', 'error'); }
+}
+
+async function platformResetPassword(id) {
+  const newPassword = prompt('كلمة المرور الجديدة (8 أحرف على الأقل):');
+  if (newPassword === null) return;
+  if (newPassword.length < 8) { showToast('كلمة المرور يجب ألا تقل عن 8 أحرف', 'error'); return; }
+  try {
+    const res = await backendApi.platform.resetPassword(id, newPassword);
+    showToast(res && res.success ? '✅ تم تحديث كلمة المرور بنجاح' : ((res && res.message) || 'تعذر التنفيذ'), res && res.success ? 'success' : 'error');
+  } catch (e) { showToast('تعذر التنفيذ', 'error'); }
+}
+
+async function loadPlatformPresence() {
+  platformBody('<div style="color:var(--text2);font-size:0.85rem">⏳ جاري تحميل الحضور…</div>');
+  try {
+    const res = await backendApi.platform.presence();
+    if (!res || !res.success || !res.data) { platformBody('<div style="color:var(--red)">' + escapeHtml((res && res.message) || 'تعذر التحميل') + '</div>'); return; }
+    const list = res.data.presence || [];
+    const rows = list.map(p => `<tr>
+      <td>${p.online ? '🟢' : '⚪'}</td>
+      <td style="direction:ltr">${escapeHtml(p.username || p.userId || '')}</td>
+      <td>${escapeHtml(p.tenantId || '—')}</td>
+      <td>${escapeHtml(p.branchId || '—')}</td>
+      <td>${p.loginAt ? new Date(p.loginAt).toLocaleString('ar-EG') : '—'}</td>
+      <td>${p.lastSeenAt ? new Date(p.lastSeenAt).toLocaleString('ar-EG') : '—'}</td>
+      <td style="direction:ltr">${escapeHtml(p.sessionId || '—')}</td>
+    </tr>`).join('');
+    platformBody(`<div class="table-container"><div class="table-header"><div class="table-title">🟢 المتصلون الآن (server-authoritative heartbeat)</div></div>
+      <div class="overflow-x"><table class="data-table"><thead><tr><th>الحالة</th><th>المستخدم</th><th>الشركة</th><th>الفرع</th><th>وقت الدخول</th><th>آخر نشاط</th><th>الجلسة</th></tr></thead><tbody>${rows}</tbody></table></div></div>`);
+  } catch (e) {
+    platformBody('<div style="color:var(--red)">تعذر التحميل: ' + escapeHtml(e && e.message ? e.message : 'خطأ') + '</div>');
+  }
+}
+
+async function loadPlatformLicenses() {
+  platformBody('<div style="color:var(--text2);font-size:0.85rem">⏳ جاري تحميل التراخيص…</div>');
+  try {
+    const res = await backendApi.platform.licenses();
+    if (!res || !res.success || !res.data) { platformBody('<div style="color:var(--red)">' + escapeHtml((res && res.message) || 'تعذر التحميل') + '</div>'); return; }
+    const list = res.data.licenses || [];
+    const rows = list.map(l => `<tr>
+      <td>${escapeHtml(l.companyName)}</td>
+      <td style="direction:ltr">${escapeHtml(l.tenantId)}</td>
+      <td>${escapeHtml(l.plan)}</td>
+      <td>${escapeHtml(l.status)}</td>
+      <td>${l.licenseStart ? new Date(l.licenseStart).toLocaleDateString('ar-EG') : '—'}</td>
+      <td>${l.licenseEnd ? new Date(l.licenseEnd).toLocaleDateString('ar-EG') : '—'}</td>
+      <td>${l.maxUsers != null ? l.maxUsers : '—'}</td>
+      <td>${l.maxBranches != null ? l.maxBranches : '—'}</td>
+      <td><button class="btn btn-outline btn-sm" onclick="platformAssignLicense('${escapeHtml(l.tenantId)}')">تعديل</button></td>
+    </tr>`).join('');
+    platformBody(`<div class="table-container"><div class="table-header"><div class="table-title">🎫 التراخيص</div></div>
+      <div class="overflow-x"><table class="data-table"><thead><tr><th>الشركة</th><th>Tenant</th><th>الخطة</th><th>الحالة</th><th>البداية</th><th>النهاية</th><th>أقصى مستخدمين</th><th>أقصى فروع</th><th>إجراءات</th></tr></thead><tbody>${rows}</tbody></table></div></div>`);
+  } catch (e) {
+    platformBody('<div style="color:var(--red)">تعذر التحميل: ' + escapeHtml(e && e.message ? e.message : 'خطأ') + '</div>');
+  }
+}
+
+async function platformAssignLicense(tenantId) {
+  const plan = prompt('الخطة (TRIAL / BASIC / PROFESSIONAL / ENTERPRISE):');
+  if (plan === null) return;
+  const endStr = prompt('تاريخ الانتهاء (YYYY-MM-DD، اتركه فارغًا بدون انتهاء):');
+  const maxUsers = prompt('أقصى عدد مستخدمين (اختياري):');
+  const maxBranches = prompt('أقصى عدد فروع (اختياري):');
+  const payload = { tenantId, plan: plan.trim().toUpperCase(), status: 'ACTIVE' };
+  if (endStr && endStr.trim()) payload.licenseEnd = new Date(endStr.trim()).toISOString();
+  if (maxUsers && !isNaN(Number(maxUsers))) payload.maxUsers = Number(maxUsers);
+  if (maxBranches && !isNaN(Number(maxBranches))) payload.maxBranches = Number(maxBranches);
+  try {
+    const res = await backendApi.platform.setLicense(payload);
+    showToast(res && res.success ? '✅ تم حفظ الترخيص' : ((res && res.message) || 'تعذر الحفظ'), res && res.success ? 'success' : 'error');
+    loadPlatformLicenses();
+  } catch (e) { showToast('تعذر الحفظ', 'error'); }
+}
+
+async function loadPlatformIntegrations() {
+  platformBody('<div style="color:var(--text2);font-size:0.85rem">⏳ جاري تحميل التكاملات…</div>');
+  try {
+    const res = await backendApi.platform.integrations();
+    if (!res || !res.success || !res.data) { platformBody('<div style="color:var(--red)">' + escapeHtml((res && res.message) || 'تعذر التحميل') + '</div>'); return; }
+    const list = res.data.integrations || [];
+    const rows = list.map(i => `<tr>
+      <td>${escapeHtml(i.companyName)}</td>
+      <td style="direction:ltr">${escapeHtml(i.tenantId)}</td>
+      <td>${escapeHtml(i.provider)}</td>
+      <td>${i.connected ? '<span class="badge badge-green">متصل</span>' : '<span class="badge badge-red">غير متصل</span>'}</td>
+      <td style="direction:ltr">${escapeHtml(i.masked || '—')}</td>
+      <td>${i.updatedAt ? new Date(i.updatedAt).toLocaleString('ar-EG') : '—'}</td>
+    </tr>`).join('');
+    platformBody(`<div class="table-container"><div class="table-header"><div class="table-title">🔑 التكاملات (الرموز مخفية دائمًا — الـ token لا يُعرض أبدًا)</div></div>
+      <div class="overflow-x"><table class="data-table"><thead><tr><th>الشركة</th><th>Tenant</th><th>المزود</th><th>الحالة</th><th>الرمز (مقنّع)</th><th>آخر تحديث</th></tr></thead><tbody>${rows}</tbody></table></div></div>`);
+  } catch (e) {
+    platformBody('<div style="color:var(--red)">تعذر التحميل: ' + escapeHtml(e && e.message ? e.message : 'خطأ') + '</div>');
+  }
+}
+
+async function loadPlatformAudit() {
+  platformBody('<div style="color:var(--text2);font-size:0.85rem">⏳ جاري تحميل سجل المنصة…</div>');
+  try {
+    const res = await backendApi.platform.audit(200);
+    if (!res || !res.success || !res.data) { platformBody('<div style="color:var(--red)">' + escapeHtml((res && res.message) || 'تعذر التحميل') + '</div>'); return; }
+    const list = res.data.entries || [];
+    const rows = list.map(e => `<tr>
+      <td>${e.timestamp ? new Date(e.timestamp).toLocaleString('ar-EG') : '—'}</td>
+      <td style="direction:ltr">${escapeHtml(e.action)}</td>
+      <td>${escapeHtml(e.userId || '—')}</td>
+      <td>${escapeHtml(e.resource || '—')}</td>
+      <td style="direction:ltr">${escapeHtml(e.resourceId || '—')}</td>
+    </tr>`).join('');
+    platformBody(`<div class="table-container"><div class="table-header"><div class="table-title">📝 سجل المنصة (بدون أي أسرار)</div></div>
+      <div class="overflow-x"><table class="data-table"><thead><tr><th>الوقت</th><th>الإجراء</th><th>المستخدم</th><th>الموارد</th><th>المعرّف</th></tr></thead><tbody>${rows}</tbody></table></div></div>`);
+  } catch (e) {
+    platformBody('<div style="color:var(--red)">تعذر التحميل: ' + escapeHtml(e && e.message ? e.message : 'خطأ') + '</div>');
+  }
+}
+
+// ================= USERS & PERMISSIONS MANAGER (المستخدمون والصلاحيات) =================
+// Company-scoped user management. The backend is authoritative: list/create/
+// update/disable/enable/reset are all tenant-scoped server-side and the JWT
+// tenantId is the source of truth. The frontend only renders what the backend
+// returns and gates every action button by the existing canEffective() checks.
+let usersManagerCache = [];
+let usersManagerFiltered = [];
+let usersManagerSelected = null;
+
+const USER_ROLE_AR = {
+  Owner: 'مالك', Admin: 'مدير', Manager: 'مشرف', Cashier: 'كاشير',
+  Technician: 'فني', WarehouseSales: 'مخزن/مبيعات', Sales: 'مبيعات', Support: 'دعم', Viewer: 'مشاهد'
+};
+
+function userRoleLabel(role) {
+  return USER_ROLE_AR[role] || role || '—';
+}
+
+function usersManagerCurrentCompany() {
+  const tid = getEffectiveTenantId();
+  return (companyCatalogList || []).find(c => c && String(c.id) === String(tid)) || null;
+}
+
+function openUsersManager() {
+  if (!USE_BACKEND) { showToast('إدارة المستخدمين تتطلب وضع Backend', 'error'); return; }
+  if (!canEffective('users.view')) { showToast('صلاحية غير كافية لعرض المستخدمين', 'error'); return; }
+  const modal = document.getElementById('usersManagerModal');
+  if (!modal) return;
+  usersManagerSelected = null;
+  document.getElementById('usersManagerList').style.display = '';
+  document.getElementById('usersManagerAdd').style.display = 'none';
+  modal.style.display = 'flex';
+  const addBtn = document.getElementById('usersAddBtn');
+  if (addBtn) addBtn.style.display = canEffective('users.create') ? '' : 'none';
+  loadUsersList();
+}
+
+function closeUsersManager() {
+  const modal = document.getElementById('usersManagerModal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function loadUsersList() {
+  const status = document.getElementById('usersManagerStatus');
+  if (status) status.textContent = '⏳ جاري تحميل المستخدمين…';
+  try {
+    const res = await backendApi.users.getAll();
+    if (!res || !res.success || !res.data) {
+      if (status) status.textContent = (res && res.message) ? res.message : 'تعذر تحميل المستخدمين';
+      usersManagerCache = [];
+      renderUsersTable();
+      return;
+    }
+    usersManagerCache = Array.isArray(res.data.users) ? res.data.users : [];
+    if (status) status.textContent = '';
+    renderUsersTable();
+  } catch (e) {
+    if (status) status.textContent = 'تعذر تحميل المستخدمين: ' + (e && e.message ? e.message : 'خطأ');
+    usersManagerCache = [];
+    renderUsersTable();
+  }
+}
+
+function usersManagerFilter() {
+  const q = String(document.getElementById('usersSearchInput')?.value || '').trim().toLowerCase();
+  const role = document.getElementById('usersRoleFilter')?.value || '';
+  const st = document.getElementById('usersStatusFilter')?.value || '';
+  usersManagerFiltered = usersManagerCache.filter(u => {
+    if (role && String(u.role || '').toLowerCase() !== role.toLowerCase()) return false;
+    if (st) {
+      const s = String(u.status || 'active').toLowerCase();
+      if (st === 'disabled' ? s !== 'disabled' : s === 'disabled') return false;
+    }
+    if (q) {
+      const hay = String(u.fullName || '') + ' ' + String(u.username || '') + ' ' + String(u.role || '');
+      if (!hay.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
+  renderUsersTable();
+}
+
+function renderUsersTable() {
+  const tbody = document.getElementById('usersManagerTbody');
+  const empty = document.getElementById('usersManagerEmpty');
+  if (!tbody) return;
+  const list = document.getElementById('usersSearchInput') ? usersManagerFiltered : usersManagerCache;
+  const rows = (list && list.length ? list : usersManagerFiltered && usersManagerFiltered.length ? usersManagerFiltered : usersManagerCache);
+  if (rows.length === 0) {
+    tbody.innerHTML = '';
+    if (empty) { empty.style.display = 'block'; empty.textContent = 'لا يوجد مستخدمون مطابقون للشركة الحالية.'; }
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  const canEdit = canEffective('users.edit');
+  const canDisable = canEffective('users.disable');
+  const canEnable = canEffective('users.enable');
+  const canReset = canEffective('users.password.reset');
+  tbody.innerHTML = rows.map(u => {
+    const isSelf = currentUser && String(u.id) === String(currentUser.id);
+    const disabled = String(u.status || 'active').toLowerCase() === 'disabled';
+    const roleOptions = ['Manager', 'Cashier', 'Technician', 'WarehouseSales', 'Viewer']
+      .map(r => `<option value="${r}" ${String(u.role || '') === r ? 'selected' : ''}>${userRoleLabel(r)}</option>`)
+      .join('');
+    const actions = [];
+    if (canEdit && !isSelf && String(u.role) !== 'Owner') {
+      actions.push(`<select class="search-input" style="width:auto;padding:4px 8px;font-size:0.7rem" onchange="changeUserRole('${escapeHtml(String(u.id))}', this.value)">${roleOptions}</select>`);
+    }
+    if (canDisable && !disabled && !isSelf && String(u.role) !== 'Owner') {
+      actions.push(`<button class="btn btn-danger btn-sm" onclick="toggleUserStatus('${escapeHtml(String(u.id))}')">تعطيل</button>`);
+    }
+    if (canEnable && disabled) {
+      actions.push(`<button class="btn btn-green btn-sm" onclick="toggleUserStatus('${escapeHtml(String(u.id))}')">تفعيل</button>`);
+    }
+    if (canReset && !isSelf) {
+      actions.push(`<button class="btn btn-yellow btn-sm" onclick="resetUserPassword('${escapeHtml(String(u.id))}')">إعادة كلمة المرور</button>`);
+    }
+    actions.push(`<button class="btn btn-outline btn-sm" onclick="viewUserDetails('${escapeHtml(String(u.id))}')">عرض</button>`);
+    const branchLabel = u.branchId ? String(u.branchId) : '—';
+    const lastLogin = u.lastLogin ? new Date(u.lastLogin).toLocaleString('ar-EG') : '—';
+    const createdAt = u.createdAt ? new Date(u.createdAt).toLocaleDateString('ar-EG') : '—';
+    return `<tr>
+      <td>${escapeHtml(u.fullName || u.username || '')}</td>
+      <td style="direction:ltr">${escapeHtml(u.username || '')}</td>
+      <td><span class="badge" style="background:${String(u.role) === 'Owner' ? 'rgba(124,58,237,.15);color:var(--purple)' : 'rgba(0,212,255,.15);color:var(--accent)'}">${userRoleLabel(u.role)}</span></td>
+      <td>${disabled ? '<span class="badge badge-red">معطل</span>' : '<span class="badge badge-green">فعال</span>'}</td>
+      <td>${escapeHtml(branchLabel)}</td>
+      <td style="font-size:0.72rem">${escapeHtml(lastLogin)}</td>
+      <td style="font-size:0.72rem">${escapeHtml(createdAt)}</td>
+      <td><div style="display:flex;gap:4px;flex-wrap:wrap">${actions.join('')}</div></td>
+    </tr>`;
+  }).join('');
+  const detail = document.getElementById('usersManagerDetail');
+  if (detail) detail.style.display = 'none';
+}
+
+function openAddUserForm() {
+  if (!canEffective('users.create')) { showToast('صلاحية غير كافية لإنشاء مستخدم', 'error'); return; }
+  ['umFullName', 'umUsername', 'umPassword', 'umPassword2'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const roleEl = document.getElementById('umRole'); if (roleEl) roleEl.value = 'Manager';
+  populateUserBranches();
+  hideUsersManagerError();
+  document.getElementById('usersManagerList').style.display = 'none';
+  document.getElementById('usersManagerAdd').style.display = '';
+}
+
+function closeAddUserForm() {
+  document.getElementById('usersManagerAdd').style.display = 'none';
+  document.getElementById('usersManagerList').style.display = '';
+}
+
+function populateUserBranches() {
+  const sel = document.getElementById('umBranch');
+  if (!sel) return;
+  const company = usersManagerCurrentCompany();
+  const branches = (company && Array.isArray(company.branches)) ? company.branches : [];
+  sel.innerHTML = '<option value="">الفرع الافتراضي</option>' +
+    branches.map(b => `<option value="${escapeHtml(String(b.id || b.code || ''))}">${escapeHtml(b.name || b.id || b.code || '')}</option>`).join('');
+}
+
+function hideUsersManagerError() {
+  const el = document.getElementById('umError');
+  if (el) el.style.display = 'none';
+}
+
+function showUsersManagerError(msg) {
+  const el = document.getElementById('umError');
+  if (el) { el.textContent = msg; el.style.display = 'block'; }
+}
+
+async function submitAddUser() {
+  hideUsersManagerError();
+  const fullName = (document.getElementById('umFullName').value || '').trim();
+  const username = (document.getElementById('umUsername').value || '').trim();
+  const password = document.getElementById('umPassword').value || '';
+  const password2 = document.getElementById('umPassword2').value || '';
+  const role = document.getElementById('umRole').value || 'Manager';
+  const branchId = document.getElementById('umBranch').value || '';
+  if (!fullName) return showUsersManagerError('الاسم الظاهر مطلوب');
+  if (!/^[A-Za-z0-9_.-]{2,40}$/.test(username)) return showUsersManagerError('اسم المستخدم غير صالح (2-40 حرفًا من الأحرف والأرقام و _ . -)');
+  if (password.length < 8) return showUsersManagerError('كلمة المرور يجب ألا تقل عن 8 أحرف');
+  if (password !== password2) return showUsersManagerError('كلمتا المرور غير متطابقتين');
+  const payload = { username, password, fullName, role };
+  if (branchId) payload.branchId = branchId;
+  try {
+    const res = await backendApi.users.create(payload);
+    if (!res || !res.success || !res.data) {
+      const msg = (res && res.message) ? res.message : 'فشل إنشاء المستخدم';
+      return showUsersManagerError(msg);
+    }
+    showToast('✅ تم إنشاء المستخدم بنجاح');
+    closeAddUserForm();
+    await loadUsersList();
+  } catch (e) {
+    showUsersManagerError('فشل إنشاء المستخدم: ' + (e && e.message ? e.message : 'خطأ'));
+  }
+}
+
+async function changeUserRole(id, role) {
+  try {
+    const res = await backendApi.users.update(id, { role });
+    if (!res || !res.success) {
+      showToast((res && res.message) ? res.message : 'تعذر تغيير الدور', 'error');
+      await loadUsersList();
+      return;
+    }
+    showToast('✅ تم تغيير الدور بنجاح');
+    await loadUsersList();
+  } catch (e) {
+    showToast('تعذر تغيير الدور', 'error');
+    await loadUsersList();
+  }
+}
+
+async function toggleUserStatus(id) {
+  try {
+    const u = usersManagerCache.find(x => String(x.id) === String(id));
+    const disabled = u && String(u.status || 'active').toLowerCase() === 'disabled';
+    const res = disabled ? await backendApi.users.enable(id) : await backendApi.users.disable(id);
+    if (!res || !res.success) {
+      showToast((res && res.message) ? res.message : 'تعذر تحديث حالة المستخدم', 'error');
+      await loadUsersList();
+      return;
+    }
+    showToast(disabled ? '✅ تم تفعيل المستخدم' : '✅ تم تعطيل المستخدم');
+    await loadUsersList();
+  } catch (e) {
+    showToast('تعذر تحديث حالة المستخدم', 'error');
+    await loadUsersList();
+  }
+}
+
+async function resetUserPassword(id) {
+  const u = usersManagerCache.find(x => String(x.id) === String(id));
+  const newPassword = prompt('أدخل كلمة المرور الجديدة للمستخدم ' + (u ? u.username : '') + ' (8 أحرف على الأقل):');
+  if (newPassword === null) return;
+  if (newPassword.length < 8) { showToast('كلمة المرور يجب ألا تقل عن 8 أحرف', 'error'); return; }
+  try {
+    const res = await backendApi.users.resetPassword(id, newPassword);
+    if (!res || !res.success) {
+      showToast((res && res.message) ? res.message : 'تعذر إعادة تعيين كلمة المرور', 'error');
+      return;
+    }
+    showToast('✅ تم تحديث كلمة المرور بنجاح');
+  } catch (e) {
+    showToast('تعذر إعادة تعيين كلمة المرور', 'error');
+  }
+}
+
+function viewUserDetails(id) {
+  const u = usersManagerCache.find(x => String(x.id) === String(id));
+  if (!u) return;
+  usersManagerSelected = u;
+  const detail = document.getElementById('usersManagerDetail');
+  if (!detail) return;
+  const company = usersManagerCurrentCompany();
+  detail.innerHTML = `<div style="border:1px solid var(--border);border-radius:12px;padding:12px 14px;font-size:0.82rem;line-height:2">
+    <b>تفاصيل المستخدم — ${escapeHtml(u.username || '')}</b>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 16px;margin-top:6px">
+      <div>الاسم: <b>${escapeHtml(u.fullName || '—')}</b></div>
+      <div>الدور: <b>${userRoleLabel(u.role)}</b></div>
+      <div>الحالة: <b>${String(u.status || 'active').toLowerCase() === 'disabled' ? 'معطل' : 'فعال'}</b></div>
+      <div>الشركة: <b>${escapeHtml((company && company.name) || '—')}</b></div>
+      <div>الفرع: <b>${escapeHtml(u.branchId || '—')}</b></div>
+      <div>تاريخ الإنشاء: <b>${u.createdAt ? new Date(u.createdAt).toLocaleString('ar-EG') : '—'}</b></div>
+      <div>آخر دخول: <b>${u.lastLogin ? new Date(u.lastLogin).toLocaleString('ar-EG') : '—'}</b></div>
+    </div>
+  </div>`;
+  detail.style.display = 'block';
 }
 
 function renderCompanyOptions(filter) {
@@ -13725,7 +14907,7 @@ function renderCompanyOptions(filter) {
 }
 
 function filterCompanyOptions() {
-  renderCompanyList(_companyInput().value);
+  renderCompanyOptions(_companyInput().value);
 }
 
 function hideCompanyList() {
@@ -13847,12 +15029,24 @@ function doLogin() {
       const d = res.data;
       if (d.accessToken) localStorage.setItem('access_token', d.accessToken);
       if (d.refreshToken) localStorage.setItem('refresh_token', d.refreshToken);
+      // Company/tenant-scoped storage: bind the session to the SERVER-issued
+      // tenant (JWT claim; UI hint only — backend still authorizes). This
+      // re-hydrates DB from `cairo_db_v7_<tenantId>` BEFORE the app renders,
+      // so a company login never shows another company's local data.
+      setActiveTenantId(jwtTenantId(d.accessToken) || companySelected || null);
+      // Authenticated company name for header branding (server-side context).
+      const authCompany = (companyCatalogList || []).find(c => c && String(c.id) === ACTIVE_TENANT_ID);
+      window.__cairoActiveCompanyName = authCompany ? authCompany.name : (d.user && d.user.fullName ? '' : '');
+      if (!window.__cairoActiveCompanyName && d.effectiveCompanyName) window.__cairoActiveCompanyName = d.effectiveCompanyName;
       launchApp(d.user);
       // Phase F — the login envelope carries only user + effectiveRole; fetch
       // /auth/me to bind the backend-computed effectivePermissions too, then
       // re-apply the permission-driven UI (backend remains authoritative).
       if (d.effectiveRole !== undefined) currentUser.effectiveRole = d.effectiveRole;
       refreshEffectivePermissions();
+      // Phase 33 — platform identity + presence heartbeat (server-authoritative).
+      refreshPlatformRole().then(() => { try { window.OmniNavigationBuilder?.build(); applyNavScope(); applyPermissions(); } catch (e) {} });
+      startPlatformHeartbeat();
     }).catch(() => {
       document.getElementById('loginError').style.display = 'block';
       if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = '🔐 تسجيل الدخول'; }
@@ -13907,10 +15101,18 @@ function doLogout() {
   if (USE_BACKEND && backendApi && backendApi.auth) {
     backendApi.auth.logout().catch(() => {});
   }
+  // Phase 33 — stop presence heartbeat and clear the platform role.
+  stopPlatformHeartbeat();
+  platformRole = null;
+  const pNav = document.getElementById('platformMasterNav');
+  if (pNav) pNav.style.display = 'none';
   localStorage.removeItem('access_token');
   localStorage.removeItem('refresh_token');
   currentUser = null;
   localStorage.removeItem(SESSION_USER_KEY);
+  // Drop the company-scoped context: credentials only are cleared, the
+  // scoped business DB (cairo_db_v7_<tenantId>) is preserved untouched.
+  setActiveTenantId(null);
   location.reload();
 }
 
@@ -13920,6 +15122,12 @@ function restoreSessionOnLoad() {
 
   // Phase 23B: restore session from backend when enabled
   if (USE_BACKEND && backendApi && backendApi.auth && localStorage.getItem('access_token')) {
+    // Bind the stored session to its server-issued tenant BEFORE rendering so
+    // the scoped business DB (cairo_db_v7_<tenantId>) is loaded — never the
+    // legacy global namespace or another company's data.
+    setActiveTenantId(jwtTenantId(localStorage.getItem('access_token')) || null);
+    const restoredCompany = (companyCatalogList || []).find(c => c && String(c.id) === ACTIVE_TENANT_ID);
+    window.__cairoActiveCompanyName = restoredCompany ? restoredCompany.name : (window.__cairoActiveCompanyName || '');
     // No username argument so the backend binds effectiveRole/
     // effectivePermissions for the authenticated session (see auth.me helper).
     backendApi.auth.me().then(res => {
@@ -13945,6 +15153,9 @@ function restoreSessionOnLoad() {
         if (elA) elA.textContent = (usr.fullName || usr.username).charAt(0).toUpperCase();
         applyPermissions();
         initApp();
+        // Phase 33 — platform identity + presence heartbeat on session restore too.
+        refreshPlatformRole().then(() => { try { window.OmniNavigationBuilder?.build(); applyNavScope(); applyPermissions(); } catch (e) {} });
+        startPlatformHeartbeat();
         scheduleSupabaseDiagnosticAutoTest('session-restore');
         showPage(getDefaultPageForCurrentRole());
         startUserRegistrationTimer();
@@ -14534,8 +15745,19 @@ let ghLastSaved    = null;
 let ghLastPullContent = '';
 let changeLog = [];
 
+// Company-scoped GitHub gist binding (CairoTech isolation). When a tenant is
+// active, the gist id is looked up under `digi_gh_gist_id_<tenantId>` and the
+// legacy global `digi_gh_gist_id` is NEVER used — an old-company gist can
+// never be pulled into (or pushed from) a company session. In legacy mode
+// (no tenant) the original global key is used unchanged.
+function ghGistKey() {
+  // JWT-authoritative like getDbStorageKey: a tampered ACTIVE_TENANT_ID must
+  // not redirect the gist binding into another company's scope.
+  const tenantId = getEffectiveTenantId();
+  return tenantId ? (GH_GIST_KEY + '_' + tenantId) : GH_GIST_KEY;
+}
 function ghToken()  { return localStorage.getItem(GH_TOKEN_KEY) || ''; }
-function ghGistId() { return localStorage.getItem(GH_GIST_KEY)  || ''; }
+function ghGistId() { return localStorage.getItem(ghGistKey())  || ''; }
 function ghHeaders(){ return { 'Authorization':'token '+ghToken(), 'Content-Type':'application/json', 'Accept':'application/vnd.github+json' }; }
 
 function ghHeadersFromToken(token){
@@ -14581,18 +15803,18 @@ async function ghEnsureGistForToken(token, preferredGistId=''){
   if (!token) throw new Error('Token مطلوب');
   const cleanPreferred = (preferredGistId || '').trim();
   if (cleanPreferred) {
-    localStorage.setItem(GH_GIST_KEY, cleanPreferred);
+    localStorage.setItem(ghGistKey(), cleanPreferred);
     return cleanPreferred;
   }
   const localGist = ghGistId();
   if (localGist) return localGist;
   const existing = await ghFindExistingGistByToken(token);
   if (existing) {
-    localStorage.setItem(GH_GIST_KEY, existing);
+    localStorage.setItem(ghGistKey(), existing);
     return existing;
   }
   const created = await ghCreateNewGistForToken(token);
-  localStorage.setItem(GH_GIST_KEY, created);
+  localStorage.setItem(ghGistKey(), created);
   return created;
 }
 
@@ -14651,6 +15873,18 @@ async function ghPull(silent=false) {
       // changed; merging would trigger a full page redraw (scroll jump).
       if (silent && content === ghLastPullContent) return false;
       const parsed = JSON.parse(content);
+      // Company-binding guard (CairoTech isolation): when a tenant context is
+      // active, only a gist explicitly tagged with the SAME tenant may be
+      // imported. A gist with a different (or missing) binding is REFUSED so
+      // an old-company backup can never overwrite a company's DB.
+      const effectiveTenant = getEffectiveTenantId();
+      if (effectiveTenant) {
+        const bound = parsed && parsed._companyId ? String(parsed._companyId) : '';
+        if (!bound || bound !== effectiveTenant) {
+          if (!silent) showPill('⛔ تعذر الاستعادة: النسخة السحابية غير مرتبطة بهذه الشركة', 4000);
+          return false;
+        }
+      }
       const localVersion = (DB.settings && Number(DB.settings.localVersion)) || 0;
       const remoteVersion = (parsed.settings && Number(parsed.settings.localVersion)) || 0;
       // حماية من استبدال نسخة محلية أحدث بنسخة سحابية أقدم
@@ -14658,7 +15892,8 @@ async function ghPull(silent=false) {
         if (!silent) showPill('ℹ️ تم تجاهل استعادة أقدم من النسخة المحلية', 2500);
         return false;
       }
-      // Merge all data except users
+      // Merge all data except users and the internal binding marker
+      delete parsed._companyId;
       const systemUsernames = ['Owner','admin','Eso','Gazar','cashier','tech','user','user2'];
       Object.keys(parsed).forEach(k=>{ if(k!=='users') DB[k]=parsed[k]; });
       // Merge users: system defaults + any extra users from GitHub
@@ -14683,7 +15918,7 @@ async function ghPull(silent=false) {
       DB.users = systemUsers;
       ensureDBIntegrity();
       applyBusinessBranding();
-      localStorage.setItem(DB_KEY, JSON.stringify(DB));
+      localStorage.setItem(getDbStorageKey(), JSON.stringify(DB));
       ghLastPullContent = content;
       if (!silent) { showPill('✅ تم الاستعادة من GitHub',3000); showToast('✅ تم الاستعادة من GitHub'); }
       return true;
@@ -14696,9 +15931,12 @@ async function ghPush(silent=false, retries=2) {
   if (!ghToken()||!ghGistId()||ghSyncing) return false;
   ghSyncing=true;
   try {
+    // Tag the pushed snapshot with the active company binding so ghPull can
+    // refuse cross-company imports. Legacy mode (no tenant) tags 'legacy'.
+    const pushPayload = Object.assign({}, DB, { _companyId: getEffectiveTenantId() || 'legacy' });
     const r = await fetch('https://api.github.com/gists/'+ghGistId(),{
       method:'PATCH', headers:ghHeaders(),
-      body:JSON.stringify({files:{[GH_FILENAME]:{content:JSON.stringify(DB)}}})
+      body:JSON.stringify({files:{[GH_FILENAME]:{content:JSON.stringify(pushPayload)}}})
     });
     if (!r.ok) throw new Error('HTTP '+r.status);
     ghLastSaved=new Date();
@@ -14781,12 +16019,12 @@ async function frConnect() {
     const r = await fetch('https://api.github.com/user', {headers:{'Authorization':'token '+token}});
     if (!r.ok) throw new Error('Token غير صالح ('+r.status+')');
     const ud = await r.json();
-    if (ghToken() && ghToken() !== token) localStorage.removeItem(GH_GIST_KEY);
+    if (ghToken() && ghToken() !== token) localStorage.removeItem(ghGistKey());
     localStorage.setItem(GH_TOKEN_KEY, token);
     frSetStatus('✅ مرحباً '+(ud.name||ud.login)+'!', 'var(--green)', 'rgba(0,168,84,.08)');
     frSetStatus('⏳ جاري تجهيز المزامنة على GitHub...', 'var(--accent)', 'rgba(0,102,255,.08)');
     const finalGistId = await ghEnsureGistForToken(token, gistId);
-    localStorage.setItem(GH_GIST_KEY, finalGistId);
+    localStorage.setItem(ghGistKey(), finalGistId);
     frSetStatus('⏳ جاري استعادة البيانات من GitHub...', 'var(--accent)', 'rgba(0,102,255,.08)');
     const ok = await ghPull(true);
     frSetStatus(
@@ -14865,7 +16103,7 @@ setInterval(async () => {
 function loadDB() {
   try {
     let saved = null;
-    try { saved = localStorage.getItem(DB_KEY); } catch (e) { saved = null; }
+    try { saved = localStorage.getItem(getDbStorageKey()); } catch (e) { saved = null; }
     if (saved) {
       const data = JSON.parse(saved);
       // Smart merge: copy all data arrays from saved, but ALWAYS enforce our system users
@@ -15004,7 +16242,7 @@ function saveDB() {
   DB.settings.lastModifiedAt = new Date().toISOString();
   let persisted = false;
   try {
-    localStorage.setItem(DB_KEY, JSON.stringify(DB));
+    localStorage.setItem(getDbStorageKey(), JSON.stringify(DB));
     persisted = true;
   } catch(e) {
     // R3: graceful degradation. localStorage may hit quota at large scale
@@ -15014,12 +16252,12 @@ function saveDB() {
     console.warn('saveDB localStorage failed, falling back to IndexedDB', e);
     try {
       const blob = JSON.stringify(DB);
-      __idbSet(DB_KEY, blob).then(ok => {
+      __idbSet(getDbStorageKey(), blob).then(ok => {
         if (ok) { showToast('✅ تم الحفظ في IndexedDB (التخزين الاحتياطي)', 'success'); }
         else { showToast('❌ فشل الحفظ في IndexedDB أيضًا.', 'error'); }
       });
-      // Also clear the legacy localStorage key to avoid stale small copy.
-      try { localStorage.removeItem(DB_KEY); } catch (_) {}
+      // Also clear the localStorage key to avoid stale small copy.
+      try { localStorage.removeItem(getDbStorageKey()); } catch (_) {}
       persisted = true;
     } catch (idbErr) {
       showToast('❌ فشل حفظ البيانات محليًا وفي IndexedDB.', 'error');
@@ -17875,6 +19113,7 @@ function showPage(page, options = {}) {
   if (page === 'branches') renderBranchesPage();
   if (page === 'users') renderUsers();
   if (page === 'settings') renderSettingsPage();
+  if (page === 'platform-master') renderPlatformMaster();
   if (page === 'backup') renderBackupPage();
   if (page === 'sync') renderSyncPage();
   if (page === 'cathnumber') initCathNumberPage();
@@ -21020,7 +22259,15 @@ async function renderDashboard() {
   const totalProducts = DB.products.length;
   const __stockMapDash = getStockMap();
   const lowStock = DB.products.filter(p => (__stockMapDash.get(String(p.id)) || 0) <= (p.minStock || 5)).length;
-  const treasuryBalance = getTreasurySummary().total;
+  // CairoTech treasury consistency: the dashboard KPI uses the SAME source as
+  // the treasury page — backend entries when enabled, else the company-scoped
+  // local DB — so the balance can never show another company's (or a stale
+  // local) figure.
+  let treasuryEntries = getTreasuryEntries();
+  if (USE_BACKEND && typeof digitronicsDataAdapter !== 'undefined') {
+    try { treasuryEntries = await digitronicsDataAdapter.listTreasury(); } catch (_) {}
+  }
+  const treasuryBalance = computeTreasurySummaryFromEntries(treasuryEntries).total;
   const maintPending = DB.maintenance.filter(m => m.status === 'pending').length;
   
   const setD6 = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
@@ -26290,7 +27537,15 @@ function saveCashEntry() {
 }
 
 async function renderTreasury() {
-   const treasury = getTreasurySummary();
+   // Single source of truth: fetch the entries FIRST (backend when enabled,
+   // else the company-scoped local DB) and compute EVERY total from the SAME
+   // array that renders the table — the balance can never disagree with the
+   // visible entries, and it is always company/tenant scoped.
+   let entries = getTreasuryEntries();
+   if (USE_BACKEND && typeof digitronicsDataAdapter !== 'undefined') {
+     try { entries = await digitronicsDataAdapter.listTreasury(); } catch (_) {}
+   }
+   const treasury = computeTreasurySummaryFromEntries(entries);
    const cash = treasury.byMethod.cash || 0;
    const instapay = treasury.byMethod.instapay || 0;
    const vodafone = treasury.byMethod.vodafone || 0;
@@ -26313,12 +27568,6 @@ async function renderTreasury() {
    setMoney('treas-instapay', instapay);
    setMoney('treas-vodafone', vodafone);
    setMoney('treas-fawry', fawry);
-   
-   // Phase 23B: fetch from backend when enabled
-   let entries = getTreasuryEntries();
-   if (USE_BACKEND && typeof digitronicsDataAdapter !== 'undefined') {
-     try { entries = await digitronicsDataAdapter.listTreasury(); } catch (_) {}
-   }
    
    // Cash flow table
    const dateFilter = document.getElementById('cashDateFilter').value;
@@ -30164,6 +31413,17 @@ async function openDeviceHistory(deviceId) {
 }
 
 function renderSettingsPage() {
+  // تهيئة شركة جديدة — only visible when the backend is used AND the caller
+  // holds company.create (Owner/Admin bypass via canEffective). The backend
+  // enforces the same permission on POST /companies/provision.
+  const provCard = document.getElementById('provisionCompanyCard');
+  if (provCard) {
+    provCard.style.display = (USE_BACKEND && canEffective('company.create')) ? '' : 'none';
+  }
+  const usersCard = document.getElementById('usersManagementCard');
+  if (usersCard) {
+    usersCard.style.display = (USE_BACKEND && canEffective('users.view')) ? '' : 'none';
+  }
   const rules = getApprovalRules();
   const loyalty = getLoyaltyConfig();
   updateAppearanceControls();
@@ -35984,7 +37244,7 @@ function importBackup(input) {
 
       const storage = payload.localStorage && typeof payload.localStorage === 'object' ? payload.localStorage : {};
       Object.entries(storage).forEach(([key, value]) => {
-        if (key === DB_KEY || key === SESSION_USER_KEY || value === '[redacted]' || key === GH_TOKEN_KEY) return;
+        if (key.indexOf(DB_KEY) === 0 || key === SESSION_USER_KEY || value === '[redacted]' || key === GH_TOKEN_KEY) return;
         try { localStorage.setItem(key, String(value)); } catch(e) { console.warn('Backup localStorage restore skipped', key, e); }
       });
 
@@ -36043,7 +37303,10 @@ function resetAllData() {
   if (!confirm('هل أنت متأكد؟ سيتم حذف كل البيانات نهائياً!')) return;
   if (!confirm('تأكيد نهائي: هل تريد إعادة ضبط النظام بالكامل؟')) return;
   
-  localStorage.removeItem(DB_KEY);
+  // User-controlled reset: removes ONLY the ACTIVE company's scoped database.
+  // The legacy `cairo_db_v7` namespace and other companies' scoped DBs are
+  // never touched here.
+  localStorage.removeItem(getDbStorageKey());
   localStorage.removeItem(USER_REG_KEY);
   location.reload();
 }
@@ -41068,12 +42331,12 @@ async function syncPageConnect() {
     const r = await fetch('https://api.github.com/user',{headers:{'Authorization':'token '+token}});
     if (!r.ok) throw new Error('Token غير صالح ('+r.status+')');
     const ud = await r.json();
-    if (ghToken() && ghToken() !== token) localStorage.removeItem(GH_GIST_KEY);
+    if (ghToken() && ghToken() !== token) localStorage.removeItem(ghGistKey());
     localStorage.setItem(GH_TOKEN_KEY, token);
     msg.textContent = '✅ مرحباً '+(ud.name||ud.login)+'!';
     msg.textContent += ' — جاري تجهيز المزامنة...';
     const finalGistId = await ghEnsureGistForToken(token, gistId);
-    localStorage.setItem(GH_GIST_KEY, finalGistId);
+    localStorage.setItem(ghGistKey(), finalGistId);
     msg.textContent = '⏳ جاري استعادة البيانات...';
     const ok = await ghPull(true);
     msg.textContent = ok ? '✅ تم الربط واستعادة البيانات بنجاح!' : '✅ تم تفعيل المزامنة. سيتم الجلب تلقائياً عند توفر بيانات سحابية.';
@@ -41090,7 +42353,7 @@ async function syncPageConnect() {
 function syncPageDisconnect() {
   if (!confirm('هل تريد إلغاء الاتصال بـ GitHub؟ البيانات ستبقى محلياً')) return;
   localStorage.removeItem(GH_TOKEN_KEY);
-  localStorage.removeItem(GH_GIST_KEY);
+  localStorage.removeItem(ghGistKey());
   const t = document.getElementById('syncTokenInput'); if(t) t.value='';
   const g = document.getElementById('syncGistInput');  if(g) g.value='';
   const m = document.getElementById('syncSetupMsg');   if(m){m.textContent='✅ تم إلغاء الاتصال';m.style.color='var(--text2)';}
@@ -41349,9 +42612,9 @@ loadDB();
 (async function restoreFromIDBIfNeeded() {
   try {
     let hasLocal = false;
-    try { hasLocal = !!localStorage.getItem(DB_KEY); } catch (e) {}
+    try { hasLocal = !!localStorage.getItem(getDbStorageKey()); } catch (e) {}
     if (hasLocal) return;
-    const blob = await __idbGet(DB_KEY);
+    const blob = await __idbGet(getDbStorageKey());
     if (!blob) return;
     const data = JSON.parse(blob);
     Object.keys(data).forEach(k => { if (k !== 'users') DB[k] = data[k]; });
@@ -41404,6 +42667,109 @@ setInterval(() => {
   if (el) el.textContent = new Date().toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'});
 }, 30000);
 
+</script>
+<style>
+#esoUpdateBanner{position:fixed;bottom:0;right:0;left:0;z-index:99999;background:#0f172a;color:#f8fafc;font-family:'Segoe UI',Tahoma,Arial,sans-serif;direction:rtl;padding:14px 18px;box-shadow:0 -4px 18px rgba(0,0,0,.35);display:none;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;font-size:14px}
+#esoUpdateBanner .eso-upd-title{font-weight:700;font-size:15px;margin-bottom:4px}
+#esoUpdateBanner .eso-upd-meta{opacity:.85;font-size:13px}
+#esoUpdateBanner .eso-upd-notes{margin-top:6px;opacity:.75;font-size:12.5px;max-width:60ch}
+#esoUpdateBanner .eso-upd-mandatory{color:#fca5a5;font-weight:600;margin-top:4px}
+#esoUpdateBanner button{border:none;border-radius:8px;padding:9px 18px;font-size:13.5px;font-weight:600;cursor:pointer}
+#esoUpdateBanner .eso-upd-now{background:#2563eb;color:#fff}
+#esoUpdateBanner .eso-upd-now:hover{background:#1d4ed8}
+#esoUpdateBanner .eso-upd-later{background:#334155;color:#e2e8f0}
+#esoUpdateBanner .eso-upd-busy{background:#64748b;color:#fff;cursor:default}
+#esoUpdateBanner.eso-upd-applying{background:#1e293b}
+</style>
+<div id="esoUpdateBanner" role="status" aria-live="polite">
+  <div>
+    <div class="eso-upd-title" id="esoUpdTitle">يوجد تحديث جديد لـ OmniStore</div>
+    <div class="eso-upd-meta" id="esoUpdMeta"></div>
+    <div class="eso-upd-notes" id="esoUpdNotes"></div>
+    <div class="eso-upd-mandatory" id="esoUpdMandatory" style="display:none">هذا التحديث مطلوب للاستمرار.</div>
+  </div>
+  <div style="display:flex;gap:10px;align-items:center">
+    <button class="eso-upd-now" id="esoUpdNow">تحديث الآن</button>
+    <button class="eso-upd-later" id="esoUpdLater">لاحقًا</button>
+  </div>
+</div>
+<script>
+(function(){
+  'use strict';
+  // In-app update rail (Phase C): non-blocking Arabic banner that checks
+  // GET /api/v1/update/manifest and starts the safe updater via
+  // POST /api/v1/update/apply. The updater runs as a SEPARATE process, so
+  // clicking "تحديث الآن" is safe even when the app restarts itself.
+  var INTERVAL = 21600000; // default 6h
+  try { var iv = parseInt(localStorage.getItem('eso_update_check_interval') || '', 10); if (iv > 60000) INTERVAL = iv; } catch(e){}
+  var banner = document.getElementById('esoUpdateBanner');
+  var apiBase = (typeof API_BASE_URL !== 'undefined' && API_BASE_URL) ? API_BASE_URL : '';
+  var checking = false;
+  function base(){ return apiBase || location.origin || ''; }
+  function getToken(){ try { return localStorage.getItem('access_token') || ''; } catch(e){ return ''; } }
+  function hideBanner(){ if (banner) banner.style.display = 'none'; }
+  function check(){
+    if (checking) return;
+    checking = true;
+    fetch(base() + '/api/v1/update/manifest', { headers: { 'Content-Type': 'application/json' } })
+      .then(function(r){ return r.json().then(function(b){ return { ok: r.ok, body: b }; }); })
+      .then(function(res){
+        if (!res.ok || !res.body || !res.body.data || !res.body.data.updateAvailable) { hideBanner(); return; }
+        var d = res.body.data;
+        var title = document.getElementById('esoUpdTitle');
+        var meta = document.getElementById('esoUpdMeta');
+        var notes = document.getElementById('esoUpdNotes');
+        var mand = document.getElementById('esoUpdMandatory');
+        var laterBtn = document.getElementById('esoUpdLater');
+        if (title) title.textContent = 'يوجد تحديث جديد لـ OmniStore';
+        if (meta) meta.textContent = 'الإصدار الحالي: ' + d.currentVersion + '  •  الإصدار الجديد: ' + d.latestVersion + (d.releaseDate ? '  •  ' + d.releaseDate : '');
+        if (notes) { if (d.releaseNotes) { notes.textContent = d.releaseNotes; notes.style.display = ''; } else { notes.style.display = 'none'; } }
+        if (mand) mand.style.display = d.mandatory ? '' : 'none';
+        if (laterBtn) laterBtn.style.display = d.mandatory ? 'none' : '';
+        if (banner) banner.style.display = 'flex';
+      })
+      .catch(function(){ hideBanner(); })
+      .then(function(){ checking = false; });
+  }
+  function applyUpdate(){
+    var now = document.getElementById('esoUpdNow');
+    var later = document.getElementById('esoUpdLater');
+    var title = document.getElementById('esoUpdTitle');
+    if (now) { now.disabled = true; now.textContent = 'جاري التحديث...'; now.classList.add('eso-upd-busy'); }
+    if (later) later.style.display = 'none';
+    if (banner) banner.classList.add('eso-upd-applying');
+    if (title) title.textContent = 'جاري التحديث... سيُعاد تشغيل التطبيق تلقائيًا';
+    fetch(base() + '/api/v1/update/apply', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() } })
+      .then(function(r){ return r.json().then(function(b){ return { ok: r.ok, body: b }; }); })
+      .then(function(res){
+        if (res.ok && res.body && res.body.data && res.body.data.started) {
+          if (title) title.textContent = 'تم بدء التحديث. سيتحقق التطبيق من الإصدار الجديد ويعيد التشغيل تلقائيًا.';
+          try { sessionStorage.setItem('eso_update_applied', '1'); } catch(e){}
+        } else {
+          if (title) title.textContent = 'تعذر بدء التحديث. حاول مرة أخرى لاحقًا.';
+          if (now) { now.disabled = false; now.textContent = 'تحديث الآن'; now.classList.remove('eso-upd-busy'); }
+          if (later) later.style.display = '';
+          if (banner) banner.classList.remove('eso-upd-applying');
+        }
+      })
+      .catch(function(){
+        if (title) title.textContent = 'تعذر بدء التحديث. حاول مرة أخرى لاحقًا.';
+        if (now) { now.disabled = false; now.textContent = 'تحديث الآن'; now.classList.remove('eso-upd-busy'); }
+        if (later) later.style.display = '';
+        if (banner) banner.classList.remove('eso-upd-applying');
+      });
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    var now = document.getElementById('esoUpdNow');
+    var later = document.getElementById('esoUpdLater');
+    if (now) now.addEventListener('click', applyUpdate);
+    if (later) later.addEventListener('click', function(){ hideBanner(); try { sessionStorage.setItem('eso_update_dismissed', String(Date.now())); } catch(e){} });
+    try { if (sessionStorage.getItem('eso_update_applied')) { setTimeout(check, 20000); return; } } catch(e){}
+    check();
+    setInterval(check, INTERVAL);
+    document.addEventListener('visibilitychange', function(){ if (!document.hidden) check(); });
+  });
+})();
 </script>
 </body>
 </html>
