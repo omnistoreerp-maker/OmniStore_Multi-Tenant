@@ -956,6 +956,47 @@ body.accent-orange{--accent:#ea580c;--accent2:#c2410c;--accent-color:#ea580c;}
 }
 @media print{.pwa-bottom-nav,.pwa-install-banner{display:none!important}}
 
+/* ==== PHASE 34.1 — NAVIGATION ARCHITECTURE (master/company/internal scopes) ==== */
+#omniScopeSwitch{display:none;margin:0 8px 8px;padding:4px;border-radius:12px;background:var(--surface2);border:1px solid var(--border);}
+.omni-scope-pill{flex:1;border:0;border-radius:9px;padding:6px 8px;font-size:.72rem;font-weight:800;cursor:pointer;color:var(--text2);background:transparent;font-family:inherit;}
+.omni-scope-pill.active{background:var(--accent);color:#fff;box-shadow:0 2px 8px rgba(37,99,235,.25);}
+.omni-scope-pill.active[data-scope="master"]{background:#7c3aed;box-shadow:0 2px 10px rgba(124,58,237,.35);}
+[data-nav-scope="master"].nav-icon-btn{color:#c4b5fd;}
+[data-nav-scope="master"].nav-icon-btn:hover{background:rgba(124,58,237,.16);}
+[data-nav-scope="master"].nav-icon-btn.active{background:#7c3aed;color:#fff;}
+[data-nav-scope="master"].nav-dropdown{border-inline-start:3px solid #7c3aed;}
+[data-nav-scope="master"].nav-dropdown .nav-dropdown-header{color:#a78bfa;}
+[data-nav-scope="internal"].nav-icon-btn{color:#94a3b8;}
+[data-nav-scope="internal"].nav-icon-btn .nav-alert-badge{display:none;}
+button:focus-visible,.nav-dropdown-item:focus-visible,.nav-icon-btn:focus-visible,.omni-scope-pill:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+/* Settings hub (Phase 34.1) */
+.settings-hub{display:flex;flex-direction:column;gap:10px;}
+.settings-search{position:relative;}
+.settings-search input{width:100%;padding:10px 14px 10px 38px;border-radius:12px;border:1px solid var(--border);background:var(--surface2);color:var(--text);font-family:inherit;font-size:.85rem;}
+.settings-search .settings-search-icon{position:absolute;inset-inline-start:12px;top:50%;transform:translateY(-50%);opacity:.55;pointer-events:none;}
+.settings-group{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:12px 14px;}
+.settings-group-title{font-size:.82rem;font-weight:800;color:var(--accent);margin-bottom:8px;}
+.settings-group-links{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;}
+.settings-link{display:flex;align-items:center;gap:7px;padding:8px 10px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:.78rem;font-weight:700;color:var(--text);text-decoration:none;transition:border-color .15s,transform .15s;}
+.settings-link:hover{border-color:var(--accent);transform:translateY(-1px);}
+button.settings-link{text-align:start;font-family:inherit;}
+.settings-group[data-settings-hidden="true"]{display:none;}
+/* Mobile drawer (Phase 34.1) */
+.mobile-nav-drawer{position:fixed;top:0;bottom:0;right:0;left:auto;width:82%;max-width:340px;z-index:980;background:var(--surface);border-inline-start:1px solid var(--border);box-shadow:0 0 40px rgba(15,23,42,.35);transform:translateX(104%);transition:transform .22s ease;overflow-y:auto;padding:14px;}
+.mobile-nav-drawer.open{transform:translateX(0);}
+.mobile-nav-drawer .drawer-scope{display:flex;gap:6px;margin-bottom:10px;}
+.mobile-nav-drawer .drawer-section{margin-bottom:12px;}
+.mobile-nav-drawer .drawer-section-title{font-size:.74rem;font-weight:800;color:var(--accent);margin-bottom:6px;}
+.mobile-nav-drawer .drawer-item{display:flex;align-items:center;gap:8px;width:100%;text-align:start;padding:9px 12px;margin-bottom:5px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:.8rem;font-weight:700;color:var(--text);font-family:inherit;}
+.mobile-nav-drawer .drawer-item:active{transform:scale(.99);background:rgba(37,99,235,.1);}
+.mobile-nav-drawer-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:975;display:none;}
+.mobile-nav-drawer-backdrop.open{display:block;}
+[data-theme="dark"] .omni-scope-pill.active{color:#fff;}
+[data-theme="dark"] .settings-link{border-color:rgba(255,255,255,.12);}
+.mobile-nav-trigger{display:none;}
+@media (max-width:768px){.mobile-nav-trigger{display:flex!important;}.mobile-nav-drawer-backdrop{display:none;}}
+@media (min-width:769px){.mobile-nav-drawer,.mobile-nav-drawer-backdrop{display:none;}}
+
 
 
 </style>
@@ -1685,18 +1726,47 @@ document.addEventListener('DOMContentLoaded', function() {
     <div class="sidebar-logo">◈ OmniStore ERP</div>
     <div id="omniCompanyHeader" style="display:none;margin:0 10px 8px;padding:7px 9px;border-radius:9px;background:var(--surface2);color:var(--text2);font-size:.7rem;font-weight:700;text-align:center"></div>
     
+    <!-- Phase 34.1 scope switch: COMPANY (tenant) ⇄ MASTER (platform) -->
+    <div id="omniScopeSwitch">
+      <div style="display:flex;gap:4px">
+        <button type="button" class="omni-scope-pill active" data-scope="tenant" aria-pressed="true" onclick="setOmniNavScope('tenant')">🏢 الشركة</button>
+        <button type="button" class="omni-scope-pill" data-scope="master" aria-pressed="false" onclick="setOmniNavScope('master')">👑 MASTER</button>
+      </div>
+    </div>
+
     <!-- Icon Buttons for Main Categories -->
-    <button class="nav-icon-btn active" onclick="toggleNavDropdown('main', this, event)" title="الرئيسية">📊</button>
-    <button class="nav-icon-btn" onclick="toggleNavDropdown('sales', this, event)" title="الفواتير والمبيعات">🛒</button>
-    <button class="nav-icon-btn" onclick="toggleNavDropdown('inventory', this, event)" title="المخزون">📦</button>
-    <button class="nav-icon-btn" onclick="toggleNavDropdown('reports', this, event)" title="التقارير">📈</button>
-    <button class="nav-icon-btn" onclick="toggleNavDropdown('customers', this, event)" title="العملاء والموردين">👥</button>
-    <button class="nav-icon-btn" onclick="toggleNavDropdown('admin', this, event)" title="الإدارة">⚙️</button>
-      <button class="nav-icon-btn" onclick="toggleNavDropdown('maintenance', this, event)" title="الصيانة والضمان">🔧</button>
-      <button class="nav-icon-btn" onclick="toggleNavDropdown('analytics', this, event)" title="التحليلات">💡</button>
-      <button class="nav-icon-btn" onclick="toggleNavDropdown('employees', this, event)" title="الموظفين">👨‍💼</button>
-      <button class="nav-icon-btn" id="alertsBellBtn" onclick="showPage('alerts-center'); closeAllNavDropdowns();" title="التنبيهات" style="position:relative">🔔<span class="nav-alert-badge" id="alertsBellCount">0</span></button>
-      <button class="nav-icon-btn" id="catchNumberModuleBtn" onclick="showPage('cathnumber'); closeAllNavDropdowns();" title="Catch Number">🔢</button>
+    <!-- COMPANY scope (tenant) -->
+    <button class="nav-icon-btn active" data-nav-scope="tenant" onclick="toggleNavDropdown('main', this, event)" title="الرئيسية" aria-label="الرئيسية">📊</button>
+    <button class="nav-icon-btn" data-nav-scope="tenant" onclick="toggleNavDropdown('sales', this, event)" title="الفواتير والمبيعات" aria-label="الفواتير والمبيعات">🛒</button>
+    <button class="nav-icon-btn" data-nav-scope="tenant" onclick="toggleNavDropdown('purchases', this, event)" title="المشتريات" aria-label="المشتريات">🛍️</button>
+    <button class="nav-icon-btn" data-nav-scope="tenant" onclick="toggleNavDropdown('inventory', this, event)" title="المخزون" aria-label="المخزون">📦</button>
+    <button class="nav-icon-btn" data-nav-scope="tenant" onclick="toggleNavDropdown('reports', this, event)" title="التقارير والمالية" aria-label="التقارير والمالية">📈</button>
+    <button class="nav-icon-btn" data-nav-scope="tenant" onclick="toggleNavDropdown('customers', this, event)" title="العملاء والموردون" aria-label="العملاء والموردون">👥</button>
+    <button class="nav-icon-btn" data-nav-scope="tenant" onclick="toggleNavDropdown('treasury', this, event)" title="الخزنة" aria-label="الخزنة">🏦</button>
+    <button class="nav-icon-btn" data-nav-scope="tenant" onclick="toggleNavDropdown('installments', this, event)" title="التقسيط" aria-label="التقسيط">📆</button>
+    <button class="nav-icon-btn" data-nav-scope="tenant" onclick="toggleNavDropdown('admin', this, event)" title="الإدارة والنظام" aria-label="الإدارة والنظام">⚙️</button>
+    <button class="nav-icon-btn" data-nav-scope="tenant" onclick="toggleNavDropdown('maintenance', this, event)" title="الصيانة والضمان" aria-label="الصيانة والضمان">🔧</button>
+    <button class="nav-icon-btn" data-nav-scope="tenant" onclick="toggleNavDropdown('analytics', this, event)" title="التحليلات" aria-label="التحليلات">💡</button>
+    <button class="nav-icon-btn" data-nav-scope="tenant" onclick="toggleNavDropdown('employees', this, event)" title="الموظفين" aria-label="الموظفين">👨‍💼</button>
+    <button class="nav-icon-btn" data-nav-scope="tenant" onclick="toggleNavDropdown('marketplace', this, event)" title="المتجر والإضافات" aria-label="المتجر والإضافات">🏪</button>
+    <button class="nav-icon-btn" data-nav-scope="tenant" onclick="toggleNavDropdown('entertainment', this, event)" title="خدمات إضافية" aria-label="خدمات إضافية">🎮</button>
+    <button class="nav-icon-btn" data-nav-scope="tenant" id="alertsBellBtn" onclick="showPage('alerts-center'); closeAllNavDropdowns();" title="التنبيهات" aria-label="التنبيهات" style="position:relative">🔔<span class="nav-alert-badge" id="alertsBellCount">0</span></button>
+    <button class="nav-icon-btn" data-nav-scope="tenant" id="catchNumberModuleBtn" onclick="showPage('cathnumber'); closeAllNavDropdowns();" title="Catch Number" aria-label="Catch Number">🔢</button>
+
+    <!-- MASTER scope (platform) — shown only for platform administrators -->
+    <button class="nav-icon-btn" data-nav-scope="master" onclick="toggleNavDropdown('master_home', this, event)" title="لوحة تحكم المنصة" aria-label="لوحة تحكم المنصة">🛰️</button>
+    <button class="nav-icon-btn" data-nav-scope="master" onclick="toggleNavDropdown('master_companies', this, event)" title="إدارة الشركات" aria-label="إدارة الشركات">🏢</button>
+    <button class="nav-icon-btn" data-nav-scope="master" onclick="toggleNavDropdown('master_users', this, event)" title="المستخدمون والجلسات" aria-label="المستخدمون والجلسات">🔐</button>
+    <button class="nav-icon-btn" data-nav-scope="master" onclick="toggleNavDropdown('master_licenses', this, event)" title="التراخيص والاشتراكات" aria-label="التراخيص والاشتراكات">🔑</button>
+    <button class="nav-icon-btn" data-nav-scope="master" onclick="toggleNavDropdown('master_integrations', this, event)" title="تكاملات المنصة" aria-label="تكاملات المنصة">🔌</button>
+    <button class="nav-icon-btn" data-nav-scope="master" onclick="toggleNavDropdown('master_database', this, event)" title="قاعدة بيانات المنصة" aria-label="قاعدة بيانات المنصة">🗄️</button>
+    <button class="nav-icon-btn" data-nav-scope="master" onclick="toggleNavDropdown('master_backups', this, event)" title="النسخ الاحتياطي والاستعادة" aria-label="النسخ الاحتياطي والاستعادة">💾</button>
+    <button class="nav-icon-btn" data-nav-scope="master" onclick="toggleNavDropdown('master_audit', this, event)" title="الأمان والتدقيق" aria-label="الأمان والتدقيق">🛡️</button>
+    <button class="nav-icon-btn" data-nav-scope="master" onclick="toggleNavDropdown('master_platform', this, event)" title="منصة OmniStore" aria-label="منصة OmniStore">👑</button>
+
+    <!-- INTERNAL scope (developer/diagnostics) -->
+    <button class="nav-icon-btn" data-nav-scope="internal" onclick="toggleNavDropdown('internal', this, event)" title="مركز المطورين والاختبار" aria-label="مركز المطورين والاختبار">🧪</button>
+    <button class="nav-icon-btn mobile-nav-trigger" onclick="toggleMobileNavDrawer()" title="القائمة" aria-label="القائمة">☰</button>
     
     <div class="sidebar-footer">
       <div class="user-badge">
@@ -1738,7 +1808,7 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
   </nav>
   <!-- Dropdowns moved OUTSIDE sidebar to fix backdrop-filter stacking context bug -->
-  <div class="nav-dropdown" id="dropdown-main">
+  <div class="nav-dropdown" id="dropdown-main" data-nav-scope="tenant">
     <div class="nav-dropdown-header">📊 الرئيسية</div>
     <div class="nav-dropdown-item" data-page="dashboard"><span class="icon">🏠</span> لوحة التحكم</div>
     <div class="nav-dropdown-item" data-page="smart-business"><span class="icon">🧠📊</span> Smart Business</div>
@@ -1746,10 +1816,9 @@ document.addEventListener('DOMContentLoaded', function() {
     <div class="nav-dropdown-item" data-page="ai-owner"><span class="icon">🤖</span> المساعد الذكي لصاحب النشاط</div>
     <div class="nav-dropdown-item" data-page="daily"><span class="icon">📅</span> التقرير اليومي</div>
     <div class="nav-dropdown-item" data-page="serialsearch"><span class="icon">🔍</span> بحث بالسيريال</div>
-    <div class="nav-dropdown-item" data-page="accountstatement"><span class="icon">🪪</span> كشف حساب</div>
   </div>
 
-  <div class="nav-dropdown" id="dropdown-sales">
+  <div class="nav-dropdown" id="dropdown-sales" data-nav-scope="tenant">
     <div class="nav-dropdown-header">🛒 الفواتير والمبيعات</div>
     <div class="nav-dropdown-item" data-page="pos"><span class="icon">💳</span> نقطة البيع (POS)</div>
     <div class="nav-dropdown-item" onclick="openNewSaleInvoiceModal(); closeAllNavDropdowns();"><span class="icon">➕</span> New invoice</div>
@@ -1761,7 +1830,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <div class="nav-dropdown-item" data-page="rep-mobile"><span class="icon">📱</span> موبايل المندوب</div>
   </div>
 
-  <div class="nav-dropdown" id="dropdown-inventory">
+  <div class="nav-dropdown" id="dropdown-inventory" data-nav-scope="tenant">
     <div class="nav-dropdown-header">📦 المخزون</div>
     <div class="nav-dropdown-item" data-page="products"><span class="icon">📋</span> الأصناف</div>
     <div class="nav-dropdown-item" data-page="master-data"><span class="icon">🗂️</span> التصنيفات والماركات</div>
@@ -1772,7 +1841,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <div class="nav-dropdown-item" data-page="purchases"><span class="icon">🛍️</span> فواتير المشتريات</div>
   </div>
 
-<div class="nav-dropdown" id="dropdown-reports">
+<div class="nav-dropdown" id="dropdown-reports" data-nav-scope="tenant">
   <div class="nav-dropdown-header">📈 التقارير</div>
   <div class="nav-dropdown-item" data-page="go-live-center"><span class="icon">🚀</span> Go Live Center</div>
   <div class="nav-dropdown-item" data-page="go-live-production-mode"><span class="icon">🔐</span> Production Mode</div>
@@ -1896,7 +1965,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <div class="nav-dropdown-item" data-page="performance-scale-lazy-loading-status"><span class="icon">⏳</span> Lazy Loading Status</div>
       </div>
 
-  <div class="nav-dropdown" id="dropdown-customers">
+  <div class="nav-dropdown" id="dropdown-customers" data-nav-scope="tenant">
     <div class="nav-dropdown-header">👥 العملاء والموردين</div>
     <div class="nav-dropdown-item" data-page="customers"><span class="icon">👤</span> العملاء</div>
     <div class="nav-dropdown-item" data-page="suppliers"><span class="icon">🤝</span> الموردين</div>
@@ -1907,7 +1976,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <div class="nav-dropdown-item" data-page="broadcast"><span class="icon">📢</span> رسائل جماعية</div>
   </div>
 
-  <div class="nav-dropdown" id="dropdown-admin">
+  <div class="nav-dropdown" id="dropdown-admin" data-nav-scope="tenant">
     <div class="nav-dropdown-header">⚙️ الإدارة</div>
     <div class="nav-dropdown-item" data-page="users"><span class="icon">🔐</span> المستخدمين والصلاحيات</div>
     <div class="nav-dropdown-item" data-page="activitylog"><span class="icon">📋</span> سجل العمليات</div>
@@ -1969,14 +2038,14 @@ document.addEventListener('DOMContentLoaded', function() {
     <div class="nav-dropdown-item" data-page="production-execution-verification-center"><span class="icon">✅</span> Verification Center</div>
   </div>
 
-  <div class="nav-dropdown" id="dropdown-maintenance">
+  <div class="nav-dropdown" id="dropdown-maintenance" data-nav-scope="tenant">
     <div class="nav-dropdown-header">🔧 الصيانة والضمان</div>
     <div class="nav-dropdown-item" data-page="maintenance"><span class="icon">🔧</span> إدارة الصيانة</div>
     <div class="nav-dropdown-item" data-page="warranty"><span class="icon">🛡️</span> الضمانات</div>
     <div class="nav-dropdown-item" data-page="devices"><span class="icon">💻</span> الأجهزة والسيريالات</div>
   </div>
 
-  <div class="nav-dropdown" id="dropdown-analytics">
+  <div class="nav-dropdown" id="dropdown-analytics" data-nav-scope="tenant">
     <div class="nav-dropdown-header">💡 التحليلات</div>
     <div class="nav-dropdown-item" data-page="analytics"><span class="icon">📊</span> تحليلات المبيعات</div>
     <div class="nav-dropdown-item" data-page="top-products"><span class="icon">⭐</span> أفضل المنتجات</div>
@@ -1996,7 +2065,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <div class="nav-dropdown-item" data-page="ai-copilot-knowledge-center"><span class="icon">📚</span> Knowledge Center</div>
   </div>
 
-  <div class="nav-dropdown" id="dropdown-employees">
+  <div class="nav-dropdown" id="dropdown-employees" data-nav-scope="tenant">
     <div class="nav-dropdown-header">👨‍💼 الموظفين</div>
     <div class="nav-dropdown-item" data-page="hr"><span class="icon">🧑‍💼</span> إدارة HR</div>
     <div class="nav-dropdown-item" data-page="employees"><span class="icon">👤</span> قائمة الموظفين</div>
@@ -2004,6 +2073,65 @@ document.addEventListener('DOMContentLoaded', function() {
     <div class="nav-dropdown-item" data-page="emp-reports"><span class="icon">📊</span> تقارير الموظفين</div>
     <div class="nav-dropdown-item" data-page="partners"><span class="icon">🤝</span> الشركاء</div>
   </div>
+
+  <!-- Phase 34.1 — new COMPANY groups -->
+  <div class="nav-dropdown" id="dropdown-purchases" data-nav-scope="tenant">
+    <div class="nav-dropdown-header">🛍️ المشتريات</div>
+    <div class="nav-dropdown-item" data-page="purchases"><span class="icon">🛍️</span> فواتير المشتريات</div>
+  </div>
+
+  <div class="nav-dropdown" id="dropdown-treasury" data-nav-scope="tenant">
+    <div class="nav-dropdown-header">🏦 الخزنة</div>
+    <div class="nav-dropdown-item" data-page="treasury"><span class="icon">🏦</span> الخزنة</div>
+    <div class="nav-dropdown-item" data-page="vouchers"><span class="icon">📄</span> سندات القبض والصرف</div>
+    <div class="nav-dropdown-item" data-page="expenses"><span class="icon">💸</span> المصروفات</div>
+    <div class="nav-dropdown-item" data-page="transfers"><span class="icon">🔁</span> تحويلات الخزينة</div>
+  </div>
+
+  <div class="nav-dropdown" id="dropdown-installments" data-nav-scope="tenant">
+    <div class="nav-dropdown-header">📆 التقسيط</div>
+    <div class="nav-dropdown-item" data-page="installments"><span class="icon">📆</span> التقسيط</div>
+  </div>
+
+  <div class="nav-dropdown" id="dropdown-marketplace" data-nav-scope="tenant">
+    <div class="nav-dropdown-header">🏪 المتجر والإضافات</div>
+    <div class="nav-dropdown-item" data-page="business-marketplace"><span class="icon">🏪</span> Business Marketplace</div>
+    <div class="nav-dropdown-item" data-page="business-plugin-settings"><span class="icon">🧩</span> إعدادات الإضافات</div>
+  </div>
+
+  <div class="nav-dropdown" id="dropdown-entertainment" data-nav-scope="tenant">
+    <div class="nav-dropdown-header">🎮 خدمات إضافية</div>
+    <div class="nav-dropdown-item" data-page="playstation"><span class="icon">🎮</span> PlayStation</div>
+    <div class="nav-dropdown-item" data-page="car-rental"><span class="icon">🚗</span> تأجير السيارات</div>
+  </div>
+
+  <!-- Phase 34.1 — MASTER (platform scope) groups -->
+  <div class="nav-dropdown" id="dropdown-master_home" data-nav-scope="master"><div class="nav-dropdown-header">🛰️ لوحة تحكم المنصة</div></div>
+  <div class="nav-dropdown" id="dropdown-master_companies" data-nav-scope="master"><div class="nav-dropdown-header">🏢 الشركات</div></div>
+  <div class="nav-dropdown" id="dropdown-master_users" data-nav-scope="master"><div class="nav-dropdown-header">🔐 المستخدمون والجلسات</div></div>
+  <div class="nav-dropdown" id="dropdown-master_licenses" data-nav-scope="master"><div class="nav-dropdown-header">🔑 التراخيص والاشتراكات</div></div>
+  <div class="nav-dropdown" id="dropdown-master_integrations" data-nav-scope="master"><div class="nav-dropdown-header">🔌 التكاملات</div></div>
+  <div class="nav-dropdown" id="dropdown-master_database" data-nav-scope="master"><div class="nav-dropdown-header">🗄️ قاعدة البيانات</div></div>
+  <div class="nav-dropdown" id="dropdown-master_backups" data-nav-scope="master"><div class="nav-dropdown-header">💾 النسخ الاحتياطي والاستعادة</div></div>
+  <div class="nav-dropdown" id="dropdown-master_audit" data-nav-scope="master"><div class="nav-dropdown-header">🛡️ الأمان والتدقيق</div></div>
+  <div class="nav-dropdown" id="dropdown-master_platform" data-nav-scope="master"><div class="nav-dropdown-header">👑 منصة OmniStore</div></div>
+
+  <!-- Phase 34.1 — INTERNAL (developer/diagnostics) group -->
+  <div class="nav-dropdown" id="dropdown-internal" data-nav-scope="internal"><div class="nav-dropdown-header">🧪 مركز المطورين والاختبار</div></div>
+
+  <!-- Phase 34.1 — mobile navigation drawer -->
+  <div class="mobile-nav-drawer no-print" id="mobileNavDrawer" aria-label="قائمة التنقل">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div class="sidebar-logo" style="position:static;margin:0">◈ OmniStore ERP</div>
+      <button type="button" class="btn btn-outline btn-sm" onclick="toggleMobileNavDrawer(false)" title="إغلاق" aria-label="إغلاق القائمة">✕</button>
+    </div>
+    <div class="drawer-scope" id="mobileDrawerScope" style="display:none">
+      <button type="button" class="omni-scope-pill active" data-scope="tenant" aria-pressed="true" onclick="setOmniNavScope('tenant')">🏢 الشركة</button>
+      <button type="button" class="omni-scope-pill" data-scope="master" aria-pressed="false" onclick="setOmniNavScope('master')">👑 MASTER</button>
+    </div>
+    <div id="mobileNavDrawerSections"></div>
+  </div>
+  <div class="mobile-nav-drawer-backdrop no-print" id="mobileNavDrawerBackdrop" onclick="toggleMobileNavDrawer(false)"></div>
 
   <div class="pwa-install-banner no-print" id="pwaInstallBanner">
     <div>
@@ -5155,6 +5283,75 @@ document.addEventListener('DOMContentLoaded', function() {
       <div class="page-header">
         <div class="page-title">⚙️ OmniStore Settings</div>
       </div>
+      <div class="settings-hub" style="margin-bottom:14px">
+        <div class="settings-search">
+          <span class="settings-search-icon">🔍</span>
+          <input id="settingsSearch" class="search-input" type="search" placeholder="ابحث في الإعدادات..." oninput="filterOmniSettings(this.value)" aria-label="ابحث في الإعدادات">
+        </div>
+        <div class="settings-groups" id="settingsGroupsGrid">
+          <div class="settings-group" data-settings-hidden="false">
+            <div class="settings-group-title">1. عام — General</div>
+            <div class="settings-group-links">
+              <button type="button" class="settings-link" data-settings-label="ملف النشاط التجاري الشركة" onclick="switchOmniSettingsTab('business');showPage('settings')">🏪 ملف النشاط التجاري</button>
+              <button type="button" class="settings-link" data-settings-label="المظهر الوضع الليلي الثيم" onclick="toggleDarkMode()">🌓 المظهر والوضع الليلي</button>
+              <button type="button" class="settings-link" data-settings-label="اللغة والمنطقة توقيت" onclick="switchOmniSettingsTab('localization');showPage('settings')">🌐 اللغة والمنطقة</button>
+              <button type="button" class="settings-link" data-settings-label="الطباعة الفواتير" onclick="switchOmniSettingsTab('printing');showPage('settings')">🖨️ إعدادات الطباعة</button>
+              <button type="button" class="settings-link" data-settings-label="الباركود" onclick="switchOmniSettingsTab('barcode');showPage('settings')">📊 الباركود</button>
+            </div>
+          </div>
+          <div class="settings-group" data-settings-hidden="false">
+            <div class="settings-group-title">2. المستخدمون والأمان — Users &amp; Security</div>
+            <div class="settings-group-links">
+              <button type="button" class="settings-link" data-settings-label="المستخدمون والصلاحيات الأدوار" onclick="typeof openUsersManager === 'function' && openUsersManager()">🔐 المستخدمون والصلاحيات</button>
+              <button type="button" class="settings-link" data-settings-label="تغيير كلمة المرور" onclick="openChangeMyPasswordModal()">🔑 تغيير كلمة المرور</button>
+              <button type="button" class="settings-link" data-settings-label="أمان سجل التدقيق" onclick="showPage('audit')">🛡️ سجل التدقيق</button>
+              <button type="button" class="settings-link" data-settings-label="شركة جديدة تهيئة" onclick="typeof openProvisionWizard === 'function' && openProvisionWizard()">🏢 تهيئة شركة جديدة</button>
+            </div>
+          </div>
+          <div class="settings-group" data-settings-hidden="false">
+            <div class="settings-group-title">3. الإعدادات التجارية — Business</div>
+            <div class="settings-group-links">
+              <button type="button" class="settings-link" data-settings-label="نوع النشاط والخصائص" onclick="switchOmniSettingsTab('business');showPage('settings')">🏢 نوع النشاط والخصائص</button>
+              <button type="button" class="settings-link" data-settings-label="الفروع" onclick="showPage('branches')">🏬 الفروع</button>
+              <button type="button" class="settings-link" data-settings-label="التقسيط" onclick="showPage('installments')">📆 التقسيط</button>
+              <button type="button" class="settings-link" data-settings-label="التنبيهات" onclick="showPage('alerts-center')">🔔 التنبيهات</button>
+            </div>
+          </div>
+          <div class="settings-group" data-settings-hidden="false">
+            <div class="settings-group-title">4. الحسابات والمالية — Finance</div>
+            <div class="settings-group-links">
+              <button type="button" class="settings-link" data-settings-label="الخزنة" onclick="showPage('treasury')">🏦 الخزنة</button>
+              <button type="button" class="settings-link" data-settings-label="المصروفات" onclick="showPage('expenses')">💸 المصروفات</button>
+              <button type="button" class="settings-link" data-settings-label="السندات قبض صرف" onclick="showPage('vouchers')">📄 سندات القبض والصرف</button>
+            </div>
+          </div>
+          <div class="settings-group" data-settings-hidden="false">
+            <div class="settings-group-title">5. التكاملات — Integrations</div>
+            <div class="settings-group-links">
+              <button type="button" class="settings-link" data-settings-label="مركز التكاملات الربط" onclick="showPage('integrations')">🔌 مركز التكاملات</button>
+              <button type="button" class="settings-link" data-settings-label="المزامنة السحابية جيثب" onclick="showPage('sync')">☁️ المزامنة السحابية</button>
+              <button type="button" class="settings-link" data-settings-label="النسخ الاحتياطي نسخة" onclick="showPage('backup')">💾 النسخ الاحتياطي</button>
+              <button type="button" class="settings-link" data-settings-label="المزامنة الحية" onclick="showPage('live-sync')">🌐 المزامنة الحية</button>
+            </div>
+          </div>
+          <div class="settings-group" data-settings-hidden="false">
+            <div class="settings-group-title">6. الوحدات والإضافات — Modules</div>
+            <div class="settings-group-links">
+              <button type="button" class="settings-link" data-settings-label="مركز الإضافات البرمجية" onclick="showPage('plugins')">🧩 مركز الإضافات</button>
+              <button type="button" class="settings-link" data-settings-label="المتجر marketplace" onclick="showPage('business-marketplace')">🏪 Business Marketplace</button>
+              <button type="button" class="settings-link" data-settings-label="إعدادات الوحدات التفعيل" onclick="switchOmniSettingsTab('advanced');showPage('settings')">⚙️ الوحدات والتفعيل</button>
+            </div>
+          </div>
+          <div class="settings-group" data-settings-hidden="false">
+            <div class="settings-group-title">7. النظام — System</div>
+            <div class="settings-group-links">
+              <button type="button" class="settings-link" data-settings-label="الاشتراك الخطة" onclick="switchOmniSettingsTab('subscription');showPage('settings')">📦 الاشتراك والخطة</button>
+              <button type="button" class="settings-link" data-settings-label="صحة النظام health" onclick="showPage('health')">🩺 Health Monitor</button>
+              <button type="button" class="settings-link" data-settings-label="تطبيق omni pwa" onclick="showPage('pwa')">📲 تطبيق OmniStore ERP</button>
+            </div>
+          </div>
+        </div>
+      </div>
       <div id="omniSettingsTabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
         <button class="btn btn-accent btn-sm omni-settings-tab" data-omni-tab="business" onclick="switchOmniSettingsTab('business',this)">Business Profile</button>
         <button class="btn btn-outline btn-sm omni-settings-tab" data-omni-tab="subscription" onclick="switchOmniSettingsTab('subscription',this)">Subscription</button>
@@ -5441,6 +5638,16 @@ document.addEventListener('DOMContentLoaded', function() {
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- PHASE 34.1 PLACEHOLDER MODULES (nav placeholders only — engines NOT implemented) -->
+    <div class="page" id="page-playstation">
+      <div class="page-header"><div><div class="page-title">🎮 PlayStation</div><div style="font-size:.78rem;color:var(--text2)">وحدة قادمة — مكان مؤقت في القائمة فقط</div></div></div>
+      <div class="alert alert-info" style="margin:16px 0;font-size:.85rem">🚧 هذه الوحدة ضمن خارطة طريق OmniStore وستتوفر في إصدار لاحق. متاحة حالياً كمكان مؤقت فقط.</div>
+    </div>
+    <div class="page" id="page-car-rental">
+      <div class="page-header"><div><div class="page-title">🚗 تأجير السيارات</div><div style="font-size:.78rem;color:var(--text2)">وحدة قادمة — مكان مؤقت في القائمة فقط</div></div></div>
+      <div class="alert alert-info" style="margin:16px 0;font-size:.85rem">🚧 هذه الوحدة ضمن خارطة طريق OmniStore وستتوفر في إصدار لاحق. متاحة حالياً كمكان مؤقت فقط.</div>
     </div>
 
     <!-- ENTERPRISE DOCUMENT CENTER -->
@@ -13433,11 +13640,12 @@ function getBranchScopedRows(rows = []) {
 
 // ================= USER REGISTRATION =================
 let userRegTimer = null;
+// Phase 34.3 — the automatic user-registration prompt is removed.
+// The registration capability itself (saveUserRegistration, USER_REG_KEY,
+// #userRegOverlay markup) is preserved for explicit entry points; the modal is
+// simply never auto-shown after login anymore. No auth/session logic involved.
 function startUserRegistrationTimer() {
-  if (localStorage.getItem(USER_REG_KEY)) return;
-  userRegTimer = setTimeout(() => {
-    document.getElementById('userRegOverlay').style.display = 'flex';
-  }, 5 * 60 * 1000); // 5 minutes
+  return;
 }
 
 function saveUserRegistration() {
@@ -13933,6 +14141,7 @@ function canEffective(permission) {
 
 function canAccessPage(page) {
   if (!currentUser) return false;
+  if (page === 'platform-master') return !!platformRole && USE_BACKEND;
   if (window.OmniModuleLoader && !window.OmniModuleLoader.isRouteEnabled(page)) return false;
   if (page === 'business-marketplace' || page === 'business-plugin-settings') {
     return can('manageSettings') && (!window.OmniModuleLoader || window.OmniModuleLoader.isRouteEnabled('business-marketplace'));
@@ -14181,7 +14390,9 @@ function canAccessPage(page) {
     partners: 'managePartners',
     transfers: 'editTreasury',
     cathnumber: 'viewSerials',
-    'customer-statement': 'viewCustomers'
+    'customer-statement': 'viewCustomers',
+    playstation: 'manageSettings',
+    'car-rental': 'manageSettings'
   };
   const required = rules[page];
   return required ? can(required) : true;
@@ -14213,6 +14424,100 @@ function applyPermissions() {
   const alertsBell = document.getElementById('alertsBellBtn');
   if (alertsBell) alertsBell.style.display = canAccessPage('alerts-center') ? '' : 'none';
   updateAlertsBell();
+  applyNavScope();
+}
+
+// ================= PHASE 34.1 — MASTER/COMPANY NAV SCOPE =================
+function isPlatformMaster() {
+  return !!(typeof platformRole !== 'undefined' && platformRole && USE_BACKEND);
+}
+
+// UX-only scope separation: MASTER items render only for platform admins when
+// the MASTER scope is active; INTERNAL (developer) items stay hidden unless the
+// dev flag is on. Backend authorization remains authoritative and untouched.
+function applyNavScope() {
+  const activeScope = isPlatformMaster() ? (window.__omniNavScope || 'tenant') : 'tenant';
+  document.querySelectorAll('[data-nav-scope="master"]').forEach(el => {
+    el.style.display = activeScope === 'master' ? '' : 'none';
+  });
+  document.querySelectorAll('[data-nav-scope="internal"]').forEach(el => {
+    el.style.display = (activeScope === 'tenant' && window.__devToolsEnabled) ? '' : 'none';
+  });
+  document.querySelectorAll('[data-scope-hidden="1"]').forEach(el => {
+    el.removeAttribute('data-scope-hidden');
+    el.style.display = '';
+  });
+  if (activeScope === 'master') {
+    document.querySelectorAll('[data-nav-scope="tenant"]').forEach(el => {
+      if (el.style.display !== 'none') { el.setAttribute('data-scope-hidden', '1'); el.style.display = 'none'; }
+    });
+  }
+  const switcher = document.getElementById('omniScopeSwitch');
+  if (switcher) switcher.style.display = isPlatformMaster() ? '' : 'none';
+  const drawerScope = document.getElementById('mobileDrawerScope');
+  if (drawerScope) drawerScope.style.display = isPlatformMaster() ? 'flex' : 'none';
+}
+
+function setOmniNavScope(scope) {
+  window.__omniNavScope = (scope === 'master' && isPlatformMaster()) ? 'master' : 'tenant';
+  applyNavScope();
+  try { applyPermissions(); } catch (e) {}
+  document.querySelectorAll('.omni-scope-pill').forEach(p => {
+    const active = p.dataset.scope === window.__omniNavScope;
+    p.classList.toggle('active', active);
+    p.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+  closeAllNavDropdowns();
+}
+
+function buildMobileNavDrawerSections() {
+  const host = document.getElementById('mobileNavDrawerSections');
+  if (!host) return;
+  const activeScope = isPlatformMaster() ? (window.__omniNavScope || 'tenant') : 'tenant';
+  const sections = [];
+  document.querySelectorAll('.nav-dropdown').forEach(drop => {
+    if (drop.style.display === 'none') return;
+    const scope = drop.getAttribute('data-nav-scope') || 'tenant';
+    if (scope !== activeScope) return;
+    const items = Array.from(drop.querySelectorAll('.nav-dropdown-item'))
+      .filter(el => el.style.display !== 'none' && el.dataset.page);
+    if (!items.length) return;
+    const headerEl = drop.querySelector('.nav-dropdown-header');
+    sections.push({ title: headerEl ? headerEl.textContent.trim() : drop.id, items });
+  });
+  host.innerHTML = sections.map(s =>
+    '<div class="drawer-section"><div class="drawer-section-title">' + escapeHtml(s.title) + '</div>' +
+    s.items.map(el => {
+      const page = escapeHtml(el.dataset.page);
+      const label = escapeHtml((el.textContent || '').replace(/\s+/g, ' ').trim());
+      return '<button type="button" class="drawer-item" data-page="' + page + '" onclick="showPage(\'' + page + '\');toggleMobileNavDrawer(false)">' + label + '</button>';
+    }).join('') + '</div>'
+  ).join('');
+}
+
+function toggleMobileNavDrawer(force) {
+  const drawer = document.getElementById('mobileNavDrawer');
+  const backdrop = document.getElementById('mobileNavDrawerBackdrop');
+  if (!drawer) return;
+  const willOpen = typeof force === 'boolean' ? force : !drawer.classList.contains('open');
+  if (willOpen) buildMobileNavDrawerSections();
+  drawer.classList.toggle('open', willOpen);
+  if (backdrop) backdrop.classList.toggle('open', willOpen);
+  const ds = document.getElementById('mobileDrawerScope');
+  if (ds) ds.style.display = isPlatformMaster() ? 'flex' : 'none';
+}
+
+function filterOmniSettings(query) {
+  const raw = String(query || '');
+  const q = raw.trim().toLowerCase();
+  document.querySelectorAll('#settingsGroupsGrid .settings-link').forEach(link => {
+    const hay = ((link.dataset.settingsLabel || '') + '|' + (link.textContent || '')).toLowerCase();
+    link.style.display = (!q || hay.indexOf(q) !== -1) ? '' : 'none';
+  });
+  document.querySelectorAll('#settingsGroupsGrid .settings-group').forEach(group => {
+    const visible = Array.from(group.querySelectorAll('.settings-link')).some(l => l.style.display !== 'none');
+    group.setAttribute('data-settings-hidden', visible ? 'false' : 'true');
+  });
 }
 
 // ================= GITHUB GIST SYNC ENGINE =================
@@ -40897,14 +41202,28 @@ function toggleNavDropdown(category, btnEl, ev) {
   openNavDropdownCategory = category;
   document.querySelectorAll('.nav-icon-btn').forEach(btn => btn.classList.remove('active'));
   const target = btnEl || (typeof event !== 'undefined' && event.target ? event.target.closest('.nav-icon-btn') : null);
-  if (target) target.closest('.nav-icon-btn')?.classList.add('active');
+  if (target) {
+    target.closest('.nav-icon-btn')?.classList.add('active');
+    target.closest('.nav-icon-btn')?.setAttribute('aria-expanded', 'true');
+  }
 }
 
 // Close all dropdowns
 function closeAllNavDropdowns() {
   cancelNavDropdownClose();
   document.querySelectorAll('.nav-dropdown').forEach(d => d.classList.remove('show'));
+  document.querySelectorAll('.nav-icon-btn').forEach(b => b.setAttribute('aria-expanded', 'false'));
   openNavDropdownCategory = '';
+}
+
+// Phase 34.1 a11y: Escape closes the open nav dropdown and the mobile drawer.
+if (typeof document !== 'undefined') {
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      closeAllNavDropdowns();
+      toggleMobileNavDrawer(false);
+    }
+  });
 }
 
 function cancelNavDropdownClose() {

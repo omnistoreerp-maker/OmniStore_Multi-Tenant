@@ -2,7 +2,8 @@
   'use strict';
 
   const allBusinesses = '*';
-  const nav = (route, name, icon, group) => ({ route, name, icon, group });
+  // Phase 34.1: optional 5th arg `scope` — 'tenant' (default), 'master' or 'internal'.
+  const nav = (route, name, icon, group, scope) => ({ route, name, icon, group, scope });
   const module = config => Object.freeze({
     permissions: [],
     businessTypes: allBusinesses,
@@ -11,6 +12,7 @@
     defaultSettings: {},
     navigation: [],
     widgets: [],
+    scope: 'tenant',
     ...config
   });
 
@@ -45,6 +47,7 @@
         nav('customers', 'العملاء', '👤', 'customers'),
         nav('customer-accounts', 'حسابات العملاء', '💳', 'customers'),
         nav('accountstatement', 'كشف الحساب', '📋', 'customers'),
+        nav('customer-statement', 'كشف حساب العميل', '🪪', 'customers'),
         nav('crm', 'CRM والمتابعة', '🧩', 'customers'),
         nav('broadcast', 'رسائل جماعية', '📢', 'customers')
       ],
@@ -74,7 +77,7 @@
     purchases: module({
       id: 'purchases', name: 'Purchases', icon: '🛍️', route: 'purchases',
       permissions: ['viewPurchases'], dependencies: ['products', 'suppliers', 'inventory'],
-      navigation: [nav('purchases', 'فواتير المشتريات', '🛍️', 'inventory')],
+      navigation: [nav('purchases', 'فواتير المشتريات', '🛍️', 'purchases')],
       defaultSettings: { defaultPayment: 'cash', requireSupplier: false }
     }),
     sales: module({
@@ -84,7 +87,7 @@
         nav('pos', 'نقطة البيع (POS)', '💳', 'sales'),
         nav('invoices', 'أرشيف الفواتير', '🧾', 'sales'),
         nav('amanat', 'الأمانات المفتوحة', '🟠', 'sales'),
-        nav('installments', 'التقسيط', '📆', 'sales'),
+        nav('installments', 'التقسيط', '📆', 'installments'),
         nav('returns', 'المرتجعات', '↩️', 'sales'),
         nav('quotations', 'عروض الأسعار', '🏷️', 'sales'),
         nav('rep-mobile', 'موبايل المندوب', '📱', 'sales')
@@ -108,9 +111,10 @@
       id: 'treasury', name: 'Treasury', icon: '🏦', route: 'treasury',
       permissions: ['viewFinancial'], dependencies: ['sales'],
       navigation: [
-        nav('treasury', 'الخزنة', '🏦', 'reports'),
-        nav('vouchers', 'سندات القبض والصرف', '📄', 'reports'),
-        nav('expenses', 'المصروفات', '💸', 'reports')
+        nav('treasury', 'الخزنة', '🏦', 'treasury'),
+        nav('vouchers', 'سندات القبض والصرف', '📄', 'treasury'),
+        nav('expenses', 'المصروفات', '💸', 'treasury'),
+        nav('transfers', 'تحويلات الخزينة', '🔁', 'treasury')
       ],
       widgets: [{ id: 'treasury-balance', label: 'رصيد الخزنة', icon: '🏦', route: 'treasury', sourceElement: 'ds-treasury' }],
       defaultSettings: { showBalances: true }
@@ -227,22 +231,34 @@
       permissions: ['viewHealth'],
       navigation: [
         nav('health', 'Health Monitor', '🩺', 'admin'),
-        nav('supabase-diagnostic', 'Supabase Diagnostic', '☁️', 'admin'),
-        nav('performance-engine', 'محرك الأداء', '⚡', 'admin'),
-        nav('qa-center', 'مركز الجودة', '✅', 'admin'),
-        nav('training-center', 'مركز التدريب', '🎓', 'admin'),
-        nav('production', 'Production Checklist', '✅', 'admin'),
+        nav('supabase-diagnostic', 'Supabase Diagnostic', '☁️', 'master_integrations', 'master'),
+        nav('performance-engine', 'محرك الأداء', '⚡', 'internal', 'internal'),
+        nav('qa-center', 'مركز الجودة', '✅', 'internal', 'internal'),
+        nav('training-center', 'مركز التدريب', '🎓', 'internal', 'internal'),
+        nav('production', 'Production Checklist', '✅', 'internal', 'internal'),
         nav('plugins', 'مركز الإضافات', '🧩', 'admin'),
-        nav('command-center', 'مركز القيادة', '🛰️', 'admin'),
-        nav('opshub', 'مركز التحكم', '🧠', 'admin')
+        nav('command-center', 'مركز القيادة', '🛰️', 'internal', 'internal'),
+        nav('opshub', 'مركز التحكم', '🧠', 'internal', 'internal')
       ],
       defaultSettings: { diagnosticsEnabled: true }
     }),
     business_marketplace: module({
       id: 'business_marketplace', name: 'Business Marketplace', icon: '🏪', route: 'business-marketplace',
       permissions: ['manageSettings'], dependencies: ['settings'],
-      navigation: [nav('business-marketplace', 'Business Marketplace', '🏪', 'admin')],
+      navigation: [nav('business-marketplace', 'Business Marketplace', '🏪', 'marketplace')],
       defaultSettings: { showBundled: true, allowUninstall: true }
+    }),
+    playstation: module({
+      id: 'playstation', name: 'PlayStation', icon: '🎮', route: 'playstation',
+      permissions: ['manageSettings'],
+      navigation: [nav('playstation', 'PlayStation', '🎮', 'entertainment')],
+      defaultSettings: { engineEnabled: false }
+    }),
+    car_rental: module({
+      id: 'car_rental', name: 'Car Rental', icon: '🚗', route: 'car-rental',
+      permissions: ['manageSettings'],
+      navigation: [nav('car-rental', 'تأجير السيارات', '🚗', 'entertainment')],
+      defaultSettings: { engineEnabled: false }
     }),
     settings: module({
       id: 'settings', name: 'Settings', icon: '⚙️', route: 'settings',
