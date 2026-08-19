@@ -107,4 +107,47 @@ function writeRoleGuard(...roles) {
   };
 }
 
-module.exports = { requireRole, requirePermission, writeRoleGuard, resolveTenantRoleForRequest, trustedTenantId };
+// Route prefixes that enforce their OWN per-route permissions via
+// requirePermissionIfAuth (the permission-registry model). The legacy global
+// role gate is intentionally SKIPPED for them so roles like BranchManager —
+// granted limited write permissions by the registry — can operate the business
+// workflow they are authorized for, while routes WITHOUT per-route guards keep
+// the broad Owner/Admin/Manager write restriction.
+const PERMISSION_GUARDED_WRITE_ROUTES = new Set([
+  '/sales',
+  '/purchases',
+  '/inventory',
+  '/inventory-transactions',
+  '/customers',
+  '/suppliers',
+  '/treasury',
+  '/dashboard',
+  '/reports',
+  '/users',
+  '/audit-log',
+  '/permissions'
+]);
+
+// Global write gate used by server.js under AUTH_REQUIRED. Applies the role
+// restriction ONLY to routes that do not have their own per-route permission
+// enforcement; the rest are governed by their per-route requirePermissionIfAuth.
+function scopedWriteRoleGuard(...roles) {
+  return function (req, res, next) {
+    if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
+    const segments = req.path ? req.path.split('/') : [];
+    const seg = segments[1];
+    if (seg && PERMISSION_GUARDED_WRITE_ROUTES.has('/' + seg)) return next();
+    return requireRole(...roles)(req, res, next);
+  };
+}
+
+// Conditional permission gate: only enforces when AUTH_REQUIRED=true.
+// When AUTH_REQUIRED=false, all requests pass through (legacy open behavior).
+function requirePermissionIfAuth(permission) {
+  return function (req, res, next) {
+    if (!config.authRequired) return next();
+    return requirePermission(permission)(req, res, next);
+  };
+}
+
+module.exports = { requireRole, requirePermission, requirePermissionIfAuth, writeRoleGuard, scopedWriteRoleGuard, resolveTenantRoleForRequest, trustedTenantId };

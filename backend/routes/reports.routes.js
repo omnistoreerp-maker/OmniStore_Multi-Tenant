@@ -1,5 +1,33 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/reports.controller');
+const reportsService = require('../services/reports.service');
+const { requirePermission, requirePermissionIfAuth } = require('../middleware/authorize');
+const config = require('../config');
+
+// Phase D — Financial reports are protected by an explicit, separate permission
+// (reports.financial.view) so that broad `reports.view` (operational reports:
+// sales/purchases/inventory) can NEVER be used to reach financial/treasury/
+// profit data. This is enforced server-side regardless of the frontend.
+//
+// When AUTH_REQUIRED is off the legacy open behavior is preserved (no-op).
+function reportListGuard(req, res, next) {
+  if (!config.authRequired) return next();
+  const requested = req.query && req.query.type;
+  const permission = requested === 'financial' ? 'reports.financial.view' : 'reports.view';
+  return requirePermission(permission)(req, res, next);
+}
+
+// Endpoints that target a specific report (GET/PUT/DELETE /:id) must gate on
+// the type of the STORED report, resolved server-side from the reports store —
+// never from a client-supplied field. A stored financial report requires
+// reports.financial.view; anything else keeps the existing reports.view gate.
+function reportByIdAuth(req, res, next) {
+  if (!config.authRequired) return next();
+  const report = reportsService.getById(req.params.id);
+  const financial = !!(report && String(report.type || '').toLowerCase() === 'financial');
+  const permission = financial ? 'reports.financial.view' : 'reports.view';
+  return requirePermission(permission)(req, res, next);
+}
 
 /**
  * @openapi
@@ -54,8 +82,8 @@ const ctrl = require('../controllers/reports.controller');
  *       401:
  *         description: Authentication required
  */
-router.get('/', ctrl.list);
-router.post('/', ctrl.create);
+router.get('/', reportListGuard, ctrl.list);
+router.post('/', requirePermissionIfAuth('reports.view'), ctrl.create);
 
 /**
  * @openapi
@@ -72,7 +100,7 @@ router.post('/', ctrl.create);
  *       401:
  *         description: Authentication required
  */
-router.get('/stats', ctrl.getStats);
+router.get('/stats', requirePermissionIfAuth('reports.view'), ctrl.getStats);
 
 /**
  * @openapi
@@ -135,8 +163,8 @@ router.get('/stats', ctrl.getStats);
  *       404:
  *         description: Report not found
  */
-router.get('/:id', ctrl.getById);
-router.put('/:id', ctrl.update);
-router.delete('/:id', ctrl.remove);
+router.get('/:id', reportByIdAuth, ctrl.getById);
+router.put('/:id', reportByIdAuth, ctrl.update);
+router.delete('/:id', reportByIdAuth, ctrl.remove);
 
 module.exports = router;

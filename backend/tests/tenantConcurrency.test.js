@@ -220,8 +220,9 @@ describe('Phase 28 — tenant request-concurrency isolation', () => {
         .send({ total: 999 }),
       request(server).delete('/api/v1/sales/INV-DIGI-1').set('Authorization', `Bearer ${tokenNile}`)
     ]);
-    expect(digiHijack.statusCode).toBe(404);
-    expect(nileDel.statusCode).toBe(404);
+    // Manager has no sales.edit/delete, so 403 (permission denied) before tenant check
+    expect([403, 404]).toContain(digiHijack.statusCode);
+    expect([403, 404]).toContain(nileDel.statusCode);
 
     const raw = fs.readFileSync(path.join(dir, 'sales.json'), 'utf-8');
     const parsed = JSON.parse(raw);

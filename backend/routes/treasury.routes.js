@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/treasury.controller');
 const asyncHandler = require('../utils/asyncHandler');
+const { requirePermissionIfAuth } = require('../middleware/authorize');
 
 /**
  * @openapi
@@ -59,8 +60,8 @@ const asyncHandler = require('../utils/asyncHandler');
  *       401:
  *         description: Authentication required
  */
-router.get('/', asyncHandler(ctrl.list));
-router.post('/', asyncHandler(ctrl.create));
+router.get('/', requirePermissionIfAuth('treasury.view'), asyncHandler(ctrl.list));
+router.post('/', requirePermissionIfAuth('treasury.create'), asyncHandler(ctrl.create));
 
 /**
  * @openapi
@@ -77,7 +78,7 @@ router.post('/', asyncHandler(ctrl.create));
  *       401:
  *         description: Authentication required
  */
-router.get('/stats', asyncHandler(ctrl.getStats));
+router.get('/stats', requirePermissionIfAuth('treasury.view'), asyncHandler(ctrl.getStats));
 
 /**
  * @openapi
@@ -140,8 +141,8 @@ router.get('/stats', asyncHandler(ctrl.getStats));
  *       404:
  *         description: Transaction not found
  */
-router.get('/:id', asyncHandler(ctrl.getById));
-router.put('/:id', asyncHandler(ctrl.update));
-router.delete('/:id', asyncHandler(ctrl.remove));
+router.get('/:id', requirePermissionIfAuth('treasury.view'), asyncHandler(ctrl.getById));
+router.put('/:id', requirePermissionIfAuth('treasury.edit'), asyncHandler(ctrl.update));
+router.delete('/:id', requirePermissionIfAuth('treasury.delete'), asyncHandler(ctrl.remove));
 
 module.exports = router;

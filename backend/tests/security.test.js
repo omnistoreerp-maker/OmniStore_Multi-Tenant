@@ -42,6 +42,13 @@ beforeAll(async () => {
       role: 'Cashier',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
+    }, {
+      id: 'u-viewer',
+      username: 'sec-viewer',
+      password: seededHash,
+      role: 'Viewer',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     }]
   });
   authServer = await startServer(authDataDir, { AUTH_REQUIRED: 'true' });
@@ -204,12 +211,24 @@ describe('authorization (AUTH_REQUIRED=true)', () => {
   });
 
   test('writes from disallowed roles are rejected with 403', async () => {
-    const session = await login(authServer.app, 'sec-cashier', 'password');
+    // Viewer has no customers.create; permission-based enforcement denies the write.
+    const session = await login(authServer.app, 'sec-viewer', 'password');
     const res = await request(authServer.app)
       .post('/api/v1/customers')
       .set(authHeader(session.accessToken))
       .send({ name: 'Forbidden Customer' });
     expect(res.statusCode).toBe(403);
+  });
+
+  test('cashier write of an operational customer is allowed (permission-based)', async () => {
+    // Cashier baseline grants customers.create — writes follow the permission
+    // registry, not the legacy Owner/Admin/Manager role gate.
+    const session = await login(authServer.app, 'sec-cashier', 'password');
+    const res = await request(authServer.app)
+      .post('/api/v1/customers')
+      .set(authHeader(session.accessToken))
+      .send({ name: 'Cashier Customer' });
+    expect(res.statusCode).toBe(201);
   });
 
   test('writes from allowed roles pass', async () => {

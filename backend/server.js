@@ -14,7 +14,7 @@ const logger = require('./utils/logger');
 const fileStore = require('./utils/fileStore');
 const { notFound, serverError, requestPerfLogger } = require('./middleware/errorHandler');
 const { authMiddleware, requireAuth } = require('./middleware/auth');
-const { writeRoleGuard } = require('./middleware/authorize');
+const { scopedWriteRoleGuard } = require('./middleware/authorize');
 const { sanitizeBody, jsonParseErrorHandler, apiRateLimiter } = require('./middleware/security');
 const { validateResource } = require('./middleware/validate');
 const { configurePassport } = require('./middleware/passport');
@@ -23,6 +23,7 @@ const { correlationId, auditCapture } = require('./middleware/audit');
 const { etagMiddleware } = require('./middleware/etag');
 const requestContext = require('./middleware/requestContext');
 const tenantStore = require('./middleware/tenantStore');
+const branchStore = require('./middleware/branchStore');
 const metricsMiddleware = require('./middleware/metrics');
 const { eventBus } = require('./services/eventBus');
 const webhookService = require('./services/webhook.service');
@@ -96,6 +97,10 @@ if (config.requestContextEnabled) {
 // introduced (see middleware/tenantStore.js). Must run before tenantCarry.
 app.use(tenantStore.middleware);
 app.use(authMiddleware);
+// Branch scope (Phase F): resolves the TRUSTED branchId for the authenticated
+// user into an ALS slot for this request. No-op unless ENABLE_BRANCH_ISOLATION
+// is on. Must run after authMiddleware (needs req.user).
+app.use(branchStore.middleware);
 app.use(apiKeyMiddleware);
 
 // Phase 19 — Tenant Carry: reconstruct req.tenantContext from the tenant
@@ -190,7 +195,9 @@ app.get('/api-docs.json', (req, res) => {
 // Default is OFF: every route stays open exactly as before (legacy behavior).
 if (config.authRequired) {
   app.use('/api/v1', requireAuth);
-  app.use('/api/v1', writeRoleGuard('Owner', 'Admin', 'Manager'));
+  app.use('/api/v1', scopedWriteRoleGuard('Owner', 'Admin', 'Manager'));
+  // Branch isolation enforcement (no-op unless ENABLE_BRANCH_ISOLATION).
+  app.use('/api/v1', branchStore.branchScope);
 }
 
 // Conditional requests: ETag on GET responses (behavior: no-op if disabled)

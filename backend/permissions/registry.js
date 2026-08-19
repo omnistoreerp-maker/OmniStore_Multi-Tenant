@@ -20,7 +20,7 @@ const REAL_GROUPS = [
   { group: 'customers', permissions: ['customers.view', 'customers.create', 'customers.edit', 'customers.delete'] },
   { group: 'suppliers', permissions: ['suppliers.view', 'suppliers.create', 'suppliers.edit', 'suppliers.delete'] },
   { group: 'treasury', permissions: ['treasury.view', 'treasury.create', 'treasury.edit', 'treasury.delete'] },
-  { group: 'reports', permissions: ['reports.view'] },
+  { group: 'reports', permissions: ['reports.view', 'reports.financial.view'] },
   { group: 'dashboard', permissions: ['dashboard.view'] },
   {
     group: 'users',
@@ -59,6 +59,7 @@ const ROLE_RANK = {
   Owner: 4,
   Admin: 3,
   Manager: 2,
+  BranchManager: 1,
   Cashier: 1,
   Technician: 1,
   WarehouseSales: 1,
@@ -84,6 +85,15 @@ const ROLE_DEFAULTS = {
     'reports.view', 'dashboard.view',
     'users.view', 'users.create', 'users.edit', 'users.delete',
     'audit.view', 'company.view', 'settings.view'
+  ],
+  BranchManager: [
+    'sales.view', 'sales.create', 'sales.edit',
+    'purchases.view', 'purchases.create', 'purchases.edit',
+    'customers.view', 'customers.create', 'customers.edit',
+    'suppliers.view', 'suppliers.create', 'suppliers.edit',
+    'inventory.view', 'inventory.create', 'inventory.edit',
+    'products.view',
+    'dashboard.view'
   ],
   Cashier: ['sales.view', 'sales.create', 'customers.view', 'customers.create', 'dashboard.view', 'treasury.view', 'reports.view'],
   Technician: ['inventory.view', 'inventory.create', 'inventory.edit', 'products.view', 'dashboard.view'],
@@ -153,7 +163,7 @@ function realPermissions() {
 }
 
 function knownRoles() {
-  return ['Owner', 'Admin', 'Manager', 'Cashier', 'Technician', 'WarehouseSales', 'Sales', 'Support', 'Viewer'];
+  return ['Owner', 'Admin', 'Manager', 'BranchManager', 'Cashier', 'Technician', 'WarehouseSales', 'Sales', 'Support', 'Viewer'];
 }
 
 module.exports = {

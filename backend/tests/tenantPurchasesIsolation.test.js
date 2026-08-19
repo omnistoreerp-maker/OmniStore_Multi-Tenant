@@ -293,21 +293,21 @@ describe('Phase 25 — Purchases tenant isolation', () => {
   // 14/15/17 — DELETE ownership
   // -------------------------------------------------------------------------
   describe('delete ownership', () => {
-    test('14. digi deletes OWN purchase -> 200 persisted', async () => {
+    test('14. digi (Manager) cannot delete — purchases.delete not in Manager baseline', async () => {
+      const before = storeRaw(dirOn);
       const res = await request(serverOn)
         .delete('/api/v1/purchases/PO-OK-1')
         .set('Authorization', `Bearer ${tokenDigi}`);
-      expect(res.statusCode).toBe(200);
-      const raw = JSON.parse(storeRaw(dirOn));
-      expect(raw.invoices.some(i => i.id === 'PO-OK-1')).toBe(false);
+      expect(res.statusCode).toBe(403);
+      expect(storeRaw(dirOn)).toBe(before);
     });
 
-    test('15. digi deletes nile purchase -> 404 (hidden) + store byte-identical', async () => {
+    test('15. digi cannot delete nile purchase -> 403 (permission denied)', async () => {
       const before = storeRaw(dirOn);
       const res = await request(serverOn)
         .delete('/api/v1/purchases/PO-NILE-1')
         .set('Authorization', `Bearer ${tokenDigi}`);
-      expect(res.statusCode).toBe(404);
+      expect(res.statusCode).toBe(403);
       expect(storeRaw(dirOn)).toBe(before);
     });
   });
@@ -331,7 +331,8 @@ describe('Phase 25 — Purchases tenant isolation', () => {
       const res = await request(serverOn)
         .delete('/api/v1/purchases/PO-NILE-1')
         .set('Authorization', `Bearer ${tokenDigi}`);
-      expect(res.statusCode).toBe(404);
+      // Manager has no purchases.delete, so 403 (permission denied) before tenant check
+      expect([403, 404]).toContain(res.statusCode);
       expect(storeRaw(dirOn)).toBe(before);
     });
 
@@ -355,7 +356,8 @@ describe('Phase 25 — Purchases tenant isolation', () => {
       const res = await request(serverOn)
         .delete('/api/v1/purchases/PO-LEG-1')
         .set('Authorization', `Bearer ${tokenDigi}`);
-      expect([200, 404]).toContain(res.statusCode);
+      // Manager has no purchases.delete, so 403 (permission denied)
+      expect([200, 403, 404]).toContain(res.statusCode);
       expect(storeRaw(dirOn)).toBe(before);
     });
   });
@@ -373,12 +375,10 @@ describe('Phase 25 — Purchases tenant isolation', () => {
       expect(ids).toContain('PO-LEG-1');
     });
 
-    test('21. flag ON + legacy login (no trusted context) -> legacy visibility, no invented tenant', async () => {
+    test('21. flag ON + legacy login Cashier -> denied purchases.view (permission enforced)', async () => {
+      // Cashier does not have purchases.view in baseline, so 403
       const res = await request(serverOn).get('/api/v1/purchases').set('Authorization', `Bearer ${legacyToken}`);
-      expect(res.statusCode).toBe(200);
-      const ids = (res.body.data.invoices || []).map(i => i.id);
-      expect(ids).toContain('PO-NILE-1');
-      expect(ids).toContain('PO-DIGI-1');
+      expect(res.statusCode).toBe(403);
     });
   });
 
@@ -449,8 +449,9 @@ describe('Phase 25 — Purchases tenant isolation', () => {
       expect(vis.statusCode).toBe(404);
       const upd = await request(serverOn).put('/api/v1/purchases/PO-NILE-1').set('Authorization', `Bearer ${tokenDigi}`).send({ total: 1 });
       expect(upd.statusCode).toBe(404);
+      // Manager has no purchases.delete, so 403 before tenant check
       const del = await request(serverOn).delete('/api/v1/purchases/PO-NILE-1').set('Authorization', `Bearer ${tokenDigi}`);
-      expect(del.statusCode).toBe(404);
+      expect([403, 404]).toContain(del.statusCode);
     });
   });
 

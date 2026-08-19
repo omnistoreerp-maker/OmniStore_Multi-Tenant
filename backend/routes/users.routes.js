@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/users.controller');
 const { requireAuth } = require('../middleware/auth');
-const { requirePermission } = require('../middleware/authorize');
+const { requirePermission, requirePermissionIfAuth } = require('../middleware/authorize');
 
 /**
  * @openapi
@@ -70,8 +70,8 @@ const { requirePermission } = require('../middleware/authorize');
  *       401:
  *         description: Authentication required
  */
-router.get('/', ctrl.list);
-router.post('/', ctrl.create);
+router.get('/', requirePermissionIfAuth('users.view'), ctrl.list);
+router.post('/', requirePermissionIfAuth('users.create'), ctrl.create);
 
 /**
  * @openapi
@@ -88,7 +88,7 @@ router.post('/', ctrl.create);
  *       401:
  *         description: Authentication required
  */
-router.get('/stats', ctrl.getStats);
+router.get('/stats', requirePermissionIfAuth('users.view'), ctrl.getStats);
 
 /**
  * @openapi
@@ -151,9 +151,9 @@ router.get('/stats', ctrl.getStats);
  *       404:
  *         description: User not found
  */
-router.get('/:id', ctrl.getById);
-router.put('/:id', ctrl.update);
-router.delete('/:id', ctrl.remove);
+router.get('/:id', requirePermissionIfAuth('users.view'), ctrl.getById);
+router.put('/:id', requirePermissionIfAuth('users.edit'), ctrl.update);
+router.delete('/:id', requirePermissionIfAuth('users.delete'), ctrl.remove);
 
 /**
  * @openapi

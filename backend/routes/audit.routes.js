@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/audit.controller');
 const { requireAuth } = require('../middleware/auth');
+const { requirePermissionIfAuth } = require('../middleware/authorize');
 
 /**
  * @openapi
@@ -77,7 +78,7 @@ const { requireAuth } = require('../middleware/auth');
  *       401:
  *         description: Authentication required
  */
-router.get('/', requireAuth, ctrl.query);
+router.get('/', requireAuth, requirePermissionIfAuth('audit.view'), ctrl.query);
 
 /**
  * @openapi
@@ -94,7 +95,7 @@ router.get('/', requireAuth, ctrl.query);
  *       401:
  *         description: Authentication required
  */
-router.get('/stats', requireAuth, ctrl.getStats);
+router.get('/stats', requireAuth, requirePermissionIfAuth('audit.view'), ctrl.getStats);
 
 /**
  * @openapi
@@ -119,6 +120,6 @@ router.get('/stats', requireAuth, ctrl.getStats);
  *       401:
  *         description: Authentication required
  */
-router.get('/:id', requireAuth, ctrl.getById);
+router.get('/:id', requireAuth, requirePermissionIfAuth('audit.view'), ctrl.getById);
 
 module.exports = router;

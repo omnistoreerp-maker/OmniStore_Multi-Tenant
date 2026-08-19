@@ -64,6 +64,13 @@ module.exports = {
   tenantUserMembershipEnabled: process.env.ENABLE_TENANT_USER_MEMBERSHIP === 'true',
   tenantRolesEnabled: process.env.ENABLE_TENANT_ROLES === 'true',
   tenantCarryEnabled: process.env.ENABLE_TENANT_CARRY === 'true',
+  // Branch-level isolation (Phase F). OPT-IN via ENABLE_BRANCH_ISOLATION.
+  // When enabled, branch-scoped users (users with a trusted `branchId`) are
+  // confined to their own branch: the trusted branch is taken from the STORED
+  // user record (never from client input), list reads are scoped to it, new
+  // sales/purchases are server-stamped with it, and any client claim of a
+  // different branch is rejected. When off, every guard is a no-op.
+  branchIsolationEnabled: process.env.ENABLE_BRANCH_ISOLATION === 'true',
   tenantEntityIsolationEnabled: process.env.ENABLE_TENANT_ENTITY_ISOLATION === 'true',
   tenantSalesIsolationEnabled: process.env.ENABLE_TENANT_SALES_ISOLATION === 'true',
   tenantPurchasesIsolationEnabled: process.env.ENABLE_TENANT_PURCHASES_ISOLATION === 'true',

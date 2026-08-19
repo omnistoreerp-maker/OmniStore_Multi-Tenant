@@ -243,13 +243,13 @@ describe('Phase 20 — real authorization boundary (AUTH_REQUIRED=true + full fl
       .set('Authorization', `Bearer ${r.accessToken}`)
       .send({ username: 'blocked-1', password: 'Pass#123', role: 'Cashier' });
     expect(res.statusCode).toBe(403);
-    expect(res.body.message).toBe('Insufficient role');
+    expect(res.body.message).toBe('Insufficient permission');
   });
 
-  test('the Cashier can still READ inside that tenant (write guard only)', async () => {
+  test('the Cashier is denied READ on users (permission enforced on reads too)', async () => {
     const r = await loginAs('managerUser', 'nile');
     const res = await request(app).get('/api/v1/users').set('Authorization', `Bearer ${r.accessToken}`);
-    expect(res.statusCode).toBe(200);
+    expect(res.statusCode).toBe(403);
   });
 
   test('global Owner is unchanged inside a tenant', async () => {

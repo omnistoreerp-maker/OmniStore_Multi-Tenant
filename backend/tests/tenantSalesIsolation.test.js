@@ -287,21 +287,22 @@ describe('Phase 24 — Sales tenant isolation', () => {
       expect(storeRaw(dirOn)).toBe(before);
     });
 
-    test('digi deletes OWN invoice -> 200, success persisted', async () => {
+    test('digi (Manager) cannot delete sales — sales.delete not in Manager baseline', async () => {
+      const before = storeRaw(dirOn);
       const res = await request(serverOn)
         .delete('/api/v1/sales/INV-OK-1')
         .set('Authorization', `Bearer ${tokenDigi}`);
-      expect(res.statusCode).toBe(200);
-      const raw = JSON.parse(storeRaw(dirOn));
-      expect(raw.invoices.some(i => i.id === 'INV-OK-1')).toBe(false);
+      // Manager role does NOT have sales.delete permission
+      expect(res.statusCode).toBe(403);
+      expect(storeRaw(dirOn)).toBe(before);
     });
 
-    test('digi deletes nile invoice -> 404 (hidden) + store byte-identical', async () => {
+    test('digi cannot delete nile invoice -> 403 (permission denied)', async () => {
       const before = storeRaw(dirOn);
       const res = await request(serverOn)
         .delete('/api/v1/sales/INV-NILE-1')
         .set('Authorization', `Bearer ${tokenDigi}`);
-      expect(res.statusCode).toBe(404);
+      expect(res.statusCode).toBe(403);
       expect(storeRaw(dirOn)).toBe(before);
     });
 
@@ -310,7 +311,8 @@ describe('Phase 24 — Sales tenant isolation', () => {
       const res = await request(serverOn)
         .delete('/api/v1/sales/INV-LEG-1')
         .set('Authorization', `Bearer ${tokenDigi}`);
-      expect([200, 404]).toContain(res.statusCode);
+      // With permission enforcement, legacy delete returns 403 (permission denied) or 404 (not found)
+      expect([200, 403, 404]).toContain(res.statusCode);
       expect(storeRaw(dirOn)).toBe(before);
     });
   });

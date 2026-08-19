@@ -41,6 +41,38 @@ function elementStub() {
     classList: { add: () => {}, remove: () => {}, toggle: () => {} }, getAttribute: () => null };
 }
 
+// Module-scope sandbox factory (used by the BranchManager gating tests; the
+// per-describe `sandbox` helper used elsewhere shadows nothing — both execute
+// the same vm-extracted real canAccessPage from the shipped index.html).
+function makeSandbox(role, perms) {
+  const context = {
+    console,
+    currentUser: { username: 'u', role, effectivePermissions: perms || [], effectiveRole: role },
+    platformRole: null,
+    USE_BACKEND: true,
+    DOC: undefined,
+    document: { getElementById: () => elementStub(), querySelectorAll: () => [], addEventListener: () => {} },
+    OmniModuleLoader: { isRouteEnabled: () => true },
+    localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
+    sessionStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} },
+    navigator: { onLine: true, userAgent: 'node' },
+    location: { href: '', reload: () => {} }
+  };
+  context.globalThis = context;
+  context.window = context;
+  const code = [
+    'function _effectiveRole() { return (currentUser && (currentUser.effectiveRole || currentUser.role)) || \'\'; }',
+    'function _effectivePermissions() { return currentUser && currentUser.effectivePermissions ? currentUser.effectivePermissions.slice() : null; }',
+    'const LEGACY_ROLE_PERMS = {};',
+    'const REGISTRY_PERM_BY_ACTION = { viewDashboard:\'dashboard.view\', createInvoices:\'sales.create\', viewInvoices:\'sales.view\', editInvoices:\'sales.edit\', viewProducts:\'products.view\', viewInventory:\'inventory.view\', viewPurchases:\'purchases.view\', viewCustomers:\'customers.view\', viewSuppliers:\'suppliers.view\', manageCRM:\'crm.view\', viewReports:\'reports.view\', viewFinancial:\'treasury.view\', manageSettings:\'settings.view\', viewSerials:\'products.view\', viewMaintenance:\'maintenance.view\', viewWarranty:\'maintenance.view\', viewDevices:\'inventory.view\' };',
+    'function can(action) { if (!currentUser) return false; const role = _effectiveRole(); if (role === \'Owner\' || role === \'Admin\') return true; const map = REGISTRY_PERM_BY_ACTION[action]; if (!map) return false; return !!currentUser.effectivePermissions && currentUser.effectivePermissions.includes(map); }',
+    extractFunction('canAccessPage')
+  ].join('\n');
+  vm.createContext(context);
+  vm.runInContext(code, context, { filename: 'index.html-nav-gating.js' });
+  return context;
+}
+
 describe('frontend navigation markers (shipped index.html)', () => {
   test('master/company scope structures exist', () => {
     expect(HTML).toContain('id="omniScopeSwitch"');
@@ -209,5 +241,35 @@ describe('frontend canAccessPage placeholder gates (extracted from index.html)',
     const masterCtx = sandbox('Viewer');
     masterCtx.platformRole = 'MASTER_OWNER';
     expect(masterCtx.canAccessPage('platform-master')).toBe(true);
+  });
+});
+
+describe('frontend BranchManager visibility (permission-registry driven)', () => {
+  const registry = require('../permissions/registry');
+  const baseline = registry.getRoleBaseline('BranchManager');
+  function bmSandbox() {
+    return makeSandbox('BranchManager', baseline);
+  }
+
+  test('BranchManager sees operational pages it is permitted to use', () => {
+    const ctx = bmSandbox();
+    expect(ctx.canAccessPage('dashboard')).toBe(true);   // dashboard.view
+    expect(ctx.canAccessPage('invoices')).toBe(true);    // sales.view
+    expect(ctx.canAccessPage('purchases')).toBe(true);   // purchases.view
+    expect(ctx.canAccessPage('customers')).toBe(true);   // customers.view
+    expect(ctx.canAccessPage('suppliers')).toBe(true);   // suppliers.view
+    expect(ctx.canAccessPage('warehouses')).toBe(true);  // inventory.view
+  });
+
+  test('BranchManager does NOT see restricted pages', () => {
+    const ctx = bmSandbox();
+    expect(ctx.canAccessPage('treasury')).toBe(false);      // no treasury.edit
+    expect(ctx.canAccessPage('financial')).toBe(false);     // no treasury.view
+    expect(ctx.canAccessPage('financial-center')).toBe(false);
+    expect(ctx.canAccessPage('reports')).toBe(false);       // no reports.view
+    expect(ctx.canAccessPage('users')).toBe(false);         // no users.view
+    expect(ctx.canAccessPage('audit')).toBe(false);         // no audit.view
+    expect(ctx.canAccessPage('settings')).toBe(false);      // no settings.view
+    expect(ctx.canAccessPage('platform-master')).toBe(false);
   });
 });

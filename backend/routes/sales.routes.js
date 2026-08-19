@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/sales.controller');
 const asyncHandler = require('../utils/asyncHandler');
+const { requirePermissionIfAuth } = require('../middleware/authorize');
 
 /**
  * @openapi
@@ -17,7 +18,7 @@ const asyncHandler = require('../utils/asyncHandler');
  *       401:
  *         description: Authentication required
  */
-router.get('/stats', asyncHandler(ctrl.getStats));
+router.get('/stats', requirePermissionIfAuth('sales.view'), asyncHandler(ctrl.getStats));
 
 /**
  * @openapi
@@ -84,8 +85,8 @@ router.get('/stats', asyncHandler(ctrl.getStats));
  *       401:
  *         description: Authentication required
  */
-router.get('/', asyncHandler(ctrl.list));
-router.post('/', asyncHandler(ctrl.create));
+router.get('/', requirePermissionIfAuth('sales.view'), asyncHandler(ctrl.list));
+router.post('/', requirePermissionIfAuth('sales.create'), asyncHandler(ctrl.create));
 
 /**
  * @openapi
@@ -148,8 +149,8 @@ router.post('/', asyncHandler(ctrl.create));
  *       404:
  *         description: Sale not found
  */
-router.get('/:id', asyncHandler(ctrl.getById));
-router.put('/:id', asyncHandler(ctrl.update));
-router.delete('/:id', asyncHandler(ctrl.remove));
+router.get('/:id', requirePermissionIfAuth('sales.view'), asyncHandler(ctrl.getById));
+router.put('/:id', requirePermissionIfAuth('sales.edit'), asyncHandler(ctrl.update));
+router.delete('/:id', requirePermissionIfAuth('sales.delete'), asyncHandler(ctrl.remove));
 
 module.exports = router;

@@ -4,6 +4,7 @@ const { eventBus } = require('./eventBus');
 const config = require('../config');
 const BaseRepository = require('../repositories/BaseRepository');
 const repository = require('../repositories').purchases;
+const branchStore = require('../middleware/branchStore');
 
 class PurchaseService {
   async _load(tenantContext) {
@@ -72,6 +73,54 @@ class PurchaseService {
     });
   }
 
+  // Phase F — Branch isolation. OPT-IN via ENABLE_BRANCH_ISOLATION. Mirrors the
+  // Phase 25 tenant-read-scope rules and the Phase F sales branch rules:
+  //   - record with NO branchId -> legacy -> always visible (read-only)
+  //   - record branchId == branch scope -> visible / writable
+  //   - record branchId != branch scope -> hidden (never leaks), not found
+  // User without a branch scope (Owner/Admin/Manager/…) is never restricted.
+  _branchActive() {
+    return config.branchIsolationEnabled && !!branchStore.get();
+  }
+
+  _branchBlocked(record) {
+    if (!config.branchIsolationEnabled) return false;
+    if (!record || typeof record !== 'object') return true;
+    const bid = record.branchId;
+    if (bid === undefined || bid === null || bid === '') return false; // legacy
+    const scope = branchStore.get();
+    if (!scope) return false; // unscoped user -> not enforced
+    return String(bid) !== String(scope);
+  }
+
+  _branchVisibleInvoices(invoices) {
+    if (!this._branchActive()) return invoices;
+    const scope = branchStore.get();
+    return invoices.filter(inv => {
+      if (!inv || typeof inv !== 'object') return true;
+      if (inv.branchId === undefined || inv.branchId === null || inv.branchId === '') return true; // legacy
+      return String(inv.branchId) === scope;
+    });
+  }
+
+  // Server-authoritative branch stamping for creates + rejection of a create
+  // that claims a branch the user does not own (defence-in-depth behind the
+  // branchScope middleware).
+  _applyBranchToCreate(data) {
+    if (!config.branchIsolationEnabled) return null;
+    const scope = branchStore.get();
+    if (!scope) return null;
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      if (data.branchId != null && data.branchId !== '' && String(data.branchId) !== String(scope)) {
+        return 'Branch scope denied';
+      }
+      if (data.branchId === undefined || data.branchId === null || data.branchId === '') {
+        data.branchId = scope;
+      }
+    }
+    return null;
+  }
+
   _validateRequired(data, forCreate) {
     const errors = [];
     if (forCreate && !data.items) errors.push('items is required');
@@ -92,6 +141,7 @@ class PurchaseService {
   async list(query = {}, tenantContext) {
     const db = await this._load(tenantContext);
     let invoices = this._visibleInvoices(db.invoices || [], tenantContext);
+    invoices = this._branchVisibleInvoices(invoices);
 
     if (query.supplier) {
       const q = query.supplier.toLowerCase();
@@ -146,7 +196,8 @@ class PurchaseService {
 
   async stats(tenantContext) {
     const db = await this._load(tenantContext);
-    const invoices = this._visibleInvoices(db.invoices || [], tenantContext);
+    let invoices = this._visibleInvoices(db.invoices || [], tenantContext);
+    invoices = this._branchVisibleInvoices(invoices);
     const count = invoices.length;
     let totalPurchases = 0, cashPurchases = 0, creditPurchases = 0;
     invoices.forEach(inv => {
@@ -162,14 +213,20 @@ class PurchaseService {
   async getById(id, tenantContext) {
     if (this._isIsolationActive(tenantContext)) {
       const repo = this._repoFor(tenantContext);
-      return repo.findAsync('invoices', this._normalizeId(id));
+      const found = await repo.findAsync('invoices', this._normalizeId(id));
+      if (found && this._branchBlocked(found)) return null;
+      return found;
     }
     const db = await this._load(tenantContext);
     const normalized = this._normalizeId(id);
-    return (db.invoices || []).find(inv => this._normalizeId(inv.id) === normalized || this._normalizeId(inv.invoiceId) === normalized) || null;
+    const found = (db.invoices || []).find(inv => this._normalizeId(inv.id) === normalized || this._normalizeId(inv.invoiceId) === normalized) || null;
+    if (found && this._branchBlocked(found)) return null;
+    return found;
   }
 
   async create(data, tenantContext) {
+    const branchError = this._applyBranchToCreate(data);
+    if (branchError) return { error: branchError };
     const errors = this._validateRequired(data, true);
     if (errors.length) return { error: errors.join('; ') };
 
@@ -212,6 +269,9 @@ class PurchaseService {
 
     if (this._isIsolationActive(tenantContext)) {
       const repo = this._repoFor(tenantContext);
+      const existing = await repo.findAsync('invoices', this._normalizeId(id));
+      if (!existing) return { error: 'Invoice not found' };
+      if (this._branchBlocked(existing)) return { error: 'Invoice not found' };
       const merged = await repo.updateAsync('invoices', this._normalizeId(id), data);
       if (!merged) return { error: 'Invoice not found' };
       return { invoice: merged };
@@ -221,7 +281,7 @@ class PurchaseService {
     const normalized = this._normalizeId(id);
     const idx = (db.invoices || []).findIndex(inv => this._normalizeId(inv.id) === normalized);
     if (idx === -1) return { error: 'Invoice not found' };
-    if (this._ownershipBlocked(db.invoices[idx])) return { error: 'Invoice not found' };
+    if (this._ownershipBlocked(db.invoices[idx]) || this._branchBlocked(db.invoices[idx])) return { error: 'Invoice not found' };
 
     db.invoices[idx] = { ...db.invoices[idx], ...data, id: db.invoices[idx].id, updatedAt: new Date().toISOString() };
     if (await this._save(db)) return { invoice: db.invoices[idx] };
@@ -231,6 +291,9 @@ class PurchaseService {
   async delete(id, tenantContext) {
     if (this._isIsolationActive(tenantContext)) {
       const repo = this._repoFor(tenantContext);
+      const existing = await repo.findAsync('invoices', this._normalizeId(id));
+      if (!existing) return { error: 'Invoice not found' };
+      if (this._branchBlocked(existing)) return { error: 'Invoice not found' };
       const ok = await repo.deleteAsync('invoices', this._normalizeId(id));
       if (!ok) return { error: 'Invoice not found' };
       return { success: true };
@@ -240,7 +303,7 @@ class PurchaseService {
     const normalized = this._normalizeId(id);
     const idx = (db.invoices || []).findIndex(inv => this._normalizeId(inv.id) === normalized);
     if (idx === -1) return { error: 'Invoice not found' };
-    if (this._ownershipBlocked(db.invoices[idx])) return { error: 'Invoice not found' };
+    if (this._ownershipBlocked(db.invoices[idx]) || this._branchBlocked(db.invoices[idx])) return { error: 'Invoice not found' };
     db.invoices.splice(idx, 1);
     if (await this._save(db)) return { success: true };
     return { error: 'Failed to persist deletion' };

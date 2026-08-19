@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/inventoryTransactions.controller');
 const asyncHandler = require('../utils/asyncHandler');
+const { requirePermissionIfAuth } = require('../middleware/authorize');
 
 /**
  * @openapi
@@ -53,8 +54,8 @@ const asyncHandler = require('../utils/asyncHandler');
  *       401:
  *         description: Authentication required
  */
-router.get('/', asyncHandler(ctrl.list));
-router.post('/', asyncHandler(ctrl.create));
+router.get('/', requirePermissionIfAuth('inventory.view'), asyncHandler(ctrl.list));
+router.post('/', requirePermissionIfAuth('inventory.create'), asyncHandler(ctrl.create));
 
 /**
  * @openapi
@@ -71,7 +72,7 @@ router.post('/', asyncHandler(ctrl.create));
  *       401:
  *         description: Authentication required
  */
-router.get('/stats', asyncHandler(ctrl.getStats));
+router.get('/stats', requirePermissionIfAuth('inventory.view'), asyncHandler(ctrl.getStats));
 
 /**
  * @openapi
@@ -134,8 +135,8 @@ router.get('/stats', asyncHandler(ctrl.getStats));
  *       404:
  *         description: Transaction not found
  */
-router.get('/:id', asyncHandler(ctrl.getById));
-router.put('/:id', asyncHandler(ctrl.update));
-router.delete('/:id', asyncHandler(ctrl.remove));
+router.get('/:id', requirePermissionIfAuth('inventory.view'), asyncHandler(ctrl.getById));
+router.put('/:id', requirePermissionIfAuth('inventory.edit'), asyncHandler(ctrl.update));
+router.delete('/:id', requirePermissionIfAuth('inventory.delete'), asyncHandler(ctrl.remove));
 
 module.exports = router;
