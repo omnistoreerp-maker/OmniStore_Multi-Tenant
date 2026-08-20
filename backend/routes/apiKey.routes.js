@@ -122,7 +122,7 @@ router.get('/stats', requireAuth, ctrl.getStats);
  *       401:
  *         description: Invalid or revoked API key
  */
-router.get('/validate', ctrl.validate);
+router.get('/validate', requireAuth, ctrl.validate);
 
 /**
  * @openapi

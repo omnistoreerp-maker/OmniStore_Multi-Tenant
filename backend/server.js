@@ -164,7 +164,12 @@ app.use('/api/v1/api-keys', apiKeyRoutes);
 app.use('/api/v1/audit-log', auditRoutes);
 app.use('/api/v1/webhooks', webhookRoutes);
 app.use('/api/v1/metrics', metricsRoutes);
-app.use('/api/v1/health/deep', healthRoutes);
+// v1.0.1 — AUTH-CONDITIONAL PROTECTED UTILITIES.
+// Default (AUTH_REQUIRED=false) keeps the historical open behavior; when the
+// hardened posture is on, these surfaces demand an authenticated session.
+const authGate = config.authRequired ? requireAuth : (req, res, next) => next();
+
+app.use('/api/v1/health/deep', authGate, healthRoutes);
 app.use('/api/v1/errors', errorTrackerRoutes);
 
 // Route events from the bus to outbound webhooks (additive; no-op if none)
@@ -179,14 +184,14 @@ if (oauthConfig.enabled) {
   app.use('/auth', oauthRoutes);
 }
 
-// Swagger API documentation
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+// Swagger API documentation (auth-gated when AUTH_REQUIRED=true)
+app.use('/api-docs', authGate, swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
   customCss: '.swagger-ui .topbar { display: none }',
   customSiteTitle: 'DigiTronics V2 API Documentation'
 }));
 
-// JSON endpoint for the raw OpenAPI spec
-app.get('/api-docs.json', (req, res) => {
+// JSON endpoint for the raw OpenAPI spec (auth-gated when AUTH_REQUIRED=true)
+app.get('/api-docs.json', authGate, (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.send(swaggerSpec);
 });

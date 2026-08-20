@@ -16,6 +16,32 @@ class UsersService {
   }
   _save(db) { return repository.write(db); }
 
+  // FULL, unfiltered store document for WRITES. Persisting must never be
+  // derived from the tenant-filtered view (BaseRepository._rawStore rule):
+  // otherwise one tenant's create/update/delete would write back only its
+  // own records and silently DROP every other tenant's records from the
+  // shared document. Ownership is gated explicitly in the write methods.
+  _loadRaw() {
+    const db = repository._rawStore();
+    if (!db || typeof db !== 'object') return { users: [] };
+    if (!Array.isArray(db.users)) db.users = [];
+    return db;
+  }
+
+  // Cross-tenant write guard. When a tenant context is active, a record
+  // that claims a DIFFERENT tenantId must never be modified or deleted by
+  // this request — it is treated as not-found, never touched. Legacy
+  // records (no tenantId) remain writable, matching the Phase 13 read rule.
+  _ownershipBlocked(record) {
+    if (!repository.hasTenant()) return false;
+    if (!record || typeof record !== 'object') return true;
+    const tid = record.tenantId;
+    if (tid === undefined || tid === null || tid === '') return false;
+    const current = repository.getCurrentTenant();
+    const currentId = current && (current.tenantId != null ? current.tenantId : current.id);
+    return currentId == null || String(tid) !== String(currentId);
+  }
+
   _validateRequired(data, forCreate) {
     const errors = [];
     if (forCreate && (data.username === undefined || data.username === null || String(data.username).trim() === '')) errors.push('username is required');
@@ -158,7 +184,7 @@ class UsersService {
       payload.tenantRoles = tenantRole.normalize(payload.tenantRoles);
     }
 
-    const db = this._load();
+    const db = this._loadRaw();
     const user = {
       id: payload.id !== undefined && payload.id !== null ? payload.id : uuidv4(),
       ...payload,
@@ -185,10 +211,11 @@ class UsersService {
   }
 
   update(id, data) {
-    const db = this._load();
+    const db = this._loadRaw();
     const normalized = this._normalizeId(id);
     const idx = (db.users || []).findIndex(u => this._matchesId(u, normalized));
     if (idx === -1) return { error: 'User not found' };
+    if (this._ownershipBlocked(db.users[idx])) return { error: 'User not found' };
 
     const errors = this._validateRequired(data, false);
     if (errors.length) return { error: errors.join('; ') };
@@ -221,10 +248,11 @@ class UsersService {
   }
 
   delete(id) {
-    const db = this._load();
+    const db = this._loadRaw();
     const normalized = this._normalizeId(id);
     const idx = (db.users || []).findIndex(u => this._matchesId(u, normalized));
     if (idx === -1) return { error: 'User not found' };
+    if (this._ownershipBlocked(db.users[idx])) return { error: 'User not found' };
     db.users.splice(idx, 1);
     if (this._save(db)) return { success: true };
     return { error: 'Failed to persist deletion' };
@@ -234,10 +262,11 @@ class UsersService {
   // their tokenVersion. Tokens carry `ver` = the version they were signed
   // against; access/refresh verification rejects versions that no longer match.
   bumpTokenVersion(id) {
-    const db = this._load();
+    const db = this._loadRaw();
     const normalized = this._normalizeId(id);
     const idx = (db.users || []).findIndex(u => this._matchesId(u, normalized));
     if (idx === -1) return { error: 'User not found' };
+    if (this._ownershipBlocked(db.users[idx])) return { error: 'User not found' };
     const next = (Number(db.users[idx].tokenVersion) || 0) + 1;
     db.users[idx].tokenVersion = next;
     db.users[idx].updatedAt = new Date().toISOString();
@@ -259,7 +288,7 @@ class UsersService {
       // Password migration: legacy plaintext credential verified —
       // rehash with bcrypt and persist so plaintext never survives a login.
       try {
-        const db = this._load();
+        const db = this._loadRaw();
         const normalized = this._normalizeId(user.id);
         const idx = (db.users || []).findIndex(u => this._matchesId(u, normalized));
         if (idx !== -1) {

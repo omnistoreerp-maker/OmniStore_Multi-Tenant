@@ -11,6 +11,32 @@ class EmployeesService {
   }
   _save(db) { return repository.write(db); }
 
+  // FULL, unfiltered store document for WRITES. Persisting must never be
+  // derived from the tenant-filtered view (BaseRepository._rawStore rule):
+  // otherwise one tenant's create/update/delete would write back only its
+  // own records and silently DROP every other tenant's records from the
+  // shared document. Ownership is gated explicitly in the write methods.
+  _loadRaw() {
+    const db = repository._rawStore();
+    if (!db || typeof db !== 'object') return { employees: [] };
+    if (!Array.isArray(db.employees)) db.employees = [];
+    return db;
+  }
+
+  // Cross-tenant write guard. When a tenant context is active, a record
+  // that claims a DIFFERENT tenantId must never be modified or deleted by
+  // this request — it is treated as not-found, never touched. Legacy
+  // records (no tenantId) remain writable, matching the Phase 13 read rule.
+  _ownershipBlocked(record) {
+    if (!repository.hasTenant()) return false;
+    if (!record || typeof record !== 'object') return true;
+    const tid = record.tenantId;
+    if (tid === undefined || tid === null || tid === '') return false;
+    const current = repository.getCurrentTenant();
+    const currentId = current && (current.tenantId != null ? current.tenantId : current.id);
+    return currentId == null || String(tid) !== String(currentId);
+  }
+
   _validateRequired(data, forCreate) {
     const errors = [];
     if (forCreate && (data.name === undefined || data.name === null || String(data.name).trim() === '')) errors.push('name is required');
@@ -117,7 +143,7 @@ class EmployeesService {
     const errors = this._validateRequired(data, true);
     if (errors.length) return { error: errors.join('; ') };
 
-    const db = this._load();
+    const db = this._loadRaw();
     const employee = {
       id: data.id !== undefined && data.id !== null ? data.id : uuidv4(),
       ...data,
@@ -130,6 +156,17 @@ class EmployeesService {
       return { error: 'Duplicate employee ID: ' + employee.id };
     }
 
+    // Client-supplied tenantId cannot override the server context: when a
+    // tenant is carried, a claimed tenantId must match it. Foreign claims
+    // are rejected before any persistence.
+    if (employee.tenantId !== undefined && employee.tenantId !== null && employee.tenantId !== '' && repository.hasTenant()) {
+      const current = repository.getCurrentTenant();
+      const currentId = current && (current.tenantId != null ? current.tenantId : current.id);
+      if (currentId != null && String(employee.tenantId) !== String(currentId)) {
+        return { error: 'Invalid tenant claim' };
+      }
+    }
+
     if (!Array.isArray(db.employees)) db.employees = [];
     db.employees.push(employee);
     if (this._save(db)) return { employee };
@@ -137,10 +174,11 @@ class EmployeesService {
   }
 
   update(id, data) {
-    const db = this._load();
+    const db = this._loadRaw();
     const normalized = this._normalizeId(id);
     const idx = (db.employees || []).findIndex(e => this._matchesId(e, normalized));
     if (idx === -1) return { error: 'Employee not found' };
+    if (this._ownershipBlocked(db.employees[idx])) return { error: 'Employee not found' };
 
     const errors = this._validateRequired(data, false);
     if (errors.length) return { error: errors.join('; ') };
@@ -151,10 +189,11 @@ class EmployeesService {
   }
 
   delete(id) {
-    const db = this._load();
+    const db = this._loadRaw();
     const normalized = this._normalizeId(id);
     const idx = (db.employees || []).findIndex(e => this._matchesId(e, normalized));
     if (idx === -1) return { error: 'Employee not found' };
+    if (this._ownershipBlocked(db.employees[idx])) return { error: 'Employee not found' };
     db.employees.splice(idx, 1);
     if (this._save(db)) return { success: true };
     return { error: 'Failed to persist deletion' };

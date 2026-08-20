@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/employees.controller');
+const { requirePermissionIfAuth } = require('../middleware/authorize');
 
 /**
  * @openapi
@@ -48,8 +49,8 @@ const ctrl = require('../controllers/employees.controller');
  *       401:
  *         description: Authentication required
  */
-router.get('/', ctrl.list);
-router.post('/', ctrl.create);
+router.get('/', requirePermissionIfAuth('employees.view'), ctrl.list);
+router.post('/', requirePermissionIfAuth('employees.create'), ctrl.create);
 
 /**
  * @openapi
@@ -66,7 +67,7 @@ router.post('/', ctrl.create);
  *       401:
  *         description: Authentication required
  */
-router.get('/stats', ctrl.getStats);
+router.get('/stats', requirePermissionIfAuth('employees.view'), ctrl.getStats);
 
 /**
  * @openapi
@@ -129,8 +130,8 @@ router.get('/stats', ctrl.getStats);
  *       404:
  *         description: Employee not found
  */
-router.get('/:id', ctrl.getById);
-router.put('/:id', ctrl.update);
-router.delete('/:id', ctrl.remove);
+router.get('/:id', requirePermissionIfAuth('employees.view'), ctrl.getById);
+router.put('/:id', requirePermissionIfAuth('employees.edit'), ctrl.update);
+router.delete('/:id', requirePermissionIfAuth('employees.delete'), ctrl.remove);
 
 module.exports = router;
