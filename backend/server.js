@@ -178,12 +178,14 @@ const authGate = config.authRequired ? requireAuth : (req, res, next) => next();
 app.use('/api/v1/health/deep', authGate, healthRoutes);
 app.use('/api/v1/errors', errorTrackerRoutes);
 
-// Route events from the bus to outbound webhooks (additive; no-op if none)
-eventBus.subscribe('sale.created', (ev) => webhookService.dispatch('sale.created', ev.data));
-eventBus.subscribe('sale.updated', (ev) => webhookService.dispatch('sale.updated', ev.data));
-eventBus.subscribe('sale.deleted', (ev) => webhookService.dispatch('sale.deleted', ev.data));
-eventBus.subscribe('inventory.updated', (ev) => webhookService.dispatch('inventory.updated', ev.data));
-eventBus.subscribe('inventory.low', (ev) => webhookService.dispatch('inventory.low', ev.data));
+// Route events from the bus to outbound webhooks (additive; no-op if none).
+// Tenant context is extracted from the event payload and forwarded to
+// dispatch() so tenant-scoped webhooks receive only their own events.
+eventBus.subscribe('sale.created', (ev) => webhookService.dispatch('sale.created', ev.data, ev.data && ev.data.tenantId));
+eventBus.subscribe('sale.updated', (ev) => webhookService.dispatch('sale.updated', ev.data, ev.data && ev.data.tenantId));
+eventBus.subscribe('sale.deleted', (ev) => webhookService.dispatch('sale.deleted', ev.data, ev.data && ev.data.tenantId));
+eventBus.subscribe('inventory.updated', (ev) => webhookService.dispatch('inventory.updated', ev.data, ev.data && ev.data.tenantId));
+eventBus.subscribe('inventory.low', (ev) => webhookService.dispatch('inventory.low', ev.data, ev.data && ev.data.tenantId));
 
 // OAuth routes (mounted at root for OAuth callbacks)
 if (oauthConfig.enabled) {

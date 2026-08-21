@@ -2,6 +2,7 @@
 // Verifies: tenant-scoped registration, cross-tenant dispatch rejection,
 // tenant-matching dispatch, legacy webhook behavior, fail-closed semantics.
 const { makeTempDataDir } = require('./helpers/testData');
+const { eventBus } = require('../services/eventBus');
 
 let dataDir;
 let service;
@@ -210,6 +211,126 @@ describe('P0-4 Webhook Tenant Scoping', () => {
       await service.dispatch('sale.created', { id: 'sale-7' }, 'T-A');
       await new Promise(r => setTimeout(r, 50));
       expect(fetch).toHaveBeenCalled();
+    });
+  });
+
+  describe('eventBus → dispatch integration (server.js path)', () => {
+    let unsubscribeFns;
+
+    beforeEach(() => {
+      unsubscribeFns = [];
+    });
+
+    afterEach(() => {
+      // Clean up eventBus subscribers to avoid leaking between tests
+      for (const unsub of unsubscribeFns) {
+        try { unsub(); } catch (_) {}
+      }
+      eventBus.reset();
+    });
+
+    test('eventBus publish with tenantId routes to correct webhook', async () => {
+      service = freshService();
+      service.register({ url: 'https://a.com/hook', events: ['sale.created'], tenantId: 'T-A' });
+      service.register({ url: 'https://b.com/hook', events: ['sale.created'], tenantId: 'T-B' });
+
+      // Register subscriber exactly as server.js does (with tenant forwarding)
+      const unsub = eventBus.subscribe('sale.created', (ev) =>
+        service.dispatch('sale.created', ev.data, ev.data && ev.data.tenantId)
+      );
+      unsubscribeFns.push(unsub);
+
+      // Publish event with Tenant A's tenantId (simulating what sales.service does)
+      eventBus.publish('sale.created', { id: 'sale-int-1', tenantId: 'T-A', total: 100 });
+      await new Promise(r => setTimeout(r, 50));
+
+      // Tenant A webhook should fire
+      expect(fetch).toHaveBeenCalledWith(
+        'https://a.com/hook',
+        expect.objectContaining({ method: 'POST' })
+      );
+      // Tenant B webhook should NOT fire
+      expect(fetch).not.toHaveBeenCalledWith(
+        'https://b.com/hook',
+        expect.anything()
+      );
+    });
+
+    test('eventBus publish without tenantId only routes to legacy webhooks', async () => {
+      service = freshService();
+      service.register({ url: 'https://legacy.com/hook', events: ['sale.created'] });
+      service.register({ url: 'https://tenant.com/hook', events: ['sale.created'], tenantId: 'T-A' });
+
+      const unsub = eventBus.subscribe('sale.created', (ev) =>
+        service.dispatch('sale.created', ev.data, ev.data && ev.data.tenantId)
+      );
+      unsubscribeFns.push(unsub);
+
+      // Publish event WITHOUT tenantId
+      eventBus.publish('sale.created', { id: 'sale-int-2', total: 50 });
+      await new Promise(r => setTimeout(r, 50));
+
+      // Legacy webhook should fire
+      expect(fetch).toHaveBeenCalledWith(
+        'https://legacy.com/hook',
+        expect.objectContaining({ method: 'POST' })
+      );
+      // Tenant-scoped webhook should NOT fire
+      expect(fetch).not.toHaveBeenCalledWith(
+        'https://tenant.com/hook',
+        expect.anything()
+      );
+    });
+
+    test('eventBus publish with null tenantId only routes to legacy webhooks', async () => {
+      service = freshService();
+      service.register({ url: 'https://legacy.com/hook', events: ['sale.created'] });
+      service.register({ url: 'https://tenant.com/hook', events: ['sale.created'], tenantId: 'T-A' });
+
+      const unsub = eventBus.subscribe('sale.created', (ev) =>
+        service.dispatch('sale.created', ev.data, ev.data && ev.data.tenantId)
+      );
+      unsubscribeFns.push(unsub);
+
+      // Publish event WITH null tenantId
+      eventBus.publish('sale.created', { id: 'sale-int-3', tenantId: null, total: 75 });
+      await new Promise(r => setTimeout(r, 50));
+
+      // Legacy webhook should fire
+      expect(fetch).toHaveBeenCalledWith(
+        'https://legacy.com/hook',
+        expect.objectContaining({ method: 'POST' })
+      );
+      // Tenant-scoped webhook should NOT fire
+      expect(fetch).not.toHaveBeenCalledWith(
+        'https://tenant.com/hook',
+        expect.anything()
+      );
+    });
+
+    test('eventBus publish with unknown tenantId does not reach other tenants', async () => {
+      service = freshService();
+      service.register({ url: 'https://a.com/hook', events: ['sale.created'], tenantId: 'T-A' });
+      service.register({ url: 'https://b.com/hook', events: ['sale.created'], tenantId: 'T-B' });
+
+      const unsub = eventBus.subscribe('sale.created', (ev) =>
+        service.dispatch('sale.created', ev.data, ev.data && ev.data.tenantId)
+      );
+      unsubscribeFns.push(unsub);
+
+      // Publish event with unknown tenantId
+      eventBus.publish('sale.created', { id: 'sale-int-4', tenantId: 'T-UNKNOWN', total: 200 });
+      await new Promise(r => setTimeout(r, 50));
+
+      // Neither webhook should fire
+      expect(fetch).not.toHaveBeenCalledWith(
+        'https://a.com/hook',
+        expect.anything()
+      );
+      expect(fetch).not.toHaveBeenCalledWith(
+        'https://b.com/hook',
+        expect.anything()
+      );
     });
   });
 });
