@@ -57,13 +57,19 @@ app.use(helmet({
     }
   }
 }));
-if (config.corsOrigins) {
-  // Restricted CORS: comma-separated allowlist via CORS_ORIGINS.
-  app.use(cors({ origin: config.corsOrigins.split(',').map(s => s.trim()), credentials: true }));
-} else {
-  // Default: open CORS (identical to previous behavior).
-  app.use(cors());
-}
+// CORS — fail-closed when no allowlist is configured.
+// In production (AUTH_REQUIRED=true) an empty CORS_ORIGINS blocks all
+// cross-origin browser requests. In dev/test with AUTH_REQUIRED=false the
+// explicit localhost defaults below keep local development usable.
+const _corsRaw = config.corsOrigins
+  || (!config.authRequired ? 'http://localhost:3000,http://localhost:5173,http://localhost:57647' : '');
+const _corsOrigins = _corsRaw.split(',').map(s => s.trim()).filter(Boolean);
+app.use(cors({
+  origin: _corsOrigins.length > 0 ? _corsOrigins : false,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'X-Tenant-Id', 'X-Branch-Id'],
+}));
 app.use(compression());
 // Request logging is development-only (no console.log in production);
 // slow-request performance logging stays on in every environment.

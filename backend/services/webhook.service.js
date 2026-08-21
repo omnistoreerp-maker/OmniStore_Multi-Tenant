@@ -36,7 +36,7 @@ function verifySignature(payload, secret, signatureHeader) {
   return crypto.timingSafeEqual(expected, actual);
 }
 
-function register({ url, events, secret, description }) {
+function register({ url, events, secret, description, tenantId }) {
   if (!url || !/^https?:\/\//i.test(url)) {
     throw new Error('Invalid webhook URL. Must be http(s).');
   }
@@ -56,6 +56,10 @@ function register({ url, events, secret, description }) {
     description: description || null,
     secret: secret || crypto.randomBytes(32).toString('hex'),
     active: true,
+    // Tenant scoping: when tenantId is provided, the webhook is bound to that
+    // tenant and will only receive events from that tenant's dispatch.
+    // tenantId=null/undefined means the webhook is global (legacy behavior).
+    tenantId: tenantId || null,
     createdAt: new Date().toISOString()
   };
   store.entries.push(webhook);
@@ -65,9 +69,15 @@ function register({ url, events, secret, description }) {
   return safe;
 }
 
-function list() {
+function list(query = {}) {
   const store = _store();
-  return store.entries.map(({ secret, ...safe }) => safe);
+  let entries = store.entries;
+  // Optional tenant filter: only return webhooks belonging to the given tenant
+  // or legacy (no tenantId) webhooks.
+  if (query.tenantId !== undefined) {
+    entries = entries.filter(h => h.tenantId === query.tenantId || h.tenantId === null || h.tenantId === undefined);
+  }
+  return entries.map(({ secret, ...safe }) => safe);
 }
 
 function getById(id) {
@@ -105,9 +115,23 @@ function remove(id) {
 
 // Deliver a single event to every active webhook subscribed to it.
 // Dispatch is asynchronous and non-blocking; failures are retried.
-function dispatch(eventType, payload) {
+//
+// Tenant scoping (fail-closed):
+//   - When tenantId is provided, ONLY webhooks whose tenantId matches are fired.
+//   - Legacy webhooks (tenantId=null) are NEVER fired when tenantId is provided.
+//   - When tenantId is null/undefined, ONLY legacy (tenantId=null) webhooks fire.
+//     This prevents cross-tenant delivery by design.
+function dispatch(eventType, payload, tenantId) {
   const store = _store();
-  const hooks = store.entries.filter(h => h.active && h.events.includes(eventType));
+  const hooks = store.entries.filter(h => {
+    if (!h.active || !h.events.includes(eventType)) return false;
+    if (tenantId !== undefined && tenantId !== null) {
+      // Tenant-scoped dispatch: only fire webhooks bound to this exact tenant.
+      return h.tenantId === tenantId;
+    }
+    // No tenant context: only fire legacy (no-tenant) webhooks.
+    return h.tenantId === null || h.tenantId === undefined;
+  });
   for (const hook of hooks) {
     _deliver(hook, eventType, payload);
   }

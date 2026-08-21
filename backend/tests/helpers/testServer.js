@@ -8,7 +8,7 @@ const { makeTempDataDir } = require('./testData');
 const TEST_JWT_SECRET = 'test-jwt-secret-for-jest-suites';
 
 // Keys that must be explicitly set or cleared per instance.
-const INSTANCE_ENV_KEYS = ['AUTH_REQUIRED', 'RATE_LIMIT_MAX'];
+const INSTANCE_ENV_KEYS = ['AUTH_REQUIRED', 'RATE_LIMIT_MAX', 'CORS_ORIGINS'];
 
 function startServer(dataDir, extraEnv) {
   const dir = dataDir || makeTempDataDir('app');

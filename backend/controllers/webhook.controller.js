@@ -7,7 +7,8 @@ function register(req, res) {
       url: req.body.url,
       events: req.body.events,
       secret: req.body.secret,
-      description: req.body.description
+      description: req.body.description,
+      tenantId: req.user && req.user.tenantId ? req.user.tenantId : null
     });
     return success(res, hook, 'Webhook registered', 201);
   } catch (err) {
@@ -16,7 +17,9 @@ function register(req, res) {
 }
 
 function list(req, res) {
-  return success(res, webhookService.list(), 'Webhooks retrieved');
+  const query = {};
+  if (req.user && req.user.tenantId) query.tenantId = req.user.tenantId;
+  return success(res, webhookService.list(query), 'Webhooks retrieved');
 }
 
 function getById(req, res) {
