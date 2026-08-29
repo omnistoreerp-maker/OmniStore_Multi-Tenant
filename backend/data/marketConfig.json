@@ -1,0 +1,54 @@
+{
+  "configs": [
+    {
+      "tenantId": "default",
+      "enabled": true,
+      "storeName": "OmniStore Market",
+      "currency": "USD",
+      "locale": "en",
+      "shippingZones": [
+        {
+          "id": "standard",
+          "name": "Standard Shipping",
+          "countries": [],
+          "fee": 10,
+          "freeAbove": 200
+        },
+        {
+          "id": "express",
+          "name": "Express Shipping",
+          "countries": [],
+          "fee": 25,
+          "freeAbove": 0
+        }
+      ],
+      "paymentMethods": [
+        {
+          "id": "cod",
+          "name": "Cash on Delivery",
+          "type": "offline",
+          "active": true
+        },
+        {
+          "id": "bank",
+          "name": "Bank Transfer",
+          "type": "offline",
+          "active": true
+        }
+      ],
+      "coupons": [
+        {
+          "code": "WELCOME10",
+          "type": "percent",
+          "value": 10,
+          "minSubtotal": 0,
+          "maxDiscount": 100,
+          "active": true
+        }
+      ],
+      "priceOverrides": {},
+      "createdAt": "2026-08-29T09:06:18.465Z",
+      "updatedAt": "2026-08-29T09:06:18.466Z"
+    }
+  ]
+}

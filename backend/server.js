@@ -150,10 +150,14 @@ const errorTrackerRoutes = require('./routes/errorTracker.routes');
 const companyRoutes = require('./routes/company.routes');
 const updateRoutes = require('./routes/update.routes');
 const platformRoutes = require('./routes/platform.routes');
+const marketRoutes = require('./routes/market.routes');
 const companyContext = require('./middleware/companyContext');
 // Phase 33 — seed the server-authoritative platform admin store from
 // PLATFORM_ADMINS on boot (no-op once the store has entries).
 require('./services/platformAdmin.service').ensureSeeded();
+// Market (Phase F) — seed the default tenant Market config so the storefront
+// works out of the box. No-op once the config exists.
+require('./services/marketConfig.service').ensureSeeded();
 
 app.use('/api/v1', apiRouter);
 app.use('/api/v1/companies', companyRoutes);
@@ -161,6 +165,10 @@ app.use('/api/v1/update', updateRoutes);
 // Phase 33 — Master Control Center. Mounted before the optional AUTH_REQUIRED
 // guard so platform scope is enforced exclusively by requirePlatformAdmin.
 app.use('/api/v1/platform', platformRoutes);
+// Phase F — OmniStore Market (customer-facing storefront). Public catalog,
+// customer auth, cart/checkout, and order tracking. Mounted under /api/v1/market.
+// Self-contained module; does not alter Core ERP routes.
+app.use('/api/v1/market', marketRoutes);
 // Company selection is applied BEFORE authentication so the chosen company is
 // resolved into RequestContext/TenantContext on the login POST (no-op unless
 // ENABLE_MULTI_COMPANY_LOGIN, so the auth flow is unchanged by default).

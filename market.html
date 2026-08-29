@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>OmniStore Market</title>
+  <link rel="stylesheet" href="market/css/market.css" />
+</head>
+<body>
+  <header class="mk-header">
+    <div class="mk-container mk-header-inner">
+      <a class="mk-brand" href="#/home" data-i18n="brand">OmniStore Market</a>
+      <nav class="mk-nav">
+        <a href="#/home" data-i18n="nav_home">Home</a>
+        <a href="#/catalog" data-i18n="nav_catalog">Catalog</a>
+        <a href="#/cart" id="mk-cart-link"><span data-i18n="nav_cart">Cart</span> (<span id="mk-cart-count">0</span>)</a>
+        <a href="#/track" data-i18n="nav_track">Track Order</a>
+        <a href="#/account" id="mk-account-link" data-i18n="nav_account">Account</a>
+      </nav>
+      <div class="mk-lang">
+        <button id="mk-lang-btn" type="button">العربية</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="mk-container" id="mk-app">
+    <div class="mk-loading" data-i18n="loading">Loading…</div>
+  </main>
+
+  <footer class="mk-footer">
+    <div class="mk-container">
+      <span data-i18n="footer">© OmniStore Market — customer storefront</span>
+    </div>
+  </footer>
+
+  <script src="market/js/locales.js"></script>
+  <script src="market/js/api.js"></script>
+  <script src="market/js/store.js"></script>
+  <script src="market/js/app.js"></script>
+</body>
+</html>
