@@ -5466,6 +5466,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <button class="btn btn-outline btn-sm platform-tab" role="tab" data-ptab="licenses" aria-selected="false" aria-controls="platformTabBody" onclick="platformTab('licenses',this)">🎫 التراخيص</button>
         <button class="btn btn-outline btn-sm platform-tab" role="tab" data-ptab="integrations" aria-selected="false" aria-controls="platformTabBody" onclick="platformTab('integrations',this)">🔑 التكاملات</button>
         <button class="btn btn-outline btn-sm platform-tab" role="tab" data-ptab="audit" aria-selected="false" aria-controls="platformTabBody" onclick="platformTab('audit',this)">📝 سجل المنصة</button>
+        <button class="btn btn-outline btn-sm platform-tab" role="tab" data-ptab="admins" aria-selected="false" aria-controls="platformTabBody" onclick="platformTab('admins',this)">🛡️ مشرفو المنصة</button>
       </div>
       <div class="pm-search-bar" id="pmSearchBar" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
         <input id="pmSearchInput" type="search" placeholder="بحث…" aria-label="بحث في القسم الحالي" style="flex:1;min-width:200px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:8px 12px;color:var(--text);font-family:inherit;font-size:0.85rem;outline:none">
@@ -14374,6 +14375,7 @@ function platformTab(tab, button) {
   else if (tab === 'licenses') loadPlatformLicenses();
   else if (tab === 'integrations') loadPlatformIntegrations();
   else if (tab === 'audit') loadPlatformAudit();
+  else if (tab === 'admins') loadPlatformAdmins();
 }
 
 // ----------------- search / filter (client-side only) -----------------
@@ -14383,7 +14385,8 @@ const pmSearchPlaceholders = {
   presence: 'بحث بالاسم أو Username…',
   licenses: 'بحث بالشركة أو الخطة…',
   integrations: 'بحث بالشركة أو المزود…',
-  audit: 'بحث بالإجراء أو المعرّف…'
+  audit: 'بحث بالإجراء أو المعرّف…',
+  admins: 'بحث بالـ Username…'
 };
 const pmSearchable = {
   companies: c => [c.name, c.id, c.plan].join(' '),
@@ -14391,7 +14394,8 @@ const pmSearchable = {
   presence: p => [p.username, p.userId, p.tenantId, p.branchId, p.sessionId].join(' '),
   licenses: l => [l.companyName, l.tenantId, l.plan, l.status].join(' '),
   integrations: i => [i.companyName, i.tenantId, i.provider, i.masked].join(' '),
-  audit: e => [e.action, e.userId, e.resource, e.resourceId, e.timestamp].join(' ')
+  audit: e => [e.action, e.userId, e.resource, e.resourceId, e.timestamp].join(' '),
+  admins: a => [a.username, a.platformRole, a.createdAt, a.updatedAt].join(' ')
 };
 let pmCurrentFilter = '';
 let pmCurrentData = null;
@@ -14442,6 +14446,7 @@ function pmReRenderCurrentTab() {
   else if (t === 'licenses') loadPlatformLicenses();
   else if (t === 'integrations') loadPlatformIntegrations();
   else if (t === 'audit') loadPlatformAudit();
+  else if (t === 'admins') loadPlatformAdmins();
 }
 
 function pmResetSearch() {
@@ -15052,6 +15057,129 @@ function pmExportAuditCsv() {
   const rows = Array.from(document.querySelectorAll('#platformTabBody .data-table tbody tr')).map(tr => Array.from(tr.children).map(td => td.textContent.trim()));
   if (!rows.length) { showToast('لا توجد بيانات للتصدير', 'error'); return; }
   pmDownloadCsv('platform-audit-' + Date.now() + '.csv', ['الوقت', 'الإجراء', 'المستخدم', 'الموارد', 'المعرّف'], rows);
+}
+
+// ================= PLATFORM ADMINS (مشرفو المنصة) =================
+// Server-authoritative list/grant/revoke of platform administrators.
+// MASTER_OWNER (env-seeded, immutable from the UI) can grant PLATFORM_ADMIN
+// to other users and revoke any PLATFORM_ADMIN. Backend remains the source
+// of truth; the frontend never decides privileges locally.
+async function loadPlatformAdmins() {
+  platformBody('<div style="color:var(--text2);font-size:0.85rem">⏳ جاري تحميل مشرفي المنصة…</div>');
+  try {
+    const res = await backendApi.platform.admins();
+    if (!res || !res.success || !res.data) { platformBody('<div style="color:var(--red)">' + escapeHtml((res && res.message) || 'تعذر التحميل') + '</div>'); return; }
+    const all = res.data.admins || [];
+    const list = pmFilterList('admins', all);
+    pmUpdateSearchCount(list.length, all.length);
+    if (all.length === 0) {
+      platformBody('<div class="table-container"><div class="table-header"><div class="table-title">🛡️ مشرفو المنصة</div></div>' + pmEmptyState('🛡️', 'لا يوجد مشرفو منصة', 'يجب إسنادهم من إعدادات البيئة (PLATFORM_ADMINS) قبل إتاحتهم هنا.') + '</div>');
+      return;
+    }
+    if (list.length === 0) {
+      platformBody('<div class="table-container"><div class="table-header"><div class="table-title">🛡️ مشرفو المنصة</div></div>' + pmEmptyState('🔍', 'لا توجد نتائج مطابقة', 'جرّب كلمة بحث مختلفة.') + '</div>');
+      return;
+    }
+    const isMasterOwner = (platformRole === 'MASTER_OWNER');
+    const headerActions = isMasterOwner
+      ? '<button class="btn btn-accent btn-sm" onclick="platformGrantAdminModal()">➕ إسناد مشرف جديد</button>'
+      : '<span style="font-size:0.78rem;color:var(--text2)">عرض فقط — صلاحية MASTER_OWNER مطلوبة للتعديل</span>';
+    const rows = list.map(a => {
+      const role = String(a.platformRole || 'PLATFORM_ADMIN');
+      const roleBadge = role === 'MASTER_OWNER'
+        ? '<span class="badge badge-red">👑 MASTER_OWNER</span>'
+        : '<span class="badge badge-blue">🛡️ PLATFORM_ADMIN</span>';
+      const isSelf = String(a.username || '').toLowerCase() === String((typeof currentUser !== 'undefined' && currentUser && currentUser.username) || '').toLowerCase();
+      const isMaster = role === 'MASTER_OWNER';
+      let actions = '';
+      if (isMasterOwner && !isMaster && !isSelf) {
+        actions = `<button class="btn btn-danger btn-sm" onclick="platformRevokeAdmin('${escapeHtml(a.username)}')">إلغاء الصلاحية</button>`;
+      } else if (isSelf) {
+        actions = '<span style="color:var(--muted);font-size:0.78rem">— أنت</span>';
+      } else if (isMaster) {
+        actions = '<span style="color:var(--muted);font-size:0.78rem">— محمي</span>';
+      } else {
+        actions = '<span style="color:var(--muted);font-size:0.78rem">—</span>';
+      }
+      return `<tr>
+        <td style="direction:ltr">${escapeHtml(a.username)}</td>
+        <td>${roleBadge}</td>
+        <td>${a.createdAt ? new Date(a.createdAt).toLocaleString('ar-EG') : '—'}</td>
+        <td>${a.updatedAt ? new Date(a.updatedAt).toLocaleString('ar-EG') : '—'}</td>
+        <td><div style="display:flex;gap:4px;flex-wrap:wrap">${actions}</div></td>
+      </tr>`;
+    }).join('');
+    platformBody(`<div class="table-container"><div class="table-header"><div class="table-title">🛡️ مشرفو المنصة</div>${headerActions}</div>
+      <div class="overflow-x"><table class="data-table"><thead><tr><th>Username</th><th>الدور</th><th>تاريخ الإسناد</th><th>آخر تحديث</th><th>إجراءات</th></tr></thead><tbody>${rows}</tbody></table></div></div>`);
+  } catch (e) {
+    platformBody('<div style="color:var(--red)">تعذر التحميل: ' + escapeHtml(e && e.message ? e.message : 'خطأ') + '</div>');
+  }
+}
+
+function platformGrantAdminModal() {
+  const form = document.createElement('div');
+  form.style.cssText = 'line-height:1.8';
+  form.innerHTML =
+    '<div style="margin-top:4px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);font-size:0.85rem">سيتم منح المستخدم صلاحية <b>PLATFORM_ADMIN</b> على الخادم. الـ username يجب أن يكون لمستخدم موجود فعلاً في النظام.</div>' +
+    '<div style="margin-top:12px">' +
+      '<label style="display:block;font-size:0.82rem;color:var(--text2);margin-bottom:6px">Username المستخدم</label>' +
+      '<input id="pmAdminUsername" type="text" autocomplete="off" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:var(--text);font-family:inherit;font-size:0.95rem;outline:none;direction:ltr" />' +
+    '</div>' +
+    '<div style="margin-top:10px">' +
+      '<label style="display:block;font-size:0.82rem;color:var(--text2);margin-bottom:6px">الدور</label>' +
+      '<select id="pmAdminRole" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-family:inherit;font-size:0.9rem">' +
+        '<option value="PLATFORM_ADMIN" selected>PLATFORM_ADMIN</option>' +
+      '</select>' +
+      '<div style="font-size:0.78rem;color:var(--muted);margin-top:4px">MASTER_OWNER لا يمكن إسناده من الواجهة — يُسند من إعدادات الخادم فقط.</div>' +
+    '</div>';
+  const modal = pmOpenModal({
+    title: 'إسناد مشرف منصة جديد',
+    body: form,
+    primaryLabel: 'منح الصلاحية',
+    primaryClass: 'btn-primary',
+    onPrimary: async () => {
+      const u = String((form.querySelector('#pmAdminUsername') || {}).value || '').trim();
+      if (!u) { showToast('الـ username مطلوب', 'error'); return false; }
+      try {
+        const res = await backendApi.platform.grantAdmin(u, 'PLATFORM_ADMIN');
+        if (res && res.success) {
+          showToast('✅ تم إسناد صلاحية المشرف', 'success');
+          await loadPlatformAdmins();
+          modal.close();
+        } else {
+          showToast((res && res.message) || 'تعذر الإسناد', 'error');
+          return false;
+        }
+      } catch (e) { showToast('تعذر الإسناد', 'error'); return false; }
+    }
+  });
+}
+
+function platformRevokeAdmin(username) {
+  const body = '<div style="line-height:1.8">' +
+    '<div>المستخدم: <b style="direction:ltr;display:inline-block">' + escapeHtml(username) + '</b></div>' +
+    '<div style="margin-top:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);font-size:0.85rem">⚠️ سيتم سحب صلاحية <b>PLATFORM_ADMIN</b> من المستخدم ولن يستطيع الوصول إلى مركز التحكم بعد ذلك. لا تُحذف بيانات المستخدم نفسه.</div>' +
+  '</div>';
+  pmOpenModal({
+    title: 'سحب صلاحية مشرف منصة',
+    body,
+    primaryLabel: 'تأكيد السحب',
+    primaryClass: 'btn-danger',
+    danger: true,
+    onPrimary: async ({ close }) => {
+      try {
+        const res = await backendApi.platform.revokeAdmin(username);
+        if (res && res.success) {
+          showToast('✅ تم سحب الصلاحية', 'success');
+          await loadPlatformAdmins();
+          close();
+        } else {
+          showToast((res && res.message) || 'تعذر السحب', 'error');
+          return false;
+        }
+      } catch (e) { showToast('تعذر السحب', 'error'); return false; }
+    }
+  });
 }
 
 // ================= USERS & PERMISSIONS MANAGER (المستخدمون والصلاحيات) =================
