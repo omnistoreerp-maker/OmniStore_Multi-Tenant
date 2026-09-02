@@ -5434,12 +5434,17 @@ document.addEventListener('DOMContentLoaded', function() {
     <!-- PHASE 33: MASTER CONTROL CENTER (platform scope) -->
     <div class="page" id="page-platform-master">
       <div class="page-header">
-        <div class="page-title">👑 مركز تحكم OmniStore</div>
-        <div class="table-actions">
-          <button class="btn btn-outline btn-sm" onclick="renderPlatformMaster()">🔄 تحديث</button>
+        <div>
+          <div class="page-title">👑 مركز تحكم OmniStore</div>
+          <div style="font-size:0.78rem;color:var(--text2);margin-top:2px">صلاحية المالك فقط — تحكم مركزي على مستوى المنصة</div>
+        </div>
+        <div class="table-actions" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span id="pmStatusPill" aria-live="polite" title="حالة المنصة"><span style="color:var(--green)">●</span> تشغيلي</span>
+          <span style="color:var(--text2);font-size:0.78rem" id="pmLastUpdated">آخر تحديث: —</span>
+          <button class="btn btn-outline btn-sm" onclick="renderPlatformMaster()" aria-label="تحديث بيانات مركز التحكم">↻ تحديث</button>
         </div>
       </div>
-      <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
+      <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))" aria-live="polite" aria-atomic="true">
         <div class="stat-card blue"><div class="stat-icon">🏢</div><div class="stat-value" id="pmTotalCompanies">0</div><div class="stat-label">إجمالي الشركات</div></div>
         <div class="stat-card green"><div class="stat-icon">✅</div><div class="stat-value" id="pmActiveCompanies">0</div><div class="stat-label">الشركات النشطة</div></div>
         <div class="stat-card red"><div class="stat-icon">⛔</div><div class="stat-value" id="pmSuspendedCompanies">0</div><div class="stat-label">الشركات الموقوفة</div></div>
@@ -5449,15 +5454,25 @@ document.addEventListener('DOMContentLoaded', function() {
         <div class="stat-card red"><div class="stat-icon">⏳</div><div class="stat-value" id="pmExpiredLicenses">0</div><div class="stat-label">التراخيص المنتهية</div></div>
         <div class="stat-card orange"><div class="stat-icon">📅</div><div class="stat-value" id="pmExpiringSoon">0</div><div class="stat-label">تنتهي قريبًا (30 يوم)</div></div>
       </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px" id="platformTabs">
-        <button class="btn btn-accent btn-sm platform-tab" data-ptab="companies" onclick="platformTab('companies',this)">🏢 الشركات</button>
-        <button class="btn btn-outline btn-sm platform-tab" data-ptab="users" onclick="platformTab('users',this)">👥 المستخدمون</button>
-        <button class="btn btn-outline btn-sm platform-tab" data-ptab="presence" onclick="platformTab('presence',this)">🟢 المتصلون الآن</button>
-        <button class="btn btn-outline btn-sm platform-tab" data-ptab="licenses" onclick="platformTab('licenses',this)">🎫 التراخيص</button>
-        <button class="btn btn-outline btn-sm platform-tab" data-ptab="integrations" onclick="platformTab('integrations',this)">🔑 التكاملات</button>
-        <button class="btn btn-outline btn-sm platform-tab" data-ptab="audit" onclick="platformTab('audit',this)">📝 سجل المنصة</button>
+      <div class="pm-kpi-legend" style="display:flex;gap:14px;flex-wrap:wrap;margin:-4px 0 12px 0;font-size:0.74rem;color:var(--text2)">
+        <span>🏢 الشركات · النشط/الموقوف/الإجمالي</span>
+        <span>👥 المستخدمون · الإجمالي/المتصلون</span>
+        <span>🎫 التراخيص · النشط/المنتهية/تنتهي قريبًا</span>
       </div>
-      <div id="platformTabBody"></div>
+      <div role="tablist" aria-label="أقسام مركز التحكم" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px" id="platformTabs">
+        <button class="btn btn-accent btn-sm platform-tab" role="tab" data-ptab="companies" aria-selected="true" aria-controls="platformTabBody" onclick="platformTab('companies',this)">🏢 الشركات</button>
+        <button class="btn btn-outline btn-sm platform-tab" role="tab" data-ptab="users" aria-selected="false" aria-controls="platformTabBody" onclick="platformTab('users',this)">👥 المستخدمون</button>
+        <button class="btn btn-outline btn-sm platform-tab" role="tab" data-ptab="presence" aria-selected="false" aria-controls="platformTabBody" onclick="platformTab('presence',this)">🟢 المتصلون الآن</button>
+        <button class="btn btn-outline btn-sm platform-tab" role="tab" data-ptab="licenses" aria-selected="false" aria-controls="platformTabBody" onclick="platformTab('licenses',this)">🎫 التراخيص</button>
+        <button class="btn btn-outline btn-sm platform-tab" role="tab" data-ptab="integrations" aria-selected="false" aria-controls="platformTabBody" onclick="platformTab('integrations',this)">🔑 التكاملات</button>
+        <button class="btn btn-outline btn-sm platform-tab" role="tab" data-ptab="audit" aria-selected="false" aria-controls="platformTabBody" onclick="platformTab('audit',this)">📝 سجل المنصة</button>
+      </div>
+      <div class="pm-search-bar" id="pmSearchBar" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+        <input id="pmSearchInput" type="search" placeholder="بحث…" aria-label="بحث في القسم الحالي" style="flex:1;min-width:200px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:8px 12px;color:var(--text);font-family:inherit;font-size:0.85rem;outline:none">
+        <button class="btn btn-outline btn-sm" onclick="pmClearSearch()" aria-label="مسح البحث">✕ مسح</button>
+        <span id="pmSearchCount" style="font-size:0.78rem;color:var(--text2)"></span>
+      </div>
+      <div id="platformTabBody" role="tabpanel" aria-live="polite"></div>
     </div>
 
     <!-- SETTINGS -->
@@ -14335,6 +14350,8 @@ async function renderPlatformMaster() {
       set('pmExpiringSoon', d.licenses.expiringSoon);
     }
   } catch (e) { /* summary is non-critical */ }
+  const lu = document.getElementById('pmLastUpdated');
+  if (lu) lu.textContent = 'آخر تحديث: ' + new Date().toLocaleTimeString('ar-EG');
   platformTab(platformTabCurrent || 'companies');
 }
 
@@ -14344,8 +14361,13 @@ function platformTab(tab, button) {
     const active = b.dataset.ptab === tab;
     b.classList.toggle('btn-accent', active);
     b.classList.toggle('btn-outline', !active);
+    b.setAttribute('aria-selected', active ? 'true' : 'false');
   });
   if (button) button.blur();
+  pmUpdateSearchBar(tab);
+  pmResetSearch();
+  if (tab === 'presence') startPlatformPresenceAutoRefresh();
+  else stopPlatformPresenceAutoRefresh();
   if (tab === 'companies') loadPlatformCompanies();
   else if (tab === 'users') loadPlatformUsers();
   else if (tab === 'presence') loadPlatformPresence();
@@ -14354,6 +14376,192 @@ function platformTab(tab, button) {
   else if (tab === 'audit') loadPlatformAudit();
 }
 
+// ----------------- search / filter (client-side only) -----------------
+const pmSearchPlaceholders = {
+  companies: 'بحث بالاسم أو Tenant ID…',
+  users: 'بحث بالاسم أو Username…',
+  presence: 'بحث بالاسم أو Username…',
+  licenses: 'بحث بالشركة أو الخطة…',
+  integrations: 'بحث بالشركة أو المزود…',
+  audit: 'بحث بالإجراء أو المعرّف…'
+};
+const pmSearchable = {
+  companies: c => [c.name, c.id, c.plan].join(' '),
+  users: u => [u.fullName, u.username, (u.companies || []).map(c => c.name).join(' '), u.role, u.branchId].join(' '),
+  presence: p => [p.username, p.userId, p.tenantId, p.branchId, p.sessionId].join(' '),
+  licenses: l => [l.companyName, l.tenantId, l.plan, l.status].join(' '),
+  integrations: i => [i.companyName, i.tenantId, i.provider, i.masked].join(' '),
+  audit: e => [e.action, e.userId, e.resource, e.resourceId, e.timestamp].join(' ')
+};
+let pmCurrentFilter = '';
+let pmCurrentData = null;
+
+function pmUpdateSearchBar(tab) {
+  const bar = document.getElementById('pmSearchBar');
+  const input = document.getElementById('pmSearchInput');
+  if (!bar || !input) return;
+  if (pmSearchable[tab]) {
+    bar.style.display = 'flex';
+    input.placeholder = pmSearchPlaceholders[tab] || 'بحث…';
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+function pmApplyFilter() {
+  pmCurrentFilter = String((document.getElementById('pmSearchInput') || {}).value || '').trim().toLowerCase();
+  pmReRenderCurrentTab();
+}
+
+function pmClearSearch() {
+  const input = document.getElementById('pmSearchInput');
+  if (input) input.value = '';
+  pmCurrentFilter = '';
+  pmReRenderCurrentTab();
+}
+
+function pmFilterList(tab, list) {
+  if (!pmCurrentFilter) return list;
+  const fn = pmSearchable[tab];
+  if (!fn) return list;
+  return list.filter(item => String(fn(item) || '').toLowerCase().indexOf(pmCurrentFilter) !== -1);
+}
+
+function pmUpdateSearchCount(shown, total) {
+  const el = document.getElementById('pmSearchCount');
+  if (!el) return;
+  if (!pmCurrentFilter) { el.textContent = total + ' عنصر'; return; }
+  el.textContent = shown + ' من ' + total;
+}
+
+function pmReRenderCurrentTab() {
+  const t = platformTabCurrent;
+  if (t === 'companies') loadPlatformCompanies();
+  else if (t === 'users') loadPlatformUsers();
+  else if (t === 'presence') loadPlatformPresence();
+  else if (t === 'licenses') loadPlatformLicenses();
+  else if (t === 'integrations') loadPlatformIntegrations();
+  else if (t === 'audit') loadPlatformAudit();
+}
+
+function pmResetSearch() {
+  pmCurrentFilter = '';
+  const input = document.getElementById('pmSearchInput');
+  if (input) input.value = '';
+}
+
+// ----------------- modal helpers (replace native confirm/prompt) -----------------
+function pmOpenModal({ title, body, primaryLabel, primaryClass, onPrimary, danger }) {
+  const overlay = document.createElement('div');
+  overlay.className = 'pm-modal-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(2px)';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-label', title || '');
+  const card = document.createElement('div');
+  card.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:18px;max-width:520px;width:100%;padding:20px;box-shadow:0 20px 50px rgba(0,0,0,0.25);max-height:90vh;overflow-y:auto';
+  card.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">' +
+      '<h3 style="margin:0;font-size:1.05rem;font-weight:800">' + escapeHtml(title || '') + '</h3>' +
+      '<button class="btn btn-outline btn-sm pm-modal-close" aria-label="إغلاق" style="min-width:auto;padding:4px 10px">✕</button>' +
+    '</div>' +
+    '<div class="pm-modal-body" style="font-size:0.9rem;line-height:1.7;color:var(--text)"></div>' +
+    '<div class="pm-modal-footer" style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap"></div>';
+  overlay.appendChild(card);
+  const bodyEl = card.querySelector('.pm-modal-body');
+  if (typeof body === 'string') bodyEl.innerHTML = body;
+  else if (body instanceof Node) bodyEl.appendChild(body);
+  const footer = card.querySelector('.pm-modal-footer');
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'btn btn-outline btn-sm';
+  cancelBtn.textContent = 'إلغاء';
+  cancelBtn.type = 'button';
+  footer.appendChild(cancelBtn);
+  const close = () => { try { document.body.removeChild(overlay); } catch (e) {} document.removeEventListener('keydown', onKey); };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', onKey);
+  card.querySelector('.pm-modal-close').addEventListener('click', close);
+  cancelBtn.addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  if (primaryLabel) {
+    const prim = document.createElement('button');
+    prim.className = 'btn btn-sm ' + (primaryClass || (danger ? 'btn-danger' : 'btn-primary'));
+    prim.textContent = primaryLabel;
+    prim.type = 'button';
+    prim.addEventListener('click', async () => {
+      try {
+        prim.disabled = true;
+        prim.textContent = '... جارٍ التنفيذ';
+        const ok = await onPrimary({ close, card });
+        if (ok !== false) close();
+        else { prim.disabled = false; prim.textContent = primaryLabel; }
+      } catch (err) {
+        prim.disabled = false;
+        prim.textContent = primaryLabel;
+      }
+    });
+    footer.appendChild(prim);
+    setTimeout(() => { try { prim.focus(); } catch (e) {} }, 50);
+  } else {
+    setTimeout(() => { try { cancelBtn.focus(); } catch (e) {} }, 50);
+  }
+  document.body.appendChild(overlay);
+  return { close, card };
+}
+
+function pmEmptyState(icon, message, hint) {
+  return '<div class="pm-empty" style="text-align:center;padding:32px 16px;color:var(--text2)">' +
+    '<div style="font-size:2.2rem;margin-bottom:6px">' + icon + '</div>' +
+    '<div style="font-weight:700;color:var(--text)">' + escapeHtml(message) + '</div>' +
+    (hint ? '<div style="font-size:0.8rem;margin-top:4px">' + escapeHtml(hint) + '</div>' : '') +
+  '</div>';
+}
+
+function pmRelativeTimeAr(iso) {
+  if (!iso) return '—';
+  const t = new Date(iso).getTime();
+  if (!t || isNaN(t)) return '—';
+  const diff = Date.now() - t;
+  if (diff < 0) return '—';
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return 'الآن';
+  if (min < 60) return 'منذ ' + min + ' دقيقة';
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return 'منذ ' + hr + ' ساعة';
+  const d = Math.floor(hr / 24);
+  if (d < 30) return 'منذ ' + d + ' يوم';
+  return new Date(iso).toLocaleDateString('ar-EG');
+}
+
+function pmLicenseHealth(l) {
+  if (!l || !l.licenseEnd) return { label: 'غير محدد', cls: 'badge-yellow', dot: '⚪' };
+  const end = new Date(l.licenseEnd).getTime();
+  if (isNaN(end)) return { label: 'غير محدد', cls: 'badge-yellow', dot: '⚪' };
+  const now = Date.now();
+  if (end < now) return { label: 'منتهية', cls: 'badge-red', dot: '🔴' };
+  const days = Math.floor((end - now) / (24 * 60 * 60 * 1000));
+  if (days <= 30) return { label: 'تنتهي خلال ' + days + ' يوم', cls: 'badge-yellow', dot: '🟡' };
+  return { label: 'نشطة', cls: 'badge-green', dot: '🟢' };
+}
+
+function pmDownloadCsv(filename, headers, rows) {
+  const esc = v => {
+    const s = String(v == null ? '' : v);
+    if (s.indexOf(',') !== -1 || s.indexOf('"') !== -1 || s.indexOf('\n') !== -1) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  };
+  const csv = [headers.map(esc).join(',')].concat(rows.map(r => r.map(esc).join(','))).join('\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 0);
+}
+
+// ----------------- existing handlers (kept, then enhanced below) -----------------
 function platformBody(html) {
   const body = document.getElementById('platformTabBody');
   if (body) body.innerHTML = html;
@@ -14364,13 +14572,23 @@ async function loadPlatformCompanies() {
   try {
     const res = await backendApi.platform.companies();
     if (!res || !res.success || !res.data) { platformBody('<div style="color:var(--red)">' + escapeHtml((res && res.message) || 'تعذر تحميل الشركات') + '</div>'); return; }
-    const list = res.data.companies || [];
+    const all = res.data.companies || [];
+    const list = pmFilterList('companies', all);
+    pmUpdateSearchCount(list.length, all.length);
+    if (all.length === 0) {
+      platformBody('<div class="table-container"><div class="table-header"><div class="table-title">🏢 إدارة الشركات</div></div>' + pmEmptyState('🏢', 'لا توجد شركات حتى الآن', 'ستظهر الشركات هنا عند إنشائها من قبل مالك المنصة.') + '</div>');
+      return;
+    }
+    if (list.length === 0) {
+      platformBody('<div class="table-container"><div class="table-header"><div class="table-title">🏢 إدارة الشركات</div></div>' + pmEmptyState('🔍', 'لا توجد نتائج مطابقة', 'جرّب كلمة بحث مختلفة.') + '</div>');
+      return;
+    }
     const rows = list.map(c => {
       const suspended = String(c.status || '').toUpperCase() === 'SUSPENDED';
       const statusBadge = suspended ? '<span class="badge badge-red">موقوفة</span>' : (c.active === false ? '<span class="badge badge-yellow">غير نشطة</span>' : '<span class="badge badge-green">نشطة</span>');
       const actions = [];
       if (suspended) actions.push(`<button class="btn btn-green btn-sm" onclick="platformActivateCompany('${escapeHtml(c.id)}')">تفعيل</button>`);
-      else actions.push(`<button class="btn btn-danger btn-sm" onclick="platformSuspendCompany('${escapeHtml(c.id)}')">تعطيل</button>`);
+      else actions.push(`<button class="btn btn-danger btn-sm" onclick="platformSuspendCompany('${escapeHtml(c.id)}', '${escapeHtml(c.name)}', ${c.userCount || 0})">تعطيل</button>`);
       actions.push(`<button class="btn btn-outline btn-sm" onclick="platformCompanyDetails('${escapeHtml(c.id)}')">عرض</button>`);
       return `<tr>
         <td>${escapeHtml(c.name)}</td>
@@ -14392,13 +14610,30 @@ async function loadPlatformCompanies() {
   }
 }
 
-async function platformSuspendCompany(id) {
-  if (!confirm('تعطيل الشركة ' + id + '؟ سيتم تسجيل خروج جميع مستخدميها فورًا ولن يتمكنوا من تسجيل الدخول. لن تُحذف أي بيانات.')) return;
-  try {
-    const res = await backendApi.platform.suspendCompany(id);
-    showToast(res && res.success ? '✅ تم تعطيل الشركة' : ((res && res.message) || 'تعذر التعطيل'), res && res.success ? 'success' : 'error');
-    loadPlatformCompanies();
-  } catch (e) { showToast('تعذر تعطيل الشركة', 'error'); }
+async function platformSuspendCompany(id, name, userCount) {
+  const body = '<div style="line-height:1.8">' +
+    '<div>الشركة: <b>' + escapeHtml(name || id) + '</b></div>' +
+    '<div style="color:var(--muted);font-size:0.82rem;margin-top:4px">Tenant ID: <span style="direction:ltr;display:inline-block">' + escapeHtml(id) + '</span></div>' +
+    '<div style="margin-top:12px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);font-size:0.85rem">' +
+      '⚠️ سيتم تسجيل الخروج الفوري لـ <b>' + (userCount || 0) + '</b> مستخدم مرتبط بهذه الشركة ولن يتمكن أي منهم من تسجيل الدخول حتى يتم التفعيل. لا تُحذف أي بيانات.' +
+    '</div>' +
+  '</div>';
+  pmOpenModal({
+    title: 'تعطيل شركة',
+    body,
+    primaryLabel: 'تأكيد التعطيل',
+    primaryClass: 'btn-danger',
+    danger: true,
+    onPrimary: async ({ close }) => {
+      try {
+        const res = await backendApi.platform.suspendCompany(id);
+        showToast(res && res.success ? '✅ تم تعطيل الشركة' : ((res && res.message) || 'تعذر التعطيل'), res && res.success ? 'success' : 'error');
+        await loadPlatformCompanies();
+        await renderPlatformMaster();
+        close();
+      } catch (e) { showToast('تعذر تعطيل الشركة', 'error'); return false; }
+    }
+  });
 }
 
 async function platformActivateCompany(id) {
@@ -14410,16 +14645,23 @@ async function platformActivateCompany(id) {
 }
 
 async function platformCompanyDetails(id) {
+  platformBody('<div style="color:var(--text2);font-size:0.85rem">⏳ جاري تحميل التفاصيل…</div>');
   try {
     const res = await backendApi.platform.companyDetails(id);
     if (!res || !res.success || !res.data) { showToast((res && res.message) || 'تعذر تحميل التفاصيل', 'error'); return; }
     const d = res.data;
     const uRows = (d.users || []).map(u => `<tr><td>${escapeHtml(u.fullName || u.username || '')}</td><td style="direction:ltr">${escapeHtml(u.username || '')}</td><td>${escapeHtml(u.role || '')}</td><td>${String(u.status || 'active').toLowerCase() === 'disabled' ? 'معطل' : 'فعال'}</td></tr>`).join('');
     const bRows = (d.branches || []).map(b => `<tr><td>${escapeHtml(b.name || b.id || '')}</td><td style="direction:ltr">${escapeHtml(b.code || b.id || '')}</td><td>${b.isDefault ? 'افتراضي' : ''}</td></tr>`).join('');
-    const iRows = (d.integrations || []).map(i => `<tr><td>${escapeHtml(i.provider)}</td><td>${i.connected ? 'متصل' : 'غير متصل'}</td><td style="direction:ltr">${escapeHtml(i.masked || '—')}</td></tr>`).join('');
-    platformBody(`<div style="border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:12px;font-size:0.85rem;line-height:2">
-      <b>${escapeHtml(d.company.name)}</b>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:4px 16px">
+    const iRows = (d.integrations || []).map(i => `<tr><td>${escapeHtml(i.provider)}</td><td>${i.connected ? '<span class="badge badge-green">متصل</span>' : '<span class="badge badge-red">غير متصل</span>'}</td><td style="direction:ltr">${escapeHtml(i.masked || '—')}</td></tr>`).join('');
+    platformBody(`<div class="pm-detail-panel" style="border:1px solid var(--border);border-radius:14px;background:var(--surface);padding:16px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+        <div>
+          <div style="font-size:1.1rem;font-weight:800">🏢 ${escapeHtml(d.company.name)}</div>
+          <div style="color:var(--muted);font-size:0.8rem;margin-top:2px">Tenant ID: <span style="direction:ltr;display:inline-block">${escapeHtml(d.company.id)}</span></div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="loadPlatformCompanies()">← رجوع إلى الشركات</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px 16px;font-size:0.88rem;line-height:1.9">
         <div>الحالة: <b>${escapeHtml(d.company.status)}</b></div>
         <div>الخطة: <b>${escapeHtml((d.license && d.license.plan) || '—')}</b></div>
         <div>المستخدمون: <b>${(d.users || []).length}</b></div>
@@ -14429,8 +14671,7 @@ async function platformCompanyDetails(id) {
     </div>
     <div class="table-container"><div class="table-header"><div class="table-title">👥 المستخدمون</div></div><div class="overflow-x"><table class="data-table"><thead><tr><th>الاسم</th><th>Username</th><th>الدور</th><th>الحالة</th></tr></thead><tbody>${uRows}</tbody></table></div></div>
     <div class="table-container"><div class="table-header"><div class="table-title">🏬 الفروع</div></div><div class="overflow-x"><table class="data-table"><thead><tr><th>الاسم</th><th>الكود</th><th>افتراضي</th></tr></thead><tbody>${bRows}</tbody></table></div></div>
-    <div class="table-container"><div class="table-header"><div class="table-title">🔑 التكاملات</div></div><div class="overflow-x"><table class="data-table"><thead><tr><th>المزود</th><th>الحالة</th><th>الرمز</th></tr></thead><tbody>${iRows}</tbody></table></div></div>
-    <button class="btn btn-outline btn-sm" onclick="loadPlatformCompanies()">→ رجوع للشركات</button>`);
+    <div class="table-container"><div class="table-header"><div class="table-title">🔑 التكاملات</div></div><div class="overflow-x"><table class="data-table"><thead><tr><th>المزود</th><th>الحالة</th><th>الرمز (مقنّع)</th></tr></thead><tbody>${iRows}</tbody></table></div></div>`);
   } catch (e) { showToast('تعذر تحميل التفاصيل', 'error'); }
 }
 
@@ -14439,15 +14680,25 @@ async function loadPlatformUsers() {
   try {
     const res = await backendApi.platform.users();
     if (!res || !res.success || !res.data) { platformBody('<div style="color:var(--red)">' + escapeHtml((res && res.message) || 'تعذر تحميل المستخدمين') + '</div>'); return; }
-    const list = res.data.users || [];
+    const all = res.data.users || [];
+    const list = pmFilterList('users', all);
+    pmUpdateSearchCount(list.length, all.length);
+    if (all.length === 0) {
+      platformBody('<div class="table-container"><div class="table-header"><div class="table-title">👥 دليل المستخدمين (كل الشركات)</div></div>' + pmEmptyState('👥', 'لا يوجد مستخدمون مسجلون', 'سيظهر المستخدمون هنا عند إنشائهم من قبل مالك أو مدير الشركة.') + '</div>');
+      return;
+    }
+    if (list.length === 0) {
+      platformBody('<div class="table-container"><div class="table-header"><div class="table-title">👥 دليل المستخدمين (كل الشركات)</div></div>' + pmEmptyState('🔍', 'لا توجد نتائج مطابقة', 'جرّب كلمة بحث مختلفة.') + '</div>');
+      return;
+    }
     const rows = list.map(u => {
       const disabled = String(u.status || 'active').toLowerCase() === 'disabled';
       const companies = (u.companies || []).map(c => escapeHtml(c.name)).join('، ');
       const actions = [];
-      if (!disabled) actions.push(`<button class="btn btn-danger btn-sm" onclick="platformDisableUser('${escapeHtml(u.id)}')">تعطيل</button>`);
+      if (!disabled) actions.push(`<button class="btn btn-danger btn-sm" onclick="platformDisableUser('${escapeHtml(u.id)}', '${escapeHtml(u.username)}')">تعطيل</button>`);
       else actions.push(`<button class="btn btn-green btn-sm" onclick="platformEnableUser('${escapeHtml(u.id)}')">تفعيل</button>`);
-      actions.push(`<button class="btn btn-yellow btn-sm" onclick="platformForceLogout('${escapeHtml(u.id)}')">خروج إجباري</button>`);
-      actions.push(`<button class="btn btn-outline btn-sm" onclick="platformResetPassword('${escapeHtml(u.id)}')">كلمة مرور</button>`);
+      actions.push(`<button class="btn btn-yellow btn-sm" onclick="platformForceLogout('${escapeHtml(u.id)}', '${escapeHtml(u.username)}')">خروج إجباري</button>`);
+      actions.push(`<button class="btn btn-outline btn-sm" onclick="platformResetPassword('${escapeHtml(u.id)}', '${escapeHtml(u.username)}')">كلمة مرور</button>`);
       return `<tr>
         <td>${escapeHtml(u.fullName || u.username || '')}</td>
         <td style="direction:ltr">${escapeHtml(u.username || '')}</td>
@@ -14467,12 +14718,34 @@ async function loadPlatformUsers() {
   }
 }
 
-async function platformDisableUser(id) {
-  try {
-    const res = await backendApi.platform.disableUser(id);
-    showToast(res && res.success ? '✅ تم تعطيل المستخدم' : ((res && res.message) || 'تعذر التعطيل'), res && res.success ? 'success' : 'error');
-    loadPlatformUsers();
-  } catch (e) { showToast('تعذر تعطيل المستخدم', 'error'); }
+async function platformDisableUser(id, username) {
+  const body = '<div style="line-height:1.8">' +
+    '<div>المستخدم: <b>' + escapeHtml(username || id) + '</b></div>' +
+    '<div style="margin-top:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);font-size:0.85rem">سيتم منع المستخدم من تسجيل الدخول حتى يتم تفعيله. إذا كان آخر مالك (Owner) في شركته، سيرفض الخادم هذه العملية.</div>' +
+  '</div>';
+  pmOpenModal({
+    title: 'تعطيل مستخدم',
+    body,
+    primaryLabel: 'تأكيد التعطيل',
+    primaryClass: 'btn-danger',
+    danger: true,
+    onPrimary: async ({ close }) => {
+      try {
+        const res = await backendApi.platform.disableUser(id);
+        if (res && res.success) {
+          showToast('✅ تم تعطيل المستخدم', 'success');
+          await loadPlatformUsers();
+          close();
+        } else {
+          const code = res && res.details && res.details.code;
+          const msg = (res && res.message) || 'تعذر التعطيل';
+          if (code === 'LAST_OWNER_PROTECTION') showToast('⛔ لا يمكن تعطيل آخر مالك في الشركة', 'error');
+          else showToast(msg, 'error');
+          return false;
+        }
+      } catch (e) { showToast('تعذر التعطيل', 'error'); return false; }
+    }
+  });
 }
 
 async function platformEnableUser(id) {
@@ -14483,23 +14756,65 @@ async function platformEnableUser(id) {
   } catch (e) { showToast('تعذر تفعيل المستخدم', 'error'); }
 }
 
-async function platformForceLogout(id) {
-  if (!confirm('تسجيل خروج إجباري لهذا المستخدم؟ سيتم إبطال جميع جلساته الحالية.')) return;
-  try {
-    const res = await backendApi.platform.forceLogout(id);
-    showToast(res && res.success ? '✅ تم تسجيل الخروج الإجباري' : ((res && res.message) || 'تعذر التنفيذ'), res && res.success ? 'success' : 'error');
-    loadPlatformUsers();
-  } catch (e) { showToast('تعذر التنفيذ', 'error'); }
+async function platformForceLogout(id, username) {
+  const body = '<div style="line-height:1.8">' +
+    '<div>المستخدم: <b>' + escapeHtml(username || id) + '</b></div>' +
+    '<div style="margin-top:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);font-size:0.85rem">⚠️ سيتم إبطال جميع الجلسات النشطة لهذا المستخدم ولن يتمكن من الوصول حتى يسجل دخولًا جديدًا.</div>' +
+  '</div>';
+  pmOpenModal({
+    title: 'تسجيل خروج إجباري',
+    body,
+    primaryLabel: 'تأكيد تسجيل الخروج',
+    primaryClass: 'btn-yellow',
+    danger: true,
+    onPrimary: async ({ close }) => {
+      try {
+        const res = await backendApi.platform.forceLogout(id);
+        showToast(res && res.success ? '✅ تم تسجيل الخروج الإجباري' : ((res && res.message) || 'تعذر التنفيذ'), res && res.success ? 'success' : 'error');
+        await loadPlatformUsers();
+        close();
+      } catch (e) { showToast('تعذر التنفيذ', 'error'); return false; }
+    }
+  });
 }
 
-async function platformResetPassword(id) {
-  const newPassword = prompt('كلمة المرور الجديدة (8 أحرف على الأقل):');
-  if (newPassword === null) return;
-  if (newPassword.length < 8) { showToast('كلمة المرور يجب ألا تقل عن 8 أحرف', 'error'); return; }
-  try {
-    const res = await backendApi.platform.resetPassword(id, newPassword);
-    showToast(res && res.success ? '✅ تم تحديث كلمة المرور بنجاح' : ((res && res.message) || 'تعذر التنفيذ'), res && res.success ? 'success' : 'error');
-  } catch (e) { showToast('تعذر التنفيذ', 'error'); }
+async function platformResetPassword(id, username) {
+  const form = document.createElement('div');
+  form.style.cssText = 'line-height:1.8';
+  form.innerHTML =
+    '<div>المستخدم: <b>' + escapeHtml(username || id) + '</b></div>' +
+    '<div style="margin-top:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);font-size:0.85rem">سيتم إنشاء كلمة مرور جديدة على الخادم. لا يتم تخزينها في المتصفح.</div>' +
+    '<div style="margin-top:12px">' +
+      '<label style="display:block;font-size:0.82rem;color:var(--text2);margin-bottom:6px">كلمة المرور الجديدة (8 أحرف على الأقل)</label>' +
+      '<div style="display:flex;gap:6px;align-items:center">' +
+        '<input id="pmNewPwd" type="password" minlength="8" autocomplete="new-password" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:var(--text);font-family:inherit;font-size:0.95rem;outline:none" />' +
+        '<button id="pmNewPwdToggle" type="button" class="btn btn-outline btn-sm" style="min-width:auto;padding:8px 10px" aria-label="إظهار/إخفاء كلمة المرور">👁</button>' +
+      '</div>' +
+      '<div id="pmNewPwdHint" style="font-size:0.78rem;color:var(--muted);margin-top:4px">الحد الأدنى 8 أحرف.</div>' +
+    '</div>';
+  const modal = pmOpenModal({
+    title: 'إعادة تعيين كلمة المرور',
+    body: form,
+    primaryLabel: 'تأكيد التغيير',
+    primaryClass: 'btn-primary',
+    onPrimary: async () => {
+      const input = form.querySelector('#pmNewPwd');
+      if (!input) { showToast('تعذر التنفيذ', 'error'); return false; }
+      const v = String(input.value || '');
+      if (v.length < 8) { showToast('كلمة المرور يجب ألا تقل عن 8 أحرف', 'error'); return false; }
+      try {
+        const res = await backendApi.platform.resetPassword(id, v);
+        showToast(res && res.success ? '✅ تم تحديث كلمة المرور بنجاح' : ((res && res.message) || 'تعذر التنفيذ'), res && res.success ? 'success' : 'error');
+        try { input.value = ''; } catch (e) {}
+        modal.close();
+      } catch (e) { showToast('تعذر التنفيذ', 'error'); return false; }
+    }
+  });
+  setTimeout(() => {
+    const t = form.querySelector('#pmNewPwdToggle');
+    const i = form.querySelector('#pmNewPwd');
+    if (t && i) t.addEventListener('click', () => { i.type = i.type === 'password' ? 'text' : 'password'; });
+  }, 0);
 }
 
 async function loadPlatformPresence() {
@@ -14507,21 +14822,69 @@ async function loadPlatformPresence() {
   try {
     const res = await backendApi.platform.presence();
     if (!res || !res.success || !res.data) { platformBody('<div style="color:var(--red)">' + escapeHtml((res && res.message) || 'تعذر التحميل') + '</div>'); return; }
-    const list = res.data.presence || [];
-    const rows = list.map(p => `<tr>
-      <td>${p.online ? '🟢' : '⚪'}</td>
+    const all = res.data.presence || [];
+    const list = pmFilterList('presence', all);
+    pmUpdateSearchCount(list.length, all.length);
+    if (all.length === 0) {
+      platformBody('<div class="table-container"><div class="table-header"><div class="table-title">🟢 المتصلون الآن (server-authoritative heartbeat)</div></div>' + pmEmptyState('🟢', 'لا يوجد نشاط حاليًا', 'سيظهر المستخدمون هنا فور استلام أول نبضة (heartbeat) من الخادم.') + '</div>');
+      return;
+    }
+    if (list.length === 0) {
+      platformBody('<div class="table-container"><div class="table-header"><div class="table-title">🟢 المتصلون الآن (server-authoritative heartbeat)</div></div>' + pmEmptyState('🔍', 'لا توجد نتائج مطابقة', 'جرّب كلمة بحث مختلفة.') + '</div>');
+      return;
+    }
+    const online = list.filter(p => p.online);
+    const away = list.filter(p => !p.online && p.lastSeenAt && (Date.now() - new Date(p.lastSeenAt).getTime()) < 24*60*60*1000);
+    const offline = list.filter(p => !p.online && (!p.lastSeenAt || (Date.now() - new Date(p.lastSeenAt).getTime()) >= 24*60*60*1000));
+    const sectionHeader = (icon, label, count) => '<div style="display:flex;align-items:center;gap:8px;margin:12px 0 6px 0;font-size:0.85rem;font-weight:700;color:var(--text2)">' + icon + ' ' + escapeHtml(label) + ' <span style="color:var(--muted);font-weight:500">(' + count + ')</span></div>';
+    const row = p => `<tr>
+      <td>${p.online ? '<span class="badge badge-green">متصل</span>' : (p.lastSeenAt && (Date.now() - new Date(p.lastSeenAt).getTime()) < 24*60*60*1000 ? '<span class="badge badge-yellow">منقطع</span>' : '<span class="badge badge-red">غير متصل</span>')}</td>
       <td style="direction:ltr">${escapeHtml(p.username || p.userId || '')}</td>
       <td>${escapeHtml(p.tenantId || '—')}</td>
       <td>${escapeHtml(p.branchId || '—')}</td>
       <td>${p.loginAt ? new Date(p.loginAt).toLocaleString('ar-EG') : '—'}</td>
-      <td>${p.lastSeenAt ? new Date(p.lastSeenAt).toLocaleString('ar-EG') : '—'}</td>
+      <td>${pmRelativeTimeAr(p.lastSeenAt)} <span style="color:var(--muted);font-size:0.74rem;margin-inline-start:6px">(${p.lastSeenAt ? new Date(p.lastSeenAt).toLocaleString('ar-EG') : '—'})</span></td>
       <td style="direction:ltr">${escapeHtml(p.sessionId || '—')}</td>
-    </tr>`).join('');
-    platformBody(`<div class="table-container"><div class="table-header"><div class="table-title">🟢 المتصلون الآن (server-authoritative heartbeat)</div></div>
-      <div class="overflow-x"><table class="data-table"><thead><tr><th>الحالة</th><th>المستخدم</th><th>الشركة</th><th>الفرع</th><th>وقت الدخول</th><th>آخر نشاط</th><th>الجلسة</th></tr></thead><tbody>${rows}</tbody></table></div></div>`);
+    </tr>`;
+    let html = '<div class="table-container"><div class="table-header"><div class="table-title">🟢 المتصلون الآن (server-authoritative heartbeat)</div></div>';
+    if (online.length) {
+      html += sectionHeader('🟢', 'متصل الآن', online.length);
+      html += '<div class="overflow-x"><table class="data-table"><thead><tr><th>الحالة</th><th>المستخدم</th><th>الشركة</th><th>الفرع</th><th>وقت الدخول</th><th>آخر نشاط</th><th>الجلسة</th></tr></thead><tbody>' + online.map(row).join('') + '</tbody></table></div>';
+    }
+    if (away.length) {
+      html += sectionHeader('🟡', 'منقطع (آخر 24 ساعة)', away.length);
+      html += '<div class="overflow-x"><table class="data-table"><thead><tr><th>الحالة</th><th>المستخدم</th><th>الشركة</th><th>الفرع</th><th>وقت الدخول</th><th>آخر نشاط</th><th>الجلسة</th></tr></thead><tbody>' + away.map(row).join('') + '</tbody></table></div>';
+    }
+    if (offline.length) {
+      html += sectionHeader('⚪', 'غير متصل', offline.length);
+      html += '<div class="overflow-x"><table class="data-table"><thead><tr><th>الحالة</th><th>المستخدم</th><th>الشركة</th><th>الفرع</th><th>وقت الدخول</th><th>آخر نشاط</th><th>الجلسة</th></tr></thead><tbody>' + offline.map(row).join('') + '</tbody></table></div>';
+    }
+    html += '</div>';
+    platformBody(html);
   } catch (e) {
     platformBody('<div style="color:var(--red)">تعذر التحميل: ' + escapeHtml(e && e.message ? e.message : 'خطأ') + '</div>');
   }
+}
+
+// Auto-refresh presence tab every 30s while visible and on the presence tab.
+let __pmPresenceTimer = null;
+function startPlatformPresenceAutoRefresh() {
+  stopPlatformPresenceAutoRefresh();
+  if (typeof document.visibilityState !== 'undefined' && document.visibilityState === 'hidden') return;
+  __pmPresenceTimer = setInterval(() => {
+    if (platformTabCurrent === 'presence' && document.visibilityState !== 'hidden') {
+      loadPlatformPresence();
+    }
+  }, 30000);
+}
+function stopPlatformPresenceAutoRefresh() {
+  if (__pmPresenceTimer) { clearInterval(__pmPresenceTimer); __pmPresenceTimer = null; }
+}
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && platformTabCurrent === 'presence') startPlatformPresenceAutoRefresh();
+    else stopPlatformPresenceAutoRefresh();
+  });
 }
 
 async function loadPlatformLicenses() {
@@ -14529,18 +14892,31 @@ async function loadPlatformLicenses() {
   try {
     const res = await backendApi.platform.licenses();
     if (!res || !res.success || !res.data) { platformBody('<div style="color:var(--red)">' + escapeHtml((res && res.message) || 'تعذر التحميل') + '</div>'); return; }
-    const list = res.data.licenses || [];
-    const rows = list.map(l => `<tr>
-      <td>${escapeHtml(l.companyName)}</td>
-      <td style="direction:ltr">${escapeHtml(l.tenantId)}</td>
-      <td>${escapeHtml(l.plan)}</td>
-      <td>${escapeHtml(l.status)}</td>
-      <td>${l.licenseStart ? new Date(l.licenseStart).toLocaleDateString('ar-EG') : '—'}</td>
-      <td>${l.licenseEnd ? new Date(l.licenseEnd).toLocaleDateString('ar-EG') : '—'}</td>
-      <td>${l.maxUsers != null ? l.maxUsers : '—'}</td>
-      <td>${l.maxBranches != null ? l.maxBranches : '—'}</td>
-      <td><button class="btn btn-outline btn-sm" onclick="platformAssignLicense('${escapeHtml(l.tenantId)}')">تعديل</button></td>
-    </tr>`).join('');
+    const all = res.data.licenses || [];
+    const list = pmFilterList('licenses', all);
+    pmUpdateSearchCount(list.length, all.length);
+    if (all.length === 0) {
+      platformBody('<div class="table-container"><div class="table-header"><div class="table-title">🎫 التراخيص</div></div>' + pmEmptyState('🎫', 'لا توجد تراخيص مُسندة', 'يمكن لمالك المنصة إسناد تراخيص للشركات من زر "تعديل".') + '</div>');
+      return;
+    }
+    if (list.length === 0) {
+      platformBody('<div class="table-container"><div class="table-header"><div class="table-title">🎫 التراخيص</div></div>' + pmEmptyState('🔍', 'لا توجد نتائج مطابقة', 'جرّب كلمة بحث مختلفة.') + '</div>');
+      return;
+    }
+    const rows = list.map(l => {
+      const h = pmLicenseHealth(l);
+      return `<tr>
+        <td>${escapeHtml(l.companyName)}</td>
+        <td style="direction:ltr">${escapeHtml(l.tenantId)}</td>
+        <td>${escapeHtml(l.plan)}</td>
+        <td><span class="badge ${h.cls}">${h.dot} ${escapeHtml(h.label)}</span></td>
+        <td>${l.licenseStart ? new Date(l.licenseStart).toLocaleDateString('ar-EG') : '—'}</td>
+        <td>${l.licenseEnd ? new Date(l.licenseEnd).toLocaleDateString('ar-EG') : '—'}</td>
+        <td>${l.maxUsers != null ? l.maxUsers : '—'}</td>
+        <td>${l.maxBranches != null ? l.maxBranches : '—'}</td>
+        <td><button class="btn btn-outline btn-sm" onclick="platformAssignLicense('${escapeHtml(l.tenantId)}', '${escapeHtml(l.companyName)}')">تعديل</button></td>
+      </tr>`;
+    }).join('');
     platformBody(`<div class="table-container"><div class="table-header"><div class="table-title">🎫 التراخيص</div></div>
       <div class="overflow-x"><table class="data-table"><thead><tr><th>الشركة</th><th>Tenant</th><th>الخطة</th><th>الحالة</th><th>البداية</th><th>النهاية</th><th>أقصى مستخدمين</th><th>أقصى فروع</th><th>إجراءات</th></tr></thead><tbody>${rows}</tbody></table></div></div>`);
   } catch (e) {
@@ -14548,21 +14924,52 @@ async function loadPlatformLicenses() {
   }
 }
 
-async function platformAssignLicense(tenantId) {
-  const plan = prompt('الخطة (TRIAL / BASIC / PROFESSIONAL / ENTERPRISE):');
-  if (plan === null) return;
-  const endStr = prompt('تاريخ الانتهاء (YYYY-MM-DD، اتركه فارغًا بدون انتهاء):');
-  const maxUsers = prompt('أقصى عدد مستخدمين (اختياري):');
-  const maxBranches = prompt('أقصى عدد فروع (اختياري):');
-  const payload = { tenantId, plan: plan.trim().toUpperCase(), status: 'ACTIVE' };
-  if (endStr && endStr.trim()) payload.licenseEnd = new Date(endStr.trim()).toISOString();
-  if (maxUsers && !isNaN(Number(maxUsers))) payload.maxUsers = Number(maxUsers);
-  if (maxBranches && !isNaN(Number(maxBranches))) payload.maxBranches = Number(maxBranches);
-  try {
-    const res = await backendApi.platform.setLicense(payload);
-    showToast(res && res.success ? '✅ تم حفظ الترخيص' : ((res && res.message) || 'تعذر الحفظ'), res && res.success ? 'success' : 'error');
-    loadPlatformLicenses();
-  } catch (e) { showToast('تعذر الحفظ', 'error'); }
+async function platformAssignLicense(tenantId, companyName) {
+  const form = document.createElement('div');
+  form.style.cssText = 'line-height:1.8';
+  form.innerHTML =
+    '<div>الشركة: <b>' + escapeHtml(companyName || tenantId) + '</b></div>' +
+    '<div style="color:var(--muted);font-size:0.8rem">Tenant ID: <span style="direction:ltr;display:inline-block">' + escapeHtml(tenantId) + '</span></div>' +
+    '<div style="margin-top:12px">' +
+      '<label style="display:block;font-size:0.82rem;color:var(--text2);margin-bottom:6px">الخطة</label>' +
+      '<select id="pmLicPlan" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-family:inherit;font-size:0.9rem">' +
+        '<option value="TRIAL">TRIAL</option>' +
+        '<option value="BASIC">BASIC</option>' +
+        '<option value="PROFESSIONAL" selected>PROFESSIONAL</option>' +
+        '<option value="ENTERPRISE">ENTERPRISE</option>' +
+      '</select>' +
+    '</div>' +
+    '<div style="margin-top:10px">' +
+      '<label style="display:block;font-size:0.82rem;color:var(--text2);margin-bottom:6px">تاريخ الانتهاء (YYYY-MM-DD، اتركه فارغًا بدون انتهاء)</label>' +
+      '<input id="pmLicEnd" type="date" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-family:inherit;font-size:0.9rem" />' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">' +
+      '<div><label style="display:block;font-size:0.82rem;color:var(--text2);margin-bottom:6px">أقصى مستخدمين</label><input id="pmLicMaxU" type="number" min="0" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-family:inherit" /></div>' +
+      '<div><label style="display:block;font-size:0.82rem;color:var(--text2);margin-bottom:6px">أقصى فروع</label><input id="pmLicMaxB" type="number" min="0" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-family:inherit" /></div>' +
+    '</div>';
+  const modal = pmOpenModal({
+    title: 'إسناد / تعديل ترخيص',
+    body: form,
+    primaryLabel: 'حفظ',
+    primaryClass: 'btn-primary',
+    onPrimary: async () => {
+      const plan = String((form.querySelector('#pmLicPlan') || {}).value || '').trim().toUpperCase();
+      const endStr = String((form.querySelector('#pmLicEnd') || {}).value || '').trim();
+      const mu = String((form.querySelector('#pmLicMaxU') || {}).value || '').trim();
+      const mb = String((form.querySelector('#pmLicMaxB') || {}).value || '').trim();
+      const payload = { tenantId, plan, status: 'ACTIVE' };
+      if (endStr) payload.licenseEnd = new Date(endStr).toISOString();
+      if (mu && !isNaN(Number(mu))) payload.maxUsers = Number(mu);
+      if (mb && !isNaN(Number(mb))) payload.maxBranches = Number(mb);
+      try {
+        const res = await backendApi.platform.setLicense(payload);
+        showToast(res && res.success ? '✅ تم حفظ الترخيص' : ((res && res.message) || 'تعذر الحفظ'), res && res.success ? 'success' : 'error');
+        await loadPlatformLicenses();
+        await renderPlatformMaster();
+        modal.close();
+      } catch (e) { showToast('تعذر الحفظ', 'error'); return false; }
+    }
+  });
 }
 
 async function loadPlatformIntegrations() {
@@ -14570,7 +14977,17 @@ async function loadPlatformIntegrations() {
   try {
     const res = await backendApi.platform.integrations();
     if (!res || !res.success || !res.data) { platformBody('<div style="color:var(--red)">' + escapeHtml((res && res.message) || 'تعذر التحميل') + '</div>'); return; }
-    const list = res.data.integrations || [];
+    const all = res.data.integrations || [];
+    const list = pmFilterList('integrations', all);
+    pmUpdateSearchCount(list.length, all.length);
+    if (all.length === 0) {
+      platformBody('<div class="table-container"><div class="table-header"><div class="table-title">🔑 التكاملات (الرموز مخفية دائمًا — الـ token لا يُعرض أبدًا)</div></div>' + pmEmptyState('🔑', 'لا توجد تكاملات مُسجلة', 'يمكن لمالك المنصة إسناد تكاملات (مثل Supabase أو WhatsApp) من خلال واجهة الإعدادات.') + '</div>');
+      return;
+    }
+    if (list.length === 0) {
+      platformBody('<div class="table-container"><div class="table-header"><div class="table-title">🔑 التكاملات (الرموز مخفية دائمًا — الـ token لا يُعرض أبدًا)</div></div>' + pmEmptyState('🔍', 'لا توجد نتائج مطابقة', 'جرّب كلمة بحث مختلفة.') + '</div>');
+      return;
+    }
     const rows = list.map(i => `<tr>
       <td>${escapeHtml(i.companyName)}</td>
       <td style="direction:ltr">${escapeHtml(i.tenantId)}</td>
@@ -14591,7 +15008,26 @@ async function loadPlatformAudit() {
   try {
     const res = await backendApi.platform.audit(200);
     if (!res || !res.success || !res.data) { platformBody('<div style="color:var(--red)">' + escapeHtml((res && res.message) || 'تعذر التحميل') + '</div>'); return; }
-    const list = res.data.entries || [];
+    const all = res.data.entries || [];
+    if (all.length === 0) {
+      platformBody('<div class="table-container"><div class="table-header"><div class="table-title">📝 سجل المنصة (بدون أي أسرار)</div></div>' + pmEmptyState('📝', 'لا توجد أحداث بعد', 'ستظهر إجراءات المنصة هنا فور تنفيذ أول عملية.') + '</div>');
+      return;
+    }
+    const list = pmFilterList('audit', all);
+    pmUpdateSearchCount(list.length, all.length);
+    const events = Array.from(new Set(all.map(e => String(e.action || '').split('_').slice(0, 2).join('_')).filter(Boolean))).slice(0, 8);
+    const renderChips = () => {
+      const sel = String(window.__pmAuditFilter || '');
+      const chipStyle = (active) => 'padding:4px 10px;border-radius:20px;font-size:0.74rem;font-weight:600;cursor:pointer;border:1px solid ' + (active ? 'var(--accent)' : 'var(--border)') + ';background:' + (active ? 'rgba(37,99,235,0.12)' : 'var(--surface2)') + ';color:' + (active ? 'var(--accent)' : 'var(--text2)');
+      return '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px" role="group" aria-label="تصفية الأحداث">' +
+        '<button class="pm-audit-chip" data-evt="" style="' + chipStyle(!sel) + '">الكل</button>' +
+        events.map(e => '<button class="pm-audit-chip" data-evt="' + escapeHtml(e) + '" style="' + chipStyle(sel === e) + '">' + escapeHtml(e) + '</button>').join('') +
+      '</div>';
+    };
+    if (list.length === 0) {
+      platformBody('<div class="table-container"><div class="table-header"><div class="table-title">📝 سجل المنصة (بدون أي أسرار)</div></div>' + renderChips() + pmEmptyState('🔍', 'لا توجد نتائج مطابقة', 'جرّب كلمة بحث مختلفة أو فلتر آخر.') + '</div>');
+      return;
+    }
     const rows = list.map(e => `<tr>
       <td>${e.timestamp ? new Date(e.timestamp).toLocaleString('ar-EG') : '—'}</td>
       <td style="direction:ltr">${escapeHtml(e.action)}</td>
@@ -14600,10 +15036,22 @@ async function loadPlatformAudit() {
       <td style="direction:ltr">${escapeHtml(e.resourceId || '—')}</td>
     </tr>`).join('');
     platformBody(`<div class="table-container"><div class="table-header"><div class="table-title">📝 سجل المنصة (بدون أي أسرار)</div></div>
+      ${renderChips()}
+      <div style="display:flex;gap:8px;margin-bottom:8px"><button class="btn btn-outline btn-sm" onclick="pmExportAuditCsv()">⬇ تصدير CSV</button></div>
       <div class="overflow-x"><table class="data-table"><thead><tr><th>الوقت</th><th>الإجراء</th><th>المستخدم</th><th>الموارد</th><th>المعرّف</th></tr></thead><tbody>${rows}</tbody></table></div></div>`);
+    document.querySelectorAll('.pm-audit-chip').forEach(b => b.addEventListener('click', () => {
+      window.__pmAuditFilter = b.getAttribute('data-evt') || '';
+      loadPlatformAudit();
+    }));
   } catch (e) {
     platformBody('<div style="color:var(--red)">تعذر التحميل: ' + escapeHtml(e && e.message ? e.message : 'خطأ') + '</div>');
   }
+}
+
+function pmExportAuditCsv() {
+  const rows = Array.from(document.querySelectorAll('#platformTabBody .data-table tbody tr')).map(tr => Array.from(tr.children).map(td => td.textContent.trim()));
+  if (!rows.length) { showToast('لا توجد بيانات للتصدير', 'error'); return; }
+  pmDownloadCsv('platform-audit-' + Date.now() + '.csv', ['الوقت', 'الإجراء', 'المستخدم', 'الموارد', 'المعرّف'], rows);
 }
 
 // ================= USERS & PERMISSIONS MANAGER (المستخدمون والصلاحيات) =================
