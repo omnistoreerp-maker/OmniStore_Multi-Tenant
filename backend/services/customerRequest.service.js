@@ -658,6 +658,111 @@ function getAllowedTransitions() {
   return ALLOWED_TRANSITIONS;
 }
 
+function _ensureHistoricalForAllCompanies() {
+  // Import historical requests for any company that has requests OR is in the companies store.
+  // This is called by internal endpoints to ensure the dashboard is complete.
+  const storageAdapter = require('../repositories/storageAdapter');
+  const store = _readStore();
+  const companies = new Set();
+  for (const r of store.requests) {
+    if (r && r.companyId) companies.add(String(r.companyId));
+  }
+  // Also include companies from the companies store
+  try {
+    const companiesStore = storageAdapter.read('companies');
+    if (companiesStore) {
+      const list = Array.isArray(companiesStore) ? companiesStore : (companiesStore.companies || []);
+      for (const c of list) {
+        if (c && c.id) companies.add(String(c.id));
+      }
+    }
+  } catch (_) {}
+  let imported = 0;
+  for (const companyId of companies) {
+    const hasHistorical = store.requests.some(r => r && r.historical && String(r.companyId) === companyId);
+    if (!hasHistorical) {
+      const result = importHistorical(companyId, getDefaultHistoricalForCompany(companyId));
+      imported += result.imported;
+    }
+  }
+  return imported;
+}
+
+function listAllForInternal(filters) {
+  // Internal: cross-company view for platform admin
+  // Returns all requests across all companies with optional filtering
+  _ensureHistoricalForAllCompanies();
+  const store = _readStore();
+  let requests = store.requests.slice();
+  if (filters) {
+    if (filters.status) {
+      const status = String(filters.status).toUpperCase();
+      requests = requests.filter(r => r && String(r.status) === status);
+    }
+    if (filters.companyId) {
+      requests = requests.filter(r => r && String(r.companyId) === String(filters.companyId));
+    }
+    if (filters.priority) {
+      requests = requests.filter(r => r && String(r.priority) === String(filters.priority));
+    }
+    if (filters.product) {
+      requests = requests.filter(r => r && String(r.product) === String(filters.product));
+    }
+    if (filters.historical === 'true') {
+      requests = requests.filter(r => r && r.historical);
+    } else if (filters.historical === 'false') {
+      requests = requests.filter(r => r && !r.historical);
+    }
+  }
+  // Sort by updatedAt desc
+  requests.sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+  return requests.map(_sanitizeForResponse);
+}
+
+function getByIdForInternal(requestId) {
+  // Internal: cross-company read for platform admin
+  if (!requestId) return null;
+  const { record } = _findRequestInternal(requestId);
+  if (!record) return null;
+  return _sanitizeForResponse(record);
+}
+
+function getDashboardSummary() {
+  // Internal: aggregate counts for the change center dashboard
+  _ensureHistoricalForAllCompanies();
+  const store = _readStore();
+  const summary = {
+    total: 0,
+    byStatus: {},
+    byProduct: {},
+    byPriority: {},
+    byCompany: {},
+    historical: 0,
+    active: 0
+  };
+  for (const r of store.requests) {
+    if (!r) continue;
+    summary.total++;
+    summary.byStatus[r.status] = (summary.byStatus[r.status] || 0) + 1;
+    summary.byProduct[r.product] = (summary.byProduct[r.product] || 0) + 1;
+    summary.byPriority[r.priority] = (summary.byPriority[r.priority] || 0) + 1;
+    summary.byCompany[r.companyId] = (summary.byCompany[r.companyId] || 0) + 1;
+    if (r.historical) summary.historical++;
+    else summary.active++;
+  }
+  return summary;
+}
+
+function listCompaniesWithRequests() {
+  // Internal: list all companies that have requests
+  const store = _readStore();
+  const companies = new Set();
+  for (const r of store.requests) {
+    if (r && r.companyId) companies.add(String(r.companyId));
+  }
+  return Array.from(companies).sort();
+}
+
 module.exports = {
   VALID_TYPES,
   VALID_PRIORITIES,
@@ -679,5 +784,9 @@ module.exports = {
   getBuildIdentityPublic,
   getArtifactIdentityPublic,
   getCustomerFacingStatus,
-  getTimeline
+  getTimeline,
+  listAllForInternal,
+  getByIdForInternal,
+  getDashboardSummary,
+  listCompaniesWithRequests
 };
