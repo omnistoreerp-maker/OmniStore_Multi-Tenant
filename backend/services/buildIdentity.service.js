@@ -34,7 +34,7 @@ function _readGitHead() {
       return null;
     }
     return head || null;
-  } catch (err) {
+  } catch (_) {
     return null;
   }
 }
@@ -45,16 +45,32 @@ function getBuildIdentity() {
   const commitSha = _readGitHead();
   const version = (manifest && manifest.version) || config.appVersion || '0.0.0';
   const buildId = version;
+  // The sha256 from the manifest is the AUTHORITATIVE artifact identity.
+  // It represents the actual binary artifact that was published, not the
+  // current runtime state. This is what should be compared against
+  // release evidence on customer requests.
+  const artifactSha256 = (manifest && manifest.sha256) || null;
   _cachedIdentity = {
     version: version,
     buildId: buildId,
     commitSha: commitSha || null,
+    artifactSha256: artifactSha256,
     releaseDate: (manifest && manifest.releaseDate) || null,
-    sha256: (manifest && manifest.sha256) || null,
+    sha256: artifactSha256,
     product: 'OMNISTORE',
     environment: process.env.NODE_ENV || 'development'
   };
   return _cachedIdentity;
+}
+
+function getArtifactIdentity() {
+  const id = getBuildIdentity();
+  return {
+    version: id.version,
+    buildId: id.buildId,
+    artifactSha256: id.artifactSha256,
+    releaseDate: id.releaseDate
+  };
 }
 
 function clearCache() {
@@ -63,5 +79,6 @@ function clearCache() {
 
 module.exports = {
   getBuildIdentity,
+  getArtifactIdentity,
   clearCache
 };

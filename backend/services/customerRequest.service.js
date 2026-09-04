@@ -121,6 +121,8 @@ function _buildRequestRecord(companyId, branchId, user, input, historical) {
     createdBy: user ? user.username : 'unknown',
     assignedTo: historical ? (historical.assignedTo || null) : null,
     releaseId: historical ? (historical.releaseId || null) : null,
+    implementationCommits: historical ? (historical.implementationCommits || []) : [],
+    testEvidence: historical ? (historical.testEvidence || []) : [],
     customerVerifiedAt: historical ? (historical.customerVerifiedAt || null) : null,
     customerVerifiedBy: historical ? (historical.customerVerifiedBy || null) : null,
     historical: !!historical,
@@ -148,12 +150,15 @@ function _sanitizeForResponse(record) {
     title: record.title,
     description: record.description,
     status: record.status,
+    customerFacingStatus: getCustomerFacingStatus(record.status),
     resolution: record.resolution || '',
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
     createdBy: record.createdBy,
     assignedTo: record.assignedTo,
     releaseId: record.releaseId,
+    implementationCommits: record.implementationCommits || [],
+    testEvidence: record.testEvidence || [],
     customerVerifiedAt: record.customerVerifiedAt,
     customerVerifiedBy: record.customerVerifiedBy,
     historical: !!record.historical,
@@ -254,15 +259,83 @@ function verifyReleaseMatches(request) {
   const requestRelease = request.releaseId || {};
   const currentBuildId = String(current.buildId || '');
   const currentCommit = String(current.commitSha || '');
+  const currentArtifact = String(current.artifactSha256 || '');
   const releaseBuildId = String(requestRelease.buildId || '');
   const releaseCommit = String(requestRelease.commitSha || '');
+  const releaseArtifact = String(requestRelease.artifactSha256 || '');
+  // Primary: artifact identity (sha256) — this is the authoritative proof
+  // that the same binary artifact is being served. If the release has an
+  // artifact hash, it MUST match the current served artifact.
+  if (releaseArtifact && currentArtifact) {
+    if (releaseArtifact !== currentArtifact) {
+      return { matches: false, reason: 'ARTIFACT_MISMATCH', currentArtifact, releaseArtifact };
+    }
+  }
   if (releaseBuildId && currentBuildId && releaseBuildId !== currentBuildId) {
     return { matches: false, reason: 'BUILD_ID_MISMATCH', currentBuildId, releaseBuildId };
   }
   if (releaseCommit && currentCommit && releaseCommit !== currentCommit) {
     return { matches: false, reason: 'COMMIT_MISMATCH', currentCommit, releaseCommit };
   }
-  return { matches: true, currentBuildId, currentCommit };
+  // If the release has NO artifact identity at all, we cannot prove the
+  // build matches. This is intentionally a MISMATCH to prevent false
+  // resolution when evidence is incomplete.
+  if (!releaseArtifact && !releaseBuildId && !releaseCommit) {
+    return { matches: false, reason: 'NO_RELEASE_IDENTITY' };
+  }
+  return { matches: true, currentBuildId, currentCommit, currentArtifact };
+}
+
+function getCustomerFacingStatus(status) {
+  const map = {
+    'NEW': 'Request received',
+    'TRIAGED': 'Being reviewed',
+    'APPROVED': 'Approved — work scheduled',
+    'IN_PROGRESS': 'Being worked on',
+    'READY_FOR_TEST': 'Ready for internal testing',
+    'TESTED': 'Tested — preparing release',
+    'READY_FOR_RELEASE': 'Preparing release',
+    'RELEASED': 'Released — please verify',
+    'READY_FOR_CUSTOMER_VERIFICATION': 'Released — please verify',
+    'RESOLVED': 'Confirmed resolved',
+    'BLOCKED': 'Temporarily blocked',
+    'REJECTED': 'Not accepted',
+    'CANCELLED': 'Cancelled',
+    'REOPENED': 'Customer reported the issue remains',
+    'NEEDS_EVIDENCE': 'Additional information required'
+  };
+  return map[status] || status;
+}
+
+function getTimeline(requestId) {
+  const events = getAuditForRequest(requestId);
+  const verifications = getVerificationsForRequest(requestId);
+  const timeline = [];
+  for (const e of events) {
+    timeline.push({
+      type: 'lifecycle',
+      fromStatus: e.fromStatus,
+      toStatus: e.toStatus,
+      actor: e.actor,
+      actorType: e.actorType,
+      timestamp: e.timestamp,
+      note: e.note,
+      releaseId: e.releaseId || null
+    });
+  }
+  for (const v of verifications) {
+    timeline.push({
+      type: 'verification',
+      result: v.result,
+      actor: v.verifiedBy,
+      timestamp: v.verifiedAt,
+      note: v.note,
+      buildId: v.buildId,
+      releaseId: v.releaseId || null
+    });
+  }
+  timeline.sort((a, b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')));
+  return timeline;
 }
 
 function verifyRequest(companyId, requestId, user, result, note) {
@@ -290,6 +363,7 @@ function verifyRequest(companyId, requestId, user, result, note) {
     companyId: record.companyId,
     releaseId: record.releaseId,
     buildId: current.buildId,
+    artifactSha256: current.artifactSha256 || null,
     verifiedBy: user ? user.username : 'unknown',
     verifiedAt: now,
     result: result,
@@ -366,6 +440,8 @@ function importHistorical(companyId, historicalEntries) {
         createdAt: entry.createdAt || new Date().toISOString(),
         assignedTo: entry.assignedTo || null,
         releaseId: entry.releaseId || null,
+        implementationCommits: entry.implementationCommits || [],
+        testEvidence: entry.testEvidence || [],
         customerVerifiedAt: entry.customerVerifiedAt || null,
         customerVerifiedBy: entry.customerVerifiedBy || null,
         historicalSource: entry.historicalSource || 'manual_review'
@@ -387,11 +463,15 @@ function importHistorical(companyId, historicalEntries) {
 
 function getDefaultHistoricalForCompany(companyId) {
   const now = new Date().toISOString();
+  // Read the real artifact sha256 from the update manifest — this is the
+  // authoritative artifact identity that verification will compare against.
+  const manifest = buildIdentity.getBuildIdentity();
   const baseRelease = {
     id: 'rel_v1.0.0',
-    version: '1.0.0',
-    buildId: '1.0.0',
-    commitSha: null,
+    version: manifest.version || '1.0.0',
+    buildId: manifest.buildId || '1.0.0',
+    commitSha: manifest.commitSha || null,
+    artifactSha256: manifest.artifactSha256 || null,
     product: 'OMNISTORE',
     environment: 'production',
     releasedAt: '2026-08-17T00:00:00.000Z',
@@ -415,6 +495,7 @@ function getDefaultHistoricalForCompany(companyId) {
       updatedAt: '2026-08-19T19:51:52.000Z',
       createdBy: 'system',
       releaseId: baseRelease,
+      implementationCommits: ['50833cb', '24d1d3f', 'f132538', 'f2d83d4'],
       customerVerifiedAt: null,
       customerVerifiedBy: null,
       historicalSource: 'git_commit:50833cb,24d1d3f,f132538,f2d83d4'
@@ -433,6 +514,8 @@ function getDefaultHistoricalForCompany(companyId) {
       updatedAt: '2026-08-15T00:00:00.000Z',
       createdBy: 'system',
       releaseId: baseRelease,
+      implementationCommits: [],
+      testEvidence: ['backend/tests/sales.test.js: POST with a duplicate id returns 400'],
       customerVerifiedAt: null,
       customerVerifiedBy: null,
       historicalSource: 'test_report:sales.test.js'
@@ -451,6 +534,8 @@ function getDefaultHistoricalForCompany(companyId) {
       updatedAt: '2026-08-12T00:00:00.000Z',
       createdBy: 'system',
       releaseId: baseRelease,
+      implementationCommits: [],
+      testEvidence: ['backend/tests/salesAsync.test.js'],
       customerVerifiedAt: null,
       customerVerifiedBy: null,
       historicalSource: 'handoff_document:ERP_CUSTOMER_EXPERIENCE_BACKLOG'
@@ -469,6 +554,8 @@ function getDefaultHistoricalForCompany(companyId) {
       updatedAt: '2026-08-24T00:00:00.000Z',
       createdBy: 'system',
       releaseId: baseRelease,
+      implementationCommits: [],
+      testEvidence: ['backend/tests/frontendNavScope.test.js'],
       customerVerifiedAt: null,
       customerVerifiedBy: null,
       historicalSource: 'handoff_document:OMNISTORE_CUSTOMER_HOTFIX_REPORT'
@@ -519,10 +606,12 @@ function getDefaultHistoricalForCompany(companyId) {
       priority: 'P1',
       status: 'RELEASED',
       resolution: 'Implemented and released. Awaiting customer verification.',
-      createdAt: '2026-08-15T00:00:00.000Z',
-      updatedAt: '2026-08-15T00:00:00.000Z',
+      createdAt: '2026-08-21T20:57:05.000Z',
+      updatedAt: '2026-08-21T20:57:05.000Z',
       createdBy: 'system',
       releaseId: baseRelease,
+      implementationCommits: ['becddf6'],
+      testEvidence: ['backend/tests/webhook.test.js', 'backend/tests/webhook.integration.test.js'],
       customerVerifiedAt: null,
       customerVerifiedBy: null,
       historicalSource: 'git_commit:becddf6'
@@ -561,6 +650,10 @@ function getBuildIdentityPublic() {
   return buildIdentity.getBuildIdentity();
 }
 
+function getArtifactIdentityPublic() {
+  return buildIdentity.getArtifactIdentity();
+}
+
 function getAllowedTransitions() {
   return ALLOWED_TRANSITIONS;
 }
@@ -583,5 +676,8 @@ module.exports = {
   ensureHistoricalForCompany,
   getDefaultHistoricalForCompany,
   verifyReleaseMatches,
-  getBuildIdentityPublic
+  getBuildIdentityPublic,
+  getArtifactIdentityPublic,
+  getCustomerFacingStatus,
+  getTimeline
 };

@@ -27,7 +27,11 @@ function listRequests(req, res) {
     const companyId = _ensureHistorical(req, res);
     if (!companyId) return error(res, 'Unable to determine company context', 401);
     const requests = customerRequest.listForCompany(companyId);
-    success(res, { requests: requests, currentBuild: customerRequest.getBuildIdentityPublic() }, 'Requests retrieved');
+    success(res, {
+      requests: requests,
+      currentBuild: customerRequest.getBuildIdentityPublic(),
+      artifactIdentity: customerRequest.getArtifactIdentityPublic()
+    }, 'Requests retrieved');
   } catch (err) {
     logger.error('customerRequest.list error:', err.message);
     error(res, 'Failed to retrieve requests', 500);
@@ -45,12 +49,15 @@ function getRequest(req, res) {
     const audit = customerRequest.getAuditForRequest(requestId);
     const verifications = customerRequest.getVerificationsForRequest(requestId);
     const releaseMatch = customerRequest.verifyReleaseMatches(found);
+    const timeline = customerRequest.getTimeline(requestId);
     success(res, {
       request: found,
       audit: audit,
       verifications: verifications,
+      timeline: timeline,
       releaseMatch: releaseMatch,
-      currentBuild: customerRequest.getBuildIdentityPublic()
+      currentBuild: customerRequest.getBuildIdentityPublic(),
+      artifactIdentity: customerRequest.getArtifactIdentityPublic()
     }, 'Request retrieved');
   } catch (err) {
     logger.error('customerRequest.get error:', err.message);
