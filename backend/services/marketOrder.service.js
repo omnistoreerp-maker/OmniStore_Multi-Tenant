@@ -35,7 +35,9 @@ function _publicCustomer(order) {
     paymentMethod: order.paymentMethod,
     shippingAddress: order.shippingAddress,
     createdAt: order.createdAt,
-    updatedAt: order.updatedAt
+    updatedAt: order.updatedAt,
+    cancelledAt: order.cancelledAt || null,
+    cancellationReason: order.cancellationReason || null
   };
 }
 

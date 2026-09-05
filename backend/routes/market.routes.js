@@ -70,5 +70,6 @@ router.get('/track/:token', trackLimiter, asyncHandler(ctrl.track));
 
 router.get('/orders', requireMarketTenant, requireCustomer, asyncHandler(ctrl.myOrders));
 router.get('/orders/:id', requireMarketTenant, requireCustomer, asyncHandler(ctrl.myOrder));
+router.post('/orders/:id/cancel', requireMarketTenant, requireCustomer, asyncHandler(ctrl.cancelMyOrder));
 
 module.exports = router;

@@ -4,6 +4,7 @@ const marketCatalogService = require('../services/marketCatalog.service');
 const marketConfigService = require('../services/marketConfig.service');
 const marketCheckoutService = require('../services/marketCheckout.service');
 const marketOrderService = require('../services/marketOrder.service');
+const marketOrderStateMachine = require('../services/marketOrderStateMachine.service');
 const { revokeToken } = require('../utils/tokenStore');
 const { extractToken } = require('../middleware/marketAuth');
 
@@ -188,6 +189,28 @@ async function myOrder(req, res) {
   }
 }
 
+async function cancelMyOrder(req, res) {
+  try {
+    const reason = req.body && typeof req.body.reason === 'string' ? req.body.reason : null;
+    const result = await marketOrderStateMachine.cancelOrder({
+      orderId: req.params.id,
+      customerId: req.customer.id,
+      tenantId: req.marketTenant,
+      reason
+    });
+    if (result.error === 'not_found') return error(res, 'Order not found', 404);
+    if (result.error === 'invalid_state') {
+      return error(res, 'Order cannot be cancelled (current state: ' + result.current + ')', 409);
+    }
+    if (result.error === 'persist_failed') return error(res, 'Failed to cancel order', 500);
+    if (result.error) return error(res, result.error, 400);
+    const projected = await marketOrderService.getForCustomer(req.params.id, req.customer.id, req.marketTenant);
+    return success(res, projected, 'Order cancelled');
+  } catch (err) {
+    return error(res, 'Failed to cancel order', 500);
+  }
+}
+
 async function config(req, res) {
   try {
     const cfg = marketConfigService.get(req.marketTenant);
@@ -221,5 +244,6 @@ module.exports = {
   track,
   myOrders,
   myOrder,
+  cancelMyOrder,
   config
 };
