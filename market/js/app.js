@@ -420,6 +420,224 @@
     });
   }
 
+  // ---------- Game Hosting ----------
+
+  function ghBanner(type, msg) {
+    return '<div class="mk-banner ' + type + '">' + esc(msg) + '</div>';
+  }
+
+  function ghStatusLabel(s) {
+    const map = {
+      pending: t('gh_status'),
+      provisioning: 'Provisioning',
+      running: 'Running',
+      stopped: 'Stopped',
+      terminated: 'Terminated',
+      error: 'Error'
+    };
+    const label = (map[s] || t('gh_unknown_status')) + ' (' + esc(s) + ')';
+    const cls = s === 'running' ? 'success' : s === 'error' || s === 'terminated' ? 'error' : '';
+    return '<span class="mk-badge ' + cls + '">' + esc(label) + '</span>';
+  }
+
+  async function pageGameHosting() {
+    setApp('<div class="mk-loading">' + esc(t('loading')) + '</div>');
+    let provider = null;
+    try { provider = await window.MK_API.ghProviderStatus().catch(() => null); } catch (_) {}
+    let plans = [];
+    try { const r = await window.MK_API.ghPlans(); plans = (r && r.plans) || []; } catch (_) {}
+
+    let html = '<h1 class="mk-page-title">' + esc(t('gh_title')) + '</h1>';
+    if (provider && provider.status === 'BLOCKED') {
+      html += ghBanner('error', esc(t('gh_provider_blocked')));
+    }
+    html += '<h2>' + esc(t('gh_plans')) + '</h2>';
+    if (!plans.length) {
+      html += '<div class="mk-empty">' + esc(t('gh_no_plans')) + '</div>';
+    } else {
+      html += '<div class="mk-grid">';
+      plans.forEach((p) => {
+        html += '<div class="mk-card">' +
+          '<div class="mk-card-body">' +
+            '<div class="mk-card-name">' + esc(p.name) + '</div>' +
+            '<div class="mk-card-price">' + esc(money(p.pricePerMonth)) + ' / ' + esc(t('gh_price_month').split('/')[1] || 'mo') + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('gh_game_title')) + ': ' + esc(p.gameTitle) + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('gh_max_players')) + ': ' + esc(p.maxPlayers) + '</div>' +
+            (p.region ? '<div class="mk-card-stock">' + esc(t('gh_region')) + ': ' + esc(p.region) + '</div>' : '') +
+            '<a class="mk-btn" href="#/game-hosting/provision?planId=' + encodeURIComponent(p.id) + '">' + esc(t('gh_provision')) + '</a>' +
+          '</div>' +
+        '</div>';
+      });
+      html += '</div>';
+    }
+    setApp(html);
+  }
+
+  async function pageGameHostingProvision() {
+    const params = new URLSearchParams(location.hash.split('?')[1] || '');
+    const planId = params.get('planId') || '';
+    if (!planId) { location.hash = '#/game-hosting'; return; }
+
+    setApp('<div class="mk-loading">' + esc(t('loading')) + '</div>');
+    let plan = null;
+    try { plan = await window.MK_API.ghPlan(planId).catch(() => null); } catch (_) {}
+    if (!plan) { setApp('<h1 class="mk-page-title">' + esc(t('product_not_found')) + '</h1><p><a href="#/game-hosting">' + esc(t('gh_back_to_plans')) + '</a></p>'); return; }
+
+    let html = '<h1 class="mk-page-title">' + esc(t('gh_provision')) + '</h1>';
+    html += '<p>' + esc(t('gh_plan_name')) + ': <strong>' + esc(plan.name) + '</strong> — ' + esc(plan.gameTitle) + '</p>';
+    if (!window.MK_API.isAuthed()) {
+      html += ghBanner('error', esc(t('gh_auth_required')) + ' <a href="#/account">' + esc(t('or_login')) + '</a>');
+    } else {
+      html += '<div class="mk-row"><div class="mk-col">';
+      html += '<div class="mk-field"><label>' + esc(t('gh_server_name')) + '</label><input class="mk-input" id="gh-srv-name"></div>';
+      html += '<div class="mk-field"><label>' + esc(t('gh_region')) + '</label><input class="mk-input" id="gh-srv-region" value="' + esc(plan.region || '') + '"></div>';
+      html += '<button class="mk-btn" id="gh-do-provision">' + esc(t('gh_provision')) + '</button>';
+      html += '<div id="gh-provision-msg"></div>';
+      html += '</div></div>';
+    }
+    html += '<p><a href="#/game-hosting">' + esc(t('gh_back_to_plans')) + '</a></p>';
+    setApp(html);
+
+    const btn = document.getElementById('gh-do-provision');
+    if (btn) {
+      btn.addEventListener('click', async () => {
+        const msg = document.getElementById('gh-provision-msg');
+        msg.innerHTML = '';
+        const serverName = document.getElementById('gh-srv-name').value.trim();
+        const region = document.getElementById('gh-srv-region').value.trim();
+        if (!serverName) { msg.innerHTML = ghBanner('error', t('gh_required_field')); return; }
+        btn.disabled = true; btn.textContent = t('please_wait');
+        try {
+          const res = await window.MK_API.ghCreateProvisioningRequest({ planId: plan.id, serverName, region });
+          const prov = (res && res.provider) || null;
+          let out = ghBanner('success', esc(t('gh_create_success')));
+          if (prov && prov.status === 'BLOCKED') {
+            out += ghBanner('error', esc(t('gh_provisioning_requested')));
+          }
+          msg.innerHTML = out;
+          btn.disabled = false; btn.textContent = t('gh_provision');
+        } catch (e) {
+          msg.innerHTML = ghBanner('error', esc(e.message || t('gh_create_failed')));
+          btn.disabled = false; btn.textContent = t('gh_provision');
+        }
+      });
+    }
+  }
+
+  async function pageGameHostingMyServers() {
+    if (!window.MK_API.isAuthed()) {
+      setApp('<h1 class="mk-page-title">' + esc(t('gh_my_servers')) + '</h1>' + ghBanner('error', esc(t('gh_auth_required')) + ' <a href="#/account">' + esc(t('or_login')) + '</a>'));
+      return;
+    }
+    setApp('<div class="mk-loading">' + esc(t('loading')) + '</div>');
+    let servers = [];
+    try { const r = await window.MK_API.ghServers(); servers = (r && r.servers) || []; } catch (_) {}
+
+    let html = '<h1 class="mk-page-title">' + esc(t('gh_my_servers')) + '</h1>';
+    html += '<p><a class="mk-btn secondary" href="#/game-hosting">' + esc(t('gh_back_to_plans')) + '</a></p>';
+    if (!servers.length) {
+      html += '<div class="mk-empty">' + esc(t('gh_no_servers')) + '</div>';
+    } else {
+      html += '<div class="mk-grid">';
+      servers.forEach((s) => {
+        html += '<div class="mk-card">' +
+          '<div class="mk-card-body">' +
+            '<div class="mk-card-name">' + esc(s.serverName) + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('gh_status')) + ': ' + ghStatusLabel(s.status).replace(/<[^>]+>/g, '') + '</div>' +
+            (s.region ? '<div class="mk-card-stock">' + esc(t('gh_region')) + ': ' + esc(s.region) + '</div>' : '') +
+            '<a class="mk-btn" href="#/game-hosting/servers/' + encodeURIComponent(s.id) + '">' + esc(t('gh_server_details')) + '</a>' +
+          '</div>' +
+        '</div>';
+      });
+      html += '</div>';
+    }
+    setApp(html);
+  }
+
+  async function pageGameHostingServer(id) {
+    if (!window.MK_API.isAuthed()) { location.hash = '#/account'; return; }
+    setApp('<div class="mk-loading">' + esc(t('loading')) + '</div>');
+    let server = null;
+    try { server = await window.MK_API.ghServer(id).catch(() => null); } catch (_) {}
+    if (!server) { setApp('<h1 class="mk-page-title">' + esc(t('gh_server_details')) + '</h1><div class="mk-empty">' + esc(t('gh_server_not_found')) + '</div><p><a href="#/game-hosting/my-servers">' + esc(t('gh_back_to_servers')) + '</a></p>'); return; }
+
+    let html = '<h1 class="mk-page-title">' + esc(server.serverName) + '</h1>';
+    html += '<p><a href="#/game-hosting/my-servers">' + esc(t('gh_back_to_servers')) + '</a></p>';
+    html += '<div class="mk-row"><div class="mk-col">';
+    html += '<div class="mk-order-card">';
+    html += '<div><strong>' + esc(t('gh_status')) + ':</strong> ' + ghStatusLabel(server.status) + '</div>';
+    if (server.region) html += '<div><strong>' + esc(t('gh_region')) + ':</strong> ' + esc(server.region) + '</div>';
+    if (server.planId) html += '<div><strong>' + esc(t('gh_plan_name')) + ':</strong> ' + esc(server.planId) + '</div>';
+    html += '</div>';
+    html += '<div class="mk-summary" style="margin-top:16px"><div class="mk-summary-row"><span>' + esc(t('gh_actions')) + '</span><span id="gh-lifecycle-btns"></span></div></div>';
+    html += '<div id="gh-server-msg" style="margin-top:12px"></div>';
+    html += '</div><div class="mk-col">';
+    html += '<div class="mk-field" style="max-width:360px"><label>' + esc(t('gh_server_name')) + '</label><input class="mk-input" id="gh-edit-name" value="' + esc(server.serverName) + '"></div>';
+    html += '<div class="mk-field" style="max-width:360px"><label>' + esc(t('gh_region')) + '</label><input class="mk-input" id="gh-edit-region" value="' + esc(server.region || '') + '"></div>';
+    html += '<button class="mk-btn" id="gh-save">' + esc(t('save')) + '</button>';
+    html += '<button class="mk-btn danger" id="gh-del">' + esc(t('remove')) + '</button>';
+    html += '<div id="gh-edit-msg"></div>';
+    html += '</div></div>';
+    setApp(html);
+
+    const actions = document.getElementById('gh-lifecycle-btns');
+    const currentStatus = server.status;
+    if (currentStatus === 'running') {
+      actions.innerHTML = '<button class="mk-btn" id="gh-btn-stop">' + esc(t('gh_lifecycle_stop')) + '</button> ' +
+        '<button class="mk-btn danger" id="gh-btn-term">' + esc(t('gh_lifecycle_terminate')) + '</button>';
+    } else if (currentStatus === 'stopped') {
+      actions.innerHTML = '<button class="mk-btn" id="gh-btn-start">' + esc(t('gh_lifecycle_start')) + '</button> ' +
+        '<button class="mk-btn danger" id="gh-btn-term">' + esc(t('gh_lifecycle_terminate')) + '</button>';
+    } else if (currentStatus === 'pending' || currentStatus === 'provisioning' || currentStatus === 'error') {
+      actions.innerHTML = '<button class="mk-btn danger" id="gh-btn-term">' + esc(t('gh_lifecycle_terminate')) + '</button>';
+    }
+
+    const bind = (elId, fn) => { const el = document.getElementById(elId); if (el) el.addEventListener('click', fn); };
+    const msgEl = document.getElementById('gh-server-msg');
+
+    bind('gh-btn-stop', async () => {
+      msgEl.innerHTML = '';
+      try { await window.MK_API.ghStopServer(id); render(); }
+      catch (e) { msgEl.innerHTML = ghBanner('error', esc(e.message || t('gh_action_failed'))); }
+    });
+    bind('gh-btn-start', async () => {
+      msgEl.innerHTML = '';
+      try { await window.MK_API.ghStartServer(id); render(); }
+      catch (e) { msgEl.innerHTML = ghBanner('error', esc(e.message || t('gh_action_failed'))); }
+    });
+    bind('gh-btn-term', async () => {
+      if (!confirm(t('gh_delete_confirm'))) return;
+      msgEl.innerHTML = '';
+      try { await window.MK_API.ghTerminateServer(id); render(); }
+      catch (e) { msgEl.innerHTML = ghBanner('error', esc(e.message || t('gh_action_failed'))); }
+    });
+
+    document.getElementById('gh-save').addEventListener('click', async () => {
+      const msg = document.getElementById('gh-edit-msg');
+      msg.innerHTML = '';
+      const name = document.getElementById('gh-edit-name').value.trim();
+      const region = document.getElementById('gh-edit-region').value.trim();
+      if (!name) { msg.innerHTML = ghBanner('error', t('gh_required_field')); return; }
+      try {
+        await window.MK_API.ghUpdateServer(id, { serverName: name, region });
+        msg.innerHTML = ghBanner('success', t('gh_update_success'));
+      } catch (e) {
+        msg.innerHTML = ghBanner('error', esc(e.message || t('gh_update_failed')));
+      }
+    });
+    document.getElementById('gh-del').addEventListener('click', async () => {
+      if (!confirm(t('gh_delete_confirm'))) return;
+      const msg = document.getElementById('gh-edit-msg');
+      msg.innerHTML = '';
+      try {
+        await window.MK_API.ghDeleteServer(id);
+        location.hash = '#/game-hosting/my-servers';
+      } catch (e) {
+        msg.innerHTML = ghBanner('error', esc(e.message || t('gh_delete_failed')));
+      }
+    });
+  }
+
   // ---------- Router ----------
 
   function debounce(fn, ms) {
@@ -433,6 +651,12 @@
     updateCartBadge();
     applyI18n();
     try {
+      if (path === 'game-hosting') {
+        if (param === 'my-servers') return pageGameHostingMyServers();
+        if (param === 'servers') return pageGameHostingServer(decodeURIComponent(location.hash.split('/')[3] || ''));
+        if (param === 'provision' || (typeof param === 'string' && param.startsWith('provision'))) return pageGameHostingProvision();
+        return pageGameHosting();
+      }
       if (path === 'catalog') return pageCatalog();
       if (path === 'product') return pageProduct(param);
       if (path === 'cart') return pageCart();

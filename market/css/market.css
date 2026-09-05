@@ -135,3 +135,18 @@ body {
 .mk-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; background: #eef2ff; color: var(--mk-primary); }
 
 .mk-empty { text-align: center; color: var(--mk-muted); padding: 40px 0; }
+
+.mk-card-stock { font-size: 12px; color: var(--mk-muted); margin-top: 4px; }
+
+.gh-provider-banner { margin-bottom: 16px; }
+.gh-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.gh-server-card { background: var(--mk-card); border: 1px solid var(--mk-border); border-radius: var(--mk-radius); padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.gh-server-card .gh-server-name { font-weight: 700; font-size: 16px; }
+.gh-server-card .gh-server-meta { font-size: 13px; color: var(--mk-muted); }
+.gh-server-card .gh-server-actions { margin-top: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+.gh-server-card .mk-btn { font-size: 13px; padding: 8px 12px; }
+.gh-detail-panel { background: var(--mk-card); border: 1px solid var(--mk-border); border-radius: var(--mk-radius); padding: 16px; margin-bottom: 16px; }
+.gh-detail-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--mk-border); }
+.gh-detail-row:last-child { border-bottom: none; }
+.gh-lifecycle-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.gh-provision-card { background: var(--mk-card); border: 1px solid var(--mk-border); border-radius: var(--mk-radius); padding: 16px; max-width: 480px; }

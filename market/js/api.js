@@ -56,6 +56,20 @@ window.MK_API = (function () {
     changePassword: (p) => req('POST', '/customers/me/password', p),
     checkout: (p) => req('POST', '/checkout', p),
     track: (token) => req('GET', '/track/' + encodeURIComponent(token)),
-    myOrders: () => req('GET', '/orders')
+    myOrders: () => req('GET', '/orders'),
+    // Game Hosting
+    ghProviderStatus: () => req('GET', '/game-hosting/provider/status'),
+    ghPlans: (q) => req('GET', '/game-hosting/plans?' + new URLSearchParams(q || {}).toString()),
+    ghPlan: (id) => req('GET', '/game-hosting/plans/' + encodeURIComponent(id)),
+    ghServers: (q) => req('GET', '/game-hosting/servers?' + new URLSearchParams(q || {}).toString()),
+    ghServer: (id) => req('GET', '/game-hosting/servers/' + encodeURIComponent(id)),
+    ghCreateServer: (p) => req('POST', '/game-hosting/servers', p),
+    ghUpdateServer: (id, p) => req('PUT', '/game-hosting/servers/' + encodeURIComponent(id), p),
+    ghDeleteServer: (id) => req('DELETE', '/game-hosting/servers/' + encodeURIComponent(id)),
+    ghStartServer: (id) => req('POST', '/game-hosting/servers/' + encodeURIComponent(id) + '/start'),
+    ghStopServer: (id) => req('POST', '/game-hosting/servers/' + encodeURIComponent(id) + '/stop'),
+    ghTerminateServer: (id) => req('POST', '/game-hosting/servers/' + encodeURIComponent(id) + '/terminate'),
+    ghProvisioningRequests: () => req('GET', '/game-hosting/provisioning-requests'),
+    ghCreateProvisioningRequest: (p) => req('POST', '/game-hosting/provisioning-requests', p)
   };
 })();
