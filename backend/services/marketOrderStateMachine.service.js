@@ -41,7 +41,10 @@
 //     of every other Market service.
 
 const BaseRepository = require('../repositories/BaseRepository');
+const { v4: uuidv4 } = require('uuid');
 const orderRepository = new BaseRepository('marketOrders');
+const productsRepository = new BaseRepository('products');
+const inventoryTxRepository = new BaseRepository('inventoryTransactions');
 
 // === States ===
 // V1 supports exactly two order states and two payment states.
@@ -137,6 +140,73 @@ async function _saveOrder(updated) {
   return orderRepository.writeAsync(db);
 }
 
+// M3 — Inventory restoration on cancellation.
+//
+// When an order is cancelled, the items that were decremented from stock
+// at checkout must be returned. This is the P0 inventory-consistency
+// requirement. The flow is:
+//
+//   1. For each item in the order, increment products.stockQty by item.qty.
+//   2. Append an inventory transaction of type 'in' with reason
+//      'market-cancel' so the inventory ledger reflects the restoration.
+//
+// Both writes go to the same products store and the same
+// inventoryTransactions store. We read both once, mutate both, write both.
+// If either write fails, we return persist_failed and the caller leaves
+// the order in its previous state (the order save is the LAST step).
+//
+// The `tenantId` is stamped on the inventory transaction from the
+// trusted server context (the order's own tenantId, which was already
+// verified to match the caller's tenantId in the ownership check above).
+async function _restoreInventory(order) {
+  if (!order || !Array.isArray(order.items) || order.items.length === 0) {
+    return { ok: true, txIds: [], stockDelta: {} };
+  }
+  const pdb = await productsRepository._rawStoreAsync();
+  const tdb = await inventoryTxRepository._rawStoreAsync();
+  if (!pdb.products) pdb.products = [];
+  if (!tdb.transactions) tdb.transactions = [];
+
+  const stockDelta = {};
+  const txIds = [];
+  const now = new Date().toISOString();
+  for (const item of order.items) {
+    if (!item || !item.productId || !item.qty) continue;
+    const product = pdb.products.find((p) => String(p.id) === String(item.productId));
+    if (!product) {
+      // The product was deleted from the global store after the order
+      // was placed. We cannot restore stock to a missing product. Skip
+      // the stock increment for this item but still record the
+      // transaction so the audit trail is complete.
+      stockDelta[item.productId] = 0;
+    } else {
+      const currentStock = Number(product.stockQty) || 0;
+      product.stockQty = currentStock + Number(item.qty);
+      stockDelta[item.productId] = Number(item.qty);
+    }
+    const txId = uuidv4();
+    txIds.push(txId);
+    tdb.transactions.push({
+      id: txId,
+      productId: String(item.productId),
+      type: 'in',
+      qty: Number(item.qty),
+      stockAfter: product ? Number(product.stockQty) || 0 : null,
+      user: 'market',
+      reason: 'market-cancel',
+      tenantId: String(order.tenantId),
+      orderId: order.id,
+      createdAt: now,
+      updatedAt: now
+    });
+  }
+  const pOk = await productsRepository.writeAsync(pdb);
+  if (!pOk) return { ok: false, error: 'products_write_failed' };
+  const tOk = await inventoryTxRepository.writeAsync(tdb);
+  if (!tOk) return { ok: false, error: 'transactions_write_failed' };
+  return { ok: true, txIds, stockDelta };
+}
+
 // === Public service API ===
 
 // cancelOrder — the V1 customer-initiated cancellation transition.
@@ -184,6 +254,16 @@ async function cancelOrder({ orderId, customerId, tenantId, reason } = {}) {
     return { error: 'invalid_state', current: order.status, detail: check.error };
   }
 
+  // M3 — Restore inventory BEFORE saving the order as cancelled.
+  // If this fails, the order stays in 'received' state and no
+  // cancellation is recorded. If it succeeds but the order save fails,
+  // we compensate by re-decrementing the stock and removing the
+  // 'in' transactions.
+  const restore = await _restoreInventory(order);
+  if (!restore.ok) {
+    return { error: 'inventory_restore_failed', detail: restore.error };
+  }
+
   // Build the updated record. EVERY field is server-computed. The
   // client's `reason` is stored as metadata only; it cannot
   // influence the state.
@@ -193,11 +273,42 @@ async function cancelOrder({ orderId, customerId, tenantId, reason } = {}) {
     paymentStatus: 'cancelled',
     cancelledAt: now,
     cancellationReason: typeof reason === 'string' ? reason.slice(0, 500) : null,
+    restoredTxIds: restore.txIds,
     updatedAt: now
   });
 
   const ok = await _saveOrder(updated);
-  if (!ok) return { error: 'persist_failed' };
+  if (!ok) {
+    // M3 — Compensate the inventory restoration. Re-decrement stock
+    // and remove the 'in' transactions we just appended.
+    try {
+      const pdb = await productsRepository._rawStoreAsync();
+      if (pdb.products) {
+        for (const [productId, qty] of Object.entries(restore.stockDelta)) {
+          if (!qty) continue;
+          const product = pdb.products.find((p) => String(p.id) === String(productId));
+          if (product) {
+            product.stockQty = (Number(product.stockQty) || 0) - Number(qty);
+          }
+        }
+        await productsRepository.writeAsync(pdb);
+      }
+      const tdb = await inventoryTxRepository._rawStoreAsync();
+      if (tdb.transactions) {
+        const ids = new Set(restore.txIds);
+        tdb.transactions = tdb.transactions.filter((t) => !ids.has(t.id));
+        await inventoryTxRepository.writeAsync(tdb);
+      }
+    } catch (compErr) {
+      // Log the compensation failure but still report the original error.
+      // The system is now in a recovery-required state.
+      return {
+        error: 'persist_failed',
+        detail: 'order_save_failed_and_inventory_compensation_failed: ' + compErr.message
+      };
+    }
+    return { error: 'persist_failed' };
+  }
   return { order: updated };
 }
 

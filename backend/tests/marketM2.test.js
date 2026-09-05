@@ -421,7 +421,7 @@ describe('M2 regression — M1 checkout and compensation still work', () => {
     expect(readBack.body.data.status).toBe('cancelled');
   });
 
-  test('cancelOrder does not modify products, inventoryTransactions, or sales', async () => {
+  test('cancelOrder restores stock and adds a compensating inventory transaction (M3)', async () => {
     const reg = await request(server.app)
       .post('/api/v1/market/auth/register')
       .set('X-Tenant-Id', TENANT_A)
@@ -461,12 +461,18 @@ describe('M2 regression — M1 checkout and compensation still work', () => {
       tx: (readStore('inventoryTransactions') || { transactions: [] }).transactions.length,
       sales: (readStore('sales') || { invoices: [] }).invoices.length
     };
-    // Cancel must NOT touch products, tx, or sales. (M2 deliberately
-    // does not restore stock on cancel; the original sale is still on
-    // the books. Restoring stock is a separate business decision that
-    // is out of M2 scope.)
-    expect(afterCancel.products.products.find((p) => p.id === 'P1').stockQty).toBe(stockBeforeCancel);
-    expect(afterCancel.tx).toBe(afterCo.tx);
+    // M3 — Cancel MUST restore stock and add a compensating 'in' transaction.
+    // Stock goes back to the pre-checkout level; one 'in' tx is added; sales is unchanged.
+    const stockAfterCancel = afterCancel.products.products.find((p) => p.id === 'P1').stockQty;
+    expect(stockAfterCancel).toBe(stockBeforeCancel + 1);
+    expect(afterCancel.tx).toBe(afterCo.tx + 1);
     expect(afterCancel.sales).toBe(afterCo.sales);
+    // The new transaction must be type 'in' with reason 'market-cancel'
+    const allTx = (readStore('inventoryTransactions') || { transactions: [] }).transactions;
+    const newTx = allTx.find((t) => t.reason === 'market-cancel' && t.orderId === order.id);
+    expect(newTx).toBeTruthy();
+    expect(newTx.type).toBe('in');
+    expect(newTx.qty).toBe(1);
+    expect(String(newTx.tenantId)).toBe(TENANT_A);
   });
 });
