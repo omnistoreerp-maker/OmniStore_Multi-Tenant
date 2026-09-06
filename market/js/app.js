@@ -489,15 +489,16 @@
 
   function ghStatusLabel(s) {
     const map = {
-      pending: t('gh_status'),
-      provisioning: 'Provisioning',
-      running: 'Running',
-      stopped: 'Stopped',
-      terminated: 'Terminated',
-      error: 'Error'
+      pending: t('gh_status_pending'),
+      provisioning: t('gh_status_provisioning'),
+      running: t('gh_status_running'),
+      stopped: t('gh_status_stopped'),
+      terminated: t('gh_status_terminated'),
+      error: t('gh_status_error'),
+      blocked: t('gh_status_blocked')
     };
     const label = (map[s] || t('gh_unknown_status')) + ' (' + esc(s) + ')';
-    const cls = s === 'running' ? 'success' : s === 'error' || s === 'terminated' ? 'error' : '';
+    const cls = s === 'running' ? 'success' : s === 'error' || s === 'terminated' ? 'error' : s === 'pending' || s === 'provisioning' ? 'warning' : s === 'blocked' ? 'danger' : 'neutral';
     return '<span class="mk-badge ' + cls + '">' + esc(label) + '</span>';
   }
 
@@ -508,20 +509,21 @@
     let plans = [];
     try { const r = await window.MK_API.ghPlans(); plans = (r && r.plans) || []; } catch (_) {}
 
-    let html = '<h1 class="mk-page-title">' + esc(t('gh_title')) + '</h1>';
+    let html = '<h1 class="mk-page-title">' + esc(t('gh_hero_title')) + '</h1>';
+    html += '<p class="mk-page-sub">' + esc(t('gh_hero_sub')) + '</p>';
     if (provider && provider.status === 'BLOCKED') {
       html += ghBanner('error', esc(t('gh_provider_blocked')));
     }
     html += '<h2>' + esc(t('gh_plans')) + '</h2>';
     if (!plans.length) {
-      html += '<div class="mk-empty">' + esc(t('gh_no_plans')) + '</div>';
+      html += '<div class="mk-empty"><div class="mk-empty-title">' + esc(t('gh_no_plans')) + '</div></div>';
     } else {
       html += '<div class="mk-grid">';
       plans.forEach((p) => {
         html += '<div class="mk-card">' +
           '<div class="mk-card-body">' +
             '<div class="mk-card-name">' + esc(p.name) + '</div>' +
-            '<div class="mk-card-price">' + esc(money(p.pricePerMonth)) + ' / ' + esc(t('gh_price_month').split('/')[1] || 'mo') + '</div>' +
+            '<div class="mk-card-price">' + esc(money(p.pricePerMonth)) + ' <small>/ ' + esc(t('gh_billing_period')) + '</small></div>' +
             '<div class="mk-card-stock">' + esc(t('gh_game_title')) + ': ' + esc(p.gameTitle) + '</div>' +
             '<div class="mk-card-stock">' + esc(t('gh_max_players')) + ': ' + esc(p.maxPlayers) + '</div>' +
             (p.region ? '<div class="mk-card-stock">' + esc(t('gh_region')) + ': ' + esc(p.region) + '</div>' : '') +
@@ -544,19 +546,25 @@
     try { plan = await window.MK_API.ghPlan(planId).catch(() => null); } catch (_) {}
     if (!plan) { setApp('<h1 class="mk-page-title">' + esc(t('product_not_found')) + '</h1><p><a href="#/game-hosting">' + esc(t('gh_back_to_plans')) + '</a></p>'); return; }
 
-    let html = '<h1 class="mk-page-title">' + esc(t('gh_provision')) + '</h1>';
-    html += '<p>' + esc(t('gh_plan_name')) + ': <strong>' + esc(plan.name) + '</strong> — ' + esc(plan.gameTitle) + '</p>';
+    let html = '<h1 class="mk-page-title">' + esc(t('gh_provision_title')) + '</h1>';
+    html += '<div class="mk-order-card">';
+    html += '<div class="mk-summary-title">' + esc(t('gh_provision_summary_title')) + '</div>';
+    html += '<div class="mk-summary-row"><span>' + esc(t('gh_plan_name')) + '</span><span>' + esc(plan.name) + '</span></div>';
+    html += '<div class="mk-summary-row"><span>' + esc(t('gh_game_title')) + '</span><span>' + esc(plan.gameTitle) + '</span></div>';
+    html += '<div class="mk-summary-row"><span>' + esc(t('gh_price_month')) + '</span><span>' + esc(money(plan.pricePerMonth)) + '</span></div>';
+    html += '</div>';
     if (!window.MK_API.isAuthed()) {
       html += ghBanner('error', esc(t('gh_auth_required')) + ' <a href="#/account">' + esc(t('or_login')) + '</a>');
     } else {
+      html += '<h2>' + esc(t('gh_provision_title')) + '</h2>';
       html += '<div class="mk-row"><div class="mk-col">';
-      html += '<div class="mk-field"><label>' + esc(t('gh_server_name')) + '</label><input class="mk-input" id="gh-srv-name"></div>';
-      html += '<div class="mk-field"><label>' + esc(t('gh_region')) + '</label><input class="mk-input" id="gh-srv-region" value="' + esc(plan.region || '') + '"></div>';
-      html += '<button class="mk-btn" id="gh-do-provision">' + esc(t('gh_provision')) + '</button>';
+      html += '<div class="mk-field"><label>' + esc(t('gh_provision_server_name')) + '</label><input class="mk-input" id="gh-srv-name"></div>';
+      html += '<div class="mk-field"><label>' + esc(t('gh_provision_region')) + '</label><input class="mk-input" id="gh-srv-region" value="' + esc(plan.region || '') + '"></div>';
+      html += '<button class="mk-btn" id="gh-do-provision">' + esc(t('gh_provision_submit')) + '</button>';
       html += '<div id="gh-provision-msg"></div>';
       html += '</div></div>';
     }
-    html += '<p><a href="#/game-hosting">' + esc(t('gh_back_to_plans')) + '</a></p>';
+    html += '<p><a href="#/game-hosting">' + esc(t('gh_provision_back')) + '</a></p>';
     setApp(html);
 
     const btn = document.getElementById('gh-do-provision');
@@ -576,10 +584,10 @@
             out += ghBanner('error', esc(t('gh_provisioning_requested')));
           }
           msg.innerHTML = out;
-          btn.disabled = false; btn.textContent = t('gh_provision');
+          btn.disabled = false; btn.textContent = t('gh_provision_submit');
         } catch (e) {
           msg.innerHTML = ghBanner('error', esc(e.message || t('gh_create_failed')));
-          btn.disabled = false; btn.textContent = t('gh_provision');
+          btn.disabled = false; btn.textContent = t('gh_provision_submit');
         }
       });
     }
@@ -597,7 +605,7 @@
     let html = '<h1 class="mk-page-title">' + esc(t('gh_my_servers')) + '</h1>';
     html += '<p><a class="mk-btn secondary" href="#/game-hosting">' + esc(t('gh_back_to_plans')) + '</a></p>';
     if (!servers.length) {
-      html += '<div class="mk-empty">' + esc(t('gh_no_servers')) + '</div>';
+      html += '<div class="mk-empty"><div class="mk-empty-title">' + esc(t('gh_empty_servers_title')) + '</div><div class="mk-empty-sub">' + esc(t('gh_empty_servers_sub')) + '</div><a class="mk-btn" href="#/game-hosting">' + esc(t('gh_empty_servers_cta')) + '</a></div>';
     } else {
       html += '<div class="mk-grid">';
       servers.forEach((s) => {
@@ -626,18 +634,29 @@
     html += '<p><a href="#/game-hosting/my-servers">' + esc(t('gh_back_to_servers')) + '</a></p>';
     html += '<div class="mk-row"><div class="mk-col">';
     html += '<div class="mk-order-card">';
-    html += '<div><strong>' + esc(t('gh_status')) + ':</strong> ' + ghStatusLabel(server.status) + '</div>';
-    if (server.region) html += '<div><strong>' + esc(t('gh_region')) + ':</strong> ' + esc(server.region) + '</div>';
-    if (server.planId) html += '<div><strong>' + esc(t('gh_plan_name')) + ':</strong> ' + esc(server.planId) + '</div>';
+    html += '<div class="mk-summary-title">' + esc(t('gh_details_section_identity')) + '</div>';
+    html += '<div class="mk-summary-row"><span>' + esc(t('gh_plan_name')) + '</span><span>' + esc(server.planId) + '</span></div>';
+    html += '<div class="mk-summary-row"><span>' + esc(t('gh_region')) + '</span><span>' + esc(server.region || '-') + '</span></div>';
+    html += '<div class="mk-summary-row"><span>' + esc(t('gh_details_label_owner')) + '</span><span>' + esc(server.ownerId || '-') + '</span></div>';
+    html += '<div class="mk-summary-row"><span>' + esc(t('gh_details_label_updated')) + '</span><span>' + esc(server.updatedAt ? new Date(server.updatedAt).toLocaleString() : '-') + '</span></div>';
     html += '</div>';
-    html += '<div class="mk-summary" style="margin-top:16px"><div class="mk-summary-row"><span>' + esc(t('gh_actions')) + '</span><span id="gh-lifecycle-btns"></span></div></div>';
+    html += '<div class="mk-order-card" style="margin-top:12px">';
+    html += '<div class="mk-summary-title">' + esc(t('gh_details_section_status')) + '</div>';
+    html += '<div class="mk-summary-row"><span>' + esc(t('gh_status')) + '</span><span>' + ghStatusLabel(server.status) + '</span></div>';
+    html += '</div>';
+    html += '<div class="mk-summary" style="margin-top:12px"><div class="mk-summary-row"><span>' + esc(t('gh_details_section_lifecycle')) + '</span><span id="gh-lifecycle-btns"></span></div></div>';
     html += '<div id="gh-server-msg" style="margin-top:12px"></div>';
     html += '</div><div class="mk-col">';
+    html += '<div class="mk-order-card">';
+    html += '<div class="mk-summary-title">' + esc(t('gh_details_section_identity')) + '</div>';
     html += '<div class="mk-field" style="max-width:360px"><label>' + esc(t('gh_server_name')) + '</label><input class="mk-input" id="gh-edit-name" value="' + esc(server.serverName) + '"></div>';
     html += '<div class="mk-field" style="max-width:360px"><label>' + esc(t('gh_region')) + '</label><input class="mk-input" id="gh-edit-region" value="' + esc(server.region || '') + '"></div>';
     html += '<button class="mk-btn" id="gh-save">' + esc(t('save')) + '</button>';
     html += '<button class="mk-btn danger" id="gh-del">' + esc(t('remove')) + '</button>';
     html += '<div id="gh-edit-msg"></div>';
+    html += '<div class="mk-summary-title" style="margin-top:16px">' + esc(t('gh_details_section_danger')) + '</div>';
+    html += '<p style="color:var(--mk-muted)">' + esc(t('gh_delete_confirm')) + '</p>';
+    html += '</div>';
     html += '</div></div>';
     setApp(html);
 

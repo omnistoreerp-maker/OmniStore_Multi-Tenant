@@ -340,6 +340,25 @@ h3 { font-size: 16px; font-weight: 700; margin: 16px 0 8px; }
 .gh-lifecycle-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 .gh-provision-card { background: var(--mk-card); border: 1px solid var(--mk-border); border-radius: var(--mk-radius); padding: 16px; max-width: 480px; }
 
+/* Game Hosting landing */
+.mk-page-sub { color: var(--mk-muted); margin: -8px 0 20px; font-size: 15px; }
+
+/* Provision */
+.mk-summary-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--mk-muted); margin: 0 0 10px; }
+
+/* Status badges */
+.mk-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: #eef2ff; color: var(--mk-primary); border: 1px solid transparent; }
+.mk-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .85; }
+.mk-badge.success { background: #f0fdf4; color: var(--mk-success); border-color: #bbf7d0; }
+.mk-badge.error { background: #fef2f2; color: var(--mk-danger); border-color: #fecaca; }
+.mk-badge.warning { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+.mk-badge.neutral { background: #f3f4f6; color: #374151; border-color: #d1d5db; }
+.mk-badge.danger { background: #fef2f2; color: var(--mk-danger); border-color: #fecaca; }
+.mk-badge.info { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+
+/* Empty state CTA alignment */
+.mk-empty .mk-btn { margin-top: 10px; }
+
 /* Responsive */
 @media (max-width: 768px) {
   .mk-header-inner { height: auto; min-height: 56px; padding: 8px 0; flex-wrap: wrap; }
