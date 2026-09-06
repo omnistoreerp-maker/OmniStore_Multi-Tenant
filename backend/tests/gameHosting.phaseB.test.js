@@ -27,6 +27,9 @@ let tokenA;
 let customerIdA;
 let tokenB;
 let customerIdB;
+let operatorTokenA;
+let operatorIdA;
+let marketAuthService;
 
 registerCleanup(() => [server], () => [dataDir]);
 
@@ -69,7 +72,7 @@ async function registerCustomer(tenantId) {
     .set('X-Tenant-Id', tenantId)
     .send({ email, password: 'Secret123' });
   expect(res.statusCode).toBe(201);
-  return { token: res.body.data.token, customerId: res.body.data.customer.id };
+  return { token: res.body.data.token, customerId: res.body.data.customer.id, email };
 }
 
 async function createPlan(tenantId, token, name) {
@@ -92,9 +95,23 @@ async function createServer(tenantId, token, planId, serverName) {
   return res.body.data;
 }
 
+async function createEntitlement(tenantId, customerId, planId) {
+  const now = new Date();
+  const startsAt = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
+  const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const res = await request(server.app)
+    .post('/api/v1/game-hosting/entitlements')
+    .set('X-Tenant-Id', tenantId)
+    .set('Authorization', 'Bearer ' + operatorTokenA)
+    .send({ customerId, planId, status: 'active', startsAt, expiresAt });
+  expect(res.statusCode).toBe(201);
+  return res.body.data;
+}
+
 beforeAll(async () => {
   dataDir = makeTempDataDir('gameHostingPhaseB');
   server = await startServer(dataDir);
+  marketAuthService = require('../services/marketAuth.service');
   ensureMarketConfig(TENANT_A);
   ensureMarketConfig(TENANT_B);
   const a = await registerCustomer(TENANT_A);
@@ -103,6 +120,12 @@ beforeAll(async () => {
   customerIdA = a.customerId;
   tokenB = b.token;
   customerIdB = b.customerId;
+  const op = await registerCustomer(TENANT_A);
+  operatorIdA = op.customerId;
+  marketAuthService.setOperatorRole(operatorIdA, TENANT_A, 'operator');
+  const customer = marketAuthService.getById(operatorIdA);
+  const { signCustomerToken } = require('../utils/marketJwt');
+  operatorTokenA = signCustomerToken(customer);
 });
 
 describe('Phase B — Provider status', () => {
@@ -313,6 +336,7 @@ describe('Phase B — Server lifecycle (state machine)', () => {
 describe('Phase B — Provisioning requests (provider BLOCKED)', () => {
   test('POST /provisioning-requests records a request (provider BLOCKED)', async () => {
     const plan = await createPlan(TENANT_A, tokenA, 'Prov-Plan-' + Date.now());
+    await createEntitlement(TENANT_A, customerIdA, plan.id);
     const res = await request(server.app)
       .post('/api/v1/game-hosting/provisioning-requests')
       .set('X-Tenant-Id', TENANT_A)

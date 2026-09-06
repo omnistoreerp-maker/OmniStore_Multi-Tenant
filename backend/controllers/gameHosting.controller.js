@@ -31,6 +31,8 @@ const { success, error } = require('../utils/apiResponse');
 const gameHostingService = require('../services/gameHosting.service');
 const gameHostingProvider = require('./gameHostingProvider');
 const gameHostingStateMachine = require('./gameHostingStateMachine');
+const entitlementService = require('../services/gameHostingEntitlement.service');
+const auditService = require('../services/audit.service');
 
 function _tenantContext(req) {
   return { tenantId: req.marketTenant || null };
@@ -42,7 +44,8 @@ function _customerContext(req) {
     id: req.customer.id,
     tenantId: req.customer.tenantId,
     email: req.customer.email,
-    name: req.customer.name
+    name: req.customer.name,
+    role: req.customer.role || 'customer'
   };
 }
 
@@ -50,7 +53,12 @@ function _customerContext(req) {
 
 async function listPlans(req, res) {
   try {
-    const plans = await gameHostingService.listPlans({ tenantContext: _tenantContext(req) });
+    const cust = _customerContext(req);
+    const status = req.query.status;
+    const plans = await gameHostingService.listPlans({
+      tenantContext: _tenantContext(req),
+      status: status || (cust && cust.role !== 'operator' ? 'active' : null)
+    });
     return success(res, { plans }, 'Plans retrieved');
   } catch (err) {
     return error(res, 'Failed to list plans', 500);
@@ -103,7 +111,12 @@ async function deletePlan(req, res) {
 
 async function listServers(req, res) {
   try {
-    const servers = await gameHostingService.listServers({ query: req.query, tenantContext: _tenantContext(req) });
+    const cust = _customerContext(req);
+    const query = Object.assign({}, req.query);
+    if (cust && cust.role !== 'operator') {
+      query.customerId = cust.id;
+    }
+    const servers = await gameHostingService.listServers({ query, tenantContext: _tenantContext(req) });
     return success(res, { servers }, 'Servers retrieved');
   } catch (err) {
     return error(res, 'Failed to list servers', 500);
@@ -187,13 +200,12 @@ async function createProvisioningRequest(req, res) {
     if (cust) data.customerId = cust.id;
     const result = await gameHostingService.createProvisioningRequest({ data, tenantContext: _tenantContext(req) });
     if (result.error) return error(res, result.error, 400);
-    // Provider integration is BLOCKED. The request is recorded but
-    // no actual provisioning happens. The response includes the
-    // provider status so the frontend can show the deferred state.
-    return success(res, {
+    const payload = {
       request: result.request,
       provider: gameHostingProvider.getStatus()
-    }, 'Provisioning request recorded (provider integration blocked)', 201);
+    };
+    if (result.idempotent) payload.idempotent = true;
+    return success(res, payload, result.idempotent ? 'Provisioning request retrieved (idempotent)' : 'Provisioning request recorded (provider integration blocked)', 201);
   } catch (err) {
     return error(res, 'Failed to create provisioning request', 500);
   }
@@ -201,10 +213,69 @@ async function createProvisioningRequest(req, res) {
 
 async function listProvisioningRequests(req, res) {
   try {
-    const requests = await gameHostingService.listProvisioningRequests({ tenantContext: _tenantContext(req) });
+    const cust = _customerContext(req);
+    const customerId = cust && cust.role === 'operator' ? (req.query.customerId || null) : (cust ? cust.id : null);
+    const requests = await gameHostingService.listProvisioningRequests({
+      tenantContext: _tenantContext(req),
+      customerId: cust && cust.role !== 'operator' ? cust.id : null
+    });
     return success(res, { requests, provider: gameHostingProvider.getStatus() }, 'Provisioning requests retrieved');
   } catch (err) {
     return error(res, 'Failed to list provisioning requests', 500);
+  }
+}
+
+async function getProvisioningRequest(req, res) {
+  try {
+    const request = await gameHostingService.getProvisioningRequestById({ id: req.params.id, tenantContext: _tenantContext(req) });
+    if (!request) return error(res, 'Provisioning request not found', 404);
+    const cust = _customerContext(req);
+    if (cust && String(request.customerId) !== String(cust.id) && cust.role !== 'operator') {
+      return error(res, 'Provisioning request not found', 404);
+    }
+    return success(res, { request, provider: gameHostingProvider.getStatus() }, 'Provisioning request retrieved');
+  } catch (err) {
+    return error(res, 'Failed to get provisioning request', 500);
+  }
+}
+
+async function approveProvisioningRequest(req, res) {
+  try {
+    const request = await gameHostingService.getProvisioningRequestById({ id: req.params.id, tenantContext: _tenantContext(req) });
+    if (!request) return error(res, 'Provisioning request not found', 404);
+    if (String(request.status) !== 'pending') {
+      return error(res, 'Cannot approve request in status: ' + request.status, 409);
+    }
+    const result = await gameHostingService.updateProvisioningRequestStatus({
+      id: req.params.id,
+      status: 'approved',
+      providerStatus: { status: 'BLOCKED', reason: 'Provider integration is blocked. Approval recorded but provisioning is deferred.' },
+      tenantContext: _tenantContext(req)
+    });
+    if (result.error) return error(res, result.error, 400);
+    return success(res, { request: result.request, provider: gameHostingProvider.getStatus() }, 'Provisioning request approved (provider integration blocked)');
+  } catch (err) {
+    return error(res, 'Failed to approve provisioning request', 500);
+  }
+}
+
+async function rejectProvisioningRequest(req, res) {
+  try {
+    const request = await gameHostingService.getProvisioningRequestById({ id: req.params.id, tenantContext: _tenantContext(req) });
+    if (!request) return error(res, 'Provisioning request not found', 404);
+    if (String(request.status) !== 'pending') {
+      return error(res, 'Cannot reject request in status: ' + request.status, 409);
+    }
+    const result = await gameHostingService.updateProvisioningRequestStatus({
+      id: req.params.id,
+      status: 'rejected',
+      providerStatus: { status: 'BLOCKED', reason: 'Provider integration is blocked. Rejection recorded.' },
+      tenantContext: _tenantContext(req)
+    });
+    if (result.error) return error(res, result.error, 400);
+    return success(res, { request: result.request, provider: gameHostingProvider.getStatus() }, 'Provisioning request rejected');
+  } catch (err) {
+    return error(res, 'Failed to reject provisioning request', 500);
   }
 }
 
@@ -260,6 +331,69 @@ async function _lifecycleAction(req, res, action, targetStatus) {
   }
 }
 
+// === Operator: Entitlements ===
+
+async function listEntitlements(req, res) {
+  try {
+    const customerId = req.query.customerId || null;
+    const planId = req.query.planId || null;
+    const entitlements = await entitlementService.listEntitlements({ tenantContext: _tenantContext(req), customerId, planId });
+    return success(res, { entitlements }, 'Entitlements retrieved');
+  } catch (err) {
+    return error(res, 'Failed to list entitlements', 500);
+  }
+}
+
+async function createEntitlement(req, res) {
+  try {
+    const result = await entitlementService.createEntitlement({ data: req.body, tenantContext: _tenantContext(req) });
+    if (result.error) return error(res, result.error, 400);
+    return success(res, result.entitlement, 'Entitlement created', 201);
+  } catch (err) {
+    return error(res, 'Failed to create entitlement', 500);
+  }
+}
+
+async function updateEntitlement(req, res) {
+  try {
+    const result = await entitlementService.updateEntitlement({ id: req.params.id, data: req.body, tenantContext: _tenantContext(req) });
+    if (result.error === 'Entitlement not found') return error(res, 'Entitlement not found', 404);
+    if (result.error) return error(res, result.error, 400);
+    return success(res, result.entitlement, 'Entitlement updated');
+  } catch (err) {
+    return error(res, 'Failed to update entitlement', 500);
+  }
+}
+
+async function deleteEntitlement(req, res) {
+  try {
+    const result = await entitlementService.deleteEntitlement({ id: req.params.id, tenantContext: _tenantContext(req) });
+    if (result.error === 'Entitlement not found') return error(res, 'Entitlement not found', 404);
+    if (result.error) return error(res, result.error, 500);
+    return success(res, { deleted: true }, 'Entitlement deleted');
+  } catch (err) {
+    return error(res, 'Failed to delete entitlement', 500);
+  }
+}
+
+// === Operator: Audit log ===
+
+async function listAuditLog(req, res) {
+  try {
+    const result = auditService.query({
+      resource: 'game-hosting',
+      method: req.query.method,
+      startDate: req.query.startDate,
+      endDate: req.query.endDate,
+      page: req.query.page,
+      limit: req.query.limit
+    });
+    return success(res, result, 'Audit log retrieved');
+  } catch (err) {
+    return error(res, 'Failed to retrieve audit log', 500);
+  }
+}
+
 // === Provider status (for frontend transparency) ===
 
 async function providerStatus(req, res) {
@@ -282,10 +416,20 @@ module.exports = {
   // Provisioning
   createProvisioningRequest,
   listProvisioningRequests,
+  getProvisioningRequest,
+  approveProvisioningRequest,
+  rejectProvisioningRequest,
   // Lifecycle
   startServer,
   stopServer,
   terminateServer,
+  // Entitlements (operator)
+  listEntitlements,
+  createEntitlement,
+  updateEntitlement,
+  deleteEntitlement,
+  // Audit (operator)
+  listAuditLog,
   // Provider
   providerStatus
 };

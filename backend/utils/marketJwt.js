@@ -9,7 +9,7 @@ function _claims(customer) {
     sub: String(customer.id),
     type: 'customer',
     tenantId: String(customer.tenantId),
-    role: 'customer',
+    role: customer.role === 'operator' ? 'operator' : 'customer',
     jti: randomUUID(),
     ver: Number(customer.tokenVersion) || 0
   };

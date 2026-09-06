@@ -20,7 +20,7 @@ const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
 const ctrl = require('../controllers/gameHosting.controller');
 const asyncHandler = require('../utils/asyncHandler');
-const { requireMarketTenant, requireCustomer } = require('../middleware/marketAuth');
+const { requireMarketTenant, requireCustomer, requireOperator } = require('../middleware/marketAuth');
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -55,6 +55,18 @@ router.post('/servers/:id/terminate', requireMarketTenant, requireCustomer, limi
 
 // Provisioning requests
 router.get('/provisioning-requests', requireMarketTenant, requireCustomer, limiter, asyncHandler(ctrl.listProvisioningRequests));
+router.get('/provisioning-requests/:id', requireMarketTenant, requireCustomer, limiter, asyncHandler(ctrl.getProvisioningRequest));
 router.post('/provisioning-requests', requireMarketTenant, requireCustomer, limiter, asyncHandler(ctrl.createProvisioningRequest));
+router.post('/provisioning-requests/:id/approve', requireMarketTenant, requireOperator, limiter, asyncHandler(ctrl.approveProvisioningRequest));
+router.post('/provisioning-requests/:id/reject', requireMarketTenant, requireOperator, limiter, asyncHandler(ctrl.rejectProvisioningRequest));
+
+// Operator: Entitlements
+router.get('/entitlements', requireMarketTenant, requireOperator, limiter, asyncHandler(ctrl.listEntitlements));
+router.post('/entitlements', requireMarketTenant, requireOperator, limiter, asyncHandler(ctrl.createEntitlement));
+router.put('/entitlements/:id', requireMarketTenant, requireOperator, limiter, asyncHandler(ctrl.updateEntitlement));
+router.delete('/entitlements/:id', requireMarketTenant, requireOperator, limiter, asyncHandler(ctrl.deleteEntitlement));
+
+// Operator: Audit log
+router.get('/audit-log', requireMarketTenant, requireOperator, limiter, asyncHandler(ctrl.listAuditLog));
 
 module.exports = router;

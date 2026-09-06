@@ -718,6 +718,216 @@
     });
   }
 
+  async function pageGameHostingRequests() {
+    if (!window.MK_API.isAuthed()) {
+      setApp('<h1 class="mk-page-title">' + esc(t('gh_requests_title')) + '</h1>' + ghBanner('error', esc(t('gh_auth_required')) + ' <a href="#/account">' + esc(t('or_login')) + '</a>'));
+      return;
+    }
+    setApp('<div class="mk-loading">' + esc(t('loading')) + '</div>');
+    let requests = [];
+    try { const r = await window.MK_API.ghProvisioningRequests(); requests = (r && r.requests) || []; } catch (_) {}
+
+    let html = '<h1 class="mk-page-title">' + esc(t('gh_requests_title')) + '</h1>';
+    html += '<p><a class="mk-btn secondary" href="#/game-hosting">' + esc(t('gh_back_to_plans')) + '</a></p>';
+    if (!requests.length) {
+      html += '<div class="mk-empty"><div class="mk-empty-title">' + esc(t('gh_empty_requests_title')) + '</div><div class="mk-empty-sub">' + esc(t('gh_empty_requests_sub')) + '</div><a class="mk-btn" href="#/game-hosting">' + esc(t('gh_empty_requests_cta')) + '</a></div>';
+    } else {
+      html += '<div class="mk-grid">';
+      requests.forEach((req) => {
+        html += '<div class="mk-card">' +
+          '<div class="mk-card-body">' +
+            '<div class="mk-card-name">' + esc(req.planId) + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('gh_request_status')) + ': ' + ghStatusLabel(req.status).replace(/<[^>]+>/g, '') + '</div>' +
+            (req.requestedRegion ? '<div class="mk-card-stock">' + esc(t('gh_request_region')) + ': ' + esc(req.requestedRegion) + '</div>' : '') +
+            '<div class="mk-card-stock">' + esc(t('gh_request_created')) + ': ' + esc(req.createdAt ? new Date(req.createdAt).toLocaleString() : '-') + '</div>' +
+          '</div>' +
+        '</div>';
+      });
+      html += '</div>';
+    }
+    setApp(html);
+  }
+
+  // Operator pages (requires operator role)
+
+  function opBanner(type, msg) {
+    return '<div class="mk-banner ' + type + '">' + esc(msg) + '</div>';
+  }
+
+  async function pageOperatorPlans() {
+    if (!window.MK_API.isOperator()) {
+      setApp('<h1 class="mk-page-title">' + esc(t('op_plans')) + '</h1>' + opBanner('error', esc(t('gh_auth_required'))));
+      return;
+    }
+    setApp('<div class="mk-loading">' + esc(t('loading')) + '</div>');
+    let plans = [];
+    try { const r = await window.MK_API.ghPlans(); plans = (r && r.plans) || []; } catch (_) {}
+
+    let html = '<h1 class="mk-page-title">' + esc(t('op_plans')) + '</h1>';
+    html += '<p><a class="mk-btn secondary" href="#/operator">' + esc(t('op_back_to_dashboard')) + '</a></p>';
+    html += '<div class="mk-grid">';
+    plans.forEach((p) => {
+      html += '<div class="mk-card">' +
+        '<div class="mk-card-body">' +
+          '<div class="mk-card-name">' + esc(p.name) + '</div>' +
+          '<div class="mk-card-stock">' + esc(t('gh_game_title')) + ': ' + esc(p.gameTitle) + '</div>' +
+          '<div class="mk-card-stock">' + esc(t('gh_max_players')) + ': ' + esc(p.maxPlayers) + '</div>' +
+          '<div class="mk-card-stock">' + esc(t('gh_price_month')) + ': ' + esc(money(p.pricePerMonth)) + '</div>' +
+          '<div class="mk-card-stock">' + esc(t('gh_region')) + ': ' + esc(p.region || '-') + '</div>' +
+          '<div class="mk-card-stock">' + esc(t('op_plan_status')) + ': ' + esc(p.status || '-') + '</div>' +
+        '</div>' +
+      '</div>';
+    });
+    html += '</div>';
+    setApp(html);
+  }
+
+  async function pageOperatorServers() {
+    if (!window.MK_API.isOperator()) {
+      setApp('<h1 class="mk-page-title">' + esc(t('op_servers')) + '</h1>' + opBanner('error', esc(t('gh_auth_required'))));
+      return;
+    }
+    setApp('<div class="mk-loading">' + esc(t('loading')) + '</div>');
+    let servers = [];
+    try { const r = await window.MK_API.ghServers(); servers = (r && r.servers) || []; } catch (_) {}
+
+    let html = '<h1 class="mk-page-title">' + esc(t('op_servers')) + '</h1>';
+    html += '<p><a class="mk-btn secondary" href="#/operator">' + esc(t('op_back_to_dashboard')) + '</a></p>';
+    if (!servers.length) {
+      html += '<div class="mk-empty"><div class="mk-empty-title">' + esc(t('gh_empty_servers_title')) + '</div></div>';
+    } else {
+      html += '<div class="mk-grid">';
+      servers.forEach((s) => {
+        html += '<div class="mk-card">' +
+          '<div class="mk-card-body">' +
+            '<div class="mk-card-name">' + esc(s.serverName) + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('op_server_customer')) + ': ' + esc(s.customerId || '-') + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('op_server_plan')) + ': ' + esc(s.planId) + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('op_server_region')) + ': ' + esc(s.region || '-') + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('op_server_status')) + ': ' + ghStatusLabel(s.status).replace(/<[^>]+>/g, '') + '</div>' +
+          '</div>' +
+        '</div>';
+      });
+      html += '</div>';
+    }
+    setApp(html);
+  }
+
+  async function pageOperatorQueue() {
+    if (!window.MK_API.isOperator()) {
+      setApp('<h1 class="mk-page-title">' + esc(t('op_queue')) + '</h1>' + opBanner('error', esc(t('gh_auth_required'))));
+      return;
+    }
+    setApp('<div class="mk-loading">' + esc(t('loading')) + '</div>');
+    let requests = [];
+    try { const r = await window.MK_API.ghProvisioningRequests(); requests = (r && r.requests) || []; } catch (_) {}
+
+    let html = '<h1 class="mk-page-title">' + esc(t('op_queue')) + '</h1>';
+    html += '<p><a class="mk-btn secondary" href="#/operator">' + esc(t('op_back_to_dashboard')) + '</a></p>';
+    if (!requests.length) {
+      html += '<div class="mk-empty"><div class="mk-empty-title">' + esc(t('gh_empty_requests_title')) + '</div></div>';
+    } else {
+      html += '<div class="mk-grid">';
+      requests.forEach((req) => {
+        html += '<div class="mk-card">' +
+          '<div class="mk-card-body">' +
+            '<div class="mk-card-name">' + esc(req.id) + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('op_request_customer')) + ': ' + esc(req.customerId || '-') + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('op_request_plan')) + ': ' + esc(req.planId) + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('op_request_region')) + ': ' + esc(req.requestedRegion || '-') + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('op_request_status')) + ': ' + ghStatusLabel(req.status).replace(/<[^>]+>/g, '') + '</div>' +
+            (req.status === 'pending' ? '<div class="mk-card-actions"><button class="mk-btn" id="gh-approve-' + esc(req.id) + '">' + esc(t('op_approve')) + '</button> <button class="mk-btn danger" id="gh-reject-' + esc(req.id) + '">' + esc(t('op_reject')) + '</button></div>' : '') +
+          '</div>' +
+        '</div>';
+      });
+      html += '</div>';
+    }
+    setApp(html);
+
+    requests.forEach((req) => {
+      if (req.status !== 'pending') return;
+      const approveBtn = document.getElementById('gh-approve-' + req.id);
+      const rejectBtn = document.getElementById('gh-reject-' + req.id);
+      if (approveBtn) {
+        approveBtn.addEventListener('click', async () => {
+          if (!confirm(t('op_approve_confirm'))) return;
+          approveBtn.disabled = true;
+          try { await window.MK_API.ghApproveProvisioningRequest(req.id); render(); }
+          catch (e) { approveBtn.disabled = false; }
+        });
+      }
+      if (rejectBtn) {
+        rejectBtn.addEventListener('click', async () => {
+          if (!confirm(t('op_reject_confirm'))) return;
+          rejectBtn.disabled = true;
+          try { await window.MK_API.ghRejectProvisioningRequest(req.id); render(); }
+          catch (e) { rejectBtn.disabled = false; }
+        });
+      }
+    });
+  }
+
+  async function pageOperatorEntitlements() {
+    if (!window.MK_API.isOperator()) {
+      setApp('<h1 class="mk-page-title">' + esc(t('op_entitlements')) + '</h1>' + opBanner('error', esc(t('gh_auth_required'))));
+      return;
+    }
+    setApp('<div class="mk-loading">' + esc(t('loading')) + '</div>');
+    let entitlements = [];
+    try { const r = await window.MK_API.ghEntitlements(); entitlements = (r && r.entitlements) || []; } catch (_) {}
+
+    let html = '<h1 class="mk-page-title">' + esc(t('op_entitlements')) + '</h1>';
+    html += '<p><a class="mk-btn secondary" href="#/operator">' + esc(t('op_back_to_dashboard')) + '</a></p>';
+    if (!entitlements.length) {
+      html += '<div class="mk-empty"><div class="mk-empty-title">' + esc(t('gh_empty_servers_title')) + '</div></div>';
+    } else {
+      html += '<div class="mk-grid">';
+      entitlements.forEach((e) => {
+        html += '<div class="mk-card">' +
+          '<div class="mk-card-body">' +
+            '<div class="mk-card-name">' + esc(e.customerId || '-') + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('op_entitlement_plan')) + ': ' + esc(e.planId) + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('op_entitlement_status')) + ': ' + esc(e.status || '-') + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('op_entitlement_starts')) + ': ' + esc(e.startsAt ? new Date(e.startsAt).toLocaleString() : '-') + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('op_entitlement_expires')) + ': ' + esc(e.expiresAt ? new Date(e.expiresAt).toLocaleString() : '-') + '</div>' +
+          '</div>' +
+        '</div>';
+      });
+      html += '</div>';
+    }
+    setApp(html);
+  }
+
+  async function pageOperatorAudit() {
+    if (!window.MK_API.isOperator()) {
+      setApp('<h1 class="mk-page-title">' + esc(t('op_audit')) + '</h1>' + opBanner('error', esc(t('gh_auth_required'))));
+      return;
+    }
+    setApp('<div class="mk-loading">' + esc(t('loading')) + '</div>');
+    let entries = [];
+    try { const r = await window.MK_API.ghAuditLog(); entries = (r && r.entries) || []; } catch (_) {}
+
+    let html = '<h1 class="mk-page-title">' + esc(t('op_audit')) + '</h1>';
+    html += '<p><a class="mk-btn secondary" href="#/operator">' + esc(t('op_back_to_dashboard')) + '</a></p>';
+    if (!entries.length) {
+      html += '<div class="mk-empty"><div class="mk-empty-title">' + esc(t('gh_empty_servers_title')) + '</div></div>';
+    } else {
+      html += '<div class="mk-grid">';
+      entries.forEach((entry) => {
+        html += '<div class="mk-card">' +
+          '<div class="mk-card-body">' +
+            '<div class="mk-card-name">' + esc(entry.action || '-') + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('op_audit_actor')) + ': ' + esc(entry.actorId || '-') + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('op_audit_entity')) + ': ' + esc(entry.resource || '-') + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('op_audit_time')) + ': ' + esc(entry.timestamp ? new Date(entry.timestamp).toLocaleString() : '-') + '</div>' +
+          '</div>' +
+        '</div>';
+      });
+      html += '</div>';
+    }
+    setApp(html);
+  }
+
   // ---------- Router ----------
 
   function debounce(fn, ms) {
@@ -735,6 +945,15 @@
         if (param === 'my-servers') return pageGameHostingMyServers();
         if (param === 'servers') return pageGameHostingServer(decodeURIComponent(location.hash.split('/')[3] || ''));
         if (param === 'provision' || (typeof param === 'string' && param.startsWith('provision'))) return pageGameHostingProvision();
+        if (param === 'requests') return pageGameHostingRequests();
+        return pageGameHosting();
+      }
+      if (path === 'operator') {
+        if (param === 'plans') return pageOperatorPlans();
+        if (param === 'servers') return pageOperatorServers();
+        if (param === 'queue') return pageOperatorQueue();
+        if (param === 'entitlements') return pageOperatorEntitlements();
+        if (param === 'audit') return pageOperatorAudit();
         return pageGameHosting();
       }
       if (path === 'catalog') return pageCatalog();
@@ -769,9 +988,27 @@
         });
       });
     }
-    window.addEventListener('hashchange', render);
+    updateAuthUI();
+    window.addEventListener('hashchange', () => { updateAuthUI(); render(); });
     if (!location.hash) location.hash = '#/home';
     else render();
+  }
+
+  function updateAuthUI() {
+    const isOp = window.MK_API.isOperator();
+    const isAuthed = window.MK_API.isAuthed();
+    const ghReqLink = document.getElementById('mk-gh-requests-link');
+    const mobileGhReqLink = document.getElementById('mk-mobile-gh-requests-link');
+    const opNavLink = document.getElementById('mk-op-nav-link');
+    const mobileOpNavLink = document.getElementById('mk-mobile-op-nav-link');
+    const opNav = document.getElementById('mk-op-nav');
+    const mobileOpNav = document.getElementById('mk-mobile-op-nav');
+    if (ghReqLink) ghReqLink.style.display = isAuthed ? '' : 'none';
+    if (mobileGhReqLink) mobileGhReqLink.style.display = isAuthed ? '' : 'none';
+    if (opNavLink) opNavLink.style.display = isOp ? '' : 'none';
+    if (mobileOpNavLink) mobileOpNavLink.style.display = isOp ? '' : 'none';
+    if (opNav) opNav.style.display = isOp ? '' : 'none';
+    if (mobileOpNav) mobileOpNav.style.display = isOp ? '' : 'none';
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

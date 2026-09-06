@@ -158,12 +158,14 @@ function _rejectForeignTenantClaim(data, trustedTid) {
 // A plan is a tenant-defined offering (e.g., "Minecraft 10 players,
 // $20/month, Asia region"). Plans are per-tenant — two tenants can
 // define a plan with the same name without conflict.
-async function listPlans({ tenantContext } = {}) {
+async function listPlans({ tenantContext, status } = {}) {
   const trustedTid = _trustedTenantId(tenantContext);
   const db = await planRepository.readAsync();
   const all = Array.isArray(db.plans) ? db.plans : [];
-  if (!trustedTid) return all; // legacy mode
-  return all.filter((p) => p && String(p.tenantId) === trustedTid);
+  let plans = all;
+  if (trustedTid) plans = plans.filter((p) => p && String(p.tenantId) === trustedTid);
+  if (status) plans = plans.filter((p) => String(p.status) === String(status));
+  return plans.map((p) => Object.assign({}, p));
 }
 
 async function getPlanById({ id, tenantContext } = {}) {
@@ -350,6 +352,14 @@ async function deleteServer({ id, tenantContext } = {}) {
 // A provisioning request is a customer-initiated ask to spin up a
 // new server. Phase A records the request; Phase B will own the
 // engine that actually provisions the server.
+//
+// Phase 4 adds:
+//   - entitlement check before creation
+//   - idempotency protection
+//   - extended statuses: pending, approved, rejected, provisioning, error
+
+const ENTITLEMENT_SERVICE = require('./gameHostingEntitlement.service');
+
 async function createProvisioningRequest({ data, tenantContext } = {}) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     return { error: 'request body must be a JSON object' };
@@ -360,14 +370,47 @@ async function createProvisioningRequest({ data, tenantContext } = {}) {
   }
   const plan = await getPlanById({ id: data.planId, tenantContext });
   if (!plan) return { error: 'Plan not found in trusted tenant' };
+
+  const customerId = data.customerId ? String(data.customerId).trim() : null;
+
+  if (customerId) {
+    const entitlementCheck = await ENTITLEMENT_SERVICE.findActiveEntitlement({
+      customerId,
+      planId: data.planId,
+      tenantContext
+    });
+    if (!entitlementCheck) {
+      return { error: 'No active entitlement for this plan. Contact your administrator.' };
+    }
+  }
+
+  const idempotencyKey = data.idempotencyKey ? String(data.idempotencyKey).trim() : null;
+  if (idempotencyKey) {
+    const db = await requestRepository.readAsync();
+    const all = Array.isArray(db.requests) ? db.requests : [];
+    const duplicate = all.find((r) => {
+      if (!r) return false;
+      if (trustedTid && String(r.tenantId) !== trustedTid) return false;
+      if (String(r.customerId) !== String(customerId)) return false;
+      if (String(r.planId) !== String(data.planId)) return false;
+      if (String(r.idempotencyKey || '') !== String(idempotencyKey)) return false;
+      return true;
+    });
+    if (duplicate) {
+      return { request: Object.assign({}, duplicate), idempotent: true };
+    }
+  }
+
   const now = new Date().toISOString();
   const request = {
     id: uuidv4(),
     tenantId: trustedTid || null,
     planId: String(data.planId).trim(),
-    customerId: data.customerId || null,
+    customerId,
     requestedRegion: data.region || null,
     status: 'pending',
+    providerStatus: null,
+    idempotencyKey: idempotencyKey,
     createdAt: now,
     updatedAt: now
   };
@@ -378,12 +421,42 @@ async function createProvisioningRequest({ data, tenantContext } = {}) {
   return { error: 'Failed to persist provisioning request' };
 }
 
-async function listProvisioningRequests({ tenantContext } = {}) {
+async function updateProvisioningRequestStatus({ id, status, providerStatus, tenantContext } = {}) {
+  if (id == null || id === '') return { error: 'id is required' };
+  if (!status || !['approved', 'rejected', 'provisioning', 'error', 'pending'].includes(status)) {
+    return { error: 'status must be one of approved, rejected, provisioning, error, pending' };
+  }
+  const target = String(id).trim();
+  const trustedTid = _trustedTenantId(tenantContext);
+  const db = await requestRepository._rawStoreAsync();
+  const idx = (db.requests || []).findIndex((r) => r && (String(r.id) === target || String(r._backendId || '') === target));
+  if (idx === -1) return { error: 'Provisioning request not found' };
+  if (trustedTid && String(db.requests[idx].tenantId) !== trustedTid) return { error: 'Provisioning request not found' };
+  db.requests[idx].status = status;
+  if (providerStatus !== undefined) db.requests[idx].providerStatus = providerStatus;
+  db.requests[idx].updatedAt = new Date().toISOString();
+  if (await requestRepository.writeAsync(db)) return { request: Object.assign({}, db.requests[idx]) };
+  return { error: 'Failed to persist provisioning request update' };
+}
+
+async function getProvisioningRequestById({ id, tenantContext } = {}) {
+  if (id == null || id === '') return null;
+  const target = String(id).trim();
   const trustedTid = _trustedTenantId(tenantContext);
   const db = await requestRepository.readAsync();
-  const all = Array.isArray(db.requests) ? db.requests : [];
-  if (!trustedTid) return all;
-  return all.filter((r) => r && String(r.tenantId) === trustedTid);
+  const found = (Array.isArray(db.requests) ? db.requests : []).find((r) => r && (String(r.id) === target || String(r._backendId || '') === target));
+  if (!found) return null;
+  if (trustedTid && String(found.tenantId) !== trustedTid) return null;
+  return found;
+}
+
+async function listProvisioningRequests({ tenantContext, customerId } = {}) {
+  const trustedTid = _trustedTenantId(tenantContext);
+  const db = await requestRepository.readAsync();
+  let requests = Array.isArray(db.requests) ? db.requests : [];
+  if (trustedTid) requests = requests.filter((r) => r && String(r.tenantId) === trustedTid);
+  if (customerId) requests = requests.filter((r) => String(r.customerId) === String(customerId));
+  return requests;
 }
 
 module.exports = {
@@ -403,6 +476,8 @@ module.exports = {
   updateServer,
   deleteServer,
   createProvisioningRequest,
+  updateProvisioningRequestStatus,
+  getProvisioningRequestById,
   listProvisioningRequests,
   // Exposed for tests
   _validatePlanForCreate,
