@@ -487,6 +487,12 @@
     return '<div class="mk-banner ' + type + '">' + esc(msg) + '</div>';
   }
 
+  function ghLocalizedError(err) {
+    const msg = err && err.message ? err.message : '';
+    if (msg.indexOf('No active entitlement') !== -1) return t('gh_entitlement_required');
+    return msg;
+  }
+
   function ghStatusLabel(s) {
     const map = {
       pending: t('gh_status_pending'),
@@ -586,7 +592,7 @@
           msg.innerHTML = out;
           btn.disabled = false; btn.textContent = t('gh_provision_submit');
         } catch (e) {
-          msg.innerHTML = ghBanner('error', esc(e.message || t('gh_create_failed')));
+          msg.innerHTML = ghBanner('error', esc(ghLocalizedError(e) || t('gh_create_failed')));
           btn.disabled = false; btn.textContent = t('gh_provision_submit');
         }
       });
@@ -765,7 +771,21 @@
 
     let html = '<h1 class="mk-page-title">' + esc(t('op_plans')) + '</h1>';
     html += '<p><a class="mk-btn secondary" href="#/operator">' + esc(t('op_back_to_dashboard')) + '</a></p>';
-    html += '<div class="mk-grid">';
+    html += '<button class="mk-btn" id="op-plan-create-btn">' + esc(t('op_plan_create')) + '</button>';
+    html += '<div id="op-plan-form" style="display:none; margin-top:16px;">';
+    html += '<div class="mk-order-card">';
+    html += '<div class="mk-summary-title" id="op-plan-form-title">' + esc(t('op_plan_form_title')) + '</div>';
+    html += '<div class="mk-field"><label>' + esc(t('op_plan_form_name')) + '</label><input class="mk-input" id="op-plan-name"></div>';
+    html += '<div class="mk-field"><label>' + esc(t('op_plan_form_game')) + '</label><input class="mk-input" id="op-plan-game"></div>';
+    html += '<div class="mk-field"><label>' + esc(t('op_plan_form_players')) + '</label><input class="mk-input" id="op-plan-players" type="number"></div>';
+    html += '<div class="mk-field"><label>' + esc(t('op_plan_form_price')) + '</label><input class="mk-input" id="op-plan-price" type="number" step="0.01"></div>';
+    html += '<div class="mk-field"><label>' + esc(t('op_plan_form_region')) + '</label><input class="mk-input" id="op-plan-region"></div>';
+    html += '<div class="mk-field"><label>' + esc(t('op_plan_form_status')) + '</label><select class="mk-select" id="op-plan-status"><option value="draft">' + esc(t('op_plan_status_draft')) + '</option><option value="active">' + esc(t('op_plan_status_active')) + '</option><option value="archived">' + esc(t('op_plan_status_archived')) + '</option></select></div>';
+    html += '<button class="mk-btn" id="op-plan-save">' + esc(t('op_plan_save')) + '</button>';
+    html += '<button class="mk-btn secondary" id="op-plan-cancel">' + esc(t('op_plan_cancel')) + '</button>';
+    html += '<div id="op-plan-msg" style="margin-top:12px"></div>';
+    html += '</div></div>';
+    html += '<div class="mk-grid" style="margin-top:16px">';
     plans.forEach((p) => {
       html += '<div class="mk-card">' +
         '<div class="mk-card-body">' +
@@ -775,11 +795,112 @@
           '<div class="mk-card-stock">' + esc(t('gh_price_month')) + ': ' + esc(money(p.pricePerMonth)) + '</div>' +
           '<div class="mk-card-stock">' + esc(t('gh_region')) + ': ' + esc(p.region || '-') + '</div>' +
           '<div class="mk-card-stock">' + esc(t('op_plan_status')) + ': ' + esc(p.status || '-') + '</div>' +
+          '<div class="mk-card-actions">' +
+            '<button class="mk-btn" id="op-plan-edit-' + esc(p.id) + '">' + esc(t('op_plan_edit')) + '</button>' +
+            '<button class="mk-btn danger" id="op-plan-archive-' + esc(p.id) + '">' + esc(t('op_plan_archive')) + '</button>' +
+          '</div>' +
         '</div>' +
       '</div>';
     });
     html += '</div>';
     setApp(html);
+
+    let editingPlanId = null;
+    const form = document.getElementById('op-plan-form');
+    const formTitle = document.getElementById('op-plan-form-title');
+    const nameInput = document.getElementById('op-plan-name');
+    const gameInput = document.getElementById('op-plan-game');
+    const playersInput = document.getElementById('op-plan-players');
+    const priceInput = document.getElementById('op-plan-price');
+    const regionInput = document.getElementById('op-plan-region');
+    const statusInput = document.getElementById('op-plan-status');
+    const msgEl = document.getElementById('op-plan-msg');
+
+    const showForm = (show) => { if (form) form.style.display = show ? '' : 'none'; };
+    const resetForm = () => {
+      editingPlanId = null;
+      if (nameInput) nameInput.value = '';
+      if (gameInput) gameInput.value = '';
+      if (playersInput) playersInput.value = '';
+      if (priceInput) priceInput.value = '';
+      if (regionInput) regionInput.value = '';
+      if (statusInput) statusInput.value = 'draft';
+      if (formTitle) formTitle.textContent = t('op_plan_form_title');
+    };
+
+    const createBtn = document.getElementById('op-plan-create-btn');
+    if (createBtn) {
+      createBtn.addEventListener('click', () => {
+        resetForm();
+        if (formTitle) formTitle.textContent = t('op_plan_create');
+        showForm(true);
+      });
+    }
+
+    const cancelBtn = document.getElementById('op-plan-cancel');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', () => { showForm(false); resetForm(); });
+    }
+
+    const saveBtn = document.getElementById('op-plan-save');
+    if (saveBtn) {
+      saveBtn.addEventListener('click', async () => {
+        if (msgEl) msgEl.innerHTML = '';
+        const name = nameInput ? nameInput.value.trim() : '';
+        const gameTitle = gameInput ? gameInput.value.trim() : '';
+        const maxPlayers = playersInput ? parseInt(playersInput.value, 10) : null;
+        const pricePerMonth = priceInput ? parseFloat(priceInput.value) : null;
+        const region = regionInput ? regionInput.value.trim() : '';
+        const status = statusInput ? statusInput.value : 'draft';
+        if (!name) { if (msgEl) msgEl.innerHTML = opBanner('error', t('required_field')); return; }
+        saveBtn.disabled = true;
+        try {
+          if (editingPlanId) {
+            await window.MK_API.ghUpdatePlan(editingPlanId, { name, gameTitle, maxPlayers, pricePerMonth, region, status });
+            if (msgEl) msgEl.innerHTML = opBanner('success', t('op_plan_updated'));
+          } else {
+            await window.MK_API.ghCreatePlan({ name, gameTitle, maxPlayers, pricePerMonth, region, status });
+            if (msgEl) msgEl.innerHTML = opBanner('success', t('op_plan_created'));
+          }
+          resetForm();
+          showForm(false);
+          render();
+        } catch (e) {
+          if (msgEl) msgEl.innerHTML = opBanner('error', esc(e.message || 'Failed'));
+          saveBtn.disabled = false;
+        }
+      });
+    }
+
+    plans.forEach((p) => {
+      const editBtn = document.getElementById('op-plan-edit-' + p.id);
+      if (editBtn) {
+        editBtn.addEventListener('click', () => {
+          editingPlanId = p.id;
+          if (formTitle) formTitle.textContent = t('op_plan_edit');
+          if (nameInput) nameInput.value = p.name || '';
+          if (gameInput) gameInput.value = p.gameTitle || '';
+          if (playersInput) playersInput.value = p.maxPlayers || '';
+          if (priceInput) priceInput.value = p.pricePerMonth || '';
+          if (regionInput) regionInput.value = p.region || '';
+          if (statusInput) statusInput.value = p.status || 'draft';
+          showForm(true);
+        });
+      }
+      const archiveBtn = document.getElementById('op-plan-archive-' + p.id);
+      if (archiveBtn) {
+        archiveBtn.addEventListener('click', async () => {
+          if (!confirm(t('op_plan_archive'))) return;
+          archiveBtn.disabled = true;
+          try {
+            await window.MK_API.ghArchivePlan(p.id);
+            render();
+          } catch (e) {
+            archiveBtn.disabled = false;
+          }
+        });
+      }
+    });
   }
 
   async function pageOperatorServers() {
@@ -875,9 +996,26 @@
     setApp('<div class="mk-loading">' + esc(t('loading')) + '</div>');
     let entitlements = [];
     try { const r = await window.MK_API.ghEntitlements(); entitlements = (r && r.entitlements) || []; } catch (_) {}
+    let plans = [];
+    try { const r = await window.MK_API.ghPlans(); plans = (r && r.plans) || []; } catch (_) {}
 
     let html = '<h1 class="mk-page-title">' + esc(t('op_entitlements')) + '</h1>';
     html += '<p><a class="mk-btn secondary" href="#/operator">' + esc(t('op_back_to_dashboard')) + '</a></p>';
+    html += '<button class="mk-btn" id="op-entitlement-create-btn">' + esc(t('op_plan_create')) + '</button>';
+    html += '<div id="op-entitlement-form" style="display:none; margin-top:16px;">';
+    html += '<div class="mk-order-card">';
+    html += '<div class="mk-summary-title" id="op-entitlement-form-title">' + esc(t('op_entitlement_form_title')) + '</div>';
+    html += '<div class="mk-field"><label>' + esc(t('op_entitlement_form_customer')) + '</label><input class="mk-input" id="op-entitlement-customer"></div>';
+    html += '<div class="mk-field"><label>' + esc(t('op_entitlement_form_plan')) + '</label><select class="mk-select" id="op-entitlement-plan">';
+    plans.forEach((p) => { html += '<option value="' + esc(p.id) + '">' + esc(p.name) + '</option>'; });
+    html += '</select></div>';
+    html += '<div class="mk-field"><label>' + esc(t('op_entitlement_form_status')) + '</label><select class="mk-select" id="op-entitlement-status"><option value="active">' + esc(t('op_entitlement_status_active')) + '</option><option value="expired">' + esc(t('op_entitlement_status_expired')) + '</option><option value="cancelled">' + esc(t('op_entitlement_status_cancelled')) + '</option></select></div>';
+    html += '<div class="mk-field"><label>' + esc(t('op_entitlement_form_starts')) + '</label><input class="mk-input" id="op-entitlement-starts" type="datetime-local"></div>';
+    html += '<div class="mk-field"><label>' + esc(t('op_entitlement_form_expires')) + '</label><input class="mk-input" id="op-entitlement-expires" type="datetime-local"></div>';
+    html += '<button class="mk-btn" id="op-entitlement-save">' + esc(t('op_entitlement_save')) + '</button>';
+    html += '<button class="mk-btn secondary" id="op-entitlement-cancel">' + esc(t('op_entitlement_cancel')) + '</button>';
+    html += '<div id="op-entitlement-msg" style="margin-top:12px"></div>';
+    html += '</div></div>';
     if (!entitlements.length) {
       html += '<div class="mk-empty"><div class="mk-empty-title">' + esc(t('gh_empty_servers_title')) + '</div></div>';
     } else {
@@ -890,12 +1028,119 @@
             '<div class="mk-card-stock">' + esc(t('op_entitlement_status')) + ': ' + esc(e.status || '-') + '</div>' +
             '<div class="mk-card-stock">' + esc(t('op_entitlement_starts')) + ': ' + esc(e.startsAt ? new Date(e.startsAt).toLocaleString() : '-') + '</div>' +
             '<div class="mk-card-stock">' + esc(t('op_entitlement_expires')) + ': ' + esc(e.expiresAt ? new Date(e.expiresAt).toLocaleString() : '-') + '</div>' +
+            '<div class="mk-card-actions">' +
+              '<button class="mk-btn" id="op-entitlement-edit-' + esc(e.id) + '">' + esc(t('op_update')) + '</button>' +
+              '<button class="mk-btn danger" id="op-entitlement-revoke-' + esc(e.id) + '">' + esc(t('op_entitlement_revoke')) + '</button>' +
+            '</div>' +
           '</div>' +
         '</div>';
       });
       html += '</div>';
     }
     setApp(html);
+
+    let editingEntitlementId = null;
+    const entForm = document.getElementById('op-entitlement-form');
+    const entFormTitle = document.getElementById('op-entitlement-form-title');
+    const entCustomerInput = document.getElementById('op-entitlement-customer');
+    const entPlanSelect = document.getElementById('op-entitlement-plan');
+    const entStatusSelect = document.getElementById('op-entitlement-status');
+    const entStartsInput = document.getElementById('op-entitlement-starts');
+    const entExpiresInput = document.getElementById('op-entitlement-expires');
+    const entMsgEl = document.getElementById('op-entitlement-msg');
+
+    const showEntForm = (show) => { if (entForm) entForm.style.display = show ? '' : 'none'; };
+    const resetEntForm = () => {
+      editingEntitlementId = null;
+      if (entCustomerInput) entCustomerInput.value = '';
+      if (entPlanSelect) entPlanSelect.value = plans.length ? plans[0].id : '';
+      if (entStatusSelect) entStatusSelect.value = 'active';
+      if (entStartsInput) entStartsInput.value = '';
+      if (entExpiresInput) entExpiresInput.value = '';
+      if (entFormTitle) entFormTitle.textContent = t('op_entitlement_form_title');
+    };
+
+    const createEntBtn = document.getElementById('op-entitlement-create-btn');
+    if (createEntBtn) {
+      createEntBtn.addEventListener('click', () => {
+        resetEntForm();
+        if (entFormTitle) entFormTitle.textContent = t('op_plan_create');
+        showEntForm(true);
+      });
+    }
+
+    const cancelEntBtn = document.getElementById('op-entitlement-cancel');
+    if (cancelEntBtn) {
+      cancelEntBtn.addEventListener('click', () => { showEntForm(false); resetEntForm(); });
+    }
+
+    const saveEntBtn = document.getElementById('op-entitlement-save');
+    if (saveEntBtn) {
+      saveEntBtn.addEventListener('click', async () => {
+        if (entMsgEl) entMsgEl.innerHTML = '';
+        const customerId = entCustomerInput ? entCustomerInput.value.trim() : '';
+        const planId = entPlanSelect ? entPlanSelect.value : '';
+        const status = entStatusSelect ? entStatusSelect.value : 'active';
+        const startsAt = entStartsInput ? entStartsInput.value : '';
+        const expiresAt = entExpiresInput ? entExpiresInput.value : '';
+        if (!customerId || !planId || !startsAt || !expiresAt) {
+          if (entMsgEl) entMsgEl.innerHTML = opBanner('error', t('required_field'));
+          return;
+        }
+        saveEntBtn.disabled = true;
+        try {
+          if (editingEntitlementId) {
+            await window.MK_API.ghUpdateEntitlement(editingEntitlementId, { status, startsAt, expiresAt });
+            if (entMsgEl) entMsgEl.innerHTML = opBanner('success', t('op_entitlement_updated'));
+          } else {
+            await window.MK_API.ghCreateEntitlement({ customerId, planId, status, startsAt, expiresAt });
+            if (entMsgEl) entMsgEl.innerHTML = opBanner('success', t('op_entitlement_created'));
+          }
+          resetEntForm();
+          showEntForm(false);
+          render();
+        } catch (e) {
+          if (entMsgEl) entMsgEl.innerHTML = opBanner('error', esc(e.message || 'Failed'));
+          saveEntBtn.disabled = false;
+        }
+      });
+    }
+
+    entitlements.forEach((e) => {
+      const editEntBtn = document.getElementById('op-entitlement-edit-' + e.id);
+      if (editEntBtn) {
+        editEntBtn.addEventListener('click', () => {
+          editingEntitlementId = e.id;
+          if (entFormTitle) entFormTitle.textContent = t('op_plan_edit');
+          if (entCustomerInput) entCustomerInput.value = e.customerId || '';
+          if (entPlanSelect) entPlanSelect.value = e.planId || '';
+          if (entStatusSelect) entStatusSelect.value = e.status || 'active';
+          if (entStartsInput) {
+            const startsDate = e.startsAt ? new Date(e.startsAt) : null;
+            entStartsInput.value = startsDate ? startsDate.toISOString().slice(0, 16) : '';
+          }
+          if (entExpiresInput) {
+            const expiresDate = e.expiresAt ? new Date(e.expiresAt) : null;
+            entExpiresInput.value = expiresDate ? expiresDate.toISOString().slice(0, 16) : '';
+          }
+          showEntForm(true);
+        });
+      }
+      const revokeEntBtn = document.getElementById('op-entitlement-revoke-' + e.id);
+      if (revokeEntBtn) {
+        revokeEntBtn.addEventListener('click', async () => {
+          if (!confirm(t('op_entitlement_revoke_confirm'))) return;
+          revokeEntBtn.disabled = true;
+          try {
+            await window.MK_API.ghDeleteEntitlement(e.id);
+            if (entMsgEl) entMsgEl.innerHTML = opBanner('success', t('op_entitlement_revoked'));
+            render();
+          } catch (err) {
+            revokeEntBtn.disabled = false;
+          }
+        });
+      }
+    });
   }
 
   async function pageOperatorAudit() {
