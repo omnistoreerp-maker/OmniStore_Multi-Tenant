@@ -98,13 +98,13 @@
           '<a class="mk-btn secondary" href="#/track">' + esc(t('hero_cta_track')) + '</a>' +
         '</div>' +
       '</div>' +
-      '<div class="mk-hero-visual" aria-hidden="true">🛍️</div>' +
+      '<div class="mk-hero-visual" aria-hidden="true"><img src="market/img/hero/storefront.svg" alt="" loading="eager" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'"><div class="mk-hero-fallback" style="display:none">🛍️</div></div>' +
     '</section>';
 
     if (cats.categories && cats.categories.length) {
       html += '<h2>' + esc(t('categories')) + '</h2><div class="mk-grid">';
       cats.categories.forEach((c) => {
-        html += '<a class="mk-card mk-category-card" href="#/catalog?category=' + esc(c.id) + '"><div class="mk-category-icon" aria-hidden="true">📂</div><div class="mk-card-body"><div class="mk-card-name">' + esc(c.id) + '</div><div class="mk-card-stock">' + esc(c.count) + '</div></div></a>';
+        html += '<a class="mk-card mk-category-card" href="#/catalog?category=' + esc(c.id) + '"><div class="mk-category-icon"><img src="market/img/placeholders/category.svg" alt="' + esc(t('category_icon_alt')) + '" loading="lazy" onerror="this.style.display=\'none\'"></div><div class="mk-card-body"><div class="mk-card-name">' + esc(c.id) + '</div><div class="mk-card-stock">' + esc(c.count) + '</div></div></a>';
       });
       html += '</div>';
     } else {
@@ -128,7 +128,8 @@
     a.className = 'mk-card';
     a.href = '#/product/' + encodeURIComponent(p.id);
     const out = (p.stockQty || 0) <= 0;
-    const imgHtml = (p.imageUrl ? '<img src="' + esc(p.imageUrl) + '" alt="' + esc(t('product_image_alt')) + '" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' : '') + '<div class="mk-card-fallback" style="' + (p.imageUrl ? 'display:none' : '') + '">📦</div>';
+    const fallbackSrc = 'market/img/placeholders/product.svg';
+    const imgHtml = '<img src="' + (p.imageUrl || fallbackSrc) + '" alt="' + esc(t('product_image_alt')) + '" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' + '<div class="mk-card-fallback" style="display:none">📦</div>';
     a.innerHTML =
       '<div class="mk-card-img">' + imgHtml + '</div>' +
       '<div class="mk-card-body">' +
@@ -198,7 +199,8 @@
     const p = await window.MK_API.product(id).catch(() => null);
     if (!p) { setApp('<h1 class="mk-page-title">' + esc(t('product_not_found')) + '</h1><p><a href="#/catalog">' + esc(t('back_to_catalog')) + '</a></p>'); return; }
     const out = (p.stockQty || 0) <= 0;
-    const imgHtml = (p.imageUrl ? '<img src="' + esc(p.imageUrl) + '" alt="' + esc(t('product_image_alt')) + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' : '') + '<div class="mk-card-fallback" style="' + (p.imageUrl ? 'display:none' : '') + '">📦</div>';
+    const fallbackSrc = 'market/img/placeholders/product.svg';
+    const imgHtml = '<img src="' + (p.imageUrl || fallbackSrc) + '" alt="' + esc(t('product_image_alt')) + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' + '<div class="mk-card-fallback" style="display:none">📦</div>';
     let html = '<a href="#/catalog">← ' + esc(t('back_to_catalog')) + '</a>';
     html += '<div class="mk-row mk-mt-16">';
     html += '<div class="mk-col"><div class="mk-product-image">' + imgHtml + '</div></div>';

@@ -35,7 +35,9 @@ body {
   z-index: 100;
 }
 .mk-header-inner { display: flex; align-items: center; gap: 16px; height: 64px; }
-.mk-brand { font-weight: 800; font-size: 18px; color: var(--mk-primary); text-decoration: none; letter-spacing: -0.2px; }
+.mk-brand { font-weight: 800; font-size: 18px; color: var(--mk-primary); text-decoration: none; letter-spacing: -0.2px; display: inline-flex; align-items: center; gap: 10px; }
+.mk-brand-img { width: 28px; height: 28px; flex: 0 0 auto; }
+.mk-brand-text { display: inline-block; }
 .mk-nav { display: flex; gap: 6px; margin-inline-start: auto; align-items: center; }
 .mk-nav a {
   color: var(--mk-text);
@@ -142,9 +144,10 @@ h3 { font-size: 16px; font-weight: 700; margin: 16px 0 8px; }
   border-radius: var(--mk-radius);
   background: linear-gradient(135deg, #c7d2fe, #e0e7ff);
   display: flex; align-items: center; justify-content: center;
-  font-size: 64px;
-  color: var(--mk-muted);
+  overflow: hidden;
 }
+.mk-hero-visual img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.mk-hero-visual .mk-hero-fallback { font-size: 64px; color: var(--mk-muted); }
 
 /* Grid */
 .mk-grid {
@@ -182,7 +185,17 @@ h3 { font-size: 16px; font-weight: 700; margin: 16px 0 8px; }
 .mk-card-img .mk-card-fallback {
   font-size: 40px;
   color: var(--mk-muted);
+  display: none;
 }
+.mk-product-image {
+  height: 320px;
+  background: #f3f4f6;
+  border-radius: var(--mk-radius);
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.mk-product-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mk-product-image .mk-card-fallback { font-size: 72px; color: var(--mk-muted); display: none; }
 .mk-card-body { padding: 14px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
 .mk-card-name { font-weight: 700; font-size: 14px; line-height: 1.35; }
 .mk-card-price { color: var(--mk-primary); font-weight: 800; font-size: 15px; }
