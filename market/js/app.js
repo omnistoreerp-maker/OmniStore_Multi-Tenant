@@ -40,13 +40,38 @@
   let lastOrder = null;
 
   function updateCartBadge() {
-    const c = document.getElementById('mk-cart-count');
-    if (c) c.textContent = window.MK_CART.count();
+    const count = window.MK_CART.count();
+    const desktop = document.getElementById('mk-cart-count');
+    const mobile = document.getElementById('mk-mobile-cart-count');
+    if (desktop) desktop.textContent = count;
+    if (mobile) mobile.textContent = count;
   }
   window.addEventListener('mk-cart-changed', updateCartBadge);
 
   function banner(type, msg) {
     return '<div class="mk-banner ' + type + '">' + esc(msg) + '</div>';
+  }
+
+  function emptyState(icon, title, sub, actions) {
+    let html = '<div class="mk-empty">';
+    if (icon) html += '<div class="mk-empty-icon">' + esc(icon) + '</div>';
+    html += '<p class="mk-empty-title">' + esc(title) + '</p>';
+    if (sub) html += '<p class="mk-empty-sub">' + esc(sub) + '</p>';
+    if (actions) html += '<div class="mk-empty-actions">' + actions + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function skeletonCard() {
+    return '<div class="mk-card"><div class="mk-skeleton mk-skeleton-card"></div><div class="mk-card-body"><div class="mk-skeleton mk-skeleton-title"></div><div class="mk-skeleton mk-skeleton-text"></div><div class="mk-skeleton mk-skeleton-text mk-skeleton-text--sm"></div></div></div>';
+  }
+
+  function skeletonGrid(count) {
+    const n = Math.max(1, count || 6);
+    let html = '<div class="mk-grid">';
+    for (let i = 0; i < n; i++) html += skeletonCard();
+    html += '</div>';
+    return html;
   }
 
   const app = document.getElementById('mk-app');
@@ -63,20 +88,39 @@
       window.MK_API.categories().catch(() => ({ categories: [] })),
       window.MK_API.products({ limit: 8 }).catch(() => ({ products: [] }))
     ]);
-    let html = '<h1 class="mk-page-title">' + esc(t('home_title')) + '</h1>';
-    html += '<p class="mk-muted">' + esc(t('home_sub')) + '</p>';
-    html += '<p><a class="mk-btn" href="#/catalog">' + esc(t('shop_now')) + '</a></p>';
+
+    let html = '<section class="mk-hero">' +
+      '<div class="mk-hero-content">' +
+        '<h1 class="mk-hero-title">' + esc(t('hero_title')) + '</h1>' +
+        '<p class="mk-hero-sub">' + esc(t('hero_sub')) + '</p>' +
+        '<div class="mk-hero-actions">' +
+          '<a class="mk-btn" href="#/catalog">' + esc(t('hero_cta')) + '</a>' +
+          '<a class="mk-btn secondary" href="#/track">' + esc(t('hero_cta_track')) + '</a>' +
+        '</div>' +
+      '</div>' +
+      '<div class="mk-hero-visual" aria-hidden="true">🛍️</div>' +
+    '</section>';
+
     if (cats.categories && cats.categories.length) {
       html += '<h2>' + esc(t('categories')) + '</h2><div class="mk-grid">';
       cats.categories.forEach((c) => {
-        html += '<a class="mk-card" href="#/catalog?category=' + esc(c.id) + '"><div class="mk-card-body"><div class="mk-card-name">' + esc(c.id) + '</div><div class="mk-card-stock">' + esc(c.count) + '</div></div></a>';
+        html += '<a class="mk-card mk-category-card" href="#/catalog?category=' + esc(c.id) + '"><div class="mk-category-icon" aria-hidden="true">📂</div><div class="mk-card-body"><div class="mk-card-name">' + esc(c.id) + '</div><div class="mk-card-stock">' + esc(c.count) + '</div></div></a>';
       });
       html += '</div>';
+    } else {
+      html += '<h2>' + esc(t('categories')) + '</h2>' + emptyState('📂', t('no_categories'), null, '<a class="mk-btn" href="#/catalog">' + esc(t('empty_browse_catalog')) + '</a>');
     }
-    html += '<h2>' + esc(t('featured')) + '</h2><div class="mk-grid" id="mk-featured"></div>';
+
+    html += '<h2>' + esc(t('featured')) + '</h2>';
+    if ((prods.products || []).length) {
+      html += '<div class="mk-grid" id="mk-featured"></div>';
+    } else {
+      html += emptyState('📦', t('no_products'), null, '<a class="mk-btn" href="#/catalog">' + esc(t('empty_browse_catalog')) + '</a>');
+    }
     setApp(html);
+
     const grid = document.getElementById('mk-featured');
-    (prods.products || []).forEach((p) => grid.appendChild(productCard(p)));
+    if (grid) (prods.products || []).forEach((p) => grid.appendChild(productCard(p)));
   }
 
   function productCard(p) {
@@ -84,12 +128,14 @@
     a.className = 'mk-card';
     a.href = '#/product/' + encodeURIComponent(p.id);
     const out = (p.stockQty || 0) <= 0;
+    const imgHtml = (p.imageUrl ? '<img src="' + esc(p.imageUrl) + '" alt="' + esc(t('product_image_alt')) + '" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' : '') + '<div class="mk-card-fallback" style="' + (p.imageUrl ? 'display:none' : '') + '">📦</div>';
     a.innerHTML =
-      '<div class="mk-card-img">📦</div>' +
+      '<div class="mk-card-img">' + imgHtml + '</div>' +
       '<div class="mk-card-body">' +
         '<div class="mk-card-name">' + esc(p.name) + '</div>' +
         '<div class="mk-card-price">' + esc(money(p.price, p.currency)) + '</div>' +
         '<div class="mk-card-stock ' + (out ? 'out' : '') + '">' + (out ? esc(t('out_of_stock')) : esc(t('in_stock'))) + '</div>' +
+        (out ? '' : '<div class="mk-card-actions"><button class="mk-btn block mk-add-to-cart" data-id="' + esc(p.id) + '">' + esc(t('add_to_cart')) + '</button></div>') +
       '</div>';
     return a;
   }
@@ -99,7 +145,7 @@
     const cat = params.get('category') || '';
     const q = params.get('q') || '';
     const sort = params.get('sort') || 'name';
-    setApp('<div class="mk-loading">' + esc(t('loading')) + '</div>');
+    setApp('<div class="mk-loading">' + esc(t('loading')) + '</div><div class="mk-grid">' + skeletonGrid(6) + '</div>');
     const [cats, prods] = await Promise.all([
       window.MK_API.categories().catch(() => ({ categories: [] })),
       window.MK_API.products({ categoryId: cat, search: q, sortBy: sort === 'price_asc' ? 'price' : sort === 'price_desc' ? 'price' : 'name', sortOrder: sort === 'price_desc' ? 'desc' : 'asc', limit: 100 }).catch(() => ({ products: [] }))
@@ -107,12 +153,12 @@
     let html = '<h1 class="mk-page-title">' + esc(t('catalog_title')) + '</h1>';
     html += '<div class="mk-toolbar">' +
       '<input class="mk-input" id="mk-search" placeholder="' + esc(t('search_placeholder')) + '" value="' + esc(q) + '">' +
-      '<select class="mk-select" id="mk-sort" style="max-width:220px">' +
+      '<select class="mk-select mk-select--sm" id="mk-sort">' +
         '<option value="name">' + esc(t('sort_name')) + '</option>' +
         '<option value="price_asc" ' + (sort === 'price_asc' ? 'selected' : '') + '>' + esc(t('sort_price_asc')) + '</option>' +
         '<option value="price_desc" ' + (sort === 'price_desc' ? 'selected' : '') + '>' + esc(t('sort_price_desc')) + '</option>' +
       '</select>' +
-      '<select class="mk-select" id="mk-cat" style="max-width:200px">' +
+      '<select class="mk-select mk-select--cat" id="mk-cat">' +
         '<option value="">' + esc(t('all_categories')) + '</option>' +
         (cats.categories || []).map((c) => '<option value="' + esc(c.id) + '" ' + (c.id === cat ? 'selected' : '') + '>' + esc(c.id) + '</option>').join('') +
       '</select>' +
@@ -121,7 +167,19 @@
     setApp(html);
 
     const list = document.getElementById('mk-list');
-    (prods.products || []).forEach((p) => list.appendChild(productCard(p)));
+    (prods.products || []).forEach((p) => {
+      const card = productCard(p);
+      list.appendChild(card);
+      const btn = card.querySelector('.mk-add-to-cart');
+      if (btn) {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const qty = parseInt(card.querySelector('.mk-qty')?.value || '1', 10) || 1;
+          window.MK_CART.add(p.id, qty);
+        });
+      }
+    });
 
     document.getElementById('mk-search').addEventListener('input', debounce(() => {
       const v = document.getElementById('mk-search').value;
@@ -140,16 +198,17 @@
     const p = await window.MK_API.product(id).catch(() => null);
     if (!p) { setApp('<h1 class="mk-page-title">' + esc(t('product_not_found')) + '</h1><p><a href="#/catalog">' + esc(t('back_to_catalog')) + '</a></p>'); return; }
     const out = (p.stockQty || 0) <= 0;
+    const imgHtml = (p.imageUrl ? '<img src="' + esc(p.imageUrl) + '" alt="' + esc(t('product_image_alt')) + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' : '') + '<div class="mk-card-fallback" style="' + (p.imageUrl ? 'display:none' : '') + '">📦</div>';
     let html = '<a href="#/catalog">← ' + esc(t('back_to_catalog')) + '</a>';
-    html += '<div class="mk-row" style="margin-top:16px">';
-    html += '<div class="mk-col"><div class="mk-card-img" style="height:260px">📦</div></div>';
+    html += '<div class="mk-row mk-mt-16">';
+    html += '<div class="mk-col"><div class="mk-product-image">' + imgHtml + '</div></div>';
     html += '<div class="mk-col">';
     html += '<h1 class="mk-page-title">' + esc(p.name) + '</h1>';
-    html += '<div class="mk-card-price" style="font-size:22px">' + esc(money(p.price, p.currency)) + '</div>';
+    html += '<div class="mk-card-price mk-price--lg">' + esc(money(p.price, p.currency)) + '</div>';
     html += '<div class="mk-card-stock ' + (out ? 'out' : '') + '">' + (out ? esc(t('out_of_stock')) : esc(t('in_stock') + ': ' + p.stockQty)) + '</div>';
     if (p.description) html += '<p>' + esc(p.description) + '</p>';
     if (!out) {
-      html += '<div class="mk-field" style="max-width:200px"><label>' + esc(t('qty')) + '</label><input class="mk-input mk-qty" id="mk-qty" type="number" min="1" value="1"></div>';
+      html += '<div class="mk-field"><label>' + esc(t('qty')) + '</label><input class="mk-input mk-qty mk-qty--sm" id="mk-qty" type="number" min="1" value="1"></div>';
       html += '<button class="mk-btn" id="mk-add">' + esc(t('add_to_cart')) + '</button>';
     }
     html += '</div></div>';
@@ -165,7 +224,7 @@
   async function pageCart() {
     await window.MK_CART.reconcile();
     const items = window.MK_CART.items();
-    if (!items.length) { setApp('<h1 class="mk-page-title">' + esc(t('cart_title')) + '</h1><div class="mk-empty">' + esc(t('cart_empty')) + '</div>'); return; }
+    if (!items.length) { setApp('<h1 class="mk-page-title">' + esc(t('cart_title')) + '</h1>' + emptyState('🛒', t('cart_empty'), null, '<a class="mk-btn" href="#/catalog">' + esc(t('empty_browse_catalog')) + '</a>')); return; }
     setApp('<div class="mk-loading">' + esc(t('loading')) + '</div>');
     const avail = await window.MK_API.availability(items.map((i) => i.productId)).catch(() => []);
     const byId = {};
@@ -176,9 +235,9 @@
 
     let html = '<h1 class="mk-page-title">' + esc(t('cart_title')) + '</h1>';
     html += '<div id="mk-cart-items"></div>';
-    html += '<div class="mk-summary" style="max-width:360px;margin-top:16px"><div class="mk-summary-row"><span>' + esc(t('subtotal')) + '</span><span id="mk-sub">-</span></div>';
+    html += '<div class="mk-summary mk-summary--checkout"><div class="mk-summary-row"><span>' + esc(t('subtotal')) + '</span><span id="mk-sub">-</span></div>';
     html += '<div class="mk-summary-row total"><span>' + esc(t('total')) + '</span><span id="mk-tot">-</span></div>';
-    html += '<button class="mk-btn block" id="mk-gocheckout" style="margin-top:12px">' + esc(t('checkout')) + '</button></div>';
+    html += '<button class="mk-btn block" id="mk-gocheckout">' + esc(t('checkout')) + '</button></div>';
     setApp(html);
 
     const wrap = document.getElementById('mk-cart-items');
@@ -251,8 +310,8 @@
     html += '<div class="mk-field"><label>' + esc(t('coupon')) + '</label><input class="mk-input" id="ck-coupon"></div>';
     html += '<div class="mk-summary"><div class="mk-summary-row"><span>' + esc(t('subtotal')) + '</span><span>' + esc(money(subtotal, cfg && cfg.currency)) + '</span></div>';
     html += '<div class="mk-summary-row"><span>' + esc(t('shipping_fee')) + '</span><span id="ck-ship">' + esc(money(0, cfg && cfg.currency)) + '</span></div>';
-    html += '<div class="mk-summary-row total"><span>' + esc(t('total')) + '</span><span id="ck-total">' + esc(money(subtotal, cfg && cfg.currency)) + '</span></div></div>';
-    html += '<button class="mk-btn block" id="ck-place" style="margin-top:12px">' + esc(t('place_order')) + '</button>';
+    html += '<div class="mk-summary-row total"><span>' + esc(t('total')) + '</span><span id="ck-total">' + esc(money(subtotal + fee, cfg && cfg.currency)) + '</span></div></div>';
+    html += '<button class="mk-btn block" id="ck-place">' + esc(t('place_order')) + '</button>';
     html += '<div id="ck-msg"></div>';
     html += '</div></div>';
     setApp(html);
@@ -312,7 +371,7 @@
 
   function pageTrack(token) {
     let html = '<h1 class="mk-page-title">' + esc(t('track_title')) + '</h1>';
-    html += '<div class="mk-field" style="max-width:420px"><label>' + esc(t('track_token')) + '</label><input class="mk-input" id="tk-token" value="' + esc(token || '') + '"></div>';
+    html += '<div class="mk-field"><label>' + esc(t('track_token')) + '</label><input class="mk-input" id="tk-token" value="' + esc(token || '') + '"></div>';
     html += '<button class="mk-btn" id="tk-btn">' + esc(t('track_btn')) + '</button>';
     html += '<div id="tk-msg"></div><div id="tk-result"></div>';
     setApp(html);
@@ -374,8 +433,8 @@
     html += '<p><button class="mk-btn danger" id="ac-logout">' + esc(t('logout')) + '</button></p>';
     if (me && me.customer) {
       html += '<h2>' + esc(t('profile')) + '</h2><div id="ac-prof-msg"></div>';
-      html += '<div class="mk-field" style="max-width:360px"><label>' + esc(t('name')) + '</label><input class="mk-input" id="pf-name" value="' + esc(me.customer.name) + '"></div>';
-      html += '<div class="mk-field" style="max-width:360px"><label>' + esc(t('phone')) + '</label><input class="mk-input" id="pf-phone" value="' + esc(me.customer.phone) + '"></div>';
+      html += '<div class="mk-field"><label>' + esc(t('name')) + '</label><input class="mk-input" id="pf-name" value="' + esc(me.customer.name) + '"></div>';
+      html += '<div class="mk-field"><label>' + esc(t('phone')) + '</label><input class="mk-input" id="pf-phone" value="' + esc(me.customer.phone) + '"></div>';
       html += '<button class="mk-btn" id="pf-save">' + esc(t('update_profile')) + '</button> ';
       html += '<button class="mk-btn secondary" id="pf-chg">' + esc(t('change_password')) + '</button>';
       html += '<div id="ac-pw-msg"></div>';
@@ -675,6 +734,20 @@
     document.documentElement.dir = _locale === 'ar' ? 'rtl' : 'ltr';
     const langBtn = document.getElementById('mk-lang-btn');
     if (langBtn) langBtn.addEventListener('click', () => setLocale(_locale === 'ar' ? 'en' : 'ar'));
+    const menuBtn = document.getElementById('mk-menu-btn');
+    const mobileNav = document.getElementById('mk-mobile-nav');
+    if (menuBtn && mobileNav) {
+      menuBtn.addEventListener('click', () => {
+        const open = mobileNav.classList.toggle('is-open');
+        menuBtn.setAttribute('aria-expanded', String(open));
+      });
+      mobileNav.querySelectorAll('a').forEach((a) => {
+        a.addEventListener('click', () => {
+          mobileNav.classList.remove('is-open');
+          menuBtn.setAttribute('aria-expanded', 'false');
+        });
+      });
+    }
     window.addEventListener('hashchange', render);
     if (!location.hash) location.hash = '#/home';
     else render();

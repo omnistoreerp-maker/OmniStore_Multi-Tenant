@@ -4,16 +4,18 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>OmniStore Market</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛒</text></svg>" />
   <link rel="stylesheet" href="market/css/market.css" />
 </head>
 <body>
   <header class="mk-header">
     <div class="mk-container mk-header-inner">
+      <button class="mk-menu-btn" id="mk-menu-btn" type="button" aria-expanded="false" aria-controls="mk-mobile-nav">☰</button>
       <a class="mk-brand" href="#/home" data-i18n="brand">OmniStore Market</a>
-      <nav class="mk-nav">
+      <nav class="mk-nav" aria-label="Primary">
         <a href="#/home" data-i18n="nav_home">Home</a>
         <a href="#/catalog" data-i18n="nav_catalog">Catalog</a>
-        <a href="#/cart" id="mk-cart-link"><span data-i18n="nav_cart">Cart</span> (<span id="mk-cart-count">0</span>)</a>
+        <a href="#/cart" id="mk-cart-link"><span data-i18n="nav_cart">Cart</span><span id="mk-cart-count" class="mk-cart-badge" aria-label="Cart count">0</span></a>
         <a href="#/track" data-i18n="nav_track">Track Order</a>
         <a href="#/game-hosting" data-i18n="gh_nav">Game Hosting</a>
         <a href="#/account" id="mk-account-link" data-i18n="nav_account">Account</a>
@@ -22,6 +24,14 @@
         <button id="mk-lang-btn" type="button">العربية</button>
       </div>
     </div>
+    <nav class="mk-mobile-nav" id="mk-mobile-nav" aria-label="Mobile">
+      <a href="#/home" data-i18n="nav_home">Home</a>
+      <a href="#/catalog" data-i18n="nav_catalog">Catalog</a>
+      <a href="#/cart" id="mk-mobile-cart-link"><span data-i18n="nav_cart">Cart</span><span id="mk-mobile-cart-count" class="mk-cart-badge" aria-label="Cart count">0</span></a>
+      <a href="#/track" data-i18n="nav_track">Track Order</a>
+      <a href="#/game-hosting" data-i18n="gh_nav">Game Hosting</a>
+      <a href="#/account" id="mk-mobile-account-link" data-i18n="nav_account">Account</a>
+    </nav>
   </header>
 
   <main class="mk-container" id="mk-app">
