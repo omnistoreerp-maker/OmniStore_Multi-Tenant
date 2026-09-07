@@ -1148,19 +1148,17 @@
     if (!servers.length) {
       html += emptyState('server', t('gh_empty_servers_title'), t('gh_empty_servers_sub'), '<a class="mk-btn" href="#/game-hosting">' + esc(t('gh_empty_servers_cta')) + '</a>');
     } else {
-      html += '<div class="mk-grid">';
+      html += '<div class="mk-op-table-wrap"><table class="mk-op-table"><thead><tr><th>' + esc(t('op_server_name')) + '</th><th>' + esc(t('op_server_customer')) + '</th><th>' + esc(t('op_server_plan')) + '</th><th>' + esc(t('op_server_region')) + '</th><th>' + esc(t('op_server_status')) + '</th></tr></thead><tbody>';
       servers.forEach((s) => {
-        html += '<div class="mk-card">' +
-          '<div class="mk-card-body">' +
-            '<div class="mk-card-name">' + esc(s.serverName) + '</div>' +
-            '<div class="mk-card-stock">' + esc(t('op_server_customer')) + ': ' + esc(s.customerId || '-') + '</div>' +
-            '<div class="mk-card-stock">' + esc(t('op_server_plan')) + ': ' + esc(s.planId) + '</div>' +
-            '<div class="mk-card-stock">' + esc(t('op_server_region')) + ': ' + esc(s.region || '-') + '</div>' +
-            '<div class="mk-card-stock">' + esc(t('op_server_status')) + ': ' + ghStatusLabel(s.status) + '</div>' +
-          '</div>' +
-        '</div>';
+        html += '<tr>' +
+          '<td data-label="' + esc(t('op_server_name')) + '">' + esc(s.serverName) + '</td>' +
+          '<td data-label="' + esc(t('op_server_customer')) + '">' + esc(s.customerId || '-') + '</td>' +
+          '<td data-label="' + esc(t('op_server_plan')) + '">' + esc(s.planId) + '</td>' +
+          '<td data-label="' + esc(t('op_server_region')) + '">' + esc(s.region || '-') + '</td>' +
+          '<td data-label="' + esc(t('op_server_status')) + '">' + ghStatusLabel(s.status) + '</td>' +
+        '</tr>';
       });
-      html += '</div>';
+      html += '</tbody></table></div>';
     }
     setApp(html);
 
@@ -1197,20 +1195,20 @@
     if (!requests.length) {
       html += emptyState('clock', t('gh_empty_requests_title'), t('gh_empty_requests_sub'), '<a class="mk-btn" href="#/game-hosting">' + esc(t('gh_empty_requests_cta')) + '</a>');
     } else {
-      html += '<div class="mk-grid">';
+      html += '<div class="mk-op-table-wrap"><table class="mk-op-table"><thead><tr><th>' + esc(t('op_request_id')) + '</th><th>' + esc(t('op_request_customer')) + '</th><th>' + esc(t('op_request_plan')) + '</th><th>' + esc(t('op_request_region')) + '</th><th>' + esc(t('op_request_status')) + '</th><th>' + esc(t('op_request_actions')) + '</th></tr></thead><tbody>';
       requests.forEach((req) => {
-        html += '<div class="mk-card">' +
-          '<div class="mk-card-body">' +
-            '<div class="mk-card-name">' + esc(req.id) + '</div>' +
-            '<div class="mk-card-stock">' + esc(t('op_request_customer')) + ': ' + esc(req.customerId || '-') + '</div>' +
-            '<div class="mk-card-stock">' + esc(t('op_request_plan')) + ': ' + esc(req.planId) + '</div>' +
-            '<div class="mk-card-stock">' + esc(t('op_request_region')) + ': ' + esc(req.requestedRegion || '-') + '</div>' +
-            '<div class="mk-card-stock">' + esc(t('op_request_status')) + ': ' + ghStatusLabel(req.status) + '</div>' +
-            (req.status === 'pending' ? '<div class="mk-card-actions"><button class="mk-btn" id="gh-approve-' + esc(req.id) + '">' + esc(t('op_approve')) + '</button> <button class="mk-btn danger" id="gh-reject-' + esc(req.id) + '">' + esc(t('op_reject')) + '</button></div>' : '') +
-          '</div>' +
-        '</div>';
+        html += '<tr>' +
+          '<td data-label="' + esc(t('op_request_id')) + '">' + esc(req.id) + '</td>' +
+          '<td data-label="' + esc(t('op_request_customer')) + '">' + esc(req.customerId || '-') + '</td>' +
+          '<td data-label="' + esc(t('op_request_plan')) + '">' + esc(req.planId) + '</td>' +
+          '<td data-label="' + esc(t('op_request_region')) + '">' + esc(req.requestedRegion || '-') + '</td>' +
+          '<td data-label="' + esc(t('op_request_status')) + '">' + ghStatusLabel(req.status) + '</td>' +
+          '<td data-label="' + esc(t('op_request_actions')) + '">' +
+            (req.status === 'pending' ? '<button class="mk-btn" id="gh-approve-' + esc(req.id) + '">' + esc(t('op_approve')) + '</button> <button class="mk-btn danger" id="gh-reject-' + esc(req.id) + '">' + esc(t('op_reject')) + '</button>' : '-') +
+          '</td>' +
+        '</tr>';
       });
-      html += '</div>';
+      html += '</tbody></table></div>';
     }
     setApp(html);
 
@@ -1268,23 +1266,21 @@
     if (!entitlements.length) {
       html += emptyState('key', t('gh_empty_servers_title'), null, '<a class="mk-btn" href="#/operator">' + esc(t('op_back_to_dashboard')) + '</a>');
     } else {
-      html += '<div class="mk-grid">';
+      html += '<div class="mk-op-table-wrap"><table class="mk-op-table"><thead><tr><th>' + esc(t('op_entitlement_customer')) + '</th><th>' + esc(t('op_entitlement_plan')) + '</th><th>' + esc(t('op_entitlement_status')) + '</th><th>' + esc(t('op_entitlement_starts')) + '</th><th>' + esc(t('op_entitlement_expires')) + '</th><th>' + esc(t('op_entitlement_actions')) + '</th></tr></thead><tbody>';
       entitlements.forEach((e) => {
-        html += '<div class="mk-card">' +
-          '<div class="mk-card-body">' +
-            '<div class="mk-card-name">' + esc(e.customerId || '-') + '</div>' +
-            '<div class="mk-card-stock">' + esc(t('op_entitlement_plan')) + ': ' + esc(e.planId) + '</div>' +
-            '<div class="mk-card-stock">' + esc(t('op_entitlement_status')) + ': ' + esc(e.status || '-') + '</div>' +
-            '<div class="mk-card-stock">' + esc(t('op_entitlement_starts')) + ': ' + esc(e.startsAt ? new Date(e.startsAt).toLocaleString() : '-') + '</div>' +
-            '<div class="mk-card-stock">' + esc(t('op_entitlement_expires')) + ': ' + esc(e.expiresAt ? new Date(e.expiresAt).toLocaleString() : '-') + '</div>' +
-            '<div class="mk-card-actions">' +
-              '<button class="mk-btn" id="op-entitlement-edit-' + esc(e.id) + '">' + esc(t('op_update')) + '</button>' +
-              '<button class="mk-btn danger" id="op-entitlement-revoke-' + esc(e.id) + '">' + esc(t('op_entitlement_revoke')) + '</button>' +
-            '</div>' +
-          '</div>' +
-        '</div>';
+        html += '<tr>' +
+          '<td data-label="' + esc(t('op_entitlement_customer')) + '">' + esc(e.customerId || '-') + '</td>' +
+          '<td data-label="' + esc(t('op_entitlement_plan')) + '">' + esc(e.planId) + '</td>' +
+          '<td data-label="' + esc(t('op_entitlement_status')) + '">' + esc(e.status || '-') + '</td>' +
+          '<td data-label="' + esc(t('op_entitlement_starts')) + '">' + esc(e.startsAt ? new Date(e.startsAt).toLocaleString() : '-') + '</td>' +
+          '<td data-label="' + esc(t('op_entitlement_expires')) + '">' + esc(e.expiresAt ? new Date(e.expiresAt).toLocaleString() : '-') + '</td>' +
+          '<td data-label="' + esc(t('op_entitlement_actions')) + '">' +
+            '<button class="mk-btn" id="op-entitlement-edit-' + esc(e.id) + '">' + esc(t('op_update')) + '</button> ' +
+            '<button class="mk-btn danger" id="op-entitlement-revoke-' + esc(e.id) + '">' + esc(t('op_entitlement_revoke')) + '</button>' +
+          '</td>' +
+        '</tr>';
       });
-      html += '</div>';
+      html += '</tbody></table></div>';
     }
     setApp(html);
 

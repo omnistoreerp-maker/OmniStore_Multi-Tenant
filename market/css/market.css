@@ -388,6 +388,13 @@ h3 { font-size: 16px; font-weight: 700; margin: 16px 0 8px; }
 /* Provision */
 .mk-summary-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--mk-muted); margin: 0 0 10px; }
 
+/* Operator tables */
+.mk-op-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.mk-op-table th, .mk-op-table td { padding: 10px 12px; text-align: start; border-bottom: 1px solid var(--mk-border); vertical-align: middle; }
+.mk-op-table th { font-weight: 600; color: var(--mk-muted); background: #f8fafc; white-space: nowrap; }
+.mk-op-table tbody tr:hover { background: #f8fafc; }
+.mk-op-table .mk-btn { padding: 6px 10px; font-size: 13px; }
+
 /* Status badges */
 .mk-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: #eef2ff; color: var(--mk-primary); border: 1px solid transparent; }
 .mk-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .85; }
@@ -529,10 +536,18 @@ h3 { font-size: 16px; font-weight: 700; margin: 16px 0 8px; }
     z-index: 10;
     margin-top: 16px;
   }
+
+  .mk-op-table thead { display: none; }
+  .mk-op-table tbody tr { display: block; border: 1px solid var(--mk-border); border-radius: 10px; padding: 12px; margin-bottom: 12px; background: #fff; }
+  .mk-op-table tbody tr:hover { background: #fff; }
+  .mk-op-table td { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border: none; gap: 8px; }
+  .mk-op-table td::before { content: attr(data-label); font-weight: 600; color: var(--mk-muted); font-size: 12px; }
+  .mk-op-table td:last-child { padding-bottom: 0; }
 }
 
 @media (min-width: 769px) {
   .mk-bottom-nav { display: none !important; }
+  .mk-op-table td { white-space: nowrap; }
 }
 
 @media (max-width: 480px) {
