@@ -1348,6 +1348,19 @@ window.DIGITRONICS_SUPABASE = window.DIGITRONICS_SUPABASE || {
 <script src="./services/goLive/goLiveUi.js">
 
 </script>
+<!-- Supplier cards grid hidden per customer request (surgical) -->
+<style>
+#supplierCardsSection{display:none !important;}
+</style>
+
+<!-- Phase 2A — Loyalty frontend sync foundation (read-only) -->
+<script src="./services/loyalty/sync.js"></script>
+<script src="./services/loyalty/reconciler.js"></script>
+<script src="./services/loyalty/migration.js"></script>
+<!-- Phase 2B — Loyalty backend sync queue and post-save hooks -->
+<script src="./services/loyalty/syncQueue.js"></script>
+<script src="./services/loyalty/syncPost.js"></script>
+<script src="./services/loyalty/processor.js"></script>
 </head>
 <body>
 
@@ -11798,6 +11811,23 @@ const backendApi = {
   }
 };
 
+  loyalty: {
+    getBalance: (customerId) => USE_BACKEND ? backendApi._fetch('GET', '/loyalty/balance/' + encodeURIComponent(customerId)) : null,
+    getTransactions: (customerId, query) => {
+      if (!USE_BACKEND) return null;
+      const qs = new URLSearchParams();
+      if (query) {
+        Object.entries(query).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') qs.set(k, v); });
+      }
+      const suffix = qs.toString() ? '?' + qs.toString() : '';
+      return backendApi._fetch('GET', '/loyalty/transactions/' + encodeURIComponent(customerId) + suffix);
+    },
+    getConfig: () => USE_BACKEND ? backendApi._fetch('GET', '/loyalty/config') : null,
+    getMetrics: () => USE_BACKEND ? backendApi._fetch('GET', '/loyalty/metrics') : null,
+    earn: (payload) => USE_BACKEND ? backendApi._fetch('POST', '/loyalty/earn', payload) : null,
+    redeem: (payload) => USE_BACKEND ? backendApi._fetch('POST', '/loyalty/redeem', payload) : null,
+    reverse: (payload) => USE_BACKEND ? backendApi._fetch('POST', '/loyalty/reverse', payload) : null
+  },
 // ===== Backend Op Queue: retrying delete/update ops (bug 3.2) =====
 const BACKEND_OP_QUEUE_KEY = 'digitronics_backend_op_queue_v1';
 const BACKEND_OP_TOMBSTONE_KEY = 'digitronics_backend_op_tombstones_v1';
@@ -26533,6 +26563,7 @@ function saveReturnImpl() {
   }
 
   saveDB();
+  try { loyaltySync.syncLoyaltyForReturn(returnRecord, inv); } catch (e) { console.warn('Loyalty post-return sync failed', e); }
   closeModal('returnModal');
   renderReturns();
   renderTreasury();
@@ -37942,6 +37973,7 @@ function legacyFinalizeSaleTransaction(payload) {
   if (!saveDB()) return false;
   auditAndSyncFinanceStock('finalizeSaleTransaction');
   _lastInvoiceForShare = invoice;
+  try { loyaltySync.syncLoyaltyForSale(invoice); } catch (e) { console.warn('Loyalty post-sale sync failed', e); }
   return invoice;
 }
 
