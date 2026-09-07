@@ -731,7 +731,7 @@
         html += '<div class="mk-card">' +
           '<div class="mk-card-body">' +
             '<div class="mk-card-name">' + esc(s.serverName) + '</div>' +
-            '<div class="mk-card-stock">' + esc(t('gh_status')) + ': ' + ghStatusLabel(s.status).replace(/<[^>]+>/g, '') + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('gh_status')) + ': ' + ghStatusLabel(s.status) + '</div>' +
             (s.region ? '<div class="mk-card-stock">' + esc(t('gh_region')) + ': ' + esc(s.region) + '</div>' : '') +
             '<a class="mk-btn" href="#/game-hosting/servers/' + encodeURIComponent(s.id) + '">' + esc(t('gh_server_details')) + '</a>' +
           '</div>' +
@@ -767,7 +767,6 @@
     html += '<div id="gh-server-msg" style="margin-top:12px"></div>';
     html += '</div><div class="mk-col">';
     html += '<div class="mk-order-card">';
-    html += '<div class="mk-summary-title">' + esc(t('gh_details_section_identity')) + '</div>';
     html += '<div class="mk-field" style="max-width:360px"><label for="gh-edit-name">' + esc(t('gh_server_name')) + '</label><input class="mk-input" id="gh-edit-name" value="' + esc(server.serverName) + '"></div>';
     html += '<div class="mk-field" style="max-width:360px"><label for="gh-edit-region">' + esc(t('gh_region')) + '</label><input class="mk-input" id="gh-edit-region" value="' + esc(server.region || '') + '"></div>';
     html += '<button class="mk-btn" id="gh-save">' + esc(t('save')) + '</button>';
@@ -856,7 +855,7 @@
         html += '<div class="mk-card">' +
           '<div class="mk-card-body">' +
             '<div class="mk-card-name">' + esc(req.planId) + '</div>' +
-            '<div class="mk-card-stock">' + esc(t('gh_request_status')) + ': ' + ghStatusLabel(req.status).replace(/<[^>]+>/g, '') + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('gh_request_status')) + ': ' + ghStatusLabel(req.status) + '</div>' +
             (req.requestedRegion ? '<div class="mk-card-stock">' + esc(t('gh_request_region')) + ': ' + esc(req.requestedRegion) + '</div>' : '') +
             '<div class="mk-card-stock">' + esc(t('gh_request_created')) + ': ' + esc(req.createdAt ? new Date(req.createdAt).toLocaleString() : '-') + '</div>' +
           '</div>' +
@@ -1039,7 +1038,7 @@
             '<div class="mk-card-stock">' + esc(t('op_server_customer')) + ': ' + esc(s.customerId || '-') + '</div>' +
             '<div class="mk-card-stock">' + esc(t('op_server_plan')) + ': ' + esc(s.planId) + '</div>' +
             '<div class="mk-card-stock">' + esc(t('op_server_region')) + ': ' + esc(s.region || '-') + '</div>' +
-            '<div class="mk-card-stock">' + esc(t('op_server_status')) + ': ' + ghStatusLabel(s.status).replace(/<[^>]+>/g, '') + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('op_server_status')) + ': ' + ghStatusLabel(s.status) + '</div>' +
           '</div>' +
         '</div>';
       });
@@ -1088,7 +1087,7 @@
             '<div class="mk-card-stock">' + esc(t('op_request_customer')) + ': ' + esc(req.customerId || '-') + '</div>' +
             '<div class="mk-card-stock">' + esc(t('op_request_plan')) + ': ' + esc(req.planId) + '</div>' +
             '<div class="mk-card-stock">' + esc(t('op_request_region')) + ': ' + esc(req.requestedRegion || '-') + '</div>' +
-            '<div class="mk-card-stock">' + esc(t('op_request_status')) + ': ' + ghStatusLabel(req.status).replace(/<[^>]+>/g, '') + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('op_request_status')) + ': ' + ghStatusLabel(req.status) + '</div>' +
             (req.status === 'pending' ? '<div class="mk-card-actions"><button class="mk-btn" id="gh-approve-' + esc(req.id) + '">' + esc(t('op_approve')) + '</button> <button class="mk-btn danger" id="gh-reject-' + esc(req.id) + '">' + esc(t('op_reject')) + '</button></div>' : '') +
           '</div>' +
         '</div>';
