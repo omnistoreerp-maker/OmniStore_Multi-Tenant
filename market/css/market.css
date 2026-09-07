@@ -279,6 +279,9 @@ h3 { font-size: 16px; font-weight: 700; margin: 16px 0 8px; }
 .mk-input:focus, .mk-select:focus { border-color: var(--mk-primary); box-shadow: 0 0 0 3px rgba(37,99,235,.12); outline: none; }
 .mk-field { margin-bottom: 14px; }
 .mk-field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--mk-text); }
+.mk-field-error { color: var(--mk-danger); font-size: 12px; font-weight: 500; margin-top: 6px; }
+.mk-input.is-invalid, .mk-select.is-invalid { border-color: var(--mk-danger); box-shadow: 0 0 0 3px rgba(220,38,38,.12); }
+.mk-input:focus.is-invalid, .mk-select:focus.is-invalid { border-color: var(--mk-danger); box-shadow: 0 0 0 3px rgba(220,38,38,.15); }
 .mk-toolbar { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; align-items: center; }
 .mk-toolbar .mk-input { max-width: 260px; }
 .mk-select--sm { max-width: 220px; }

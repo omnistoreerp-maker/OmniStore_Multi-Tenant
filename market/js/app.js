@@ -59,6 +59,50 @@
     return '<div class="mk-banner ' + type + '">' + esc(msg) + '</div>';
   }
 
+  function fieldError(inputId, message) {
+    const input = document.getElementById(inputId);
+    if (!input) return '';
+    input.classList.add('is-invalid');
+    input.setAttribute('aria-invalid', 'true');
+    const errEl = document.createElement('div');
+    errEl.className = 'mk-field-error';
+    errEl.id = inputId + '-error';
+    errEl.textContent = message;
+    errEl.setAttribute('role', 'alert');
+    input.setAttribute('aria-describedby', errEl.id);
+    const field = input.closest('.mk-field');
+    if (field) {
+      let existing = field.querySelector('.' + errEl.className);
+      if (existing) existing.remove();
+      field.appendChild(errEl);
+    }
+    return '';
+  }
+
+  function clearFieldError(inputId) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    input.classList.remove('is-invalid');
+    input.removeAttribute('aria-invalid');
+    const errId = inputId + '-error';
+    const errEl = document.getElementById(errId);
+    if (errEl) errEl.remove();
+    input.removeAttribute('aria-describedby');
+  }
+
+  function clearAllFieldErrors(prefix) {
+    document.querySelectorAll('.mk-input.is-invalid, .mk-select.is-invalid').forEach((el) => {
+      if (!prefix || el.id.startsWith(prefix)) {
+        el.classList.remove('is-invalid');
+        el.removeAttribute('aria-invalid');
+        const errId = el.id + '-error';
+        const errEl = document.getElementById(errId);
+        if (errEl) errEl.remove();
+        el.removeAttribute('aria-describedby');
+      }
+    });
+  }
+
   function confirmDialog(message) {
     return new Promise((resolve) => {
       const dialog = document.getElementById('mk-confirm-dialog');
@@ -434,21 +478,33 @@
     if (zoneSel) zoneSel.addEventListener('change', updateTotals);
     updateTotals();
 
+    ['ck-name', 'ck-email', 'ck-phone', 'ck-addr'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('input', () => clearFieldError(id));
+    });
+
     document.getElementById('ck-place').addEventListener('click', async () => {
+      clearAllFieldErrors('ck-');
       const msg = document.getElementById('ck-msg');
       msg.innerHTML = '';
       const name = document.getElementById('ck-name').value.trim();
       const email = document.getElementById('ck-email').value.trim();
+      const phone = document.getElementById('ck-phone').value.trim();
+      const addr = document.getElementById('ck-addr').value.trim();
+      let valid = true;
+      if (!name) { fieldError('ck-name', t('required_field')); valid = false; }
+      if (!email) { fieldError('ck-email', t('required_field')); valid = false; }
+      else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { fieldError('ck-email', t('invalid_email')); valid = false; }
+      if (!addr) { fieldError('ck-addr', t('required_field')); valid = false; }
+      if (!valid) return;
       const payload = {
         items: lines.map((l) => ({ productId: l.productId, qty: l.qty })),
         shippingZoneId: zoneSel ? zoneSel.value : undefined,
         paymentMethodId: (document.getElementById('ck-pay') || {}).value,
         couponCode: document.getElementById('ck-coupon').value.trim() || undefined,
-        customerInfo: { name, email, phone: document.getElementById('ck-phone').value.trim() },
-        shippingAddress: document.getElementById('ck-addr').value.trim() || null
+        customerInfo: { name, email, phone: phone || undefined },
+        shippingAddress: addr
       };
-      if (!name || !email) { msg.innerHTML = banner('error', t('required_field')); return; }
-      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { msg.innerHTML = banner('error', t('invalid_email')); return; }
       const btn = document.getElementById('ck-place');
       btn.disabled = true; btn.textContent = t('please_wait');
       try {
@@ -516,18 +572,44 @@
       html += '<div class="mk-field"><label for="rg-pass">' + esc(t('password_req')) + '</label><input class="mk-input" id="rg-pass" type="password" required></div>';
       html += '<button class="mk-btn" id="rg-btn">' + esc(t('register')) + '</button></div></div>';
       setApp(html);
+      ['lg-email', 'lg-pass'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', () => clearFieldError(id));
+      });
       document.getElementById('lg-btn').addEventListener('click', async () => {
+        clearAllFieldErrors('lg-');
         const msg = document.getElementById('ac-login-msg');
+        msg.innerHTML = '';
+        const email = document.getElementById('lg-email').value.trim();
+        const pass = document.getElementById('lg-pass').value;
+        let valid = true;
+        if (!email) { fieldError('lg-email', t('required_field')); valid = false; }
+        if (!pass) { fieldError('lg-pass', t('required_field')); valid = false; }
+        if (!valid) return;
         try {
-          const r = await window.MK_API.login({ email: document.getElementById('lg-email').value, password: document.getElementById('lg-pass').value });
+          const r = await window.MK_API.login({ email, password: pass });
           window.MK_API.setToken(r.token);
           render();
         } catch (e) { msg.innerHTML = banner('error', e.message || t('error_generic')); }
       });
+      ['rg-name', 'rg-email', 'rg-pass'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', () => clearFieldError(id));
+      });
       document.getElementById('rg-btn').addEventListener('click', async () => {
+        clearAllFieldErrors('rg-');
         const msg = document.getElementById('ac-reg-msg');
+        msg.innerHTML = '';
+        const name = document.getElementById('rg-name').value.trim();
+        const email = document.getElementById('rg-email').value.trim();
+        const pass = document.getElementById('rg-pass').value;
+        let valid = true;
+        if (!name) { fieldError('rg-name', t('required_field')); valid = false; }
+        if (!email) { fieldError('rg-email', t('required_field')); valid = false; }
+        if (!pass) { fieldError('rg-pass', t('required_field')); valid = false; }
+        if (!valid) return;
         try {
-          const r = await window.MK_API.register({ email: document.getElementById('rg-email').value, name: document.getElementById('rg-name').value, phone: document.getElementById('rg-phone').value, password: document.getElementById('rg-pass').value });
+          const r = await window.MK_API.register({ email, name, phone: document.getElementById('rg-phone').value.trim(), password: pass });
           window.MK_API.setToken(r.token);
           render();
         } catch (e) { msg.innerHTML = banner('error', e.message || t('error_generic')); }
@@ -719,12 +801,15 @@
 
     const btn = document.getElementById('gh-do-provision');
     if (btn) {
+      const serverNameInput = document.getElementById('gh-srv-name');
+      if (serverNameInput) serverNameInput.addEventListener('input', () => clearFieldError('gh-srv-name'));
       btn.addEventListener('click', async () => {
+        clearAllFieldErrors('gh-');
         const msg = document.getElementById('gh-provision-msg');
         msg.innerHTML = '';
         const serverName = document.getElementById('gh-srv-name').value.trim();
         const region = document.getElementById('gh-srv-region').value.trim();
-        if (!serverName) { msg.innerHTML = ghBanner('error', t('gh_required_field')); return; }
+        if (!serverName) { fieldError('gh-srv-name', t('gh_required_field')); return; }
         btn.disabled = true; btn.textContent = t('please_wait');
         try {
           const res = await window.MK_API.ghCreateProvisioningRequest({ planId: plan.id, serverName, region });
