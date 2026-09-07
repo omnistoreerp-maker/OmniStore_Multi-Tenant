@@ -135,6 +135,18 @@
     return html;
   }
 
+  function skeletonGameCard() {
+    return '<div class="mk-card"><div class="mk-card-body"><div class="mk-skeleton" style="height:18px;width:70%;margin-bottom:8px"></div><div class="mk-skeleton" style="height:14px;width:50%;margin-bottom:6px"></div><div class="mk-skeleton" style="height:14px;width:40%;margin-bottom:6px"></div><div class="mk-skeleton" style="height:36px;width:100%;margin-top:8px"></div></div></div>';
+  }
+
+  function skeletonGameGrid(count) {
+    const n = Math.max(1, count || 4);
+    let html = '<div class="mk-grid">';
+    for (let i = 0; i < n; i++) html += skeletonGameCard();
+    html += '</div>';
+    return html;
+  }
+
   const app = document.getElementById('mk-app');
 
   function setApp(html) {
@@ -622,7 +634,7 @@
   }
 
   async function pageGameHosting() {
-    setApp('<div class="mk-loading">' + esc(t('loading')) + '</div>');
+    setApp('<div class="mk-loading">' + esc(t('loading')) + '</div><h1 class="mk-page-title">' + esc(t('gh_hero_title')) + '</h1><p class="mk-page-sub">' + esc(t('gh_hero_sub')) + '</p><h2>' + esc(t('gh_plans')) + '</h2><div id="mk-gh-plans">' + skeletonGameGrid(4) + '</div>');
     let provider = null;
     try { provider = await window.MK_API.ghProviderStatus().catch(() => null); } catch (_) {}
     let plans = [];
@@ -637,7 +649,7 @@
     if (!plans.length) {
       html += emptyState('gamepad', t('gh_no_plans'), null, '<a class="mk-btn" href="#/operator">' + esc(t('op_back_to_dashboard')) + '</a>');
     } else {
-      html += '<div class="mk-grid">';
+      html += '<div class="mk-grid" id="mk-gh-plans">';
       plans.forEach((p) => {
         html += '<div class="mk-card">' +
           '<div class="mk-card-body">' +
@@ -717,7 +729,7 @@
       setApp('<h1 class="mk-page-title">' + esc(t('gh_my_servers')) + '</h1>' + ghBanner('error', esc(t('gh_auth_required')) + ' <a href="#/account">' + esc(t('or_login')) + '</a>'));
       return;
     }
-    setApp('<div class="mk-loading">' + esc(t('loading')) + '</div>');
+    setApp('<h1 class="mk-page-title">' + esc(t('gh_my_servers')) + '</h1><p><a class="mk-btn secondary" href="#/game-hosting">' + esc(t('gh_back_to_plans')) + '</a></p><div id="mk-gh-servers">' + skeletonGameGrid(3) + '</div>');
     let servers = [];
     try { const r = await window.MK_API.ghServers(); servers = (r && r.servers) || []; } catch (_) {}
 
@@ -841,7 +853,7 @@
       setApp('<h1 class="mk-page-title">' + esc(t('gh_requests_title')) + '</h1>' + ghBanner('error', esc(t('gh_auth_required')) + ' <a href="#/account">' + esc(t('or_login')) + '</a>'));
       return;
     }
-    setApp('<div class="mk-loading">' + esc(t('loading')) + '</div>');
+    setApp('<h1 class="mk-page-title">' + esc(t('gh_requests_title')) + '</h1><p><a class="mk-btn secondary" href="#/game-hosting">' + esc(t('gh_back_to_plans')) + '</a></p><div id="mk-gh-reqs">' + skeletonGameGrid(3) + '</div>');
     let requests = [];
     try { const r = await window.MK_API.ghProvisioningRequests(); requests = (r && r.requests) || []; } catch (_) {}
 
@@ -877,7 +889,7 @@
       setApp('<h1 class="mk-page-title">' + esc(t('op_plans')) + '</h1>' + opBanner('error', esc(t('gh_auth_required'))));
       return;
     }
-    setApp('<div class="mk-loading">' + esc(t('loading')) + '</div>');
+    setApp('<h1 class="mk-page-title">' + esc(t('op_plans')) + '</h1><p><a class="mk-btn secondary" href="#/operator">' + esc(t('op_back_to_dashboard')) + '</a></p><button class="mk-btn" id="op-plan-create-btn">' + esc(t('op_plan_create')) + '</button><div id="op-plans">' + skeletonGameGrid(3) + '</div>');
     let plans = [];
     try { const r = await window.MK_API.ghPlans(); plans = (r && r.plans) || []; } catch (_) {}
 
@@ -1020,7 +1032,7 @@
       setApp('<h1 class="mk-page-title">' + esc(t('op_servers')) + '</h1>' + opBanner('error', esc(t('gh_auth_required'))));
       return;
     }
-    setApp('<div class="mk-loading">' + esc(t('loading')) + '</div>');
+    setApp('<h1 class="mk-page-title">' + esc(t('op_servers')) + '</h1><p><a class="mk-btn secondary" href="#/operator">' + esc(t('op_back_to_dashboard')) + '</a></p><div id="op-server-chart" style="width:100%;max-width:420px;height:320px;margin-bottom:16px;"></div><div id="mk-op-servers">' + skeletonGameGrid(3) + '</div>');
     let servers = [];
     try { const r = await window.MK_API.ghServers(); servers = (r && r.servers) || []; } catch (_) {}
 
@@ -1070,7 +1082,7 @@
       setApp('<h1 class="mk-page-title">' + esc(t('op_queue')) + '</h1>' + opBanner('error', esc(t('gh_auth_required'))));
       return;
     }
-    setApp('<div class="mk-loading">' + esc(t('loading')) + '</div>');
+    setApp('<h1 class="mk-page-title">' + esc(t('op_queue')) + '</h1><p><a class="mk-btn secondary" href="#/operator">' + esc(t('op_back_to_dashboard')) + '</a></p><div id="mk-op-queue">' + skeletonGameGrid(3) + '</div>');
     let requests = [];
     try { const r = await window.MK_API.ghProvisioningRequests(); requests = (r && r.requests) || []; } catch (_) {}
 
@@ -1124,7 +1136,7 @@
       setApp('<h1 class="mk-page-title">' + esc(t('op_entitlements')) + '</h1>' + opBanner('error', esc(t('gh_auth_required'))));
       return;
     }
-    setApp('<div class="mk-loading">' + esc(t('loading')) + '</div>');
+    setApp('<h1 class="mk-page-title">' + esc(t('op_entitlements')) + '</h1><p><a class="mk-btn secondary" href="#/operator">' + esc(t('op_back_to_dashboard')) + '</a></p><button class="mk-btn" id="op-entitlement-create-btn">' + esc(t('op_plan_create')) + '</button><div id="mk-op-entitlements">' + skeletonGameGrid(3) + '</div>');
     let entitlements = [];
     try { const r = await window.MK_API.ghEntitlements(); entitlements = (r && r.entitlements) || []; } catch (_) {}
     let plans = [];
@@ -1279,7 +1291,7 @@
       setApp('<h1 class="mk-page-title">' + esc(t('op_audit')) + '</h1>' + opBanner('error', esc(t('gh_auth_required'))));
       return;
     }
-    setApp('<div class="mk-loading">' + esc(t('loading')) + '</div>');
+    setApp('<h1 class="mk-page-title">' + esc(t('op_audit')) + '</h1><p><a class="mk-btn secondary" href="#/operator">' + esc(t('op_back_to_dashboard')) + '</a></p><div id="mk-op-audit">' + skeletonGameGrid(3) + '</div>');
     let entries = [];
     try { const r = await window.MK_API.ghAuditLog(); entries = (r && r.entries) || []; } catch (_) {}
 
