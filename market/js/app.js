@@ -538,6 +538,11 @@
       if (el) el.addEventListener('input', () => clearFieldError(id));
     });
 
+    const zoneInput = document.getElementById('ck-zone');
+    const payInput = document.getElementById('ck-pay');
+    if (zoneInput) zoneInput.addEventListener('change', () => clearFieldError('ck-zone'));
+    if (payInput) payInput.addEventListener('change', () => clearFieldError('ck-pay'));
+
     document.getElementById('ck-place').addEventListener('click', async () => {
       clearAllFieldErrors('ck-');
       const msg = document.getElementById('ck-msg');
@@ -546,11 +551,16 @@
       const email = document.getElementById('ck-email').value.trim();
       const phone = document.getElementById('ck-phone').value.trim();
       const addr = document.getElementById('ck-addr').value.trim();
+      const zone = zoneInput ? zoneInput.value : '';
+      const pay = payInput ? payInput.value : '';
       let valid = true;
       if (!name) { fieldError('ck-name', t('required_field')); valid = false; }
       if (!email) { fieldError('ck-email', t('required_field')); valid = false; }
       else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { fieldError('ck-email', t('invalid_email')); valid = false; }
+      if (phone && !/^[0-9\s\-+()]{7,20}$/.test(phone)) { fieldError('ck-phone', t('invalid_phone')); valid = false; }
       if (!addr) { fieldError('ck-addr', t('required_field')); valid = false; }
+      if (zoneInput && !zone) { fieldError('ck-zone', t('shipping_zone_required')); valid = false; }
+      if (payInput && !pay) { fieldError('ck-pay', t('payment_method_required')); valid = false; }
       if (!valid) return;
       const payload = {
         items: lines.map((l) => ({ productId: l.productId, qty: l.qty })),
