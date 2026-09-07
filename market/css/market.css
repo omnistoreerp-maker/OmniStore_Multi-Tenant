@@ -555,6 +555,8 @@ h3 { font-size: 16px; font-weight: 700; margin: 16px 0 8px; }
   .mk-op-table td { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border: none; gap: 8px; }
   .mk-op-table td::before { content: attr(data-label); font-weight: 600; color: var(--mk-muted); font-size: 12px; }
   .mk-op-table td:last-child { padding-bottom: 0; }
+
+  .mk-op-chart-wrap { background: var(--mk-card); border: 1px solid var(--mk-border); border-radius: var(--mk-radius); padding: 16px; }
 }
 
 @media (min-width: 769px) {

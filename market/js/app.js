@@ -1191,13 +1191,13 @@
       setApp('<h1 class="mk-page-title">' + esc(t('op_servers')) + '</h1>' + opBanner('error', esc(t('gh_auth_required'))));
       return;
     }
-    setApp('<h1 class="mk-page-title">' + esc(t('op_servers')) + '</h1><p><a class="mk-btn secondary" href="#/operator">' + esc(t('op_back_to_dashboard')) + '</a></p><div id="op-server-chart" style="width:100%;max-width:420px;height:320px;margin-bottom:16px;"></div><div id="mk-op-servers">' + skeletonGameGrid(3) + '</div>');
+    setApp('<h1 class="mk-page-title">' + esc(t('op_servers')) + '</h1><p><a class="mk-btn secondary" href="#/operator">' + esc(t('op_back_to_dashboard')) + '</a></p><div class="mk-op-chart-wrap"><div id="op-server-chart" style="width:100%;max-width:420px;height:320px;"></div></div><div id="mk-op-servers">' + skeletonGameGrid(3) + '</div>');
     let servers = [];
     try { const r = await window.MK_API.ghServers(); servers = (r && r.servers) || []; } catch (_) {}
 
     let html = '<h1 class="mk-page-title">' + esc(t('op_servers')) + '</h1>';
     html += '<p><a class="mk-btn secondary" href="#/operator">' + esc(t('op_back_to_dashboard')) + '</a></p>';
-    html += '<div id="op-server-chart" style="width:100%;max-width:420px;height:320px;margin-bottom:16px;"></div>';
+    html += '<div class="mk-op-chart-wrap"><div id="op-server-chart" style="width:100%;max-width:420px;height:320px;"></div></div>';
     if (!servers.length) {
       html += emptyState('server', t('gh_empty_servers_title'), t('gh_empty_servers_sub'), '<a class="mk-btn" href="#/game-hosting">' + esc(t('gh_empty_servers_cta')) + '</a>');
     } else {
@@ -1220,13 +1220,23 @@
       servers.forEach((s) => { const k = String(s.status || 'unknown'); counts[k] = (counts[k] || 0) + 1; });
       const chart = echarts.init(document.getElementById('op-server-chart'));
       chart.setOption({
-        tooltip: { trigger: 'item' },
-        legend: { bottom: 0, textStyle: { color: '#475569' } },
+        color: ['#2563eb', '#16a34a', '#dc2626', '#d97706', '#6b7280', '#1d4ed8'],
+        tooltip: {
+          trigger: 'item',
+          backgroundColor: '#fff',
+          borderColor: '#e5e7eb',
+          borderWidth: 1,
+          borderRadius: 8,
+          padding: [10, 12],
+          textStyle: { color: '#1f2937', fontSize: 13, fontFamily: 'system-ui, -apple-system, "Segoe UI", Tahoma, "Noto Sans Arabic", sans-serif' }
+        },
+        legend: { bottom: 0, textStyle: { color: '#6b7280', fontSize: 13, fontFamily: 'system-ui, -apple-system, "Segoe UI", Tahoma, "Noto Sans Arabic", sans-serif' } },
         series: [{
           type: 'pie',
           radius: ['40%', '70%'],
           data: Object.keys(counts).map((k) => ({ name: k, value: counts[k] })),
-          itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 }
+          itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 },
+          label: { color: '#1f2937', fontSize: 13, fontFamily: 'system-ui, -apple-system, "Segoe UI", Tahoma, "Noto Sans Arabic", sans-serif' }
         }]
       });
       const ro = new ResizeObserver(() => chart.resize());
