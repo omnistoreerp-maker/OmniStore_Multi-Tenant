@@ -946,6 +946,7 @@
 
     let html = '<h1 class="mk-page-title">' + esc(t('op_servers')) + '</h1>';
     html += '<p><a class="mk-btn secondary" href="#/operator">' + esc(t('op_back_to_dashboard')) + '</a></p>';
+    html += '<div id="op-server-chart" style="width:100%;max-width:420px;height:320px;margin-bottom:16px;"></div>';
     if (!servers.length) {
       html += '<div class="mk-empty"><div class="mk-empty-title">' + esc(t('gh_empty_servers_title')) + '</div></div>';
     } else {
@@ -964,6 +965,24 @@
       html += '</div>';
     }
     setApp(html);
+
+    if (window.echarts && servers.length) {
+      const counts = {};
+      servers.forEach((s) => { const k = String(s.status || 'unknown'); counts[k] = (counts[k] || 0) + 1; });
+      const chart = echarts.init(document.getElementById('op-server-chart'));
+      chart.setOption({
+        tooltip: { trigger: 'item' },
+        legend: { bottom: 0, textStyle: { color: '#475569' } },
+        series: [{
+          type: 'pie',
+          radius: ['40%', '70%'],
+          data: Object.keys(counts).map((k) => ({ name: k, value: counts[k] })),
+          itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 }
+        }]
+      });
+      const ro = new ResizeObserver(() => chart.resize());
+      ro.observe(document.getElementById('op-server-chart'));
+    }
   }
 
   async function pageOperatorQueue() {
