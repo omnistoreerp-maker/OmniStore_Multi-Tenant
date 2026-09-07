@@ -1206,8 +1206,8 @@
       const archiveBtn = document.getElementById('op-plan-archive-' + p.id);
       if (archiveBtn) {
         archiveBtn.addEventListener('click', async () => {
-          if (!await confirmDialog(t('op_plan_archive'))) return;
           archiveBtn.disabled = true;
+          if (!await confirmDialog(t('op_plan_archive'))) { archiveBtn.disabled = false; return; }
           try {
             await window.MK_API.ghArchivePlan(p.id);
             render();
@@ -1314,16 +1314,16 @@
       const rejectBtn = document.getElementById('gh-reject-' + req.id);
       if (approveBtn) {
         approveBtn.addEventListener('click', async () => {
-          if (!await confirmDialog(t('op_approve_confirm'))) return;
           approveBtn.disabled = true;
+          if (!await confirmDialog(t('op_approve_confirm'))) { approveBtn.disabled = false; return; }
           try { await window.MK_API.ghApproveProvisioningRequest(req.id); render(); }
           catch (e) { approveBtn.disabled = false; }
         });
       }
       if (rejectBtn) {
         rejectBtn.addEventListener('click', async () => {
-          if (!await confirmDialog(t('op_reject_confirm'))) return;
           rejectBtn.disabled = true;
+          if (!await confirmDialog(t('op_reject_confirm'))) { rejectBtn.disabled = false; return; }
           try { await window.MK_API.ghRejectProvisioningRequest(req.id); render(); }
           catch (e) { rejectBtn.disabled = false; }
         });
@@ -1470,8 +1470,8 @@
       const revokeEntBtn = document.getElementById('op-entitlement-revoke-' + e.id);
       if (revokeEntBtn) {
         revokeEntBtn.addEventListener('click', async () => {
-          if (!await confirmDialog(t('op_entitlement_revoke_confirm'))) return;
           revokeEntBtn.disabled = true;
+          if (!await confirmDialog(t('op_entitlement_revoke_confirm'))) { revokeEntBtn.disabled = false; return; }
           try {
             await window.MK_API.ghDeleteEntitlement(e.id);
             if (entMsgEl) entMsgEl.innerHTML = opBanner('success', t('op_entitlement_revoked'));
