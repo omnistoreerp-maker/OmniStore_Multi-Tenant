@@ -1365,7 +1365,7 @@
       'cart': ['a[href="#/cart"]', '#mk-bottom-nav a[href="#/cart"]'],
       'track': ['a[href="#/track"]', '#mk-bottom-nav a[href="#/track"]'],
       'account': ['a[href="#/account"]', '#mk-bottom-nav a[href="#/account"]'],
-      'game-hosting': ['a[href="#/game-hosting"]', '#mk-bottom-nav a[href="#/game-hosting"]'],
+      'game-hosting': ['a[href="#/game-hosting"]', '#mk-bottom-nav a[href="#/game-hosting"]', 'a[href="#/game-hosting/my-servers"]', '#mk-bottom-nav a[href="#/game-hosting/my-servers"]', 'a[href="#/game-hosting/requests"]', '#mk-bottom-nav a[href="#/game-hosting/requests"]'],
       'operator': ['#mk-op-nav a[href="#/operator"]', '#mk-mobile-op-nav a[href="#/operator"]']
     };
     const selectors = selectorMap[path] || [];
