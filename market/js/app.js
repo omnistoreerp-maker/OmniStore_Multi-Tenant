@@ -402,10 +402,12 @@
       const stock = a ? a.stockQty : 0;
       const noStock = !a || !a.available;
       row.innerHTML =
-        '<div class="mk-ci-name"><div>' + esc(p.name) + '</div><div class="mk-card-stock ' + (noStock ? 'out' : '') + '">' + (noStock ? esc(t('out_of_stock')) : esc(t('in_stock') + ': ' + stock)) + '</div></div>' +
-        '<input class="mk-input mk-qty" type="number" min="1" max="' + (stock || 1) + '" value="' + i.qty + '" ' + (noStock ? 'disabled' : '') + '>' +
-        '<div>' + esc(money(price * i.qty, p.currency)) + '</div>' +
-        '<button class="mk-btn danger" data-rm="' + esc(p.id) + '">' + esc(t('remove')) + '</button>';
+        '<div class="mk-ci-name"><div class="mk-ci-name-text" title="' + esc(p.name) + '">' + esc(p.name) + '</div><div class="mk-card-stock ' + (noStock ? 'out' : '') + '">' + (noStock ? esc(t('out_of_stock')) : esc(t('in_stock') + ': ' + stock)) + '</div></div>' +
+        '<div class="mk-cart-item-actions">' +
+          '<input class="mk-input mk-qty" type="number" min="1" max="' + (stock || 1) + '" value="' + i.qty + '" ' + (noStock ? 'disabled' : '') + '>' +
+          '<div class="mk-cart-item-price">' + esc(money(price * i.qty, p.currency)) + '</div>' +
+          '<button class="mk-btn danger mk-btn--icon" data-rm="' + esc(p.id) + '" aria-label="' + esc(t('remove')) + '"><i data-lucide="trash-2" style="width:16px;height:16px"></i></button>' +
+        '</div>';
       wrap.appendChild(row);
       const qtyInput = row.querySelector('.mk-qty');
       if (qtyInput && !noStock) qtyInput.addEventListener('change', (e) => { window.MK_CART.setQty(p.id, parseInt(e.target.value, 10) || 1); render(); });
