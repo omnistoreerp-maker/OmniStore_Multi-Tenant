@@ -398,6 +398,11 @@ h3 { font-size: 16px; font-weight: 700; margin: 16px 0 8px; }
 .mk-dialog-msg { margin: 0 0 16px; font-size: 14px; color: var(--mk-text); line-height: 1.5; }
 .mk-dialog-actions { display: flex; gap: 10px; justify-content: flex-end; }
 
+/* Lucide icons */
+.mk-empty-icon i, .mk-hero-fallback i, .mk-card-fallback i { width: 48px; height: 48px; stroke-width: 1.8; color: var(--mk-muted); }
+.mk-hero-fallback i { width: 96px; height: 96px; stroke-width: 1.6; }
+.mk-card-fallback i { width: 64px; height: 64px; }
+
 /* Responsive */
 @media (max-width: 768px) {
   .mk-header-inner { height: auto; min-height: 56px; padding: 8px 0; flex-wrap: wrap; }
