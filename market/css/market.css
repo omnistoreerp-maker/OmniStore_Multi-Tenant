@@ -68,7 +68,7 @@ body {
 .mk-skip-link {
   position: absolute;
   top: -40px;
-  left: 0;
+  inset-inline-start: 0;
   background: var(--mk-primary);
   color: #fff;
   padding: 8px 16px;
@@ -292,7 +292,7 @@ h3 { font-size: 16px; font-weight: 700; margin: 16px 0 8px; }
 
 /* Autocomplete */
 .mk-autocomplete { position: relative; }
-.mk-autocomplete-menu { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #fff; border: 1px solid var(--mk-border); border-radius: 10px; box-shadow: var(--mk-shadow-hover); z-index: 50; max-height: 240px; overflow-y: auto; display: none; }
+.mk-autocomplete-menu { position: absolute; top: calc(100% + 4px); inset-inline-start: 0; inset-inline-end: 0; background: #fff; border: 1px solid var(--mk-border); border-radius: 10px; box-shadow: var(--mk-shadow-hover); z-index: 50; max-height: 240px; overflow-y: auto; display: none; }
 .mk-autocomplete-menu.is-open { display: block; }
 .mk-autocomplete-item { padding: 10px 12px; cursor: pointer; border-bottom: 1px solid var(--mk-border); font-size: 14px; }
 .mk-autocomplete-item:last-child { border-bottom: none; }

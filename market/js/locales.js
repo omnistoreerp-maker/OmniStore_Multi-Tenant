@@ -386,6 +386,7 @@ window.MK_LOCALES = {
     gh_unknown_status: 'غير معروف',
     gh_login_to_view: 'سجّل الدخول لعرض خوادمك',
     gh_auth_required: 'يجب تسجيل الدخول لإدارة الخوادم.',
+    gh_retry: 'إعادة المحاولة',
     gh_required_field: 'هذا الحقل مطلوب',
     gh_create_success: 'تم إنشاء الخادم بنجاح',
     gh_create_failed: 'فشل إنشاء الخادم',
