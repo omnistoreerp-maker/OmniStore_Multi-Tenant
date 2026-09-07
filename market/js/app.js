@@ -210,7 +210,7 @@
     html += '<div class="mk-card-stock ' + (out ? 'out' : '') + '">' + (out ? esc(t('out_of_stock')) : esc(t('in_stock') + ': ' + p.stockQty)) + '</div>';
     if (p.description) html += '<p>' + esc(p.description) + '</p>';
     if (!out) {
-      html += '<div class="mk-field"><label>' + esc(t('qty')) + '</label><input class="mk-input mk-qty mk-qty--sm" id="mk-qty" type="number" min="1" value="1"></div>';
+      html += '<div class="mk-field"><label for="mk-qty">' + esc(t('qty')) + '</label><input class="mk-input mk-qty mk-qty--sm" id="mk-qty" type="number" min="1" value="1"></div>';
       html += '<button class="mk-btn" id="mk-add">' + esc(t('add_to_cart')) + '</button>';
     }
     html += '</div></div>';
@@ -294,22 +294,22 @@
       html += banner('success', '<a href="#/account">' + esc(t('or_login')) + '</a>');
     }
     html += '<div class="mk-row"><div class="mk-col">';
-    html += '<div class="mk-field"><label>' + esc(t('name')) + '</label><input class="mk-input" id="ck-name"></div>';
-    html += '<div class="mk-field"><label>' + esc(t('email')) + '</label><input class="mk-input" id="ck-email" type="email"></div>';
-    html += '<div class="mk-field"><label>' + esc(t('phone')) + '</label><input class="mk-input" id="ck-phone"></div>';
-    html += '<div class="mk-field"><label>' + esc(t('shipping_address')) + '</label><input class="mk-input" id="ck-addr"></div>';
+    html += '<div class="mk-field"><label for="ck-name">' + esc(t('name')) + '</label><input class="mk-input" id="ck-name"></div>';
+    html += '<div class="mk-field"><label for="ck-email">' + esc(t('email')) + '</label><input class="mk-input" id="ck-email" type="email"></div>';
+    html += '<div class="mk-field"><label for="ck-phone">' + esc(t('phone')) + '</label><input class="mk-input" id="ck-phone"></div>';
+    html += '<div class="mk-field"><label for="ck-addr">' + esc(t('shipping_address')) + '</label><input class="mk-input" id="ck-addr"></div>';
     html += '</div><div class="mk-col">';
     if (cfg && cfg.shippingZones && cfg.shippingZones.length) {
-      html += '<div class="mk-field"><label>' + esc(t('shipping_zone')) + '</label><select class="mk-select" id="ck-zone">' +
+      html += '<div class="mk-field"><label for="ck-zone">' + esc(t('shipping_zone')) + '</label><select class="mk-select" id="ck-zone">' +
         cfg.shippingZones.map((z) => '<option value="' + esc(z.id) + '">' + esc(z.name) + ' — ' + esc(money(z.fee, cfg.currency)) + '</option>').join('') +
         '</select></div>';
     }
     if (cfg && cfg.paymentMethods && cfg.paymentMethods.length) {
-      html += '<div class="mk-field"><label>' + esc(t('payment_method')) + '</label><select class="mk-select" id="ck-pay">' +
+      html += '<div class="mk-field"><label for="ck-pay">' + esc(t('payment_method')) + '</label><select class="mk-select" id="ck-pay">' +
         cfg.paymentMethods.map((m) => '<option value="' + esc(m.id) + '">' + esc(m.name) + '</option>').join('') +
         '</select></div>';
     }
-    html += '<div class="mk-field"><label>' + esc(t('coupon')) + '</label><input class="mk-input" id="ck-coupon"></div>';
+    html += '<div class="mk-field"><label for="ck-coupon">' + esc(t('coupon')) + '</label><input class="mk-input" id="ck-coupon"></div>';
     html += '<div class="mk-summary"><div class="mk-summary-row"><span>' + esc(t('subtotal')) + '</span><span>' + esc(money(subtotal, cfg && cfg.currency)) + '</span></div>';
     html += '<div class="mk-summary-row"><span>' + esc(t('shipping_fee')) + '</span><span id="ck-ship">' + esc(money(0, cfg && cfg.currency)) + '</span></div>';
     html += '<div class="mk-summary-row total"><span>' + esc(t('total')) + '</span><span id="ck-total">' + esc(money(subtotal + fee, cfg && cfg.currency)) + '</span></div></div>';
@@ -373,7 +373,7 @@
 
   function pageTrack(token) {
     let html = '<h1 class="mk-page-title">' + esc(t('track_title')) + '</h1>';
-    html += '<div class="mk-field"><label>' + esc(t('track_token')) + '</label><input class="mk-input" id="tk-token" value="' + esc(token || '') + '"></div>';
+    html += '<div class="mk-field"><label for="tk-token">' + esc(t('track_token')) + '</label><input class="mk-input" id="tk-token" value="' + esc(token || '') + '"></div>';
     html += '<button class="mk-btn" id="tk-btn">' + esc(t('track_btn')) + '</button>';
     html += '<div id="tk-msg"></div><div id="tk-result"></div>';
     setApp(html);
@@ -400,14 +400,14 @@
     if (!window.MK_API.isAuthed()) {
       let html = '<h1 class="mk-page-title">' + esc(t('account_title')) + '</h1>';
       html += '<div class="mk-row"><div class="mk-col"><h2>' + esc(t('login_title')) + '</h2><div id="ac-login-msg"></div>';
-      html += '<div class="mk-field"><label>' + esc(t('email')) + '</label><input class="mk-input" id="lg-email"></div>';
-      html += '<div class="mk-field"><label>' + esc(t('password')) + '</label><input class="mk-input" id="lg-pass" type="password"></div>';
+      html += '<div class="mk-field"><label for="lg-email">' + esc(t('email')) + '</label><input class="mk-input" id="lg-email"></div>';
+      html += '<div class="mk-field"><label for="lg-pass">' + esc(t('password')) + '</label><input class="mk-input" id="lg-pass" type="password"></div>';
       html += '<button class="mk-btn" id="lg-btn">' + esc(t('login')) + '</button></div>';
       html += '<div class="mk-col"><h2>' + esc(t('register_title')) + '</h2><div id="ac-reg-msg"></div>';
-      html += '<div class="mk-field"><label>' + esc(t('name')) + '</label><input class="mk-input" id="rg-name"></div>';
-      html += '<div class="mk-field"><label>' + esc(t('email')) + '</label><input class="mk-input" id="rg-email" type="email"></div>';
-      html += '<div class="mk-field"><label>' + esc(t('phone')) + '</label><input class="mk-input" id="rg-phone"></div>';
-      html += '<div class="mk-field"><label>' + esc(t('password_req')) + '</label><input class="mk-input" id="rg-pass" type="password"></div>';
+      html += '<div class="mk-field"><label for="rg-name">' + esc(t('name')) + '</label><input class="mk-input" id="rg-name"></div>';
+      html += '<div class="mk-field"><label for="rg-email">' + esc(t('email')) + '</label><input class="mk-input" id="rg-email" type="email"></div>';
+      html += '<div class="mk-field"><label for="rg-phone">' + esc(t('phone')) + '</label><input class="mk-input" id="rg-phone"></div>';
+      html += '<div class="mk-field"><label for="rg-pass">' + esc(t('password_req')) + '</label><input class="mk-input" id="rg-pass" type="password"></div>';
       html += '<button class="mk-btn" id="rg-btn">' + esc(t('register')) + '</button></div></div>';
       setApp(html);
       document.getElementById('lg-btn').addEventListener('click', async () => {
@@ -435,8 +435,8 @@
     html += '<p><button class="mk-btn danger" id="ac-logout">' + esc(t('logout')) + '</button></p>';
     if (me && me.customer) {
       html += '<h2>' + esc(t('profile')) + '</h2><div id="ac-prof-msg"></div>';
-      html += '<div class="mk-field"><label>' + esc(t('name')) + '</label><input class="mk-input" id="pf-name" value="' + esc(me.customer.name) + '"></div>';
-      html += '<div class="mk-field"><label>' + esc(t('phone')) + '</label><input class="mk-input" id="pf-phone" value="' + esc(me.customer.phone) + '"></div>';
+      html += '<div class="mk-field"><label for="pf-name">' + esc(t('name')) + '</label><input class="mk-input" id="pf-name" value="' + esc(me.customer.name) + '"></div>';
+      html += '<div class="mk-field"><label for="pf-phone">' + esc(t('phone')) + '</label><input class="mk-input" id="pf-phone" value="' + esc(me.customer.phone) + '"></div>';
       html += '<button class="mk-btn" id="pf-save">' + esc(t('update_profile')) + '</button> ';
       html += '<button class="mk-btn secondary" id="pf-chg">' + esc(t('change_password')) + '</button>';
       html += '<div id="ac-pw-msg"></div>';
@@ -564,8 +564,8 @@
     } else {
       html += '<h2>' + esc(t('gh_provision_title')) + '</h2>';
       html += '<div class="mk-row"><div class="mk-col">';
-      html += '<div class="mk-field"><label>' + esc(t('gh_provision_server_name')) + '</label><input class="mk-input" id="gh-srv-name"></div>';
-      html += '<div class="mk-field"><label>' + esc(t('gh_provision_region')) + '</label><input class="mk-input" id="gh-srv-region" value="' + esc(plan.region || '') + '"></div>';
+      html += '<div class="mk-field"><label for="gh-srv-name">' + esc(t('gh_provision_server_name')) + '</label><input class="mk-input" id="gh-srv-name"></div>';
+      html += '<div class="mk-field"><label for="gh-srv-region">' + esc(t('gh_provision_region')) + '</label><input class="mk-input" id="gh-srv-region" value="' + esc(plan.region || '') + '"></div>';
       html += '<button class="mk-btn" id="gh-do-provision">' + esc(t('gh_provision_submit')) + '</button>';
       html += '<div id="gh-provision-msg"></div>';
       html += '</div></div>';
@@ -655,8 +655,8 @@
     html += '</div><div class="mk-col">';
     html += '<div class="mk-order-card">';
     html += '<div class="mk-summary-title">' + esc(t('gh_details_section_identity')) + '</div>';
-    html += '<div class="mk-field" style="max-width:360px"><label>' + esc(t('gh_server_name')) + '</label><input class="mk-input" id="gh-edit-name" value="' + esc(server.serverName) + '"></div>';
-    html += '<div class="mk-field" style="max-width:360px"><label>' + esc(t('gh_region')) + '</label><input class="mk-input" id="gh-edit-region" value="' + esc(server.region || '') + '"></div>';
+    html += '<div class="mk-field" style="max-width:360px"><label for="gh-edit-name">' + esc(t('gh_server_name')) + '</label><input class="mk-input" id="gh-edit-name" value="' + esc(server.serverName) + '"></div>';
+    html += '<div class="mk-field" style="max-width:360px"><label for="gh-edit-region">' + esc(t('gh_region')) + '</label><input class="mk-input" id="gh-edit-region" value="' + esc(server.region || '') + '"></div>';
     html += '<button class="mk-btn" id="gh-save">' + esc(t('save')) + '</button>';
     html += '<button class="mk-btn danger" id="gh-del">' + esc(t('remove')) + '</button>';
     html += '<div id="gh-edit-msg"></div>';
@@ -775,12 +775,12 @@
     html += '<div id="op-plan-form" style="display:none; margin-top:16px;">';
     html += '<div class="mk-order-card">';
     html += '<div class="mk-summary-title" id="op-plan-form-title">' + esc(t('op_plan_form_title')) + '</div>';
-    html += '<div class="mk-field"><label>' + esc(t('op_plan_form_name')) + '</label><input class="mk-input" id="op-plan-name"></div>';
-    html += '<div class="mk-field"><label>' + esc(t('op_plan_form_game')) + '</label><input class="mk-input" id="op-plan-game"></div>';
-    html += '<div class="mk-field"><label>' + esc(t('op_plan_form_players')) + '</label><input class="mk-input" id="op-plan-players" type="number"></div>';
-    html += '<div class="mk-field"><label>' + esc(t('op_plan_form_price')) + '</label><input class="mk-input" id="op-plan-price" type="number" step="0.01"></div>';
-    html += '<div class="mk-field"><label>' + esc(t('op_plan_form_region')) + '</label><input class="mk-input" id="op-plan-region"></div>';
-    html += '<div class="mk-field"><label>' + esc(t('op_plan_form_status')) + '</label><select class="mk-select" id="op-plan-status"><option value="draft">' + esc(t('op_plan_status_draft')) + '</option><option value="active">' + esc(t('op_plan_status_active')) + '</option><option value="archived">' + esc(t('op_plan_status_archived')) + '</option></select></div>';
+    html += '<div class="mk-field"><label for="op-plan-name">' + esc(t('op_plan_form_name')) + '</label><input class="mk-input" id="op-plan-name"></div>';
+    html += '<div class="mk-field"><label for="op-plan-game">' + esc(t('op_plan_form_game')) + '</label><input class="mk-input" id="op-plan-game"></div>';
+    html += '<div class="mk-field"><label for="op-plan-players">' + esc(t('op_plan_form_players')) + '</label><input class="mk-input" id="op-plan-players" type="number"></div>';
+    html += '<div class="mk-field"><label for="op-plan-price">' + esc(t('op_plan_form_price')) + '</label><input class="mk-input" id="op-plan-price" type="number" step="0.01"></div>';
+    html += '<div class="mk-field"><label for="op-plan-region">' + esc(t('op_plan_form_region')) + '</label><input class="mk-input" id="op-plan-region"></div>';
+    html += '<div class="mk-field"><label for="op-plan-status">' + esc(t('op_plan_form_status')) + '</label><select class="mk-select" id="op-plan-status"><option value="draft">' + esc(t('op_plan_status_draft')) + '</option><option value="active">' + esc(t('op_plan_status_active')) + '</option><option value="archived">' + esc(t('op_plan_status_archived')) + '</option></select></div>';
     html += '<button class="mk-btn" id="op-plan-save">' + esc(t('op_plan_save')) + '</button>';
     html += '<button class="mk-btn secondary" id="op-plan-cancel">' + esc(t('op_plan_cancel')) + '</button>';
     html += '<div id="op-plan-msg" style="margin-top:12px"></div>';
@@ -1005,13 +1005,13 @@
     html += '<div id="op-entitlement-form" style="display:none; margin-top:16px;">';
     html += '<div class="mk-order-card">';
     html += '<div class="mk-summary-title" id="op-entitlement-form-title">' + esc(t('op_entitlement_form_title')) + '</div>';
-    html += '<div class="mk-field"><label>' + esc(t('op_entitlement_form_customer')) + '</label><input class="mk-input" id="op-entitlement-customer"></div>';
-    html += '<div class="mk-field"><label>' + esc(t('op_entitlement_form_plan')) + '</label><select class="mk-select" id="op-entitlement-plan">';
+    html += '<div class="mk-field"><label for="op-entitlement-customer">' + esc(t('op_entitlement_form_customer')) + '</label><input class="mk-input" id="op-entitlement-customer"></div>';
+    html += '<div class="mk-field"><label for="op-entitlement-plan">' + esc(t('op_entitlement_form_plan')) + '</label><select class="mk-select" id="op-entitlement-plan">';
     plans.forEach((p) => { html += '<option value="' + esc(p.id) + '">' + esc(p.name) + '</option>'; });
     html += '</select></div>';
-    html += '<div class="mk-field"><label>' + esc(t('op_entitlement_form_status')) + '</label><select class="mk-select" id="op-entitlement-status"><option value="active">' + esc(t('op_entitlement_status_active')) + '</option><option value="expired">' + esc(t('op_entitlement_status_expired')) + '</option><option value="cancelled">' + esc(t('op_entitlement_status_cancelled')) + '</option></select></div>';
-    html += '<div class="mk-field"><label>' + esc(t('op_entitlement_form_starts')) + '</label><input class="mk-input" id="op-entitlement-starts" type="datetime-local"></div>';
-    html += '<div class="mk-field"><label>' + esc(t('op_entitlement_form_expires')) + '</label><input class="mk-input" id="op-entitlement-expires" type="datetime-local"></div>';
+    html += '<div class="mk-field"><label for="op-entitlement-status">' + esc(t('op_entitlement_form_status')) + '</label><select class="mk-select" id="op-entitlement-status"><option value="active">' + esc(t('op_entitlement_status_active')) + '</option><option value="expired">' + esc(t('op_entitlement_status_expired')) + '</option><option value="cancelled">' + esc(t('op_entitlement_status_cancelled')) + '</option></select></div>';
+    html += '<div class="mk-field"><label for="op-entitlement-starts">' + esc(t('op_entitlement_form_starts')) + '</label><input class="mk-input" id="op-entitlement-starts" type="datetime-local"></div>';
+    html += '<div class="mk-field"><label for="op-entitlement-expires">' + esc(t('op_entitlement_form_expires')) + '</label><input class="mk-input" id="op-entitlement-expires" type="datetime-local"></div>';
     html += '<button class="mk-btn" id="op-entitlement-save">' + esc(t('op_entitlement_save')) + '</button>';
     html += '<button class="mk-btn secondary" id="op-entitlement-cancel">' + esc(t('op_entitlement_cancel')) + '</button>';
     html += '<div id="op-entitlement-msg" style="margin-top:12px"></div>';

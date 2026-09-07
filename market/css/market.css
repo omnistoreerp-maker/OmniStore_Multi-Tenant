@@ -64,6 +64,22 @@ body {
 .mk-lang button:hover { border-color: var(--mk-primary); }
 .mk-lang button:focus-visible { outline: 2px solid var(--mk-primary); outline-offset: 2px; }
 
+.mk-skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--mk-primary);
+  color: #fff;
+  padding: 8px 16px;
+  z-index: 10000;
+  text-decoration: none;
+  border-radius: 0 0 8px 0;
+  transition: top .15s ease;
+}
+.mk-skip-link:focus { top: 0; }
+
+.mk-main[aria-live="polite"] { }
+
 .mk-menu-btn {
   display: none;
   border: 1px solid var(--mk-border);
