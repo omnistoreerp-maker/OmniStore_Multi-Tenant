@@ -152,6 +152,7 @@ const updateRoutes = require('./routes/update.routes');
 const platformRoutes = require('./routes/platform.routes');
 const marketRoutes = require('./routes/market.routes');
 const gameHostingRoutes = require('./routes/gameHosting.routes');
+const playstationRoutes = require('./routes/playstation.routes');
 const companyContext = require('./middleware/companyContext');
 // Phase 33 — seed the server-authoritative platform admin store from
 // PLATFORM_ADMINS on boot (no-op once the store has entries).
@@ -173,6 +174,9 @@ app.use('/api/v1/market', marketRoutes);
 // Phase B — Game Hosting. Self-contained module; does not alter Core ERP routes.
 // Provider integration is BLOCKED; lifecycle state machine and ownership are enforced.
 app.use('/api/v1/game-hosting', gameHostingRoutes);
+// Batch 1 — PlayStation Device & Session Foundation. Self-contained module;
+// does not alter Core ERP routes. Provider integration is BLOCKED.
+app.use('/api/v1/playstation', playstationRoutes);
 // Company selection is applied BEFORE authentication so the chosen company is
 // resolved into RequestContext/TenantContext on the login POST (no-op unless
 // ENABLE_MULTI_COMPANY_LOGIN, so the auth flow is unchanged by default).
