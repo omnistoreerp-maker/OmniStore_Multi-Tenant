@@ -62,6 +62,16 @@
     <div class="mk-loading" data-i18n="loading">Loading…</div>
   </main>
 
+  <dialog id="mk-confirm-dialog" class="mk-dialog" aria-labelledby="mk-confirm-title" aria-describedby="mk-confirm-msg">
+    <div class="mk-dialog-body">
+      <p id="mk-confirm-msg" class="mk-dialog-msg"></p>
+      <div class="mk-dialog-actions">
+        <button class="mk-btn secondary" id="mk-confirm-cancel" type="button">Cancel</button>
+        <button class="mk-btn" id="mk-confirm-ok" type="button">Confirm</button>
+      </div>
+    </div>
+  </dialog>
+
   <nav class="mk-bottom-nav" id="mk-bottom-nav" aria-label="Bottom">
     <a href="#/home" class="mk-bottom-nav-link" data-i18n="nav_home">Home</a>
     <a href="#/catalog" class="mk-bottom-nav-link" data-i18n="nav_catalog">Catalog</a>

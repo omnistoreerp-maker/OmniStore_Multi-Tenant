@@ -54,6 +54,30 @@
     return '<div class="mk-banner ' + type + '">' + esc(msg) + '</div>';
   }
 
+  function confirmDialog(message) {
+    return new Promise((resolve) => {
+      const dialog = document.getElementById('mk-confirm-dialog');
+      const msgEl = document.getElementById('mk-confirm-msg');
+      const cancelBtn = document.getElementById('mk-confirm-cancel');
+      const okBtn = document.getElementById('mk-confirm-ok');
+      if (!dialog || !msgEl || !cancelBtn || !okBtn) {
+        resolve(window.confirm(message));
+        return;
+      }
+      msgEl.textContent = message;
+      dialog.showModal();
+      const cleanup = () => {
+        cancelBtn.removeEventListener('click', onCancel);
+        okBtn.removeEventListener('click', onOk);
+        dialog.close();
+      };
+      const onCancel = () => { cleanup(); resolve(false); };
+      const onOk = () => { cleanup(); resolve(true); };
+      cancelBtn.addEventListener('click', onCancel);
+      okBtn.addEventListener('click', onOk);
+    });
+  }
+
   function emptyState(icon, title, sub, actions) {
     let html = '<div class="mk-empty">';
     if (icon) html += '<div class="mk-empty-icon">' + esc(icon) + '</div>';
@@ -694,7 +718,7 @@
       catch (e) { msgEl.innerHTML = ghBanner('error', esc(e.message || t('gh_action_failed'))); }
     });
     bind('gh-btn-term', async () => {
-      if (!confirm(t('gh_delete_confirm'))) return;
+      if (!await confirmDialog(t('gh_delete_confirm'))) return;
       msgEl.innerHTML = '';
       try { await window.MK_API.ghTerminateServer(id); render(); }
       catch (e) { msgEl.innerHTML = ghBanner('error', esc(e.message || t('gh_action_failed'))); }
@@ -714,7 +738,7 @@
       }
     });
     document.getElementById('gh-del').addEventListener('click', async () => {
-      if (!confirm(t('gh_delete_confirm'))) return;
+      if (!await confirmDialog(t('gh_delete_confirm'))) return;
       const msg = document.getElementById('gh-edit-msg');
       msg.innerHTML = '';
       try {
@@ -892,7 +916,7 @@
       const archiveBtn = document.getElementById('op-plan-archive-' + p.id);
       if (archiveBtn) {
         archiveBtn.addEventListener('click', async () => {
-          if (!confirm(t('op_plan_archive'))) return;
+          if (!await confirmDialog(t('op_plan_archive'))) return;
           archiveBtn.disabled = true;
           try {
             await window.MK_API.ghArchivePlan(p.id);
@@ -973,7 +997,7 @@
       const rejectBtn = document.getElementById('gh-reject-' + req.id);
       if (approveBtn) {
         approveBtn.addEventListener('click', async () => {
-          if (!confirm(t('op_approve_confirm'))) return;
+          if (!await confirmDialog(t('op_approve_confirm'))) return;
           approveBtn.disabled = true;
           try { await window.MK_API.ghApproveProvisioningRequest(req.id); render(); }
           catch (e) { approveBtn.disabled = false; }
@@ -981,7 +1005,7 @@
       }
       if (rejectBtn) {
         rejectBtn.addEventListener('click', async () => {
-          if (!confirm(t('op_reject_confirm'))) return;
+          if (!await confirmDialog(t('op_reject_confirm'))) return;
           rejectBtn.disabled = true;
           try { await window.MK_API.ghRejectProvisioningRequest(req.id); render(); }
           catch (e) { rejectBtn.disabled = false; }
@@ -1131,7 +1155,7 @@
       const revokeEntBtn = document.getElementById('op-entitlement-revoke-' + e.id);
       if (revokeEntBtn) {
         revokeEntBtn.addEventListener('click', async () => {
-          if (!confirm(t('op_entitlement_revoke_confirm'))) return;
+          if (!await confirmDialog(t('op_entitlement_revoke_confirm'))) return;
           revokeEntBtn.disabled = true;
           try {
             await window.MK_API.ghDeleteEntitlement(e.id);
