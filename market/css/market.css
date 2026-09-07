@@ -403,6 +403,10 @@ h3 { font-size: 16px; font-weight: 700; margin: 16px 0 8px; }
 .mk-hero-fallback i { width: 96px; height: 96px; stroke-width: 1.6; }
 .mk-card-fallback i { width: 64px; height: 64px; }
 
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .mk-header-inner { height: auto; min-height: 56px; padding: 8px 0; flex-wrap: wrap; }
