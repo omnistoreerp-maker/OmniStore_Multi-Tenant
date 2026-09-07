@@ -276,6 +276,7 @@
       html += '<button class="mk-btn" id="mk-add">' + esc(t('add_to_cart')) + '</button>';
     }
     html += '</div></div>';
+    html += '<h2 style="margin-top:24px">' + esc(t('related_products')) + '</h2><div class="mk-grid" id="mk-related"></div>';
     setApp(html);
     const add = document.getElementById('mk-add');
     if (add) add.addEventListener('click', () => {
@@ -283,6 +284,16 @@
       window.MK_CART.add(p.id, qty);
       location.hash = '#/cart';
     });
+
+    const relGrid = document.getElementById('mk-related');
+    let related = [];
+    try { const r = await window.MK_API.products({ categoryId: p.categoryId, limit: 5 }); related = (r && r.products || []).filter((x) => x.id !== p.id); } catch (_) {}
+    if (!relGrid) return;
+    if (!related.length) {
+      relGrid.innerHTML = '<div class="mk-empty" style="padding:24px"><div class="mk-empty-title">' + esc(t('no_related_products')) + '</div></div>';
+      return;
+    }
+    related.forEach((rp) => relGrid.appendChild(productCard(rp)));
   }
 
   async function pageCart() {
