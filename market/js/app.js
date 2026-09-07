@@ -62,6 +62,7 @@
   function confirmDialog(message) {
     return new Promise((resolve) => {
       const dialog = document.getElementById('mk-confirm-dialog');
+      const titleEl = document.getElementById('mk-confirm-title');
       const msgEl = document.getElementById('mk-confirm-msg');
       const cancelBtn = document.getElementById('mk-confirm-cancel');
       const okBtn = document.getElementById('mk-confirm-ok');
@@ -69,6 +70,7 @@
         resolve(window.confirm(message));
         return;
       }
+      if (titleEl) titleEl.textContent = '';
       msgEl.textContent = message;
       dialog.showModal();
       const cleanup = () => {
@@ -102,6 +104,34 @@
     let html = '<div class="mk-grid">';
     for (let i = 0; i < n; i++) html += skeletonCard();
     html += '</div>';
+    return html;
+  }
+
+  function skeletonCartItems(count) {
+    const n = Math.max(1, count || 3);
+    let html = '<div class="mk-cart-items">';
+    for (let i = 0; i < n; i++) {
+      html += '<div class="mk-cart-item"><div class="mk-skeleton" style="flex:1;height:18px"></div><div class="mk-skeleton" style="width:64px;height:36px"></div><div class="mk-skeleton" style="width:80px;height:36px"></div><div class="mk-skeleton" style="width:64px;height:36px"></div></div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function skeletonCheckoutForm() {
+    let html = '<h1 class="mk-page-title">' + esc(t('checkout_title')) + '</h1>';
+    html += '<div class="mk-row"><div class="mk-col">';
+    html += '<div class="mk-skeleton" style="height:18px;width:60px;margin-bottom:8px"></div>';
+    html += '<div class="mk-skeleton" style="height:40px;margin-bottom:14px"></div>';
+    html += '<div class="mk-skeleton" style="height:18px;width:60px;margin-bottom:8px"></div>';
+    html += '<div class="mk-skeleton" style="height:40px;margin-bottom:14px"></div>';
+    html += '<div class="mk-skeleton" style="height:18px;width:60px;margin-bottom:8px"></div>';
+    html += '<div class="mk-skeleton" style="height:40px;margin-bottom:14px"></div>';
+    html += '<div class="mk-skeleton" style="height:18px;width:100px;margin-bottom:8px"></div>';
+    html += '<div class="mk-skeleton" style="height:40px;margin-bottom:14px"></div>';
+    html += '</div><div class="mk-col">';
+    html += '<div class="mk-skeleton" style="height:180px;margin-bottom:16px"></div>';
+    html += '<div class="mk-skeleton" style="height:48px;width:100%"></div>';
+    html += '</div></div>';
     return html;
   }
 
@@ -168,7 +198,7 @@
         '<div class="mk-card-name">' + esc(p.name) + '</div>' +
         '<div class="mk-card-price">' + esc(money(p.price, p.currency)) + '</div>' +
         '<div class="mk-card-stock ' + (out ? 'out' : '') + '">' + (out ? esc(t('out_of_stock')) : esc(t('in_stock'))) + '</div>' +
-        (out ? '' : '<div class="mk-card-actions"><button class="mk-btn block mk-add-to-cart" data-id="' + esc(p.id) + '">' + esc(t('add_to_cart')) + '</button></div>') +
+        (out ? '' : '<div class="mk-card-actions"><input class="mk-input mk-qty mk-qty--sm" type="number" min="1" value="1" data-qty>' + '<button class="mk-btn block mk-add-to-cart" data-id="' + esc(p.id) + '">' + esc(t('add_to_cart')) + '</button></div>') +
       '</div>';
     return a;
   }
@@ -259,7 +289,7 @@
     await window.MK_CART.reconcile();
     const items = window.MK_CART.items();
     if (!items.length) { setApp('<h1 class="mk-page-title">' + esc(t('cart_title')) + '</h1>' + emptyState('shopping-cart', t('cart_empty'), null, '<a class="mk-btn" href="#/catalog">' + esc(t('empty_browse_catalog')) + '</a>')); return; }
-    setApp('<div class="mk-loading">' + esc(t('loading')) + '</div>');
+    setApp('<h1 class="mk-page-title">' + esc(t('cart_title')) + '</h1><div id="mk-cart-items">' + skeletonCartItems(items.length) + '</div><div class="mk-summary mk-summary--checkout"><div class="mk-summary-row"><span>' + esc(t('subtotal')) + '</span><span id="mk-sub">-</span></div><div class="mk-summary-row total"><span>' + esc(t('total')) + '</span><span id="mk-tot">-</span></div><button class="mk-btn block" id="mk-gocheckout" disabled>' + esc(t('checkout')) + '</button></div>');
     const avail = await window.MK_API.availability(items.map((i) => i.productId)).catch(() => []);
     const byId = {};
     avail.forEach((a) => { byId[a.id] = a; });
@@ -298,7 +328,9 @@
     });
     document.getElementById('mk-sub').textContent = money(subtotal);
     document.getElementById('mk-tot').textContent = money(subtotal);
-    document.getElementById('mk-gocheckout').addEventListener('click', () => { location.hash = '#/checkout'; });
+    const checkoutBtn = document.getElementById('mk-gocheckout');
+    if (checkoutBtn) { checkoutBtn.disabled = false; }
+    if (checkoutBtn) checkoutBtn.addEventListener('click', () => { location.hash = '#/checkout'; });
   }
 
   async function pageCheckout() {
@@ -306,13 +338,14 @@
     if (!items.length) { location.hash = '#/cart'; return; }
     const cfg = await window.MK_API.config().catch(() => null);
     window.MK_CONFIG = cfg;
-    setApp('<div class="mk-loading">' + esc(t('loading')) + '</div>');
+    setApp(skeletonCheckoutForm());
     const prods = await window.MK_API.products({ limit: 100 }).catch(() => ({ products: [] }));
     const pById = {};
     (prods.products || []).forEach((p) => { pById[p.id] = p; });
 
     let lines = [];
     let subtotal = 0;
+    let fee = 0;
     items.forEach((i) => {
       const p = pById[i.productId];
       if (!p) return;
@@ -326,8 +359,8 @@
       html += banner('success', '<a href="#/account">' + esc(t('or_login')) + '</a>');
     }
     html += '<div class="mk-row"><div class="mk-col">';
-    html += '<div class="mk-field"><label for="ck-name">' + esc(t('name')) + '</label><input class="mk-input" id="ck-name"></div>';
-    html += '<div class="mk-field"><label for="ck-email">' + esc(t('email')) + '</label><input class="mk-input" id="ck-email" type="email"></div>';
+    html += '<div class="mk-field"><label for="ck-name">' + esc(t('name')) + '</label><input class="mk-input" id="ck-name" required></div>';
+    html += '<div class="mk-field"><label for="ck-email">' + esc(t('email')) + '</label><input class="mk-input" id="ck-email" type="email" required></div>';
     html += '<div class="mk-field"><label for="ck-phone">' + esc(t('phone')) + '</label><input class="mk-input" id="ck-phone"></div>';
     html += '<div class="mk-field"><label for="ck-addr">' + esc(t('shipping_address')) + '</label><input class="mk-input" id="ck-addr"></div>';
     html += '</div><div class="mk-col">';
@@ -432,14 +465,14 @@
     if (!window.MK_API.isAuthed()) {
       let html = '<h1 class="mk-page-title">' + esc(t('account_title')) + '</h1>';
       html += '<div class="mk-row"><div class="mk-col"><h2>' + esc(t('login_title')) + '</h2><div id="ac-login-msg"></div>';
-      html += '<div class="mk-field"><label for="lg-email">' + esc(t('email')) + '</label><input class="mk-input" id="lg-email"></div>';
-      html += '<div class="mk-field"><label for="lg-pass">' + esc(t('password')) + '</label><input class="mk-input" id="lg-pass" type="password"></div>';
+      html += '<div class="mk-field"><label for="lg-email">' + esc(t('email')) + '</label><input class="mk-input" id="lg-email" required></div>';
+      html += '<div class="mk-field"><label for="lg-pass">' + esc(t('password')) + '</label><input class="mk-input" id="lg-pass" type="password" required></div>';
       html += '<button class="mk-btn" id="lg-btn">' + esc(t('login')) + '</button></div>';
       html += '<div class="mk-col"><h2>' + esc(t('register_title')) + '</h2><div id="ac-reg-msg"></div>';
-      html += '<div class="mk-field"><label for="rg-name">' + esc(t('name')) + '</label><input class="mk-input" id="rg-name"></div>';
-      html += '<div class="mk-field"><label for="rg-email">' + esc(t('email')) + '</label><input class="mk-input" id="rg-email" type="email"></div>';
+      html += '<div class="mk-field"><label for="rg-name">' + esc(t('name')) + '</label><input class="mk-input" id="rg-name" required></div>';
+      html += '<div class="mk-field"><label for="rg-email">' + esc(t('email')) + '</label><input class="mk-input" id="rg-email" type="email" required></div>';
       html += '<div class="mk-field"><label for="rg-phone">' + esc(t('phone')) + '</label><input class="mk-input" id="rg-phone"></div>';
-      html += '<div class="mk-field"><label for="rg-pass">' + esc(t('password_req')) + '</label><input class="mk-input" id="rg-pass" type="password"></div>';
+      html += '<div class="mk-field"><label for="rg-pass">' + esc(t('password_req')) + '</label><input class="mk-input" id="rg-pass" type="password" required></div>';
       html += '<button class="mk-btn" id="rg-btn">' + esc(t('register')) + '</button></div></div>';
       setApp(html);
       document.getElementById('lg-btn').addEventListener('click', async () => {
@@ -471,11 +504,17 @@
       html += '<div class="mk-field"><label for="pf-phone">' + esc(t('phone')) + '</label><input class="mk-input" id="pf-phone" value="' + esc(me.customer.phone) + '"></div>';
       html += '<button class="mk-btn" id="pf-save">' + esc(t('update_profile')) + '</button> ';
       html += '<button class="mk-btn secondary" id="pf-chg">' + esc(t('change_password')) + '</button>';
+      html += '<div id="ac-pw-form" style="display:none;margin-top:12px">';
+      html += '<div class="mk-field"><label for="pf-cur">' + esc(t('current_password')) + '</label><input class="mk-input" id="pf-cur" type="password"></div>';
+      html += '<div class="mk-field"><label for="pf-new">' + esc(t('new_password')) + '</label><input class="mk-input" id="pf-new" type="password"></div>';
+      html += '<button class="mk-btn" id="pf-save-pw">' + esc(t('save')) + '</button> ';
+      html += '<button class="mk-btn secondary" id="pf-cancel-pw">' + esc(t('cancel')) + '</button>';
+      html += '</div>';
       html += '<div id="ac-pw-msg"></div>';
     }
     html += '<h2>' + esc(t('my_orders')) + '</h2>';
     if (!orders.orders || !orders.orders.length) {
-      html += '<div class="mk-empty">' + esc(t('no_orders')) + '</div>';
+      html += emptyState('package', t('no_orders'), null, '<a class="mk-btn" href="#/catalog">' + esc(t('empty_browse_catalog')) + '</a>');
     } else {
       orders.orders.forEach((o) => {
         html += '<div class="mk-order-card">';
@@ -500,17 +539,48 @@
       } catch (e) { msg.innerHTML = banner('error', e.message || t('error_generic')); }
     });
     const pfChg = document.getElementById('pf-chg');
-    if (pfChg) pfChg.addEventListener('click', async () => {
-      const msg = document.getElementById('ac-pw-msg');
-      const cur = prompt(t('current_password'));
-      const neu = prompt(t('new_password'));
-      if (!cur || !neu) return;
-      try {
-        const r = await window.MK_API.changePassword({ currentPassword: cur, newPassword: neu });
-        window.MK_API.setToken(r.token);
-        msg.innerHTML = banner('success', t('save'));
-      } catch (e) { msg.innerHTML = banner('error', e.message || t('error_generic')); }
-    });
+    if (pfChg) {
+      pfChg.addEventListener('click', () => {
+        const pwForm = document.getElementById('ac-pw-form');
+        if (pwForm) pwForm.style.display = pwForm.style.display === 'none' ? '' : 'none';
+      });
+    }
+    const pfCancelPw = document.getElementById('pf-cancel-pw');
+    if (pfCancelPw) {
+      pfCancelPw.addEventListener('click', () => {
+        const pwForm = document.getElementById('ac-pw-form');
+        const msg = document.getElementById('ac-pw-msg');
+        if (pwForm) pwForm.style.display = 'none';
+        if (msg) msg.innerHTML = '';
+        const cur = document.getElementById('pf-cur');
+        const neu = document.getElementById('pf-new');
+        if (cur) cur.value = '';
+        if (neu) neu.value = '';
+      });
+    }
+    const pfSavePw = document.getElementById('pf-save-pw');
+    if (pfSavePw) {
+      pfSavePw.addEventListener('click', async () => {
+        const msg = document.getElementById('ac-pw-msg');
+        msg.innerHTML = '';
+        const cur = document.getElementById('pf-cur').value;
+        const neu = document.getElementById('pf-new').value;
+        if (!cur || !neu) { msg.innerHTML = banner('error', t('required_field')); return; }
+        pfSavePw.disabled = true;
+        try {
+          const r = await window.MK_API.changePassword({ currentPassword: cur, newPassword: neu });
+          window.MK_API.setToken(r.token);
+          msg.innerHTML = banner('success', t('save'));
+          const pwForm = document.getElementById('ac-pw-form');
+          if (pwForm) pwForm.style.display = 'none';
+          const curInput = document.getElementById('pf-cur');
+          const neuInput = document.getElementById('pf-new');
+          if (curInput) curInput.value = '';
+          if (neuInput) neuInput.value = '';
+        } catch (e) { msg.innerHTML = banner('error', e.message || t('error_generic')); }
+        pfSavePw.disabled = false;
+      });
+    }
   }
 
   // ---------- Game Hosting ----------
@@ -554,7 +624,7 @@
     }
     html += '<h2>' + esc(t('gh_plans')) + '</h2>';
     if (!plans.length) {
-      html += '<div class="mk-empty"><div class="mk-empty-title">' + esc(t('gh_no_plans')) + '</div></div>';
+      html += emptyState('gamepad', t('gh_no_plans'), null, '<a class="mk-btn" href="#/operator">' + esc(t('op_back_to_dashboard')) + '</a>');
     } else {
       html += '<div class="mk-grid">';
       plans.forEach((p) => {
@@ -596,7 +666,7 @@
     } else {
       html += '<h2>' + esc(t('gh_provision_title')) + '</h2>';
       html += '<div class="mk-row"><div class="mk-col">';
-      html += '<div class="mk-field"><label for="gh-srv-name">' + esc(t('gh_provision_server_name')) + '</label><input class="mk-input" id="gh-srv-name"></div>';
+      html += '<div class="mk-field"><label for="gh-srv-name">' + esc(t('gh_provision_server_name')) + '</label><input class="mk-input" id="gh-srv-name" required></div>';
       html += '<div class="mk-field"><label for="gh-srv-region">' + esc(t('gh_provision_region')) + '</label><input class="mk-input" id="gh-srv-region" value="' + esc(plan.region || '') + '"></div>';
       html += '<button class="mk-btn" id="gh-do-provision">' + esc(t('gh_provision_submit')) + '</button>';
       html += '<div id="gh-provision-msg"></div>';
@@ -807,8 +877,8 @@
     html += '<div id="op-plan-form" style="display:none; margin-top:16px;">';
     html += '<div class="mk-order-card">';
     html += '<div class="mk-summary-title" id="op-plan-form-title">' + esc(t('op_plan_form_title')) + '</div>';
-    html += '<div class="mk-field"><label for="op-plan-name">' + esc(t('op_plan_form_name')) + '</label><input class="mk-input" id="op-plan-name"></div>';
-    html += '<div class="mk-field"><label for="op-plan-game">' + esc(t('op_plan_form_game')) + '</label><input class="mk-input" id="op-plan-game"></div>';
+    html += '<div class="mk-field"><label for="op-plan-name">' + esc(t('op_plan_form_name')) + '</label><input class="mk-input" id="op-plan-name" required></div>';
+    html += '<div class="mk-field"><label for="op-plan-game">' + esc(t('op_plan_form_game')) + '</label><input class="mk-input" id="op-plan-game" required></div>';
     html += '<div class="mk-field"><label for="op-plan-players">' + esc(t('op_plan_form_players')) + '</label><input class="mk-input" id="op-plan-players" type="number"></div>';
     html += '<div class="mk-field"><label for="op-plan-price">' + esc(t('op_plan_form_price')) + '</label><input class="mk-input" id="op-plan-price" type="number" step="0.01"></div>';
     html += '<div class="mk-field"><label for="op-plan-region">' + esc(t('op_plan_form_region')) + '</label><input class="mk-input" id="op-plan-region"></div>';
@@ -948,7 +1018,7 @@
     html += '<p><a class="mk-btn secondary" href="#/operator">' + esc(t('op_back_to_dashboard')) + '</a></p>';
     html += '<div id="op-server-chart" style="width:100%;max-width:420px;height:320px;margin-bottom:16px;"></div>';
     if (!servers.length) {
-      html += '<div class="mk-empty"><div class="mk-empty-title">' + esc(t('gh_empty_servers_title')) + '</div></div>';
+      html += emptyState('server', t('gh_empty_servers_title'), t('gh_empty_servers_sub'), '<a class="mk-btn" href="#/game-hosting">' + esc(t('gh_empty_servers_cta')) + '</a>');
     } else {
       html += '<div class="mk-grid">';
       servers.forEach((s) => {
@@ -997,7 +1067,7 @@
     let html = '<h1 class="mk-page-title">' + esc(t('op_queue')) + '</h1>';
     html += '<p><a class="mk-btn secondary" href="#/operator">' + esc(t('op_back_to_dashboard')) + '</a></p>';
     if (!requests.length) {
-      html += '<div class="mk-empty"><div class="mk-empty-title">' + esc(t('gh_empty_requests_title')) + '</div></div>';
+      html += emptyState('clock', t('gh_empty_requests_title'), t('gh_empty_requests_sub'), '<a class="mk-btn" href="#/game-hosting">' + esc(t('gh_empty_requests_cta')) + '</a>');
     } else {
       html += '<div class="mk-grid">';
       requests.forEach((req) => {
@@ -1068,7 +1138,7 @@
     html += '<div id="op-entitlement-msg" style="margin-top:12px"></div>';
     html += '</div></div>';
     if (!entitlements.length) {
-      html += '<div class="mk-empty"><div class="mk-empty-title">' + esc(t('gh_empty_servers_title')) + '</div></div>';
+      html += emptyState('key', t('gh_empty_servers_title'), null, '<a class="mk-btn" href="#/operator">' + esc(t('op_back_to_dashboard')) + '</a>');
     } else {
       html += '<div class="mk-grid">';
       entitlements.forEach((e) => {
@@ -1206,7 +1276,7 @@
     let html = '<h1 class="mk-page-title">' + esc(t('op_audit')) + '</h1>';
     html += '<p><a class="mk-btn secondary" href="#/operator">' + esc(t('op_back_to_dashboard')) + '</a></p>';
     if (!entries.length) {
-      html += '<div class="mk-empty"><div class="mk-empty-title">' + esc(t('gh_empty_servers_title')) + '</div></div>';
+      html += emptyState('file-text', t('gh_empty_servers_title'), null, '<a class="mk-btn" href="#/operator">' + esc(t('op_back_to_dashboard')) + '</a>');
     } else {
       html += '<div class="mk-grid">';
       entries.forEach((entry) => {
@@ -1236,6 +1306,7 @@
     const [path, param] = h.split('/');
     updateCartBadge();
     applyI18n();
+    updateActiveNav(path);
     try {
       if (path === 'game-hosting') {
         if (param === 'my-servers') return pageGameHostingMyServers();
@@ -1263,6 +1334,23 @@
     } catch (e) {
       setApp(banner('error', e.message || t('error_generic')));
     }
+  }
+
+  function updateActiveNav(path) {
+    const selectorMap = {
+      'home': ['a[href="#/home"]', '#mk-bottom-nav a[href="#/home"]'],
+      'catalog': ['a[href="#/catalog"]', '#mk-bottom-nav a[href="#/catalog"]'],
+      'cart': ['a[href="#/cart"]', '#mk-bottom-nav a[href="#/cart"]'],
+      'track': ['a[href="#/track"]', '#mk-bottom-nav a[href="#/track"]'],
+      'account': ['a[href="#/account"]', '#mk-bottom-nav a[href="#/account"]'],
+      'game-hosting': ['a[href="#/game-hosting"]', '#mk-bottom-nav a[href="#/game-hosting"]'],
+      'operator': ['#mk-op-nav a[href="#/operator"]', '#mk-mobile-op-nav a[href="#/operator"]']
+    };
+    const selectors = selectorMap[path] || [];
+    document.querySelectorAll('.mk-nav a, .mk-mobile-nav a, .mk-bottom-nav a').forEach((a) => a.classList.remove('active'));
+    selectors.forEach((sel) => {
+      document.querySelectorAll(sel).forEach((a) => a.classList.add('active'));
+    });
   }
 
   function init() {

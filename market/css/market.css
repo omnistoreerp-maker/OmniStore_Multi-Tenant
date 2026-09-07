@@ -50,6 +50,7 @@ body {
 }
 .mk-nav a:hover { color: var(--mk-primary); background: #eef2ff; }
 .mk-nav a:focus-visible { outline: 2px solid var(--mk-primary); outline-offset: 2px; }
+.mk-nav a.active { color: var(--mk-primary); background: #eef2ff; font-weight: 700; }
 
 .mk-lang button {
   border: 1px solid var(--mk-border);
@@ -234,7 +235,8 @@ h3 { font-size: 16px; font-weight: 700; margin: 16px 0 8px; }
 .mk-card-meta { font-size: 12px; color: var(--mk-muted); }
 .mk-card-stock { font-size: 12px; color: var(--mk-muted); }
 .mk-card-stock.out { color: var(--mk-danger); font-weight: 600; }
-.mk-card-actions { margin-top: auto; padding-top: 10px; }
+.mk-card-actions { margin-top: auto; padding-top: 10px; display: flex; gap: 8px; align-items: center; }
+.mk-card-actions .mk-qty--sm { width: 64px; flex: 0 0 auto; }
 
 /* Buttons */
 .mk-btn {
@@ -301,6 +303,7 @@ h3 { font-size: 16px; font-weight: 700; margin: 16px 0 8px; }
 .mk-col { flex: 1 1 320px; min-width: 280px; }
 
 /* Cart */
+.mk-cart-items { display: flex; flex-direction: column; gap: 10px; }
 .mk-cart-item { display: flex; align-items: center; gap: 12px; padding: 14px; border: 1px solid var(--mk-border); border-radius: 10px; margin-bottom: 10px; background: #fff; transition: box-shadow .15s ease; }
 .mk-cart-item:hover { box-shadow: var(--mk-shadow-hover); }
 .mk-cart-item .mk-ci-name { flex: 1; }
@@ -395,8 +398,12 @@ h3 { font-size: 16px; font-weight: 700; margin: 16px 0 8px; }
 .mk-dialog { border: none; border-radius: var(--mk-radius); padding: 0; max-width: 420px; width: calc(100% - 32px); box-shadow: var(--mk-shadow-hover); }
 .mk-dialog::backdrop { background: rgba(15, 23, 42, 0.35); }
 .mk-dialog-body { padding: 20px; }
+.mk-dialog-title { margin: 0 0 8px; font-size: 16px; font-weight: 700; color: var(--mk-text); }
 .mk-dialog-msg { margin: 0 0 16px; font-size: 14px; color: var(--mk-text); line-height: 1.5; }
 .mk-dialog-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+/* Inline password form */
+#ac-pw-form { background: #fff; border: 1px solid var(--mk-border); border-radius: 12px; padding: 16px; }
 
 /* Lucide icons */
 .mk-empty-icon i, .mk-hero-fallback i, .mk-card-fallback i { width: 48px; height: 48px; stroke-width: 1.8; color: var(--mk-muted); }
@@ -450,6 +457,7 @@ h3 { font-size: 16px; font-weight: 700; margin: 16px 0 8px; }
     position: relative;
   }
   .mk-bottom-nav-link:active { color: var(--mk-primary); }
+  .mk-bottom-nav-link.active { color: var(--mk-primary); font-weight: 700; }
   .mk-bottom-nav-link .mk-cart-badge {
     position: absolute;
     top: 2px;
