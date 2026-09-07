@@ -405,6 +405,49 @@ h3 { font-size: 16px; font-weight: 700; margin: 16px 0 8px; }
   .mk-col { min-width: 0; }
   .mk-toolbar { flex-direction: column; align-items: stretch; }
   .mk-toolbar .mk-input { max-width: none; }
+
+  .mk-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: var(--mk-card);
+    border-top: 1px solid var(--mk-border);
+    padding: 6px 0;
+    padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px));
+    z-index: 1000;
+  }
+  .mk-bottom-nav-link {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    color: var(--mk-muted);
+    text-decoration: none;
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 0;
+    min-height: 48px;
+    position: relative;
+  }
+  .mk-bottom-nav-link:active { color: var(--mk-primary); }
+  .mk-bottom-nav-link .mk-cart-badge {
+    position: absolute;
+    top: 2px;
+    right: calc(50% - 18px);
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    font-size: 10px;
+  }
+  #mk-app { padding-bottom: 80px; }
+}
+
+@media (min-width: 769px) {
+  .mk-bottom-nav { display: none !important; }
 }
 
 @media (max-width: 480px) {

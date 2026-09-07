@@ -43,8 +43,10 @@
     const count = window.MK_CART.count();
     const desktop = document.getElementById('mk-cart-count');
     const mobile = document.getElementById('mk-mobile-cart-count');
+    const bottom = document.getElementById('mk-bottom-cart-count');
     if (desktop) desktop.textContent = count;
     if (mobile) mobile.textContent = count;
+    if (bottom) bottom.textContent = count;
   }
   window.addEventListener('mk-cart-changed', updateCartBadge);
 
