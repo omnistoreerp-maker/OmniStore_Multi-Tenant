@@ -287,9 +287,13 @@
       window.MK_API.categories().catch(() => ({ categories: [] })),
       window.MK_API.products({ categoryId: cat, search: q, sortBy: sort === 'price_asc' ? 'price' : sort === 'price_desc' ? 'price' : 'name', sortOrder: sort === 'price_desc' ? 'desc' : 'asc', limit: 100 }).catch(() => ({ products: [] }))
     ]);
+    const allProducts = (prods.products || []).slice();
     let html = '<h1 class="mk-page-title">' + esc(t('catalog_title')) + '</h1>';
     html += '<div class="mk-toolbar">' +
-      '<input class="mk-input" id="mk-search" placeholder="' + esc(t('search_placeholder')) + '" value="' + esc(q) + '">' +
+      '<div class="mk-autocomplete" id="mk-search-wrap">' +
+        '<input class="mk-input" id="mk-search" placeholder="' + esc(t('search_placeholder')) + '" value="' + esc(q) + '" autocomplete="off" aria-autocomplete="list" aria-controls="mk-search-menu" role="combobox" aria-expanded="false">' +
+        '<div class="mk-autocomplete-menu" id="mk-search-menu" role="listbox"></div>' +
+      '</div>' +
       '<select class="mk-select mk-select--sm" id="mk-sort">' +
         '<option value="name">' + esc(t('sort_name')) + '</option>' +
         '<option value="price_asc" ' + (sort === 'price_asc' ? 'selected' : '') + '>' + esc(t('sort_price_asc')) + '</option>' +
@@ -318,6 +322,51 @@
       }
     });
 
+    const searchInput = document.getElementById('mk-search');
+    const menu = document.getElementById('mk-search-menu');
+    const wrap = document.getElementById('mk-search-wrap');
+    let activeIndex = -1;
+    let suggestions = [];
+
+    const updateSuggestions = (value) => {
+      const v = (value || '').trim().toLowerCase();
+      if (v.length < 2) { menu.classList.remove('is-open'); suggestions = []; activeIndex = -1; searchInput.setAttribute('aria-expanded', 'false'); return; }
+      suggestions = allProducts.filter((p) => (p.name || '').toLowerCase().includes(v)).slice(0, 6);
+      activeIndex = -1;
+      if (!suggestions.length) { menu.innerHTML = ''; menu.classList.remove('is-open'); searchInput.setAttribute('aria-expanded', 'false'); return; }
+      menu.innerHTML = suggestions.map((p, i) => '<div class="mk-autocomplete-item" role="option" data-index="' + i + '" data-id="' + esc(p.id) + '" aria-selected="false"><div class="mk-autocomplete-name">' + esc(p.name) + '</div><div class="mk-autocomplete-meta">' + esc(t('nav_catalog')) + '</div></div>').join('');
+      menu.classList.add('is-open');
+      searchInput.setAttribute('aria-expanded', 'true');
+      menu.querySelectorAll('.mk-autocomplete-item').forEach((el) => el.addEventListener('click', () => { selectSuggestion(el.getAttribute('data-id')); }));
+    };
+
+    const selectSuggestion = (id) => {
+      menu.classList.remove('is-open');
+      searchInput.setAttribute('aria-expanded', 'false');
+      suggestions = [];
+      activeIndex = -1;
+      if (id) location.hash = '#/product/' + encodeURIComponent(id);
+    };
+
+    const setActive = (i) => {
+      const items = menu.querySelectorAll('.mk-autocomplete-item');
+      items.forEach((el, idx) => { el.classList.toggle('is-active', idx === i); el.setAttribute('aria-selected', idx === i ? 'true' : 'false'); });
+      activeIndex = i;
+      if (i >= 0 && items[i]) items[i].scrollIntoView({ block: 'nearest' });
+    };
+
+    if (searchInput) {
+      searchInput.addEventListener('input', () => updateSuggestions(searchInput.value));
+      searchInput.addEventListener('keydown', (e) => {
+        const items = menu.querySelectorAll('.mk-autocomplete-item');
+        if (!menu.classList.contains('is-open') || !items.length) return;
+        if (e.key === 'ArrowDown') { e.preventDefault(); setActive(activeIndex < items.length - 1 ? activeIndex + 1 : 0); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(activeIndex > 0 ? activeIndex - 1 : items.length - 1); }
+        else if (e.key === 'Enter') { e.preventDefault(); if (activeIndex >= 0 && items[activeIndex]) selectSuggestion(items[activeIndex].getAttribute('data-id')); else { menu.classList.remove('is-open'); searchInput.setAttribute('aria-expanded', 'false'); } }
+        else if (e.key === 'Escape') { menu.classList.remove('is-open'); searchInput.setAttribute('aria-expanded', 'false'); suggestions = []; activeIndex = -1; }
+      });
+    }
+
     document.getElementById('mk-search').addEventListener('input', debounce(() => {
       const v = document.getElementById('mk-search').value;
       location.hash = '#/catalog?q=' + encodeURIComponent(v) + '&sort=' + sort + (cat ? '&category=' + encodeURIComponent(cat) : '');
@@ -327,6 +376,10 @@
     });
     document.getElementById('mk-cat').addEventListener('change', (e) => {
       location.hash = '#/catalog?q=' + encodeURIComponent(q) + '&sort=' + sort + (e.target.value ? '&category=' + encodeURIComponent(e.target.value) : '');
+    });
+
+    document.addEventListener('click', (e) => {
+      if (wrap && !wrap.contains(e.target)) { menu.classList.remove('is-open'); searchInput.setAttribute('aria-expanded', 'false'); suggestions = []; activeIndex = -1; }
     });
   }
 
