@@ -95,6 +95,24 @@
     return html;
   }
 
+  function breadcrumb(items) {
+    if (!items || !items.length) return '';
+    let html = '<nav aria-label="Breadcrumb" class="mk-breadcrumb"><ol>';
+    items.forEach((item, i) => {
+      const isLast = i === items.length - 1;
+      if (i > 0) html += '<li class="mk-breadcrumb-sep" aria-hidden="true">/</li>';
+      html += '<li>';
+      if (isLast || !item.href) {
+        html += '<span class="mk-breadcrumb-current" aria-current="page">' + esc(item.label) + '</span>';
+      } else {
+        html += '<a href="' + esc(item.href) + '">' + esc(item.label) + '</a>';
+      }
+      html += '</li>';
+    });
+    html += '</ol></nav>';
+    return html;
+  }
+
   function skeletonCard() {
     return '<div class="mk-card"><div class="mk-skeleton mk-skeleton-card"></div><div class="mk-card-body"><div class="mk-skeleton mk-skeleton-title"></div><div class="mk-skeleton mk-skeleton-text"></div><div class="mk-skeleton mk-skeleton-text mk-skeleton-text--sm"></div></div></div>';
   }
@@ -275,7 +293,7 @@
     const out = (p.stockQty || 0) <= 0;
     const fallbackSrc = 'market/img/placeholders/product.svg';
     const imgHtml = '<img src="' + (p.imageUrl || fallbackSrc) + '" alt="' + esc(t('product_image_alt')) + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' + '<div class="mk-card-fallback" style="display:none"><i data-lucide="package"></i></div>';
-    let html = '<a href="#/catalog">← ' + esc(t('back_to_catalog')) + '</a>';
+    let html = breadcrumb([{label: t('nav_home'), href: '#/home'}, {label: t('nav_catalog'), href: '#/catalog'}, {label: p.name}]);
     html += '<div class="mk-row mk-mt-16">';
     html += '<div class="mk-col"><div class="mk-product-image">' + imgHtml + '</div></div>';
     html += '<div class="mk-col">';
@@ -677,7 +695,8 @@
     try { plan = await window.MK_API.ghPlan(planId).catch(() => null); } catch (_) {}
     if (!plan) { setApp('<h1 class="mk-page-title">' + esc(t('product_not_found')) + '</h1><p><a href="#/game-hosting">' + esc(t('gh_back_to_plans')) + '</a></p>'); return; }
 
-    let html = '<h1 class="mk-page-title">' + esc(t('gh_provision_title')) + '</h1>';
+    let html = breadcrumb([{label: t('gh_title'), href: '#/game-hosting'}, {label: plan.name}]);
+    html += '<h1 class="mk-page-title">' + esc(t('gh_provision_title')) + '</h1>';
     html += '<div class="mk-order-card">';
     html += '<div class="mk-summary-title">' + esc(t('gh_provision_summary_title')) + '</div>';
     html += '<div class="mk-summary-row"><span>' + esc(t('gh_plan_name')) + '</span><span>' + esc(plan.name) + '</span></div>';
@@ -761,8 +780,8 @@
     try { server = await window.MK_API.ghServer(id).catch(() => null); } catch (_) {}
     if (!server) { setApp('<h1 class="mk-page-title">' + esc(t('gh_server_details')) + '</h1><div class="mk-empty">' + esc(t('gh_server_not_found')) + '</div><p><a href="#/game-hosting/my-servers">' + esc(t('gh_back_to_servers')) + '</a></p>'); return; }
 
-    let html = '<h1 class="mk-page-title">' + esc(server.serverName) + '</h1>';
-    html += '<p><a href="#/game-hosting/my-servers">' + esc(t('gh_back_to_servers')) + '</a></p>';
+    let html = breadcrumb([{label: t('gh_title'), href: '#/game-hosting'}, {label: t('gh_my_servers'), href: '#/game-hosting/my-servers'}, {label: server.serverName}]);
+    html += '<h1 class="mk-page-title">' + esc(server.serverName) + '</h1>';
     html += '<div class="mk-row"><div class="mk-col">';
     html += '<div class="mk-order-card">';
     html += '<div class="mk-summary-title">' + esc(t('gh_details_section_identity')) + '</div>';

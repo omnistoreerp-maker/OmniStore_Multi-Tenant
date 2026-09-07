@@ -394,6 +394,43 @@ h3 { font-size: 16px; font-weight: 700; margin: 16px 0 8px; }
 /* Empty state CTA alignment */
 .mk-empty .mk-btn { margin-top: 10px; }
 
+/* Breadcrumb */
+.mk-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--mk-muted);
+  margin-bottom: 16px;
+}
+.mk-breadcrumb ol {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.mk-breadcrumb a {
+  color: var(--mk-muted);
+  text-decoration: none;
+}
+.mk-breadcrumb a:hover { color: var(--mk-primary); }
+.mk-breadcrumb-sep {
+  color: var(--mk-border);
+  user-select: none;
+}
+.mk-breadcrumb-current {
+  color: var(--mk-text);
+  font-weight: 600;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Dialog */
 .mk-dialog { border: none; border-radius: var(--mk-radius); padding: 0; max-width: 420px; width: calc(100% - 32px); box-shadow: var(--mk-shadow-hover); }
 .mk-dialog::backdrop { background: rgba(15, 23, 42, 0.35); }
