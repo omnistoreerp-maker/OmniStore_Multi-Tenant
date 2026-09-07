@@ -127,6 +127,7 @@ window.MK_LOCALES = {
     gh_unknown_status: 'Unknown',
     gh_login_to_view: 'Sign in to view your servers',
     gh_auth_required: 'You must be signed in to manage servers.',
+    gh_retry: 'Retry',
     gh_required_field: 'This field is required',
     gh_create_success: 'Server created successfully',
     gh_create_failed: 'Failed to create server',
