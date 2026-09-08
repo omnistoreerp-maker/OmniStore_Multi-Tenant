@@ -258,6 +258,77 @@ describe('playstation.controller — Sessions', () => {
   });
 });
 
+// === Branch isolation ===
+
+describe('playstation.controller — branch isolation', () => {
+  test('omitted branchId uses trusted branch from branchStore', async () => {
+    const branchStore = require('../middleware/branchStore');
+    const originalGet = branchStore.get;
+    branchStore.get = () => 'branchA';
+
+    const devA = await devicesService.create({ data: {
+      platform: 'ps5', model: 'CFI-1015A', display_name: 'Branch A Dev',
+      network_address: '192.168.1.10', tenant_id: 'tenantA', branch_id: 'branchA'
+    }, tenantContext: { tenantId: 'tenantA' }, branchId: 'branchA', actor: { id: 'op1' } });
+
+    const req = mockReq({ query: {} });
+    const res = mockRes();
+    await ctrl.listDevices(req, res);
+    expect(res.lastStatus).toBe(200);
+    const body = res.lastJson;
+    expect(body.success).toBe(true);
+    expect(body.data.devices.length).toBeGreaterThanOrEqual(1);
+    expect(body.data.devices.every(d => d.branch_id === 'branchA' || d.branch_id === '')).toBe(true);
+
+    branchStore.get = originalGet;
+  });
+
+  test('client-supplied query branchId is ignored', async () => {
+    const branchStore = require('../middleware/branchStore');
+    const originalGet = branchStore.get;
+    branchStore.get = () => 'branchA';
+
+    const devA = await devicesService.create({ data: {
+      platform: 'ps5', model: 'CFI-1015A', display_name: 'Branch A Dev',
+      network_address: '192.168.1.10', tenant_id: 'tenantA', branch_id: 'branchA'
+    }, tenantContext: { tenantId: 'tenantA' }, branchId: 'branchA', actor: { id: 'op1' } });
+
+    const req = mockReq({ query: { branchId: 'branchB' } });
+    const res = mockRes();
+    await ctrl.listDevices(req, res);
+    expect(res.lastStatus).toBe(200);
+    const body = res.lastJson;
+    expect(body.success).toBe(true);
+    expect(body.data.devices.every(d => d.branch_id === 'branchA' || d.branch_id === '')).toBe(true);
+
+    branchStore.get = originalGet;
+  });
+
+  test('cross-branch records are not exposed', async () => {
+    const branchStore = require('../middleware/branchStore');
+    const originalGet = branchStore.get;
+    branchStore.get = () => 'branchA';
+
+    const devA = await devicesService.create({ data: {
+      platform: 'ps5', model: 'CFI-1015A', display_name: 'Branch A Dev',
+      network_address: '192.168.1.10', tenant_id: 'tenantA', branch_id: 'branchA'
+    }, tenantContext: { tenantId: 'tenantA' }, branchId: 'branchA', actor: { id: 'op1' } });
+    const devB = await devicesService.create({ data: {
+      platform: 'ps5', model: 'CFI-1015B', display_name: 'Branch B Dev',
+      network_address: '192.168.1.11', tenant_id: 'tenantA', branch_id: 'branchB'
+    }, tenantContext: { tenantId: 'tenantA' }, branchId: 'branchB', actor: { id: 'op1' } });
+
+    const req = mockReq({ query: {} });
+    const res = mockRes();
+    await ctrl.listDevices(req, res);
+    expect(res.lastStatus).toBe(200);
+    const body = res.lastJson;
+    expect(body.data.devices.every(d => d.branch_id !== 'branchB')).toBe(true);
+
+    branchStore.get = originalGet;
+  });
+});
+
 // === Error handling ===
 
 describe('playstation.controller — error handling', () => {

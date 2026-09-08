@@ -2,14 +2,11 @@
 
 // playstation.routes — PlayStation HTTP routes (Batch 1).
 //
-// Mounted at: /api/v1/playstation (to be registered in server.js by Master).
+// Mounted at: /api/v1/playstation (registered in server.js).
 //
 // All routes require:
 //   - requireMarketTenant: validates tenant from X-Tenant-Id and sets req.marketTenant
 //   - requireCustomer: validates customer JWT and sets req.customer
-//
-// These routes are currently UNMOUNTED. Master must add the route registration
-// in server.js for these to be reachable.
 
 const router = require('express').Router();
 const rateLimit = require('express-rate-limit');
