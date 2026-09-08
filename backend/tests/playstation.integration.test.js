@@ -386,6 +386,34 @@ describe('PlayStation Integration — Sessions', () => {
       .send({ reason: 'test' });
     expect(res.statusCode).toBe(409);
   });
+
+  test('Customer A cannot enumerate Customer B sessions via ?customerId=', async () => {
+    const customerBRes = await request(server.app)
+      .post('/api/v1/market/auth/register')
+      .set('X-Tenant-Id', TENANT_A)
+      .send({ email: 'psb-custb+' + Date.now() + '@test.com', password: 'Secret123' });
+    expect(customerBRes.statusCode).toBe(201);
+    const customerBId = customerBRes.body.data.customer.id;
+    const tokenBInA = customerBRes.body.data.token;
+
+    const sessionBRes = await request(server.app)
+      .post('/api/v1/playstation/sessions')
+      .set('X-Tenant-Id', TENANT_A)
+      .set('Authorization', 'Bearer ' + tokenBInA)
+      .send({
+        device_id: deviceId,
+        duration_minutes: 30,
+        pricing_profile_id: pricingId
+      });
+    expect(sessionBRes.statusCode).toBe(201);
+
+    const crossRes = await request(server.app)
+      .get('/api/v1/playstation/sessions?customerId=' + customerBId)
+      .set(authA());
+    expect(crossRes.statusCode).toBe(200);
+    expect(crossRes.body.success).toBe(true);
+    expect(crossRes.body.data.sessions.every(s => s.customer_id === customerIdA)).toBe(true);
+  });
 });
 
 describe('PlayStation Integration — Invalid Transitions', () => {

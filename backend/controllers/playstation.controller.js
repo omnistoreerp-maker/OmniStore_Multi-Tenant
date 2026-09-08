@@ -32,6 +32,17 @@ function _branchId() {
   return branchStore.get();
 }
 
+function _customerContext(req) {
+  if (!req.customer) return null;
+  return {
+    id: req.customer.id,
+    tenantId: req.customer.tenantId,
+    email: req.customer.email,
+    name: req.customer.name,
+    role: req.customer.role || 'customer'
+  };
+}
+
 // === Devices ===
 
 async function listDevices(req, res) {
@@ -177,11 +188,13 @@ async function deletePricing(req, res) {
 
 async function listSessions(req, res) {
   try {
+    const cust = _customerContext(req);
+    const customerId = cust && cust.role === 'operator' ? (req.query.customerId || null) : (cust ? cust.id : null);
     const sessions = sessionsService.list({
       tenantContext: _tenantContext(req),
       branchId: _branchId(),
       deviceId: req.query.deviceId || null,
-      customerId: req.query.customerId || null,
+      customerId: customerId,
       status: req.query.status || null
     });
     return success(res, { sessions }, 'Sessions retrieved');

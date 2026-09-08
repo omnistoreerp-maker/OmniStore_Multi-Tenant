@@ -216,6 +216,34 @@ describe('playstation.controller — Sessions', () => {
     expect(body.data.sessions.length).toBeGreaterThanOrEqual(1);
   });
 
+  test('non-operator customer cannot enumerate another customer sessions via query customerId', async () => {
+    await sessionsService.create({ data: {
+      device_id: deviceId, customer_id: 'cust2', duration_minutes: 30,
+      tenant_id: 'tenantA', branch_id: 'branch1'
+    }, tenantContext: { tenantId: 'tenantA' }, branchId: 'branch1', actor: { id: 'op1' } });
+
+    const req = mockReq({ query: { customerId: 'cust2' }, customer: { id: 'cust1', tenantId: 'tenantA', email: 'a@test.com', name: 'Alice', role: 'customer' } });
+    const res = mockRes();
+    await ctrl.listSessions(req, res);
+    expect(res.lastStatus).toBe(200);
+    const body = res.lastJson;
+    expect(body.data.sessions.every(s => s.customer_id === 'cust1')).toBe(true);
+  });
+
+  test('operator can filter sessions by customerId query param', async () => {
+    await sessionsService.create({ data: {
+      device_id: deviceId, customer_id: 'cust2', duration_minutes: 30,
+      tenant_id: 'tenantA', branch_id: 'branch1'
+    }, tenantContext: { tenantId: 'tenantA' }, branchId: 'branch1', actor: { id: 'op1' } });
+
+    const req = mockReq({ query: { customerId: 'cust2' } });
+    const res = mockRes();
+    await ctrl.listSessions(req, res);
+    expect(res.lastStatus).toBe(200);
+    const body = res.lastJson;
+    expect(body.data.sessions.every(s => s.customer_id === 'cust2')).toBe(true);
+  });
+
   test('getSession returns 404 for missing session', async () => {
     const req = mockReq({ params: { id: 'missing' } });
     const res = mockRes();
