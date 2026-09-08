@@ -43,7 +43,33 @@ function requireCustomer(req, res, next) {
     id: customer.id,
     tenantId: customer.tenantId,
     email: customer.email,
-    name: customer.name
+    name: customer.name,
+    role: customer.role || 'customer'
+  };
+  next();
+}
+
+function requireOperator(req, res, next) {
+  const token = extractToken(req);
+  if (!token || isRevoked(token)) return error(res, 'Authentication required', 401);
+  const payload = verifyCustomerToken(token);
+  if (!payload) return error(res, 'Authentication required', 401);
+  const customer = marketAuthService.getById(payload.sub);
+  if (!customer) return error(res, 'Authentication required', 401);
+  if (Number(customer.tokenVersion || 0) !== Number(payload.ver || 0)) {
+    return error(res, 'Authentication required', 401);
+  }
+  if (req.marketTenant && String(customer.tenantId) !== String(req.marketTenant)) {
+    return error(res, 'Tenant mismatch', 403);
+  }
+  const role = customer.role || 'customer';
+  if (role !== 'operator') return error(res, 'Operator access required', 403);
+  req.customer = {
+    id: customer.id,
+    tenantId: customer.tenantId,
+    email: customer.email,
+    name: customer.name,
+    role
   };
   next();
 }
@@ -69,4 +95,5 @@ function optionalCustomer(req, res, next) {
   next();
 }
 
-module.exports = { extractToken, resolveTenantId, requireMarketTenant, requireCustomer, optionalCustomer };
+module.exports = { extractToken, resolveTenantId, requireMarketTenant, requireCustomer, requireOperator, optionalCustomer };
+

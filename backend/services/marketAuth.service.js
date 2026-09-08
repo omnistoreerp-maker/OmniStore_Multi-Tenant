@@ -32,6 +32,29 @@ function getById(id) {
   return db.customers.find((c) => String(c.id) === String(id)) || null;
 }
 
+function getByIdAndTenant(id, tenantId) {
+  const db = _loadSync();
+  return db.customers.find((c) => String(c.id) === String(id) && String(c.tenantId) === String(tenantId)) || null;
+}
+
+function isOperator(customerId, tenantId) {
+  const customer = getByIdAndTenant(customerId, tenantId);
+  if (!customer) return false;
+  return String(customer.role || 'customer') === 'operator';
+}
+
+function setOperatorRole(customerId, tenantId, role) {
+  const db = _loadSync();
+  const idx = db.customers.findIndex((c) => String(c.id) === String(customerId) && String(c.tenantId) === String(tenantId));
+  if (idx === -1) return { error: 'Customer not found' };
+  const normalized = String(role || 'customer').toLowerCase();
+  if (normalized !== 'customer' && normalized !== 'operator') return { error: 'role must be customer or operator' };
+  db.customers[idx].role = normalized;
+  db.customers[idx].updatedAt = new Date().toISOString();
+  if (!_save(db)) return { error: 'Failed to persist role update' };
+  return { customer: _safe(db.customers[idx]) };
+}
+
 function findByEmail(tenantId, email) {
   const db = _loadSync();
   const e = String(email).toLowerCase();
@@ -48,6 +71,7 @@ function _safe(customer) {
     email: customer.email,
     name: customer.name,
     phone: customer.phone,
+    role: customer.role || 'customer',
     addresses: Array.isArray(customer.addresses) ? customer.addresses : [],
     createdAt: customer.createdAt
   };
@@ -70,6 +94,7 @@ async function register({ tenantId, email, name, password, phone }) {
     phone: phone ? String(phone) : '',
     passwordHash: hashPassword(password),
     addresses: [],
+    role: 'customer',
     tokenVersion: 0,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
@@ -126,9 +151,13 @@ async function changePassword(id, currentPassword, newPassword) {
 
 module.exports = {
   getById,
+  getByIdAndTenant,
+  isOperator,
+  setOperatorRole,
   findByEmail,
   register,
   login,
   updateProfile,
   changePassword
 };
+

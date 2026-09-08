@@ -1,9 +1,12 @@
+'use strict';
+
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
 const BaseRepository = require('../repositories/BaseRepository');
 const inventoryRepository = require('../repositories').products;
 const txRepository = new BaseRepository('inventoryTransactions');
 const orderRepository = new BaseRepository('marketOrders');
+const salesRepository = new BaseRepository('sales');
 const salesService = require('../services/sales.service');
 const marketConfigService = require('./marketConfig.service');
 const marketAuthService = require('./marketAuth.service');
@@ -43,6 +46,88 @@ async function _findByIdempotency(tenantId, key) {
   ) || null;
 }
 
+// P0-3 — Compensating rollback.
+//
+// The checkout writes to FOUR stores:
+//   W1: products        (decrement stockQty)
+//   W2: inventoryTransactions (append 'out' transactions)
+//   W3: sales           (create invoice via salesService.create)
+//   W4: marketOrders    (push order)
+//
+// There is no cross-store transaction in the file-based storage.
+// If any later write fails, we run best-effort reverse-order compensation
+// to restore the earlier successful writes. Compensation errors are
+// captured and returned to the caller so the response can indicate that
+// the system is in a recovery-required state.
+//
+// This is NOT a transaction. It is compensating rollback.
+//
+// The `stage` argument is the number of writes that SUCCEEDED before the
+// failure. We must undo writes 1..stage inclusive. The ID gates
+// (ctx.createdOrderId, ctx.createdSaleId, ctx.appendedTxIds, ctx.originalStock)
+// tell us whether each write actually committed; stage tells us how far
+// to attempt. A write that succeeded but has no ID to find will be a
+// no-op (e.g., W3 succeeded but createdSaleId is null — should not
+// happen, but defended against).
+async function _compensate({ stage, ctx }) {
+  // stage: number of successful writes BEFORE the failure (0..4).
+  const errors = [];
+
+  // W4 — order rollback (newest first)
+  if (stage >= 4 && ctx.createdOrderId) {
+    try {
+      const odb = await orderRepository._rawStoreAsync();
+      odb.orders = (odb.orders || []).filter((o) => o.id !== ctx.createdOrderId);
+      await orderRepository.writeAsync(odb);
+    } catch (e) {
+      errors.push('order-rollback: ' + e.message);
+      logger.error('marketCheckout compensate W4 failed:', e.message);
+    }
+  }
+
+  // W3 — sale rollback
+  if (stage >= 3 && ctx.createdSaleId) {
+    try {
+      const sdb = await salesRepository._rawStoreAsync();
+      sdb.invoices = (sdb.invoices || []).filter((i) => i.id !== ctx.createdSaleId);
+      await salesRepository.writeAsync(sdb);
+    } catch (e) {
+      errors.push('sale-rollback: ' + e.message);
+      logger.error('marketCheckout compensate W3 failed:', e.message);
+    }
+  }
+
+  // W2 — inventory transactions rollback
+  if (stage >= 2 && ctx.appendedTxIds && ctx.appendedTxIds.length) {
+    try {
+      const tdb = await txRepository._rawStoreAsync();
+      const ids = new Set(ctx.appendedTxIds);
+      tdb.transactions = (tdb.transactions || []).filter((t) => !ids.has(t.id));
+      await txRepository.writeAsync(tdb);
+    } catch (e) {
+      errors.push('tx-rollback: ' + e.message);
+      logger.error('marketCheckout compensate W2 failed:', e.message);
+    }
+  }
+
+  // W1 — stock restoration
+  if (stage >= 1 && ctx.originalStock && Object.keys(ctx.originalStock).length) {
+    try {
+      const db = await inventoryRepository._rawStoreAsync();
+      for (const [productId, qty] of Object.entries(ctx.originalStock)) {
+        const p = (db.products || []).find((x) => String(x.id) === String(productId));
+        if (p) p.stockQty = qty;
+      }
+      await inventoryRepository.writeAsync(db);
+    } catch (e) {
+      errors.push('stock-rollback: ' + e.message);
+      logger.error('marketCheckout compensate W1 failed:', e.message);
+    }
+  }
+
+  return errors;
+}
+
 async function processCheckout(input) {
   const {
     tenantId,
@@ -75,6 +160,16 @@ async function processCheckout(input) {
     if (existing) return { order: _projectOrder(existing), idempotent: true };
   }
 
+  // P0-1 — Apply the per-tenant product visibility overlay at checkout time.
+  // A product the tenant cannot list cannot be purchased, even if the
+  // client knows the productId. The visibility check is server-side.
+  const allow = marketConfigService.resolveProductVisibility(cfg);
+  for (const ci of cleanItems) {
+    if (!allow(ci.productId)) {
+      return { error: 'Product not available: ' + ci.productId, status: 404 };
+    }
+  }
+
   let customer = null;
   if (customerId) {
     customer = marketAuthService.getById(customerId);
@@ -84,30 +179,91 @@ async function processCheckout(input) {
   }
 
   const release = await stockLock.acquire();
+  // P0-3 — Compensation context. Each stage populates this with what it
+  // changed so a failure in a later stage can be reversed. Keys are
+  // undefined before the corresponding write; the compensator checks.
+  const ctx = {
+    tenantId: String(tenantId),
+    originalStock: {},        // productId -> pre-decrement stockQty
+    appendedTxIds: [],        // inventory transaction IDs we pushed
+    createdSaleId: null,      // sales invoice id (string)
+    createdOrderId: null      // marketOrders id (string)
+  };
+
   try {
-    const db = await inventoryRepository._rawStoreAsync();
-    const products = Array.isArray(db.products) ? db.products : [];
-    const byId = new Map();
+    // ===== W1: products — decrement stock =====
+    let byId = new Map();
     const orderLines = [];
     let subtotal = 0;
+    let products;
+    try {
+      const db = await inventoryRepository._rawStoreAsync();
+      products = Array.isArray(db.products) ? db.products : [];
+      for (const ci of cleanItems) {
+        const p = products.find((x) => String(x.id) === ci.productId);
+        if (!p) return { error: 'Product not found: ' + ci.productId, status: 404 };
+        const stock = Number(p.stockQty) || 0;
+        if (stock < ci.qty) return { error: 'Insufficient stock for ' + (p.name || ci.productId), status: 409 };
+        const price = marketConfigService.priceFor(p, cfg);
+        // P0-3: capture ORIGINAL stock BEFORE mutation, for compensation.
+        ctx.originalStock[ci.productId] = stock;
+        byId.set(ci.productId, p);
+        orderLines.push({
+          productId: ci.productId,
+          name: p.name,
+          qty: ci.qty,
+          unitPrice: price,
+          lineTotal: _round(price * ci.qty)
+        });
+        subtotal += price * ci.qty;
+      }
+      subtotal = _round(subtotal);
 
-    for (const ci of cleanItems) {
-      const p = products.find((x) => String(x.id) === ci.productId);
-      if (!p) return { error: 'Product not found: ' + ci.productId, status: 404 };
-      const stock = Number(p.stockQty) || 0;
-      if (stock < ci.qty) return { error: 'Insufficient stock for ' + (p.name || ci.productId), status: 409 };
-      const price = marketConfigService.priceFor(p, cfg);
-      byId.set(ci.productId, p);
-      orderLines.push({
-        productId: ci.productId,
-        name: p.name,
-        qty: ci.qty,
-        unitPrice: price,
-        lineTotal: _round(price * ci.qty)
-      });
-      subtotal += price * ci.qty;
+      for (const ci of cleanItems) {
+        const p = byId.get(ci.productId);
+        p.stockQty = (Number(p.stockQty) || 0) - ci.qty;
+      }
+      const ok = await inventoryRepository.writeAsync(db);
+      if (!ok) throw new Error('products store write returned false');
+    } catch (err) {
+      // No W1 was successfully written, no compensation needed.
+      logger.error('marketCheckout W1 failure:', err.message);
+      return { error: 'Checkout failed at inventory stage', status: 500 };
     }
-    subtotal = _round(subtotal);
+
+    // ===== W2: inventoryTransactions — append 'out' records =====
+    try {
+      const txDb = await txRepository._rawStoreAsync();
+      if (!txDb.transactions) txDb.transactions = [];
+      for (const ci of cleanItems) {
+        const p = byId.get(ci.productId);
+        const txId = uuidv4();
+        txDb.transactions.push({
+          id: txId,
+          productId: ci.productId,
+          type: 'out',
+          qty: ci.qty,
+          stockAfter: Number(p.stockQty) || 0,
+          user: 'market',
+          reason: 'market-checkout',
+          tenantId: String(tenantId),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+        ctx.appendedTxIds.push(txId);
+      }
+      const ok = await txRepository.writeAsync(txDb);
+      if (!ok) throw new Error('inventoryTransactions store write returned false');
+    } catch (err) {
+      // P0-3: W1 succeeded. Compensate by restoring stock.
+      const compErrors = await _compensate({ stage: 1, ctx });
+      logger.error('marketCheckout W2 failure:', err.message, 'compErrors:', compErrors);
+      return {
+        error: 'Checkout failed at transactions stage',
+        status: 500,
+        compensation: { attempted: true, errors: compErrors }
+      };
+    }
 
     const coupon = couponCode ? marketConfigService.resolveCoupon(cfg, String(couponCode), subtotal) : null;
     const discount = coupon ? coupon.discount : 0;
@@ -116,36 +272,28 @@ async function processCheckout(input) {
     const shippingFee = shipping ? shipping.fee : 0;
 
     const payment = marketConfigService.resolvePayment(cfg, paymentMethodId);
-    if (!payment) return { error: 'Invalid payment method', status: 400 };
+    if (!payment) {
+      // P0-3: W1 + W2 succeeded. Compensate both.
+      const compErrors = await _compensate({ stage: 2, ctx });
+      return {
+        error: 'Invalid payment method',
+        status: 400,
+        compensation: { attempted: true, errors: compErrors }
+      };
+    }
 
     const total = _round(subtotal - discount + shippingFee);
-    if (total < 0) return { error: 'Invalid order total', status: 400 };
-
-    for (const ci of cleanItems) {
-      const p = byId.get(ci.productId);
-      p.stockQty = (Number(p.stockQty) || 0) - ci.qty;
+    if (total < 0) {
+      // P0-3: W1 + W2 succeeded. Compensate both.
+      const compErrors = await _compensate({ stage: 2, ctx });
+      return {
+        error: 'Invalid order total',
+        status: 400,
+        compensation: { attempted: true, errors: compErrors }
+      };
     }
-    await inventoryRepository.writeAsync(db);
 
-    const txDb = await txRepository._rawStoreAsync();
-    if (!txDb.transactions) txDb.transactions = [];
-    for (const ci of cleanItems) {
-      const p = byId.get(ci.productId);
-      txDb.transactions.push({
-        id: uuidv4(),
-        productId: ci.productId,
-        type: 'out',
-        qty: ci.qty,
-        stockAfter: Number(p.stockQty) || 0,
-        user: 'market',
-        reason: 'market-checkout',
-        tenantId: String(tenantId),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
-    }
-    await txRepository.writeAsync(txDb);
-
+    // ===== W3: sales — create invoice =====
     const invoice = {
       id: 'MKT-' + Date.now().toString().slice(-6) + '-' + uuidv4().slice(0, 4),
       items: orderLines.map((l) => ({ productId: l.productId, name: l.name, qty: l.qty, price: l.unitPrice })),
@@ -163,9 +311,53 @@ async function processCheckout(input) {
       status: 'pending',
       date: new Date().toISOString()
     };
-    const saleRes = await salesService.create(invoice, { tenantId: String(tenantId) });
-    if (saleRes.error) return { error: saleRes.error, status: 400 };
+    let saleRes;
+    try {
+      saleRes = await salesService.create(invoice, { tenantId: String(tenantId) });
+    } catch (err) {
+      const compErrors = await _compensate({ stage: 2, ctx });
+      logger.error('marketCheckout W3 (sales) failure:', err.message, 'compErrors:', compErrors);
+      return {
+        error: 'Checkout failed at sales stage',
+        status: 500,
+        compensation: { attempted: true, errors: compErrors }
+      };
+    }
+    if (saleRes.error) {
+      // salesService.create returned a business-level error. The
+      // duplicate-id guard returns a 'Duplicate invoice ID' error
+      // BEFORE any write — that is a normal business error (400) and
+      // requires no compensation. A 'Failed to persist' error means
+      // the sales service's write itself failed — that is an
+      // infrastructure error (500) and triggers compensation.
+      if (/duplicate invoice id/i.test(saleRes.error)) {
+        return { error: saleRes.error, status: 400 };
+      }
+      const compErrors = await _compensate({ stage: 2, ctx });
+      logger.error('marketCheckout W3 (sales) failure:', saleRes.error, 'compErrors:', compErrors);
+      return {
+        error: 'Checkout failed at sales stage',
+        status: 500,
+        compensation: { attempted: true, errors: compErrors }
+      };
+    }
+    // P0-2 — Post-write tenant verification. The sales service
+    // accepted the invoice and stamped tenantId from the body (which
+    // is the trusted tenant). Verify the persisted record carries the
+    // expected tenantId. If not, the system has been misconfigured and
+    // the order MUST NOT proceed. Compensate and return an error.
+    if (!saleRes.invoice || String(saleRes.invoice.tenantId) !== String(tenantId)) {
+      const compErrors = await _compensate({ stage: 2, ctx });
+      logger.error('marketCheckout W3 tenant mismatch: expected', tenantId, 'got', saleRes.invoice && saleRes.invoice.tenantId);
+      return {
+        error: 'Checkout failed: sales tenant stamp mismatch',
+        status: 500,
+        compensation: { attempted: true, errors: compErrors }
+      };
+    }
+    ctx.createdSaleId = saleRes.invoice.id;
 
+    // ===== W4: marketOrders — persist the order =====
     const orderCode = 'ORD-' + Date.now().toString(36).toUpperCase() + '-' + crypto.randomBytes(3).toString('hex').toUpperCase();
     const trackingToken = crypto.randomBytes(24).toString('hex');
     const order = {
@@ -191,14 +383,31 @@ async function processCheckout(input) {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
-    const odb = await orderRepository._rawStoreAsync();
-    if (!odb.orders) odb.orders = [];
-    odb.orders.push(order);
-    await orderRepository.writeAsync(odb);
+    try {
+      const odb = await orderRepository._rawStoreAsync();
+      if (!odb.orders) odb.orders = [];
+      odb.orders.push(order);
+      const ok = await orderRepository.writeAsync(odb);
+      if (!ok) throw new Error('marketOrders store write returned false');
+      ctx.createdOrderId = order.id;
+    } catch (err) {
+      // P0-3: W1 + W2 + W3 succeeded. Compensate all three in reverse.
+      const compErrors = await _compensate({ stage: 3, ctx });
+      logger.error('marketCheckout W4 failure:', err.message, 'compErrors:', compErrors);
+      return {
+        error: 'Checkout failed at order persistence stage',
+        status: 500,
+        compensation: { attempted: true, errors: compErrors }
+      };
+    }
 
     return { order: _projectOrder(order) };
   } catch (err) {
-    logger.error('marketCheckout.processCheckout error:', err.message);
+    // Last-resort catch (e.g. logic errors above). The catch does NOT
+    // compensate — the inner try/catch around each write is the
+    // authoritative compensation point. If we reach here, something
+    // threw outside a known write, which is a programming error.
+    logger.error('marketCheckout.processCheckout outer error:', err.message);
     return { error: 'Checkout failed', status: 500 };
   } finally {
     release();

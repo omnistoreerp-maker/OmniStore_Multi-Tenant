@@ -17,6 +17,38 @@
         <a href="#/track" data-i18n="nav_track">Track Order</a>
         <a href="#/account" id="mk-account-link" data-i18n="nav_account">Account</a>
       </nav>
+  <link rel="icon" href="market/img/brand/omnistore-logo.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="market/css/market.css" />
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+</head>
+<body>
+  <a class="mk-skip-link" href="#mk-app">Skip to content</a>
+  <header class="mk-header">
+    <div class="mk-container mk-header-inner">
+      <button class="mk-menu-btn" id="mk-menu-btn" type="button" aria-expanded="false" aria-controls="mk-mobile-nav">☰</button>
+      <a class="mk-brand" href="#/home">
+        <img class="mk-brand-img" src="market/img/brand/omnistore-logo.svg" alt="" width="28" height="28" />
+        <span class="mk-brand-text" data-i18n="brand">OmniStore Market</span>
+      </a>
+      <nav class="mk-nav" aria-label="Primary">
+        <a href="#/home" data-i18n="nav_home">Home</a>
+        <a href="#/catalog" data-i18n="nav_catalog">Catalog</a>
+        <a href="#/cart" id="mk-cart-link"><span data-i18n="nav_cart">Cart</span><span id="mk-cart-count" class="mk-cart-badge" aria-label="Cart count">0</span></a>
+        <a href="#/track" data-i18n="nav_track">Track Order</a>
+        <a href="#/game-hosting" data-i18n="gh_nav">Game Hosting</a>
+        <a href="#/game-hosting/requests" data-i18n="gh_my_requests" id="mk-gh-requests-link" style="display:none">My Requests</a>
+        <a href="#/operator" data-i18n="op_nav" id="mk-op-nav-link" style="display:none">Operator</a>
+        <a href="#/account" id="mk-account-link" data-i18n="nav_account">Account</a>
+      </nav>
+      <nav class="mk-nav mk-nav--operator" id="mk-op-nav" aria-label="Operator" style="display:none">
+        <a href="#/operator/plans" data-i18n="op_plans">Plans</a>
+        <a href="#/operator/servers" data-i18n="op_servers">Servers</a>
+        <a href="#/operator/queue" data-i18n="op_queue">Queue</a>
+        <a href="#/operator/entitlements" data-i18n="op_entitlements">Entitlements</a>
+        <a href="#/operator/audit" data-i18n="op_audit">Audit</a>
+        <a href="#/game-hosting" data-i18n="gh_nav">Storefront</a>
+      </nav>
       <div class="mk-lang">
         <button id="mk-lang-btn" type="button">العربية</button>
       </div>
@@ -26,6 +58,52 @@
   <main class="mk-container" id="mk-app">
     <div class="mk-loading" data-i18n="loading">Loading…</div>
   </main>
+
+    <nav class="mk-mobile-nav" id="mk-mobile-nav" aria-label="Mobile">
+      <a href="#/home" data-i18n="nav_home">Home</a>
+      <a href="#/catalog" data-i18n="nav_catalog">Catalog</a>
+      <a href="#/cart" id="mk-mobile-cart-link"><span data-i18n="nav_cart">Cart</span><span id="mk-mobile-cart-count" class="mk-cart-badge" aria-label="Cart count">0</span></a>
+      <a href="#/track" data-i18n="nav_track">Track Order</a>
+      <a href="#/game-hosting" data-i18n="gh_nav">Game Hosting</a>
+      <a href="#/game-hosting/requests" data-i18n="gh_my_requests" id="mk-mobile-gh-requests-link" style="display:none">My Requests</a>
+      <a href="#/operator" data-i18n="op_nav" id="mk-mobile-op-nav-link" style="display:none">Operator</a>
+      <a href="#/account" id="mk-mobile-account-link" data-i18n="nav_account">Account</a>
+    </nav>
+    <nav class="mk-mobile-nav mk-mobile-nav--operator" id="mk-mobile-op-nav" aria-label="Mobile Operator" style="display:none">
+      <a href="#/operator/plans" data-i18n="op_plans">Plans</a>
+      <a href="#/operator/servers" data-i18n="op_servers">Servers</a>
+      <a href="#/operator/queue" data-i18n="op_queue">Queue</a>
+      <a href="#/operator/entitlements" data-i18n="op_entitlements">Entitlements</a>
+      <a href="#/operator/audit" data-i18n="op_audit">Audit</a>
+      <a href="#/game-hosting" data-i18n="gh_nav">Storefront</a>
+    </nav>
+  </header>
+
+  <main class="mk-container" id="mk-app" aria-live="polite">
+    <div class="mk-loading" data-i18n="loading">Loading…</div>
+  </main>
+
+  <dialog id="mk-confirm-dialog" class="mk-dialog" aria-labelledby="mk-confirm-title" aria-describedby="mk-confirm-msg">
+    <div class="mk-dialog-body">
+      <p id="mk-confirm-title" class="mk-dialog-title"></p>
+      <p id="mk-confirm-msg" class="mk-dialog-msg"></p>
+      <div class="mk-dialog-actions">
+        <button class="mk-btn secondary" id="mk-confirm-cancel" type="button">Cancel</button>
+        <button class="mk-btn" id="mk-confirm-ok" type="button">Confirm</button>
+      </div>
+    </div>
+  </dialog>
+
+  <nav class="mk-bottom-nav" id="mk-bottom-nav" aria-label="Bottom">
+    <a href="#/home" class="mk-bottom-nav-link" data-i18n="nav_home">Home</a>
+    <a href="#/catalog" class="mk-bottom-nav-link" data-i18n="nav_catalog">Catalog</a>
+    <a href="#/cart" class="mk-bottom-nav-link" id="mk-bottom-cart-link">
+      <span data-i18n="nav_cart">Cart</span>
+      <span id="mk-bottom-cart-count" class="mk-cart-badge" aria-label="Cart count">0</span>
+    </a>
+    <a href="#/track" class="mk-bottom-nav-link" data-i18n="nav_track">Track</a>
+    <a href="#/account" class="mk-bottom-nav-link" id="mk-bottom-account-link" data-i18n="nav_account">Account</a>
+  </nav>
 
   <footer class="mk-footer">
     <div class="mk-container">
@@ -39,3 +117,5 @@
   <script src="market/js/app.js"></script>
 </body>
 </html>
+
+
