@@ -153,6 +153,10 @@ class LoyaltyRepository {
     const adjusted = Math.abs(byType['adjustment'] || 0);
     const bonus = byType['bonus'] || 0;
     const outstanding = Math.max(0, issued - redeemed - returned + adjusted + bonus);
+    const now = new Date();
+    const expired = transactions
+      .filter(t => (t.type === 'earn' || t.type === 'bonus') && t.expiresAt && new Date(t.expiresAt) <= now)
+      .reduce((sum, t) => sum + (Number(t.points) || 0), 0);
 
     const tierDistribution = { bronze: 0, silver: 0, gold: 0, platinum: 0 };
     for (const cid of customerIds) {
@@ -170,6 +174,7 @@ class LoyaltyRepository {
       totalReturned: returned,
       totalAdjusted: adjusted,
       totalBonus: bonus,
+      expiredPoints: expired,
       outstandingLiability: outstanding,
       activeCustomerCount: customerIds.size,
       transactionCount: transactions.length,

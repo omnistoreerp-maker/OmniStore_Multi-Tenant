@@ -137,6 +137,26 @@ async function getMetrics(req, res) {
   }
 }
 
+async function getExpiryInfo(req, res) {
+  try {
+    const { customerId } = req.params;
+    if (!customerId) return error(res, 'customerId is required', 400);
+    const result = await loyaltyService.getBalance(customerId);
+    if (result.error) return error(res, result.error, 404);
+    return success(res, {
+      customerId: result.customerId,
+      points: result.points,
+      expiredPoints: result.expiredPoints || 0,
+      totalEarned: result.totalEarned || 0,
+      nextExpiry: result.nextExpiry || null,
+      tier: result.tier || null
+    });
+  } catch (err) {
+    logger.error('loyalty.expiryInfo error:', err.message);
+    return error(res, 'Failed to retrieve expiry info', 500);
+  }
+}
+
 async function awardBirthdayBonus(req, res) {
   try {
     const { customerId } = req.body;
@@ -165,5 +185,6 @@ module.exports = {
   getConfig,
   updateConfig,
   getMetrics,
+  getExpiryInfo,
   awardBirthdayBonus
 };

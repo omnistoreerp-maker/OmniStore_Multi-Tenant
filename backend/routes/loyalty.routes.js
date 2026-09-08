@@ -248,6 +248,30 @@ router.get('/metrics', requirePermissionIfAuth('loyalty.view'), asyncHandler(ctr
 
 /**
  * @openapi
+ * /api/v1/loyalty/expiry-info/{customerId}:
+ *   get:
+ *     tags: [Loyalty]
+ *     summary: Get customer loyalty expiry info
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - name: customerId
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Expiry info retrieved
+ *       404:
+ *         description: Customer not found
+ *       401:
+ *         description: Authentication required
+ */
+router.get('/expiry-info/:customerId', requirePermissionIfAuth('loyalty.view'), asyncHandler(ctrl.getExpiryInfo));
+
+/**
+ * @openapi
  * /api/v1/loyalty/birthday-bonus:
  *   post:
  *     tags: [Loyalty]
