@@ -2,6 +2,7 @@
 
 const router = require('express').Router();
 const ctrl = require('../controllers/update.controller');
+const { requireRole } = require('../middleware/authorize');
 
 /**
  * @openapi
@@ -36,6 +37,6 @@ router.get('/manifest', ctrl.getManifest);
  *       403:
  *         description: Insufficient permissions
  */
-router.post('/apply', ctrl.apply);
+router.post('/apply', requireRole('Owner', 'Admin', 'Manager'), ctrl.apply);
 
 module.exports = router;

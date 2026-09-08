@@ -15,11 +15,15 @@ function getManifest(req, res) {
 }
 
 // Admin-gated: launches the detached updater process. The requester must be an
-// authenticated Owner/Admin/Manager (role from the trusted token).
+// authenticated Owner/Admin/Manager (role from the trusted token — the
+// per-tenant effective role takes precedence over the raw global role). The
+// route-level requireRole gate already resolves the effective role; this
+// inline check is defense-in-depth.
 function apply(req, res) {
   const user = req.user;
   if (!user) return error(res, 'Authentication required', 401);
-  const role = String(user.role || '').toLowerCase();
+  const resolved = user.effectiveRole !== undefined && user.effectiveRole !== null ? user.effectiveRole : user.role;
+  const role = String(resolved || '').toLowerCase();
   if (!['owner', 'admin', 'manager'].includes(role)) {
     return error(res, 'Insufficient permissions to apply an update', 403);
   }

@@ -1,4 +1,16 @@
-﻿'use strict';
+'use strict';
+
+// Phase C — Permission Registry: the single source of truth for permission
+// names, their operational groups, and the default permission set per role.
+//
+// REAL groups map to route families that already exist and are enforceable by
+// requirePermission. PLANNED groups are registered for forward-compatibility
+// only; they are intentionally NOT wired to any middleware and must never be
+// treated as granted-at-route-level by the codebase.
+//
+// Aliasing: legacy role names (Sales, Support) resolve to a modern baseline so
+// pre-existing records keep sensible defaults without being migrated. Unknown
+// roles resolve to an EMPTY baseline (never an invented Owner access).
 
 const REAL_GROUPS = [
   { group: 'sales', permissions: ['sales.view', 'sales.create', 'sales.edit', 'sales.delete'] },
@@ -7,12 +19,15 @@ const REAL_GROUPS = [
   { group: 'products', permissions: ['products.view', 'products.create', 'products.edit', 'products.delete'] },
   { group: 'customers', permissions: ['customers.view', 'customers.create', 'customers.edit', 'customers.delete'] },
   { group: 'suppliers', permissions: ['suppliers.view', 'suppliers.create', 'suppliers.edit', 'suppliers.delete'] },
+  { group: 'partners', permissions: ['partners.view', 'partners.create', 'partners.edit', 'partners.delete'] },
+  { group: 'vouchers', permissions: ['vouchers.view', 'vouchers.create', 'vouchers.edit', 'vouchers.delete'] },
+  {
+    group: 'employees',
+    permissions: ['employees.view', 'employees.create', 'employees.edit', 'employees.delete']
+  },
   { group: 'treasury', permissions: ['treasury.view', 'treasury.create', 'treasury.edit', 'treasury.delete'] },
   { group: 'reports', permissions: ['reports.view', 'reports.financial.view'] },
   { group: 'dashboard', permissions: ['dashboard.view'] },
-  { group: 'employees', permissions: ['employees.view', 'employees.create', 'employees.edit', 'employees.delete'] },
-  { group: 'partners', permissions: ['partners.view', 'partners.create', 'partners.edit', 'partners.delete'] },
-  { group: 'vouchers', permissions: ['vouchers.view', 'vouchers.create', 'vouchers.edit', 'vouchers.delete'] },
   {
     group: 'users',
     permissions: [
@@ -23,8 +38,7 @@ const REAL_GROUPS = [
   },
   { group: 'audit', permissions: ['audit.view'] },
   { group: 'company', permissions: ['company.view', 'company.create'] },
-  { group: 'settings', permissions: ['settings.view', 'settings.edit'] },
-  { group: 'loyalty', permissions: ['loyalty.view', 'loyalty.earn', 'loyalty.redeem', 'loyalty.reverse', 'loyalty.manage'] }
+  { group: 'settings', permissions: ['settings.view', 'settings.edit'] }
 ];
 
 const PLANNED_GROUPS = [
@@ -43,8 +57,10 @@ const ALL_PERMISSIONS = Array.from(
 
 const REAL_PERMISSIONS = Array.from(new Set(REAL_GROUPS.flatMap(g => g.permissions)));
 
+// Legacy role names map to a modern baseline without mutating the record.
 const ROLE_ALIASES = { Sales: 'Cashier', Support: 'Viewer' };
 
+// Role rank: higher outranks lower when deciding who may manage whom.
 const ROLE_RANK = {
   Owner: 4,
   Admin: 3,
@@ -58,6 +74,9 @@ const ROLE_RANK = {
   Viewer: 0
 };
 
+// Default grant per role. Owner and Admin short-circuit in the authorization
+// engine; their baselines are the full enforceable set so /auth/me stays a
+// truthful reflection of what the engine permits.
 const ROLE_DEFAULTS = {
   Owner: REAL_PERMISSIONS,
   Admin: REAL_PERMISSIONS,
@@ -68,34 +87,34 @@ const ROLE_DEFAULTS = {
     'products.view', 'products.create', 'products.edit',
     'customers.view', 'customers.create', 'customers.edit',
     'suppliers.view', 'suppliers.create', 'suppliers.edit',
+    'partners.view', 'partners.create', 'partners.edit', 'partners.delete',
+    'vouchers.view', 'vouchers.create', 'vouchers.edit', 'vouchers.delete',
+    'employees.view', 'employees.create', 'employees.edit', 'employees.delete',
     'treasury.view', 'treasury.create', 'treasury.edit',
     'reports.view', 'dashboard.view',
     'users.view', 'users.create', 'users.edit', 'users.delete',
-    'employees.view', 'employees.create', 'employees.edit', 'employees.delete',
-    'partners.view', 'partners.create', 'partners.edit', 'partners.delete',
-    'vouchers.view', 'vouchers.create', 'vouchers.edit', 'vouchers.delete',
-    'audit.view', 'company.view', 'settings.view',
-    'loyalty.view', 'loyalty.earn', 'loyalty.redeem', 'loyalty.reverse'
+    'audit.view', 'company.view', 'settings.view'
   ],
   BranchManager: [
     'sales.view', 'sales.create', 'sales.edit',
     'purchases.view', 'purchases.create', 'purchases.edit',
     'customers.view', 'customers.create', 'customers.edit',
     'suppliers.view', 'suppliers.create', 'suppliers.edit',
+    'partners.view', 'partners.create', 'partners.edit',
+    'vouchers.view', 'vouchers.create', 'vouchers.edit',
+    'employees.view',
     'inventory.view', 'inventory.create', 'inventory.edit',
     'products.view',
-    'employees.view', 'employees.create', 'employees.edit', 'employees.delete',
-    'partners.view', 'partners.create', 'partners.edit', 'partners.delete',
-    'vouchers.view', 'vouchers.create', 'vouchers.edit', 'vouchers.delete',
-    'dashboard.view',
-    'loyalty.view', 'loyalty.earn', 'loyalty.redeem'
+    'dashboard.view'
   ],
-  Cashier: ['sales.view', 'sales.create', 'customers.view', 'customers.create', 'dashboard.view', 'treasury.view', 'reports.view', 'loyalty.view', 'loyalty.earn', 'loyalty.redeem'],
+  Cashier: ['sales.view', 'sales.create', 'customers.view', 'customers.create', 'dashboard.view', 'treasury.view', 'reports.view'],
   Technician: ['inventory.view', 'inventory.create', 'inventory.edit', 'products.view', 'dashboard.view'],
   WarehouseSales: ['inventory.view', 'inventory.create', 'inventory.edit', 'products.view', 'products.create', 'products.edit', 'sales.view', 'dashboard.view'],
-  Viewer: ['dashboard.view', 'reports.view', 'sales.view', 'purchases.view', 'inventory.view', 'products.view', 'customers.view', 'suppliers.view', 'treasury.view', 'company.view', 'partners.view', 'vouchers.view', 'loyalty.view']
+  Viewer: ['dashboard.view', 'reports.view', 'sales.view', 'purchases.view', 'inventory.view', 'products.view', 'customers.view', 'suppliers.view', 'partners.view', 'vouchers.view', 'treasury.view', 'company.view']
 };
 
+// Legacy verb synonyms -> canonical permission verbs. read/update/list are
+// historical spellings of the canonical view/edit verbs.
 const PERMISSION_SYNONYMS = { read: 'view', update: 'edit', list: 'view' };
 
 function normalizePermission(name) {
