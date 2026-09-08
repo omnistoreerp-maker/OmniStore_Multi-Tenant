@@ -19,6 +19,18 @@ const publicLimiter = rateLimit({
 
 router.use(publicLimiter);
 
+// Stricter limit for public company provisioning to reduce abuse surface.
+const provisionLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: process.env.NODE_ENV === 'test' ? 1000 : 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator(req) {
+    return ipKeyGenerator(req.ip || req.connection.remoteAddress || 'unknown');
+  },
+  message: { success: false, message: 'Too many provisioning attempts, please try again later', data: null }
+});
+
 router.get('/catalog', ctrl.getCatalog);
 router.get('/features', ctrl.getFeatures);
 router.get('/stats', ctrl.getStats);
@@ -48,5 +60,7 @@ router.post('/highlights', ctrl.notFound);
 router.put('/highlights', ctrl.notFound);
 router.patch('/highlights', ctrl.notFound);
 router.delete('/highlights', ctrl.notFound);
+
+router.post('/onboarding/provision', provisionLimiter, ctrl.provisionCompany);
 
 module.exports = router;

@@ -32,6 +32,8 @@ const schedulerService = require('./services/scheduler.service');
 
 const app = express();
 
+app.set('trust proxy', 'loopback');
+
 // Global middleware. The default helmet CSP would block the frontend's
 // inline scripts and CDN modules when the API process also serves the static
 // app (single-process mode). The directives below mirror the project's own

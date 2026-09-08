@@ -2,6 +2,8 @@
 
 const { success, error } = require('../utils/apiResponse');
 const platformCatalog = require('../services/platformCatalog.service');
+const CompanyProvisionService = require('../services/companyProvision.service');
+const logger = require('../utils/logger');
 
 function notFound(req, res) {
   return error(res, 'Not found', 404);
@@ -43,10 +45,28 @@ function getHighlights(req, res) {
   }
 }
 
+const provisionCompany = async function (req, res) {
+  try {
+    const input = req.body || {};
+    const result = await CompanyProvisionService.provision(input, null);
+    if (result.error) return error(res, result.error, 400);
+    return success(res, {
+      company: result.company,
+      admin: result.admin,
+      branch: result.branch,
+      openingBalance: result.openingBalance
+    }, 'Company created successfully', 201);
+  } catch (err) {
+    logger.error('platformPublic.provisionCompany error:', err.message);
+    return error(res, 'Failed to create company', 500);
+  }
+};
+
 module.exports = {
   getCatalog,
   getFeatures,
   getStats,
   getHighlights,
+  provisionCompany,
   notFound
 };
