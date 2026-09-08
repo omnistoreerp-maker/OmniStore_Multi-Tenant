@@ -217,11 +217,11 @@ async function listProvisioningRequests(req, res) {
     const customerId = cust && cust.role === 'operator' ? (req.query.customerId || null) : (cust ? cust.id : null);
     const requests = await gameHostingService.listProvisioningRequests({
       tenantContext: _tenantContext(req),
-      customerId: cust && cust.role !== 'operator' ? cust.id : null
+      customerId: customerId
     });
     return success(res, { requests, provider: gameHostingProvider.getStatus() }, 'Provisioning requests retrieved');
   } catch (err) {
-    return error(res, 'Failed to list provisioning requests', 500);
+    return error(res, 'Failed to retrieve provisioning requests', 500);
   }
 }
 
