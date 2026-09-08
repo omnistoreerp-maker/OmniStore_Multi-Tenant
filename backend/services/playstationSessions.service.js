@@ -234,8 +234,18 @@ async function start({ id, tenantContext, branchId, actor } = {}) {
     const trustedTid = _trustedTenantId(tenantContext);
     const trustedBid = _trustedBranchId(branchId);
 
+    const sessionDb = _load();
+    const sessionIdx = (sessionDb.sessions || []).findIndex(s => s && String(s.id) === String(id).trim());
+    if (sessionIdx === -1) return { error: 'Session not found' };
+    if (_ownershipBlocked(sessionDb.sessions[sessionIdx], tenantContext, branchId)) return { error: 'Session not found' };
+
+    const session = sessionDb.sessions[sessionIdx];
+    if (session.status !== 'pending') {
+      return { error: 'Invalid session state', current: session.status };
+    }
+
     const deviceDb = _loadDevices();
-    const deviceIdx = (deviceDb.devices || []).findIndex(d => d && (String(d.id) === String(id).trim() || String(d._backendId || '') === String(id).trim()));
+    const deviceIdx = (deviceDb.devices || []).findIndex(d => d && String(d.id) === String(session.device_id).trim());
     if (deviceIdx === -1) return { error: 'Device not found' };
     if (_ownershipBlocked(deviceDb.devices[deviceIdx], tenantContext, branchId)) return { error: 'Device not found' };
 
@@ -244,7 +254,6 @@ async function start({ id, tenantContext, branchId, actor } = {}) {
       return { error: 'Device is not available', current: device.status };
     }
 
-    const sessionDb = _load();
     const activeOnDevice = (sessionDb.sessions || []).some(s => String(s.device_id) === String(device.id) && s.status === 'active');
     if (activeOnDevice) {
       return { error: 'Device already has an active session', code: 'DEVICE_BUSY' };
@@ -254,14 +263,6 @@ async function start({ id, tenantContext, branchId, actor } = {}) {
     const beforeDevice = Object.assign({}, device);
     device.status = 'occupied';
     device.updatedAt = now;
-
-    const sessionIdx = (sessionDb.sessions || []).findIndex(s => s && String(s.id) === String(id).trim());
-    if (sessionIdx === -1) return { error: 'Session not found' };
-
-    const session = sessionDb.sessions[sessionIdx];
-    if (session.status !== 'pending') {
-      return { error: 'Invalid session state', current: session.status };
-    }
 
     const beforeSession = Object.assign({}, session);
     session.status = 'active';
@@ -303,11 +304,9 @@ async function stop({ id, tenantContext, branchId, actor } = {}) {
     const endedAt = new Date(now).getTime();
     const durationMinutes = Math.max(1, Math.round((endedAt - startedAt) / 60000));
 
-    const pricing = pricingService.findEffective({
-      tenantContext,
-      branchId,
-      platform: null
-    });
+    const pricing = session.pricing_profile_id
+      ? (pricingService.getById({ id: session.pricing_profile_id, tenantContext, branchId }) || pricingService.findEffective({ tenantContext, branchId, platform: null }))
+      : pricingService.findEffective({ tenantContext, branchId, platform: null });
 
     const ratePerMinute = pricing ? pricing.rate_per_minute : 0;
     const minimumMinutes = pricing ? pricing.minimum_minutes : 0;
@@ -389,11 +388,9 @@ async function cancel({ id, tenantContext, branchId, actor, reason } = {}) {
       const cancelledAt = new Date(now).getTime();
       const durationMinutes = Math.max(1, Math.round((cancelledAt - startedAt) / 60000));
 
-      const pricing = pricingService.findEffective({
-        tenantContext,
-        branchId,
-        platform: null
-      });
+      const pricing = session.pricing_profile_id
+        ? (pricingService.getById({ id: session.pricing_profile_id, tenantContext, branchId }) || pricingService.findEffective({ tenantContext, branchId, platform: null }))
+        : pricingService.findEffective({ tenantContext, branchId, platform: null });
 
       const ratePerMinute = pricing ? pricing.rate_per_minute : 0;
       const minimumMinutes = pricing ? pricing.minimum_minutes : 0;

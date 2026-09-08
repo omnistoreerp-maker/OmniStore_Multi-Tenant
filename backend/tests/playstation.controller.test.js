@@ -243,6 +243,17 @@ describe('playstation.controller — Sessions', () => {
     expect(res.lastStatus).toBe(404);
   });
 
+  test('startSession starts pending session and marks device occupied', async () => {
+    const req = mockReq({ params: { id: sessionId } });
+    const res = mockRes();
+    await ctrl.startSession(req, res);
+    expect(res.lastStatus).toBe(200);
+    const body = res.lastJson;
+    expect(body.success).toBe(true);
+    expect(body.data.session.status).toBe('active');
+    expect(body.data.device.status).toBe('occupied');
+  });
+
   test('stopSession returns 404 for missing session', async () => {
     const req = mockReq({ params: { id: 'missing' } });
     const res = mockRes();
