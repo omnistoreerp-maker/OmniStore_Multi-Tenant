@@ -16,6 +16,8 @@ let dataDir;
 let devicesService;
 let sessionsService;
 let pricingService;
+let salesService;
+let treasuryService;
 
 beforeAll(() => {
   dataDir = makeTempDataDir('playstation-sessions-service');
@@ -24,6 +26,8 @@ beforeAll(() => {
   devicesService = require('../services/playstationDevices.service');
   sessionsService = require('../services/playstationSessions.service');
   pricingService = require('../services/playstationPricing.service');
+  salesService = require('../services/sales.service');
+  treasuryService = require('../services/treasury.service');
 });
 
 afterAll(() => {
@@ -301,5 +305,380 @@ describe('playstationSessions.service — historical pricing', () => {
 
     expect(stopResult.error).toBeUndefined();
     expect(stopResult.charges.ratePerMinute).toBe(12);
+  });
+});
+
+// === Financial finalization ===
+
+describe('playstationSessions.service — finalizePayment', () => {
+  test('successful finalization creates Sale and Treasury', async () => {
+    const device = await createDevice({ display_name: 'Finalize Dev' });
+    const sessionResult = await sessionsService.create({
+      data: { device_id: device.id, customer_id: 'cust1', duration_minutes: 60, tenant_id: 'tenantA', branch_id: 'branch1' },
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' }
+    });
+    const session = sessionResult.session;
+
+    const startResult = await sessionsService.start({
+      id: session.id,
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' }
+    });
+    expect(startResult.error).toBeUndefined();
+
+    const stopResult = await sessionsService.stop({
+      id: session.id,
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' }
+    });
+    expect(stopResult.error).toBeUndefined();
+
+    const finalizeResult = await sessionsService.finalizePayment({
+      id: session.id,
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' },
+      idempotencyKey: 'key-1'
+    });
+
+    expect(finalizeResult.error).toBeUndefined();
+    expect(finalizeResult.recovery_required).toBe(false);
+    expect(finalizeResult.saleId).toBeTruthy();
+    expect(finalizeResult.treasuryEntryId).toBeTruthy();
+    expect(finalizeResult.session.payment_status).toBe('paid');
+    expect(finalizeResult.session.saleId).toBe(finalizeResult.saleId);
+    expect(finalizeResult.session.treasuryEntryId).toBe(finalizeResult.treasuryEntryId);
+  });
+
+  test('Sale uses invoiceType playstation and correct total', async () => {
+    const device = await createDevice({ display_name: 'Invoice Type Dev' });
+    const sessionResult = await sessionsService.create({
+      data: { device_id: device.id, customer_id: 'cust1', duration_minutes: 30, tenant_id: 'tenantA', branch_id: 'branch1' },
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' }
+    });
+    const session = sessionResult.session;
+
+    await sessionsService.start({ id: session.id, tenantContext: { tenantId: 'tenantA' }, branchId: 'branch1', actor: { id: 'op1' } });
+    await sessionsService.stop({ id: session.id, tenantContext: { tenantId: 'tenantA' }, branchId: 'branch1', actor: { id: 'op1' } });
+
+    const finalizeResult = await sessionsService.finalizePayment({
+      id: session.id,
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' },
+      idempotencyKey: 'key-inv-type'
+    });
+
+    expect(finalizeResult.error).toBeUndefined();
+    // Verify via sales service directly
+    const sale = await salesService.getById(finalizeResult.saleId, { tenantId: 'tenantA' });
+    expect(sale).not.toBeNull();
+    expect(sale.invoiceType).toBe('playstation');
+    expect(sale.total).toBe(finalizeResult.session.charges);
+    expect(sale.items.length).toBe(1);
+    expect(sale.items[0].productId).toBe('PS-SESSION');
+    expect(sale.items[0].qty).toBe(finalizeResult.session.duration_minutes);
+  });
+
+  test('Treasury entry has correct type amount and branch', async () => {
+    const device = await createDevice({ display_name: 'Treasury Check Dev' });
+    const sessionResult = await sessionsService.create({
+      data: { device_id: device.id, customer_id: 'cust1', duration_minutes: 20, tenant_id: 'tenantA', branch_id: 'branch1' },
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' }
+    });
+    const session = sessionResult.session;
+
+    await sessionsService.start({ id: session.id, tenantContext: { tenantId: 'tenantA' }, branchId: 'branch1', actor: { id: 'op1' } });
+    await sessionsService.stop({ id: session.id, tenantContext: { tenantId: 'tenantA' }, branchId: 'branch1', actor: { id: 'op1' } });
+
+    const finalizeResult = await sessionsService.finalizePayment({
+      id: session.id,
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' },
+      idempotencyKey: 'key-treasury'
+    });
+
+    expect(finalizeResult.error).toBeUndefined();
+    const entry = await treasuryService.getById(finalizeResult.treasuryEntryId);
+    expect(entry).not.toBeNull();
+    expect(entry.type).toBe('in');
+    expect(entry.amount).toBe(finalizeResult.session.charges);
+    expect(entry.branchId).toBe('branch1');
+    expect(entry.saleId).toBe(finalizeResult.saleId);
+    expect(entry.sessionId).toBe(session.id);
+  });
+
+  test('cross-tenant finalization is rejected', async () => {
+    const device = await createDevice({ display_name: 'Cross Tenant Dev' });
+    const sessionResult = await sessionsService.create({
+      data: { device_id: device.id, customer_id: 'cust1', duration_minutes: 60, tenant_id: 'tenantA', branch_id: 'branch1' },
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' }
+    });
+    const session = sessionResult.session;
+
+    await sessionsService.start({ id: session.id, tenantContext: { tenantId: 'tenantA' }, branchId: 'branch1', actor: { id: 'op1' } });
+    await sessionsService.stop({ id: session.id, tenantContext: { tenantId: 'tenantA' }, branchId: 'branch1', actor: { id: 'op1' } });
+
+    const result = await sessionsService.finalizePayment({
+      id: session.id,
+      tenantContext: { tenantId: 'tenantB' },
+      branchId: 'branch1',
+      actor: { id: 'op1' },
+      idempotencyKey: 'key-cross-tenant'
+    });
+
+    expect(result.error).toBe('Session not found');
+  });
+
+  test('cross-branch finalization is rejected', async () => {
+    const device = await createDevice({ display_name: 'Cross Branch Dev' });
+    const sessionResult = await sessionsService.create({
+      data: { device_id: device.id, customer_id: 'cust1', duration_minutes: 60, tenant_id: 'tenantA', branch_id: 'branch1' },
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' }
+    });
+    const session = sessionResult.session;
+
+    await sessionsService.start({ id: session.id, tenantContext: { tenantId: 'tenantA' }, branchId: 'branch1', actor: { id: 'op1' } });
+    await sessionsService.stop({ id: session.id, tenantContext: { tenantId: 'tenantA' }, branchId: 'branch1', actor: { id: 'op1' } });
+
+    const result = await sessionsService.finalizePayment({
+      id: session.id,
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch2',
+      actor: { id: 'op1' },
+      idempotencyKey: 'key-cross-branch'
+    });
+
+    expect(result.error).toBe('Session not found');
+  });
+
+  test('idempotency: repeating finalization does not create another Sale', async () => {
+    const device = await createDevice({ display_name: 'Idempotent Dev' });
+    const sessionResult = await sessionsService.create({
+      data: { device_id: device.id, customer_id: 'cust1', duration_minutes: 60, tenant_id: 'tenantA', branch_id: 'branch1' },
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' }
+    });
+    const session = sessionResult.session;
+
+    await sessionsService.start({ id: session.id, tenantContext: { tenantId: 'tenantA' }, branchId: 'branch1', actor: { id: 'op1' } });
+    await sessionsService.stop({ id: session.id, tenantContext: { tenantId: 'tenantA' }, branchId: 'branch1', actor: { id: 'op1' } });
+
+    const first = await sessionsService.finalizePayment({
+      id: session.id,
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' },
+      idempotencyKey: 'key-idem'
+    });
+    expect(first.error).toBeUndefined();
+    expect(first.idempotent).toBeUndefined();
+
+    const second = await sessionsService.finalizePayment({
+      id: session.id,
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' },
+      idempotencyKey: 'key-idem'
+    });
+    expect(second.error).toBeUndefined();
+    expect(second.idempotent).toBe(true);
+    expect(second.saleId).toBe(first.saleId);
+    expect(second.treasuryEntryId).toBe(first.treasuryEntryId);
+  });
+
+  test('idempotency: repeating finalization does not create another Treasury entry', async () => {
+    const device = await createDevice({ display_name: 'Idempotent Treasury Dev' });
+    const sessionResult = await sessionsService.create({
+      data: { device_id: device.id, customer_id: 'cust1', duration_minutes: 60, tenant_id: 'tenantA', branch_id: 'branch1' },
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' }
+    });
+    const session = sessionResult.session;
+
+    await sessionsService.start({ id: session.id, tenantContext: { tenantId: 'tenantA' }, branchId: 'branch1', actor: { id: 'op1' } });
+    await sessionsService.stop({ id: session.id, tenantContext: { tenantId: 'tenantA' }, branchId: 'branch1', actor: { id: 'op1' } });
+
+    const first = await sessionsService.finalizePayment({
+      id: session.id,
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' },
+      idempotencyKey: 'key-idem-treasury'
+    });
+
+    // Count treasury entries before second call
+    const dbBefore = require('../repositories/storageAdapter').read('treasury');
+    const countBefore = (dbBefore.entries || []).length;
+
+    const second = await sessionsService.finalizePayment({
+      id: session.id,
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' },
+      idempotencyKey: 'key-idem-treasury'
+    });
+
+    const dbAfter = require('../repositories/storageAdapter').read('treasury');
+    const countAfter = (dbAfter.entries || []).length;
+    expect(countAfter).toBe(countBefore);
+    expect(second.treasuryEntryId).toBe(first.treasuryEntryId);
+  });
+
+  test('different idempotency key is rejected once key is set', async () => {
+    const device = await createDevice({ display_name: 'Key Reject Dev' });
+    const sessionResult = await sessionsService.create({
+      data: { device_id: device.id, customer_id: 'cust1', duration_minutes: 60, tenant_id: 'tenantA', branch_id: 'branch1' },
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' }
+    });
+    const session = sessionResult.session;
+
+    await sessionsService.start({ id: session.id, tenantContext: { tenantId: 'tenantA' }, branchId: 'branch1', actor: { id: 'op1' } });
+    await sessionsService.stop({ id: session.id, tenantContext: { tenantId: 'tenantA' }, branchId: 'branch1', actor: { id: 'op1' } });
+
+    await sessionsService.finalizePayment({
+      id: session.id,
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' },
+      idempotencyKey: 'key-first'
+    });
+
+    const result = await sessionsService.finalizePayment({
+      id: session.id,
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' },
+      idempotencyKey: 'key-second'
+    });
+
+    expect(result.error).toBe('Session already finalized with a different idempotency key');
+  });
+
+  test('Sale success + Treasury failure results in recovery_required', async () => {
+    const device = await createDevice({ display_name: 'Recovery Dev' });
+    const sessionResult = await sessionsService.create({
+      data: { device_id: device.id, customer_id: 'cust1', duration_minutes: 60, tenant_id: 'tenantA', branch_id: 'branch1' },
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' }
+    });
+    const session = sessionResult.session;
+
+    await sessionsService.start({ id: session.id, tenantContext: { tenantId: 'tenantA' }, branchId: 'branch1', actor: { id: 'op1' } });
+    await sessionsService.stop({ id: session.id, tenantContext: { tenantId: 'tenantA' }, branchId: 'branch1', actor: { id: 'op1' } });
+
+    const spy = jest.spyOn(treasuryService, 'create').mockResolvedValue({ error: 'Treasury failure' });
+
+    const result = await sessionsService.finalizePayment({
+      id: session.id,
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' },
+      idempotencyKey: 'key-recovery'
+    });
+
+    spy.mockRestore();
+
+    expect(result.error).toBe('treasury_creation_failed');
+    expect(result.recovery_required).toBe(true);
+    expect(result.saleId).toBeTruthy();
+    expect(result.treasuryEntryId).toBeNull();
+    expect(result.session.recovery_required).toBe(true);
+    expect(result.session.saleId).toBe(result.saleId);
+
+    // Verify Sale still exists
+    const sale = await salesService.getById(result.saleId, { tenantId: 'tenantA' });
+    expect(sale).not.toBeNull();
+  });
+
+  test('Sale is NOT deleted on Treasury failure', async () => {
+    const device = await createDevice({ display_name: 'Sale Preserve Dev' });
+    const sessionResult = await sessionsService.create({
+      data: { device_id: device.id, customer_id: 'cust1', duration_minutes: 60, tenant_id: 'tenantA', branch_id: 'branch1' },
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' }
+    });
+    const session = sessionResult.session;
+
+    await sessionsService.start({ id: session.id, tenantContext: { tenantId: 'tenantA' }, branchId: 'branch1', actor: { id: 'op1' } });
+    await sessionsService.stop({ id: session.id, tenantContext: { tenantId: 'tenantA' }, branchId: 'branch1', actor: { id: 'op1' } });
+
+    const spy = jest.spyOn(treasuryService, 'create').mockResolvedValue({ error: 'Treasury failure' });
+
+    const result = await sessionsService.finalizePayment({
+      id: session.id,
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' },
+      idempotencyKey: 'key-preserve'
+    });
+
+    spy.mockRestore();
+
+    expect(result.error).toBe('treasury_creation_failed');
+    expect(result.saleId).toBeTruthy();
+    const sale = await salesService.getById(result.saleId, { tenantId: 'tenantA' });
+    expect(sale).not.toBeNull();
+  });
+
+  test('idempotency preserves existing references on retry after recovery', async () => {
+    const device = await createDevice({ display_name: 'Recovery Idempotent Dev' });
+    const sessionResult = await sessionsService.create({
+      data: { device_id: device.id, customer_id: 'cust1', duration_minutes: 60, tenant_id: 'tenantA', branch_id: 'branch1' },
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' }
+    });
+    const session = sessionResult.session;
+
+    await sessionsService.start({ id: session.id, tenantContext: { tenantId: 'tenantA' }, branchId: 'branch1', actor: { id: 'op1' } });
+    await sessionsService.stop({ id: session.id, tenantContext: { tenantId: 'tenantA' }, branchId: 'branch1', actor: { id: 'op1' } });
+
+    const spy = jest.spyOn(treasuryService, 'create').mockResolvedValue({ error: 'Treasury failure' });
+
+    const first = await sessionsService.finalizePayment({
+      id: session.id,
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' },
+      idempotencyKey: 'key-recovery-idem'
+    });
+
+    spy.mockRestore();
+
+    expect(first.recovery_required).toBe(true);
+    const saleId = first.saleId;
+
+    // Retry with same key should return recovery state, not create duplicates
+    const retry = await sessionsService.finalizePayment({
+      id: session.id,
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' },
+      idempotencyKey: 'key-recovery-idem'
+    });
+
+    expect(retry.recovery_required).toBe(true);
+    expect(retry.saleId).toBe(saleId);
+    expect(retry.error).toBeUndefined();
   });
 });

@@ -21,6 +21,8 @@ const storageAdapter = require('../repositories/storageAdapter');
 const { AsyncLock } = require('../utils/asyncLock');
 const auditService = require('../services/audit.service');
 const pricingService = require('./playstationPricing.service');
+const salesService = require('./sales.service');
+const treasuryService = require('./treasury.service');
 
 const STORE = 'playstationSessions';
 const sessionLock = new AsyncLock();
@@ -212,6 +214,10 @@ async function create({ data, tenantContext, branchId, actor } = {}) {
     charges: null,
     payment_status: 'pending',
     pricing_profile_id: data.pricing_profile_id || (pricing && pricing.id) || null,
+    saleId: null,
+    treasuryEntryId: null,
+    payment_idempotency_key: null,
+    recovery_required: false,
     createdAt: now,
     updatedAt: now
   };
@@ -447,6 +453,161 @@ async function cancel({ id, tenantContext, branchId, actor, reason } = {}) {
   }
 }
 
+// Batch 2A-B — Financial finalization.
+//
+// Creates exactly one Sale invoice and one Treasury entry for a completed
+// session. The session's `charges` field is authoritative and is never
+// recomputed from client input.
+//
+// Idempotency:
+//   The caller supplies an `idempotencyKey`. The session's
+//   `payment_idempotency_key` is set on first attempt. Repeated calls with
+//   the same key return the existing financial result. A different key is
+//   rejected once a key is already set.
+//
+// Partial failure:
+//   Sale and Treasury are created independently. If one succeeds and the
+//   other fails, the successful record is preserved and `recovery_required`
+//   is set on the session. No financial record is ever deleted.
+//
+// Returns:
+//   { session, saleId, treasuryEntryId, recovery_required, idempotent? }
+
+async function finalizePayment({ id, tenantContext, branchId, actor, idempotencyKey } = {}) {
+  if (id == null || id === '') return { error: 'id is required' };
+  if (!idempotencyKey) return { error: 'idempotencyKey is required' };
+
+  const release = await sessionLock.acquire();
+  try {
+    const trustedTid = _trustedTenantId(tenantContext);
+    const trustedBid = _trustedBranchId(branchId);
+
+    const sessionDb = _load();
+    const sessionIdx = (sessionDb.sessions || []).findIndex(s => s && String(s.id) === String(id).trim());
+    if (sessionIdx === -1) return { error: 'Session not found' };
+    if (_ownershipBlocked(sessionDb.sessions[sessionIdx], tenantContext, branchId)) return { error: 'Session not found' };
+
+    const session = sessionDb.sessions[sessionIdx];
+
+    if (session.status !== 'completed' && session.status !== 'unpaid') {
+      return { error: 'Invalid session state for finalization', current: session.status };
+    }
+    if (session.charges === null || session.charges === undefined || session.charges <= 0) {
+      return { error: 'Session has no computed charges' };
+    }
+
+    // Idempotency gate: once a key is set, all subsequent calls must match it.
+    if (session.payment_idempotency_key) {
+      if (session.payment_idempotency_key !== String(idempotencyKey)) {
+        return { error: 'Session already finalized with a different idempotency key' };
+      }
+      // Same key — return the current state without creating duplicates.
+      if (session.saleId && session.treasuryEntryId) {
+        return { session: Object.assign({}, session), saleId: session.saleId, treasuryEntryId: session.treasuryEntryId, recovery_required: false, idempotent: true };
+      }
+      if (session.recovery_required) {
+        return { session: Object.assign({}, session), saleId: session.saleId || null, treasuryEntryId: session.treasuryEntryId || null, recovery_required: true };
+      }
+      // Key present but no references — treat as recovery state.
+      return { session: Object.assign({}, session), saleId: session.saleId || null, treasuryEntryId: session.treasuryEntryId || null, recovery_required: true };
+    }
+
+    // Stamp the idempotency key immediately to prevent concurrent finalization.
+    session.payment_idempotency_key = String(idempotencyKey);
+    session.updatedAt = new Date().toISOString();
+    const keyOk = _save(sessionDb);
+    if (!keyOk) {
+      return { error: 'Failed to persist idempotency key' };
+    }
+
+    // Resolve pricing snapshot for the invoice line item.
+    const pricing = session.pricing_profile_id
+      ? (pricingService.getById({ id: session.pricing_profile_id, tenantContext, branchId }) || pricingService.findEffective({ tenantContext, branchId, platform: null }))
+      : pricingService.findEffective({ tenantContext, branchId, platform: null });
+
+    const ratePerMinute = pricing ? pricing.rate_per_minute : 0;
+
+    // W1 — Create Sale invoice.
+    const now = new Date().toISOString();
+    const invoiceData = {
+      items: [{ productId: 'PS-SESSION', name: 'PlayStation Session', qty: session.duration_minutes, price: ratePerMinute }],
+      total: session.charges,
+      customerId: session.customer_id,
+      payment: 'cash',
+      paymentType: 'cash',
+      invoiceType: 'playstation',
+      tenantId: trustedTid,
+      branchId: trustedBid,
+      date: now
+    };
+
+    const saleResult = await salesService.create(invoiceData, { tenantId: trustedTid });
+    if (saleResult.error) {
+      session.recovery_required = true;
+      session.updatedAt = new Date().toISOString();
+      _save(sessionDb);
+      _recordAudit({
+        action: 'session.financial_finalization_failed',
+        session,
+        userId: actor && actor.id,
+        changes: { error: 'sale_creation_failed', detail: saleResult.error }
+      });
+      return { session: Object.assign({}, session), recovery_required: true, error: 'sale_creation_failed', detail: saleResult.error };
+    }
+
+    const saleId = saleResult.invoice.id;
+    session.saleId = saleId;
+
+    // W2 — Create Treasury entry.
+    const treasuryData = {
+      type: 'in',
+      amount: session.charges,
+      method: 'cash',
+      desc: 'PlayStation session charges - ' + session.id,
+      tenantId: trustedTid,
+      branchId: trustedBid,
+      saleId: saleId,
+      sessionId: session.id
+    };
+
+    const treasuryResult = await treasuryService.create(treasuryData);
+    if (treasuryResult.error) {
+      session.recovery_required = true;
+      session.updatedAt = new Date().toISOString();
+      _save(sessionDb);
+      _recordAudit({
+        action: 'session.financial_finalization_recovery',
+        session,
+        userId: actor && actor.id,
+        changes: { saleId, error: 'treasury_creation_failed', detail: treasuryResult.error }
+      });
+      return { session: Object.assign({}, session), saleId, treasuryEntryId: null, recovery_required: true, error: 'treasury_creation_failed', detail: treasuryResult.error };
+    }
+
+    const treasuryEntryId = treasuryResult.entry.id;
+    session.treasuryEntryId = treasuryEntryId;
+    session.payment_status = 'paid';
+    session.recovery_required = false;
+    session.updatedAt = new Date().toISOString();
+
+    const sOk = _save(sessionDb);
+    if (sOk) {
+      _recordAudit({
+        action: 'session.financial_finalization_completed',
+        session,
+        userId: actor && actor.id,
+        changes: { saleId, treasuryEntryId }
+      });
+      return { session: Object.assign({}, session), saleId, treasuryEntryId, recovery_required: false };
+    }
+
+    // Session persistence failed after both financial records were created.
+    return { session: Object.assign({}, session), saleId, treasuryEntryId, recovery_required: true, error: 'session_persist_failed' };
+  } finally {
+    release();
+  }
+}
+
 function _sanitize(session) {
   if (!session || typeof session !== 'object') return session;
   const out = Object.assign({}, session);
@@ -469,6 +630,7 @@ module.exports = {
   start,
   stop,
   cancel,
+  finalizePayment,
   _validateForCreate,
   _trustedTenantId,
   _trustedBranchId,
