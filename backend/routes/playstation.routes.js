@@ -49,5 +49,6 @@ router.post('/sessions', requireMarketTenant, requireCustomer, limiter, asyncHan
 router.post('/sessions/:id/start', requireMarketTenant, requireCustomer, limiter, asyncHandler(ctrl.startSession));
 router.post('/sessions/:id/stop', requireMarketTenant, requireCustomer, limiter, asyncHandler(ctrl.stopSession));
 router.post('/sessions/:id/cancel', requireMarketTenant, requireCustomer, limiter, asyncHandler(ctrl.cancelSession));
+router.post('/sessions/:id/payment', requireMarketTenant, requireCustomer, limiter, asyncHandler(ctrl.finalizeSessionPayment));
 
 module.exports = router;

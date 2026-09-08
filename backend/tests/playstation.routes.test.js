@@ -47,6 +47,7 @@ describe('playstation.routes', () => {
     expect(paths).toContain('/sessions/:id/start');
     expect(paths).toContain('/sessions/:id/stop');
     expect(paths).toContain('/sessions/:id/cancel');
+    expect(paths).toContain('/sessions/:id/payment');
   });
 
   test('has GET routes for devices, pricing, sessions', () => {

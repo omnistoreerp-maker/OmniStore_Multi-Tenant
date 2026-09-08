@@ -259,6 +259,41 @@ async function cancelSession(req, res) {
   }
 }
 
+async function finalizeSessionPayment(req, res) {
+  try {
+    const idempotencyKey = req.body && req.body.idempotencyKey ? String(req.body.idempotencyKey) : null;
+    if (!idempotencyKey) return error(res, 'idempotencyKey is required in body', 400);
+
+    const result = await sessionsService.finalizePayment({
+      id: req.params.id,
+      tenantContext: _tenantContext(req),
+      branchId: _branchId(),
+      actor: req.customer || null,
+      idempotencyKey
+    });
+
+    if (result.error === 'Session not found') return error(res, 'Session not found', 404);
+    if (result.error === 'idempotencyKey is required') return error(res, 'idempotencyKey is required in body', 400);
+    if (result.error === 'Session already finalized with a different idempotency key') return error(res, result.error, 409);
+    if (result.error === 'Invalid session state for finalization') return error(res, result.error, 400);
+    if (result.error === 'Session has no computed charges') return error(res, result.error, 400);
+    if (result.recovery_required) {
+      return error(res, 'Financial finalization requires recovery. Please contact support.', 202, {
+        session: result.session,
+        saleId: result.saleId || null,
+        treasuryEntryId: result.treasuryEntryId || null,
+        recovery_required: true,
+        error: result.error || null,
+        detail: result.detail || null
+      });
+    }
+    if (result.error) return error(res, result.error || 'Financial finalization failed', 500);
+    return success(res, { session: result.session, saleId: result.saleId, treasuryEntryId: result.treasuryEntryId, recovery_required: false }, 'Payment finalized');
+  } catch (err) {
+    return error(res, 'Failed to finalize payment', 500);
+  }
+}
+
 module.exports = {
   // Devices
   listDevices,
@@ -279,5 +314,6 @@ module.exports = {
   createSession,
   startSession,
   stopSession,
-  cancelSession
+  cancelSession,
+  finalizeSessionPayment
 };

@@ -269,6 +269,93 @@ describe('playstation.controller — Sessions', () => {
   });
 });
 
+// === Payment finalization ===
+
+describe('playstation.controller — finalizeSessionPayment', () => {
+  test('requires idempotencyKey in body', async () => {
+    const req = mockReq({ params: { id: 's1' }, body: {} });
+    const res = mockRes();
+    await ctrl.finalizeSessionPayment(req, res);
+    expect(res.lastStatus).toBe(400);
+  });
+
+  test('returns 404 for missing session', async () => {
+    const req = mockReq({ params: { id: 'missing' }, body: { idempotencyKey: 'key-1' } });
+    const res = mockRes();
+    await ctrl.finalizeSessionPayment(req, res);
+    expect(res.lastStatus).toBe(404);
+  });
+
+  test('returns 409 for already finalized with different key', async () => {
+    const pricing = await pricingService.create({
+      data: { platform: 'ps5', rate_per_minute: 10, minimum_minutes: 1, rounding_minutes: 1, tenant_id: 'tenantA', branch_id: 'branch1' },
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1'
+    });
+    const device = await devicesService.create({
+      data: { platform: 'ps5', model: 'CFI-1015A', display_name: 'Finalize Dev 1', network_address: '192.168.1.10', tenant_id: 'tenantA', branch_id: 'branch1' },
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' }
+    });
+    const sessionResult = await sessionsService.create({
+      data: { device_id: device.device.id, customer_id: 'cust1', duration_minutes: 60, pricing_profile_id: pricing.pricing.id, tenant_id: 'tenantA', branch_id: 'branch1' },
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' }
+    });
+    const session = sessionResult.session;
+    await sessionsService.start({ id: session.id, tenantContext: { tenantId: 'tenantA' }, branchId: 'branch1', actor: { id: 'op1' } });
+    await sessionsService.stop({ id: session.id, tenantContext: { tenantId: 'tenantA' }, branchId: 'branch1', actor: { id: 'op1' } });
+    await sessionsService.finalizePayment({
+      id: session.id,
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' },
+      idempotencyKey: 'key-first'
+    });
+
+    const req = mockReq({ params: { id: session.id }, body: { idempotencyKey: 'key-second' } });
+    const res = mockRes();
+    await ctrl.finalizeSessionPayment(req, res);
+    expect(res.lastStatus).toBe(409);
+  });
+
+  test('returns 202 with recovery_required when Treasury fails', async () => {
+    const pricing = await pricingService.create({
+      data: { platform: 'ps5', rate_per_minute: 10, minimum_minutes: 1, rounding_minutes: 1, tenant_id: 'tenantA', branch_id: 'branch1' },
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1'
+    });
+    const device = await devicesService.create({
+      data: { platform: 'ps5', model: 'CFI-1015A', display_name: 'Finalize Dev 2', network_address: '192.168.1.11', tenant_id: 'tenantA', branch_id: 'branch1' },
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' }
+    });
+    const sessionResult = await sessionsService.create({
+      data: { device_id: device.device.id, customer_id: 'cust1', duration_minutes: 60, pricing_profile_id: pricing.pricing.id, tenant_id: 'tenantA', branch_id: 'branch1' },
+      tenantContext: { tenantId: 'tenantA' },
+      branchId: 'branch1',
+      actor: { id: 'op1' }
+    });
+    const session = sessionResult.session;
+    await sessionsService.start({ id: session.id, tenantContext: { tenantId: 'tenantA' }, branchId: 'branch1', actor: { id: 'op1' } });
+    const stopResult = await sessionsService.stop({ id: session.id, tenantContext: { tenantId: 'tenantA' }, branchId: 'branch1', actor: { id: 'op1' } });
+
+    const spy = jest.spyOn(require('../services/treasury.service'), 'create').mockResolvedValue({ error: 'Treasury failure' });
+    const req = mockReq({ params: { id: session.id }, body: { idempotencyKey: 'key-recovery' } });
+    const res = mockRes();
+    await ctrl.finalizeSessionPayment(req, res);
+    expect(res.lastStatus).toBe(202);
+    const body = res.lastJson;
+    expect(body.success).toBe(false);
+    expect(body.details.recovery_required).toBe(true);
+    expect(body.details.saleId).toBeTruthy();
+    spy.mockRestore();
+  });
+});
+
 // === Branch isolation ===
 
 describe('playstation.controller — branch isolation', () => {
