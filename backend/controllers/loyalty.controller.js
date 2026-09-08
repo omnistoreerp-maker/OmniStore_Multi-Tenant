@@ -137,6 +137,25 @@ async function getMetrics(req, res) {
   }
 }
 
+async function awardBirthdayBonus(req, res) {
+  try {
+    const { customerId } = req.body;
+    if (!customerId) return error(res, 'customerId is required', 400);
+    const ctx = {
+      customerId,
+      branchId: req.body.branchId,
+      userId: req.user ? req.user.id : null,
+      userName: req.user ? (req.user.fullName || req.user.username) : null
+    };
+    const result = await loyaltyService.awardBirthdayBonus(customerId, ctx);
+    if (result.error) return error(res, result.error, 400);
+    return success(res, result, result.duplicate ? 'Birthday bonus already awarded' : 'Birthday bonus awarded', result.duplicate ? 200 : 201);
+  } catch (err) {
+    logger.error('loyalty.birthdayBonus error:', err.message);
+    return error(res, 'Failed to award birthday bonus', 500);
+  }
+}
+
 module.exports = {
   getBalance,
   getTransactions,
@@ -145,5 +164,6 @@ module.exports = {
   reverse,
   getConfig,
   updateConfig,
-  getMetrics
+  getMetrics,
+  awardBirthdayBonus
 };

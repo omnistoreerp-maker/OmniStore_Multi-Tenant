@@ -15,7 +15,14 @@ const DEFAULT_CONFIG = {
   earnPerAmount: 100,
   pointsPerUnit: 1,
   redeemValue: 1,
-  maxRedeemPercent: 20
+  maxRedeemPercent: 20,
+  birthdayBonusPoints: 50,
+  tierBenefits: {
+    bronze: { discountPercent: 0, badge: 'badge-yellow' },
+    silver: { discountPercent: 5, badge: 'badge-green' },
+    gold: { discountPercent: 10, badge: 'badge-yellow' },
+    platinum: { discountPercent: 15, badge: 'badge-blue' }
+  }
 };
 
 class LoyaltyService {
@@ -35,6 +42,8 @@ class LoyaltyService {
     if (cfg.pointsPerUnit !== undefined && (typeof cfg.pointsPerUnit !== 'number' || cfg.pointsPerUnit < 1)) errors.push('pointsPerUnit must be a number >= 1');
     if (cfg.redeemValue !== undefined && (typeof cfg.redeemValue !== 'number' || cfg.redeemValue <= 0)) errors.push('redeemValue must be a number > 0');
     if (cfg.maxRedeemPercent !== undefined && (typeof cfg.maxRedeemPercent !== 'number' || cfg.maxRedeemPercent < 1)) errors.push('maxRedeemPercent must be a number >= 1');
+    if (cfg.birthdayBonusPoints !== undefined && (typeof cfg.birthdayBonusPoints !== 'number' || cfg.birthdayBonusPoints < 0)) errors.push('birthdayBonusPoints must be a number >= 0');
+    if (cfg.tierBenefits !== undefined && typeof cfg.tierBenefits !== 'object') errors.push('tierBenefits must be an object');
     return errors;
   }
 
@@ -247,12 +256,72 @@ class LoyaltyService {
     });
   }
 
+  async awardBirthdayBonus(customerId, { branchId, userId, userName } = {}) {
+    const cfg = await this._loadConfig();
+    if (!cfg.enabled) return { error: 'Loyalty is disabled' };
+
+    const resolved = await this._resolveCustomer(customerId);
+    if (resolved.error) return { error: resolved.error };
+
+    const customer = resolved.customer;
+    const birthDate = customer.birthDate || customer.birthday || customer.dob || null;
+    if (!birthDate) return { error: 'Customer has no birth date' };
+
+    const today = new Date();
+    const birth = new Date(birthDate);
+    const isBirthday = today.getMonth() === birth.getMonth() && today.getDate() === birth.getDate();
+
+    if (!isBirthday) return { error: 'Today is not the customer\'s birthday' };
+
+    const bonusPoints = parseInt(cfg.birthdayBonusPoints, 10) || 0;
+    if (bonusPoints <= 0) return { error: 'Birthday bonus is not configured' };
+
+    const tenantId = this._tenantId();
+    const refStr = `birthday-${customerId}-${today.getFullYear()}`;
+
+    return this._mutex.runExclusive(async () => {
+      const existing = await loyaltyRepo.getTransactionByRef(refStr, 'birthday_bonus', customerId);
+      if (existing) {
+        return { transaction: existing, duplicate: true };
+      }
+
+      const balanceResult = await loyaltyRepo.getBalance(customerId);
+      const previousBalance = balanceResult.points;
+      const newBalance = previousBalance + bonusPoints;
+
+      const transaction = {
+        id: 'LP-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+        tenantId,
+        branchId: branchId || null,
+        customerId: String(customerId),
+        type: 'bonus',
+        points: bonusPoints,
+        amount: 0,
+        balanceAfter: newBalance,
+        ref: refStr,
+        refType: 'birthday_bonus',
+        note: 'Ù‡Ø¯ÙŠØ© Ù…ÙŠÙ„Ø§Ø¯',
+        userId: userId || null,
+        userName: userName || null,
+        source: 'admin',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      const saved = await loyaltyRepo.appendTransaction(transaction);
+      if (!saved) return { error: 'Failed to save transaction' };
+
+      return { transaction: saved, duplicate: false, balance: newBalance };
+    });
+  }
+
   _rewardStatus(points, customer) {
-    const spent = 0;
-    if (spent >= 100000 || points >= 1000) return { code: 'platinum', label: 'Platinum', badge: 'badge-blue' };
-    if (spent >= 50000 || points >= 500) return { code: 'gold', label: 'Gold', badge: 'badge-yellow' };
-    if (spent >= 15000 || points >= 150) return { code: 'silver', label: 'Silver', badge: 'badge-green' };
-    return { code: 'bronze', label: 'Bronze', badge: 'badge-yellow' };
+    const cfg = this._cfg || DEFAULT_CONFIG;
+    const benefits = (cfg.tierBenefits || DEFAULT_CONFIG.tierBenefits);
+    if (points >= 1000) return { code: 'platinum', label: 'Platinum', badge: benefits.platinum?.badge || 'badge-blue', discountPercent: benefits.platinum?.discountPercent || 15 };
+    if (points >= 500) return { code: 'gold', label: 'Gold', badge: benefits.gold?.badge || 'badge-yellow', discountPercent: benefits.gold?.discountPercent || 10 };
+    if (points >= 150) return { code: 'silver', label: 'Silver', badge: benefits.silver?.badge || 'badge-green', discountPercent: benefits.silver?.discountPercent || 5 };
+    return { code: 'bronze', label: 'Bronze', badge: benefits.bronze?.badge || 'badge-yellow', discountPercent: benefits.bronze?.discountPercent || 0 };
   }
 }
 

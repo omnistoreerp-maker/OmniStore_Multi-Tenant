@@ -246,4 +246,35 @@ router.put('/config', requirePermissionIfAuth('loyalty.manage'), asyncHandler(ct
  */
 router.get('/metrics', requirePermissionIfAuth('loyalty.view'), asyncHandler(ctrl.getMetrics));
 
+/**
+ * @openapi
+ * /api/v1/loyalty/birthday-bonus:
+ *   post:
+ *     tags: [Loyalty]
+ *     summary: Award birthday bonus points
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - customerId
+ *             properties:
+ *               customerId:
+ *                 type: string
+ *               branchId:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Birthday bonus awarded
+ *       400:
+ *         description: Validation error or already awarded
+ *       401:
+ *         description: Authentication required
+ */
+router.post('/birthday-bonus', requirePermissionIfAuth('loyalty.manage'), asyncHandler(ctrl.awardBirthdayBonus));
+
 module.exports = router;

@@ -11826,7 +11826,8 @@ const backendApi = {
     getMetrics: () => USE_BACKEND ? backendApi._fetch('GET', '/loyalty/metrics') : null,
     earn: (payload) => USE_BACKEND ? backendApi._fetch('POST', '/loyalty/earn', payload) : null,
     redeem: (payload) => USE_BACKEND ? backendApi._fetch('POST', '/loyalty/redeem', payload) : null,
-    reverse: (payload) => USE_BACKEND ? backendApi._fetch('POST', '/loyalty/reverse', payload) : null
+    reverse: (payload) => USE_BACKEND ? backendApi._fetch('POST', '/loyalty/reverse', payload) : null,
+    awardBirthdayBonus: (customerId) => USE_BACKEND ? backendApi._fetch('POST', '/loyalty/birthday-bonus', { customerId }) : null
   },
 // ===== Backend Op Queue: retrying delete/update ops (bug 3.2) =====
 const BACKEND_OP_QUEUE_KEY = 'digitronics_backend_op_queue_v1';
@@ -13749,7 +13750,14 @@ let DB = {
       earnPerAmount: 100,
       pointsPerUnit: 1,
       redeemValue: 1,
-      maxRedeemPercent: 20
+      maxRedeemPercent: 20,
+      birthdayBonusPoints: 50,
+      tierBenefits: {
+        bronze: { discountPercent: 0, badge: 'badge-yellow' },
+        silver: { discountPercent: 5, badge: 'badge-green' },
+        gold: { discountPercent: 10, badge: 'badge-yellow' },
+        platinum: { discountPercent: 15, badge: 'badge-blue' }
+      }
     },
     approvalRules: {
       discountPercent: 15,
@@ -21203,6 +21211,15 @@ function getLoyaltyConfig() {
   if (!l.pointsPerUnit || l.pointsPerUnit < 1) l.pointsPerUnit = 1;
   if (!l.redeemValue || l.redeemValue <= 0) l.redeemValue = 1;
   if (!l.maxRedeemPercent || l.maxRedeemPercent < 1) l.maxRedeemPercent = 20;
+  if (typeof l.birthdayBonusPoints !== 'number' || l.birthdayBonusPoints < 0) l.birthdayBonusPoints = 50;
+  if (!l.tierBenefits || typeof l.tierBenefits !== 'object') {
+    l.tierBenefits = {
+      bronze: { discountPercent: 0, badge: 'badge-yellow' },
+      silver: { discountPercent: 5, badge: 'badge-green' },
+      gold: { discountPercent: 10, badge: 'badge-yellow' },
+      platinum: { discountPercent: 15, badge: 'badge-blue' }
+    };
+  }
   return l;
 }
 
@@ -21248,8 +21265,13 @@ function updateLoyaltyHintInPOS() {
   }
   const customer = getSelectedPOSCustomer();
   const pts = customer ? (customer.points || 0) : 0;
+  const reward = customer ? getCustomerRewardStatus(customer) : null;
+  const tierLabel = reward ? `${reward.label}` : '';
+  const discount = reward && reward.discountPercent ? ` (خصم ${reward.discountPercent}%)` : '';
+  const isBirthday = customer && isCustomerBirthdayToday(customer);
+  const birthdayLabel = isBirthday ? ' 🎂' : '';
   hint.textContent = customer
-    ? `🎁 نقاط ${customer.name}: ${pts} (الحد الأقصى للاستبدال ${cfg.maxRedeemPercent}%)`
+    ? `🎁 نقاط ${customer.name}: ${pts} — ${tierLabel}${discount}${birthdayLabel} (الحد الأقصى للاستبدال ${cfg.maxRedeemPercent}%)`
     : '🎁 اختر عميل لاستخدام النقاط';
 }
 
@@ -21264,6 +21286,33 @@ function applyMaxLoyaltyPoints() {
   const inp = document.getElementById('loyaltyRedeemPoints');
   if (inp) inp.value = points;
   updateCartTotals();
+}
+
+function isCustomerBirthdayToday(customer) {
+  if (!customer) return false;
+  const birthDate = customer.birthDate || customer.birthday || customer.dob || null;
+  if (!birthDate) return false;
+  const today = new Date();
+  const birth = new Date(birthDate);
+  return today.getMonth() === birth.getMonth() && today.getDate() === birth.getDate();
+}
+
+async function awardBirthdayBonusToCustomer(customerId) {
+  const cfg = getLoyaltyConfig();
+  if (!cfg.enabled) { showToast('نظام النقاط متوقف', 'error'); return; }
+  if (!customerId) { showToast('اختر عميل أولاً', 'error'); return; }
+  try {
+    const res = await backendApi.loyalty.awardBirthdayBonus(customerId);
+    if (res && res.success) {
+      showToast('🎂 تم منح هدية عيد الميلاد بنجاح', 'success');
+      if (typeof syncCustomerLoyalty === 'function') await syncCustomerLoyalty(customerId);
+    } else {
+      const msg = (res && res.message) || 'تعذر منح الهدية';
+      showToast(msg, 'error');
+    }
+  } catch (e) {
+    showToast('خطأ في الاتصال', 'error');
+  }
 }
 
 function addLoyaltyTransaction(customerId, type, points, amount, ref, note) {
@@ -21301,11 +21350,12 @@ function deductLoyaltyForSaleReturn(invoice, returnRecord) {
 function getCustomerRewardStatus(customer, metrics = null) {
   const m = metrics || getCustomerCRMMetrics(customer);
   const points = Math.max(0, toSafeInt(customer?.points, 0));
-  const spent = Math.max(0, toSafeFloat(m.totalSpent, 0));
-  if (spent >= 100000 || points >= 1000) return { code: 'platinum', label: 'Platinum', badge: 'badge-blue' };
-  if (spent >= 50000 || points >= 500) return { code: 'gold', label: 'Gold', badge: 'badge-yellow' };
-  if (spent >= 15000 || points >= 150) return { code: 'silver', label: 'Silver', badge: 'badge-green' };
-  return { code: 'bronze', label: 'Bronze', badge: 'badge-yellow' };
+  const cfg = getLoyaltyConfig();
+  const benefits = (cfg && cfg.tierBenefits) ? cfg.tierBenefits : {};
+  if (points >= 1000) return { code: 'platinum', label: 'Platinum', badge: (benefits.platinum && benefits.platinum.badge) || 'badge-blue', discountPercent: (benefits.platinum && benefits.platinum.discountPercent) || 15 };
+  if (points >= 500) return { code: 'gold', label: 'Gold', badge: (benefits.gold && benefits.gold.badge) || 'badge-yellow', discountPercent: (benefits.gold && benefits.gold.discountPercent) || 10 };
+  if (points >= 150) return { code: 'silver', label: 'Silver', badge: (benefits.silver && benefits.silver.badge) || 'badge-green', discountPercent: (benefits.silver && benefits.silver.discountPercent) || 5 };
+  return { code: 'bronze', label: 'Bronze', badge: (benefits.bronze && benefits.bronze.badge) || 'badge-yellow', discountPercent: (benefits.bronze && benefits.bronze.discountPercent) || 0 };
 }
 
 function customerMatchesRecord(customer, record = {}) {
@@ -21458,7 +21508,7 @@ function openCustomerProfile(customerId) {
       <table class="data-table"><tbody>
         <tr><th>الهاتف</th><td style="direction:ltr">${escapeHtml(customer.phone || '-')}</td><th>العنوان</th><td>${escapeHtml(customer.address || '-')}</td></tr>
         <tr><th>تاريخ التسجيل</th><td>${metrics.registrationDate ? new Date(metrics.registrationDate).toLocaleDateString('ar-EG') : '-'}</td><th>آخر نشاط</th><td>${metrics.lastActivity ? new Date(metrics.lastActivity).toLocaleString('ar-EG') : '-'}</td></tr>
-        <tr><th>واتساب</th><td colspan="3"><button class="btn btn-sm btn-green" onclick="shareCustomerLoyaltyWhatsApp(${customer.id})">📱 رسالة ولاء / عرض</button></td></tr>
+        <tr><th>واتساب</th><td colspan="3"><button class="btn btn-sm btn-green" onclick="shareCustomerLoyaltyWhatsApp(${customer.id})">📱 رسالة ولاء / عرض</button>${isCustomerBirthdayToday(customer) ? ` <button class="btn btn-sm btn-accent" onclick="awardBirthdayBonusToCustomer('${customer.id}')">🎂 هدية عيد الميلاد</button>` : ''}</td></tr>
         <tr><th>ملاحظات</th><td colspan="3">${escapeHtml(customer.notes || '-')}</td></tr>
       </tbody></table>
     </div>

@@ -154,6 +154,16 @@ class LoyaltyRepository {
     const bonus = byType['bonus'] || 0;
     const outstanding = Math.max(0, issued - redeemed - returned + adjusted + bonus);
 
+    const tierDistribution = { bronze: 0, silver: 0, gold: 0, platinum: 0 };
+    for (const cid of customerIds) {
+      const bal = await this.getBalance(cid);
+      const pts = bal.points || 0;
+      if (pts >= 1000) tierDistribution.platinum++;
+      else if (pts >= 500) tierDistribution.gold++;
+      else if (pts >= 150) tierDistribution.silver++;
+      else tierDistribution.bronze++;
+    }
+
     return {
       totalIssued: issued,
       totalRedeemed: redeemed,
@@ -162,7 +172,8 @@ class LoyaltyRepository {
       totalBonus: bonus,
       outstandingLiability: outstanding,
       activeCustomerCount: customerIds.size,
-      transactionCount: transactions.length
+      transactionCount: transactions.length,
+      tierDistribution
     };
   }
 }
