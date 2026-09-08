@@ -153,19 +153,21 @@ async function createServer(req, res) {
 
 async function updateServer(req, res) {
   try {
-    // Ownership check before update
     const existing = await gameHostingService.getServerById({ id: req.params.id, tenantContext: _tenantContext(req) });
     if (!existing) return error(res, 'Server not found', 404);
     const cust = _customerContext(req);
     if (cust && existing.customerId && String(existing.customerId) !== String(cust.id)) {
       return error(res, 'Server not found', 404);
     }
-    // Validate the status transition through the lifecycle state machine
-    if (req.body && req.body.status !== undefined) {
-      const trans = gameHostingStateMachine.validateTransition(existing.status, req.body.status);
-      if (!trans.ok) return error(res, 'Invalid status transition: ' + existing.status + ' -> ' + req.body.status, 400);
+    const data = Object.assign({}, req.body || {});
+    if (!cust || cust.role !== 'operator') {
+      data.customerId = existing.customerId;
     }
-    const result = await gameHostingService.updateServer({ id: req.params.id, data: req.body, tenantContext: _tenantContext(req) });
+    if (data.status !== undefined) {
+      const trans = gameHostingStateMachine.validateTransition(existing.status, data.status);
+      if (!trans.ok) return error(res, 'Invalid status transition: ' + existing.status + ' -> ' + data.status, 400);
+    }
+    const result = await gameHostingService.updateServer({ id: req.params.id, data, tenantContext: _tenantContext(req) });
     if (result.error === 'Server not found') return error(res, 'Server not found', 404);
     if (result.error) return error(res, result.error, 400);
     return success(res, result.server, 'Server updated');
