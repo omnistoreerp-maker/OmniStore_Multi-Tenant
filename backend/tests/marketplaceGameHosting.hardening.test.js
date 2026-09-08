@@ -418,6 +418,54 @@ describe('Marketplace + Game Hosting hardening — malformed payloads', () => {
 // Game Hosting — listProvisioningRequests operator customerId filter
 // ============================================================================
 
+describe('Game Hosting hardening — server ownership', () => {
+  test('Customer cannot transfer server ownership by updating customerId', async () => {
+    const plan = await createPlan(TENANT_A, operatorTokenA, 'Ownership-Plan-' + Date.now());
+
+    const serverRes = await request(server.app)
+      .post('/api/v1/game-hosting/servers')
+      .set('X-Tenant-Id', TENANT_A)
+      .set('Authorization', 'Bearer ' + tokenA)
+      .send({ planId: plan.id, serverName: 'OwnerShip Server', region: 'eu-west' });
+    expect(serverRes.statusCode).toBe(201);
+    const serverId = serverRes.body.data.id;
+    const originalCustomerId = serverRes.body.data.customerId;
+
+    const customerBInTenantA = await registerCustomer(TENANT_A);
+
+    const transferRes = await request(server.app)
+      .put('/api/v1/game-hosting/servers/' + serverId)
+      .set('X-Tenant-Id', TENANT_A)
+      .set('Authorization', 'Bearer ' + tokenA)
+      .send({ customerId: customerBInTenantA.customerId });
+    expect(transferRes.statusCode).toBe(200);
+
+    const getRes = await request(server.app)
+      .get('/api/v1/game-hosting/servers/' + serverId)
+      .set('X-Tenant-Id', TENANT_A)
+      .set('Authorization', 'Bearer ' + tokenA);
+    expect(getRes.statusCode).toBe(200);
+    expect(String(getRes.body.data.customerId)).toBe(originalCustomerId);
+  });
+
+  test('Customer B cannot update Customer A server (404)', async () => {
+    const plan = await createPlan(TENANT_A, operatorTokenA, 'IDOR-Plan-' + Date.now());
+    const serverRes = await request(server.app)
+      .post('/api/v1/game-hosting/servers')
+      .set('X-Tenant-Id', TENANT_A)
+      .set('Authorization', 'Bearer ' + tokenA)
+      .send({ planId: plan.id, serverName: 'A Server', region: 'eu-west' });
+    const serverId = serverRes.body.data.id;
+
+    const res = await request(server.app)
+      .put('/api/v1/game-hosting/servers/' + serverId)
+      .set('X-Tenant-Id', TENANT_B)
+      .set('Authorization', 'Bearer ' + tokenB)
+      .send({ serverName: 'Hacked' });
+    expect(res.statusCode).toBe(404);
+  });
+});
+
 describe('Game Hosting hardening — operator provisioning request filter', () => {
   test('operator can filter provisioning requests by customerId query param', async () => {
     const plan = await createPlan(TENANT_A, operatorTokenA, 'OpFilter-Plan-' + Date.now());
