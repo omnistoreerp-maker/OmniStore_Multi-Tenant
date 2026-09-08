@@ -5838,6 +5838,17 @@ document.addEventListener('DOMContentLoaded', function() {
             <label style="font-size:0.8rem;color:var(--text2)">أقصى استبدال (%)</label>
             <input id="setLoyalMaxRedeemPercent" class="search-input" type="number" min="1" max="100">
           </div>
+          <div>
+            <label style="font-size:0.8rem;color:var(--text2)">تفعيل انتهاء النقاط</label>
+            <select id="setLoyalExpiryEnabled" class="search-input">
+              <option value="true">نعم</option>
+              <option value="false">لا</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:0.8rem;color:var(--text2)">مدة انتهاء النقاط (أيام)</label>
+            <input id="setLoyalDefaultExpiryDays" class="search-input" type="number" min="1" value="365">
+          </div>
           <div style="display:flex;align-items:flex-end">
             <button class="btn btn-green" style="width:100%" onclick="saveLoyaltySettings()">💾 حفظ الولاء</button>
           </div>
@@ -7940,6 +7951,7 @@ function renderBusinessProfileSettings() {
   renderBusinessLogoPreview(pendingBusinessLogoDataUrl);
   const badge = document.getElementById('businessProfileStatus');
   if (badge) badge.textContent = profile.businessType;
+  renderLoyaltySettings();
   renderOmniStoreSettings();
 }
 
@@ -7985,10 +7997,17 @@ function renderOmniStoreSettings() {
   setOmniControlValue('omniCurrency', b.currency);
   setOmniControlValue('omniCurrencySymbol', b.currency_symbol);
   setOmniControlValue('omniLanguage', b.language);
-  setOmniControlValue('omniTimezone', b.timezone);
-  setOmniControlValue('omniDateFormat', b.date_format);
-  setOmniControlValue('omniNumberFormat', b.number_format);
-  renderOmniModuleSettings();
+}
+
+function renderLoyaltySettings() {
+  const l = getLoyaltyConfig();
+  const setValue = (id, value) => { const el = document.getElementById(id); if (el) el.value = value; };
+  setValue('setLoyalEarnPerAmount', l.earnPerAmount);
+  setValue('setLoyalRedeemValue', l.redeemValue);
+  setValue('setLoyalMaxRedeemPercent', l.maxRedeemPercent);
+  const expiryEl = document.getElementById('setLoyalExpiryEnabled');
+  if (expiryEl) expiryEl.value = l.expiryEnabled ? 'true' : 'false';
+  setValue('setLoyalDefaultExpiryDays', l.defaultExpiryDays);
 }
 
 function renderOmniModuleSettings() {
@@ -11824,6 +11843,7 @@ const backendApi = {
     },
     getConfig: () => USE_BACKEND ? backendApi._fetch('GET', '/loyalty/config') : null,
     getMetrics: () => USE_BACKEND ? backendApi._fetch('GET', '/loyalty/metrics') : null,
+    getExpiryInfo: (customerId) => USE_BACKEND ? backendApi._fetch('GET', '/loyalty/expiry-info/' + encodeURIComponent(customerId)) : null,
     earn: (payload) => USE_BACKEND ? backendApi._fetch('POST', '/loyalty/earn', payload) : null,
     redeem: (payload) => USE_BACKEND ? backendApi._fetch('POST', '/loyalty/redeem', payload) : null,
     reverse: (payload) => USE_BACKEND ? backendApi._fetch('POST', '/loyalty/reverse', payload) : null,
@@ -21211,6 +21231,8 @@ function getLoyaltyConfig() {
   if (!l.pointsPerUnit || l.pointsPerUnit < 1) l.pointsPerUnit = 1;
   if (!l.redeemValue || l.redeemValue <= 0) l.redeemValue = 1;
   if (!l.maxRedeemPercent || l.maxRedeemPercent < 1) l.maxRedeemPercent = 20;
+  if (typeof l.expiryEnabled !== 'boolean') l.expiryEnabled = false;
+  if (!l.defaultExpiryDays || l.defaultExpiryDays < 1) l.defaultExpiryDays = 365;
   if (typeof l.birthdayBonusPoints !== 'number' || l.birthdayBonusPoints < 0) l.birthdayBonusPoints = 50;
   if (!l.tierBenefits || typeof l.tierBenefits !== 'object') {
     l.tierBenefits = {
@@ -31515,12 +31537,16 @@ function renderSettingsPage() {
   const l1 = document.getElementById('setLoyalEarnPerAmount');
   const l2 = document.getElementById('setLoyalRedeemValue');
   const l3 = document.getElementById('setLoyalMaxRedeemPercent');
+  const expirySelect = document.getElementById('setLoyalExpiryEnabled');
+  const expiryDays = document.getElementById('setLoyalDefaultExpiryDays');
   if (d) d.value = rules.discountPercent || 15;
   if (e) e.value = rules.expenseAmount || 5000;
   if (r) r.value = rules.returnRefundAmount || 5000;
   if (l1) l1.value = loyalty.earnPerAmount || 100;
   if (l2) l2.value = loyalty.redeemValue || 1;
   if (l3) l3.value = loyalty.maxRedeemPercent || 20;
+  if (expirySelect) expirySelect.value = loyalty.expiryEnabled ? 'true' : 'false';
+  if (expiryDays) expiryDays.value = loyalty.defaultExpiryDays || 365;
 }
 
 function saveApprovalRules() {
@@ -31544,13 +31570,17 @@ function saveLoyaltySettings() {
   const earnPerAmount = Math.max(1, parseFloat(document.getElementById('setLoyalEarnPerAmount')?.value) || 100);
   const redeemValue = Math.max(0.1, parseFloat(document.getElementById('setLoyalRedeemValue')?.value) || 1);
   const maxRedeemPercent = Math.max(1, parseFloat(document.getElementById('setLoyalMaxRedeemPercent')?.value) || 20);
+  const expiryEnabled = document.getElementById('setLoyalExpiryEnabled')?.value === 'true';
+  const defaultExpiryDays = Math.max(1, parseInt(document.getElementById('setLoyalDefaultExpiryDays')?.value || '365', 10));
   DB.settings.loyalty = {
     ...(DB.settings.loyalty || {}),
     enabled: true,
     earnPerAmount,
     pointsPerUnit: 1,
     redeemValue,
-    maxRedeemPercent
+    maxRedeemPercent,
+    expiryEnabled,
+    defaultExpiryDays
   };
   logAudit('تعديل إعدادات الولاء', 'تم تحديث إعدادات برنامج الولاء', {
     module: 'settings',
