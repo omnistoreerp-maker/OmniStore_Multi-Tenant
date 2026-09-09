@@ -15,5 +15,8 @@
     "build:release": "node scripts/build-release.js",
     "test": "cd backend && npm test",
     "test:e2e": "node tests/e2e/verify.js"
+  },
+  "dependencies": {
+    "playwright": "^1.63.0"
   }
 }

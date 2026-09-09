@@ -11844,9 +11844,8 @@ const backendApi = {
       cancel: (id, reason) => USE_BACKEND ? backendApi._fetch('POST', '/playstation/sessions/' + encodeURIComponent(id) + '/cancel', { reason: reason || null }) : null,
       finalizePayment: (id, idempotencyKey) => USE_BACKEND ? backendApi._fetch('POST', '/playstation/sessions/' + encodeURIComponent(id) + '/payment', { idempotencyKey }) : null
     }
-  }
-};
-
+  },
+  // ===== Loyalty (Phase 28B) — point-of-sale rewards =====
   loyalty: {
     getBalance: (customerId) => USE_BACKEND ? backendApi._fetch('GET', '/loyalty/balance/' + encodeURIComponent(customerId)) : null,
     getTransactions: (customerId, query) => {
@@ -11866,39 +11865,6 @@ const backendApi = {
     reverse: (payload) => USE_BACKEND ? backendApi._fetch('POST', '/loyalty/reverse', payload) : null,
     awardBirthdayBonus: (customerId) => USE_BACKEND ? backendApi._fetch('POST', '/loyalty/birthday-bonus', { customerId }) : null
   },
-  // ===== PlayStation (Device-2 Batch 1) — operator device/session/checkout =====
-  // All endpoints are scoped by the trusted market JWT (tenant) and the
-  // server-authoritative branch context. The frontend never supplies
-  // tenantId/branchId on these calls; the controller stamps them.
-  playstation: {
-    // Devices
-    devices: {
-      list: (query) => USE_BACKEND ? backendApi._fetch('GET', '/playstation/devices' + (query ? '?' + new URLSearchParams(query).toString() : '')) : null,
-      getById: (id) => USE_BACKEND ? backendApi._fetch('GET', '/playstation/devices/' + encodeURIComponent(id)) : null,
-      create: (data) => USE_BACKEND ? backendApi._fetch('POST', '/playstation/devices', data) : null,
-      update: (id, data) => USE_BACKEND ? backendApi._fetch('PUT', '/playstation/devices/' + encodeURIComponent(id), data) : null,
-      transition: (id, status) => USE_BACKEND ? backendApi._fetch('POST', '/playstation/devices/' + encodeURIComponent(id) + '/transition', { status }) : null,
-      delete: (id) => USE_BACKEND ? backendApi._fetch('DELETE', '/playstation/devices/' + encodeURIComponent(id)) : null
-    },
-    // Pricing profiles
-    pricing: {
-      list: () => USE_BACKEND ? backendApi._fetch('GET', '/playstation/pricing') : null,
-      getById: (id) => USE_BACKEND ? backendApi._fetch('GET', '/playstation/pricing/' + encodeURIComponent(id)) : null,
-      create: (data) => USE_BACKEND ? backendApi._fetch('POST', '/playstation/pricing', data) : null,
-      update: (id, data) => USE_BACKEND ? backendApi._fetch('PUT', '/playstation/pricing/' + encodeURIComponent(id), data) : null,
-      delete: (id) => USE_BACKEND ? backendApi._fetch('DELETE', '/playstation/pricing/' + encodeURIComponent(id)) : null
-    },
-    // Sessions
-    sessions: {
-      list: (query) => USE_BACKEND ? backendApi._fetch('GET', '/playstation/sessions' + (query ? '?' + new URLSearchParams(query).toString() : '')) : null,
-      getById: (id) => USE_BACKEND ? backendApi._fetch('GET', '/playstation/sessions/' + encodeURIComponent(id)) : null,
-      create: (data) => USE_BACKEND ? backendApi._fetch('POST', '/playstation/sessions', data) : null,
-      start: (id) => USE_BACKEND ? backendApi._fetch('POST', '/playstation/sessions/' + encodeURIComponent(id) + '/start') : null,
-      stop: (id) => USE_BACKEND ? backendApi._fetch('POST', '/playstation/sessions/' + encodeURIComponent(id) + '/stop') : null,
-      cancel: (id, reason) => USE_BACKEND ? backendApi._fetch('POST', '/playstation/sessions/' + encodeURIComponent(id) + '/cancel', { reason: reason || null }) : null,
-      finalizePayment: (id, idempotencyKey) => USE_BACKEND ? backendApi._fetch('POST', '/playstation/sessions/' + encodeURIComponent(id) + '/payment', { idempotencyKey }) : null
-    }
-  }
 };
 // ===== Backend Op Queue: retrying delete/update ops (bug 3.2) =====
 const BACKEND_OP_QUEUE_KEY = 'digitronics_backend_op_queue_v1';
