@@ -2,7 +2,7 @@
 services:
   - type: web
     name: omnistore-erp
-    env: docker
+    env: node
     plan: free
     branch: main
     buildCommand: npm install
