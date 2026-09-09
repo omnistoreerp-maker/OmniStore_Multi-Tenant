@@ -1,28 +1,20 @@
-# Render blueprint — DigiTronics/OmniStore ERP
-# One web service runs BOTH the Express API and the static frontend
-# (backend/server.js serves /api/v1/* and the repo-root frontend tree).
-# Usage: connect the GitHub repo in Render, create a Blueprint from this
-# file, then set JWT_SECRET in the service's environment (sync: false).
+# Render blueprint — OmniStore ERP
 services:
   - type: web
     name: omnistore-erp
-    runtime: node
+    env: docker
     plan: free
+    branch: main
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /api/v1/health
-    autoDeploy: true
     envVars:
       - key: NODE_ENV
         value: production
-
-      # REQUIRED — set a long random value in the Render dashboard
-      # (sync: false keeps it out of this file).
       - key: JWT_SECRET
         sync: false
       - key: AUTH_REQUIRED
         value: "false"
-      # Tenant / multi-company features (Phase F user management needs them)
       - key: ENABLE_MULTI_COMPANY_LOGIN
         value: "true"
       - key: ENABLE_TENANT_ROLES
