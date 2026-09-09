@@ -11491,10 +11491,10 @@ const BACKEND_STATUS_KEY = 'esoBackendStatusPersistence';
 function getBackendConfig() {
   try {
     const raw = localStorage.getItem(BACKEND_CONFIG_KEY);
-    if (!raw) return { enabled: false, apiBaseUrl: '' };
+    if (!raw) return { enabled: true, apiBaseUrl: '' }; // Production default: backend-first
     const c = JSON.parse(raw);
-    return { enabled: !!c.enabled, apiBaseUrl: String(c.apiBaseUrl || '') };
-  } catch (e) { return { enabled: false, apiBaseUrl: '' }; }
+    return { enabled: c.enabled !== false, apiBaseUrl: String(c.apiBaseUrl || '') };
+  } catch (e) { return { enabled: true, apiBaseUrl: '' }; } // Production default: backend-first
 }
 function setBackendConfig(next) {
   const cfg = { enabled: !!next.enabled, apiBaseUrl: String(next.apiBaseUrl || '').replace(/\/+$/, '') };
@@ -11542,7 +11542,7 @@ function restoreBackendStatus() {
   } catch (e) {}
 }
 async function probeBackendHealth() {
-  if (!USE_BACKEND || !API_BASE_URL) {
+  if (!USE_BACKEND) {
     backendStatus.state = 'offline';
     persistBackendStatus();
     renderBackendConnectionStatus();
