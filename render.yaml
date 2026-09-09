@@ -33,9 +33,6 @@ services:
         value: "true"
       - key: RATE_LIMIT_MAX
         value: "1000"
-      - key: BODY_LIMIT
+       - key: BODY_LIMIT
         value: 10mb
-    disk:
-      name: omnistore-data
-      mountPath: /opt/render/project/src/backend/data
-      sizeGB: 1
+    # disk: removed for free tier compatibility
