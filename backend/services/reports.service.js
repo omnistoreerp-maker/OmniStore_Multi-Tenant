@@ -11,6 +11,32 @@ class ReportsService {
   }
   _save(db) { return repository.write(db); }
 
+  // FULL, unfiltered store document for WRITES. Persisting must never be
+  // derived from the tenant-filtered view (BaseRepository._rawStore rule):
+  // otherwise one tenant's create/update/delete would write back only its
+  // own records and silently DROP every other tenant's records from the
+  // shared document. Ownership is gated explicitly in the write methods.
+  _loadRaw() {
+    const db = repository._rawStore();
+    if (!db || typeof db !== 'object') return { reports: [] };
+    if (!Array.isArray(db.reports)) db.reports = [];
+    return db;
+  }
+
+  // Cross-tenant write guard. When a tenant context is active, a record
+  // that claims a DIFFERENT tenantId must never be modified or deleted by
+  // this request — it is treated as not-found, never touched. Legacy
+  // records (no tenantId) remain writable, matching the Phase 13 read rule.
+  _ownershipBlocked(record) {
+    if (!repository.hasTenant()) return false;
+    if (!record || typeof record !== 'object') return true;
+    const tid = record.tenantId;
+    if (tid === undefined || tid === null || tid === '') return false;
+    const current = repository.getCurrentTenant();
+    const currentId = current && (current.tenantId != null ? current.tenantId : current.id);
+    return currentId == null || String(tid) !== String(currentId);
+  }
+
   _validateRequired(data, forCreate) {
     const errors = [];
     if (forCreate && (data.type === undefined || data.type === null || String(data.type).trim() === '')) errors.push('type is required');
@@ -105,7 +131,7 @@ class ReportsService {
     const errors = this._validateRequired(data, true);
     if (errors.length) return { error: errors.join('; ') };
 
-    const db = this._load();
+    const db = this._loadRaw();
     const report = {
       id: data.id !== undefined && data.id !== null ? data.id : uuidv4(),
       ...data,
@@ -118,6 +144,17 @@ class ReportsService {
       return { error: 'Duplicate report ID: ' + report.id };
     }
 
+    // Client-supplied tenantId cannot override the server context: when a
+    // tenant is carried, a claimed tenantId must match it. Foreign claims
+    // are rejected before any persistence.
+    if (report.tenantId !== undefined && report.tenantId !== null && report.tenantId !== '' && repository.hasTenant()) {
+      const current = repository.getCurrentTenant();
+      const currentId = current && (current.tenantId != null ? current.tenantId : current.id);
+      if (currentId != null && String(report.tenantId) !== String(currentId)) {
+        return { error: 'Invalid tenant claim' };
+      }
+    }
+
     if (!Array.isArray(db.reports)) db.reports = [];
     db.reports.push(report);
     if (this._save(db)) return { report };
@@ -125,10 +162,11 @@ class ReportsService {
   }
 
   update(id, data) {
-    const db = this._load();
+    const db = this._loadRaw();
     const normalized = this._normalizeId(id);
     const idx = (db.reports || []).findIndex(r => this._matchesId(r, normalized));
     if (idx === -1) return { error: 'Report not found' };
+    if (this._ownershipBlocked(db.reports[idx])) return { error: 'Report not found' };
 
     const errors = this._validateRequired(data, false);
     if (errors.length) return { error: errors.join('; ') };
@@ -139,10 +177,11 @@ class ReportsService {
   }
 
   delete(id) {
-    const db = this._load();
+    const db = this._loadRaw();
     const normalized = this._normalizeId(id);
     const idx = (db.reports || []).findIndex(r => this._matchesId(r, normalized));
     if (idx === -1) return { error: 'Report not found' };
+    if (this._ownershipBlocked(db.reports[idx])) return { error: 'Report not found' };
     db.reports.splice(idx, 1);
     if (this._save(db)) return { success: true };
     return { error: 'Failed to persist deletion' };

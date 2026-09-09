@@ -11,6 +11,32 @@ class DashboardService {
   }
   _save(db) { return repository.write(db); }
 
+  // FULL, unfiltered store document for WRITES. Persisting must never be
+  // derived from the tenant-filtered view (BaseRepository._rawStore rule):
+  // otherwise one tenant's create/update/delete would write back only its
+  // own records and silently DROP every other tenant's records from the
+  // shared document. Ownership is gated explicitly in the write methods.
+  _loadRaw() {
+    const db = repository._rawStore();
+    if (!db || typeof db !== 'object') return { dashboard: [] };
+    if (!Array.isArray(db.dashboard)) db.dashboard = [];
+    return db;
+  }
+
+  // Cross-tenant write guard. When a tenant context is active, a record
+  // that claims a DIFFERENT tenantId must never be modified or deleted by
+  // this request — it is treated as not-found, never touched. Legacy
+  // records (no tenantId) remain writable, matching the Phase 13 read rule.
+  _ownershipBlocked(record) {
+    if (!repository.hasTenant()) return false;
+    if (!record || typeof record !== 'object') return true;
+    const tid = record.tenantId;
+    if (tid === undefined || tid === null || tid === '') return false;
+    const current = repository.getCurrentTenant();
+    const currentId = current && (current.tenantId != null ? current.tenantId : current.id);
+    return currentId == null || String(tid) !== String(currentId);
+  }
+
   _validateRequired(data, forCreate) {
     const errors = [];
     if (forCreate && (data.key === undefined || data.key === null || String(data.key).trim() === '')) errors.push('key is required');
@@ -105,7 +131,7 @@ class DashboardService {
     const errors = this._validateRequired(data, true);
     if (errors.length) return { error: errors.join('; ') };
 
-    const db = this._load();
+    const db = this._loadRaw();
     const entry = {
       id: data.id !== undefined && data.id !== null ? data.id : uuidv4(),
       ...data,
@@ -118,6 +144,17 @@ class DashboardService {
       return { error: 'Duplicate dashboard entry ID: ' + entry.id };
     }
 
+    // Client-supplied tenantId cannot override the server context: when a
+    // tenant is carried, a claimed tenantId must match it. Foreign claims
+    // are rejected before any persistence.
+    if (entry.tenantId !== undefined && entry.tenantId !== null && entry.tenantId !== '' && repository.hasTenant()) {
+      const current = repository.getCurrentTenant();
+      const currentId = current && (current.tenantId != null ? current.tenantId : current.id);
+      if (currentId != null && String(entry.tenantId) !== String(currentId)) {
+        return { error: 'Invalid tenant claim' };
+      }
+    }
+
     if (!Array.isArray(db.dashboard)) db.dashboard = [];
     db.dashboard.push(entry);
     if (this._save(db)) return { entry };
@@ -125,10 +162,11 @@ class DashboardService {
   }
 
   update(id, data) {
-    const db = this._load();
+    const db = this._loadRaw();
     const normalized = this._normalizeId(id);
     const idx = (db.dashboard || []).findIndex(r => this._matchesId(r, normalized));
     if (idx === -1) return { error: 'Dashboard entry not found' };
+    if (this._ownershipBlocked(db.dashboard[idx])) return { error: 'Dashboard entry not found' };
 
     const errors = this._validateRequired(data, false);
     if (errors.length) return { error: errors.join('; ') };
@@ -139,10 +177,11 @@ class DashboardService {
   }
 
   delete(id) {
-    const db = this._load();
+    const db = this._loadRaw();
     const normalized = this._normalizeId(id);
     const idx = (db.dashboard || []).findIndex(r => this._matchesId(r, normalized));
     if (idx === -1) return { error: 'Dashboard entry not found' };
+    if (this._ownershipBlocked(db.dashboard[idx])) return { error: 'Dashboard entry not found' };
     db.dashboard.splice(idx, 1);
     if (this._save(db)) return { success: true };
     return { error: 'Failed to persist deletion' };

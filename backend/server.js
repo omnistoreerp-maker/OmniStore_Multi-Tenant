@@ -32,6 +32,8 @@ const schedulerService = require('./services/scheduler.service');
 
 const app = express();
 
+app.set('trust proxy', 'loopback');
+
 // Global middleware. The default helmet CSP would block the frontend's
 // inline scripts and CDN modules when the API process also serves the static
 // app (single-process mode). The directives below mirror the project's own
@@ -57,13 +59,19 @@ app.use(helmet({
     }
   }
 }));
-if (config.corsOrigins) {
-  // Restricted CORS: comma-separated allowlist via CORS_ORIGINS.
-  app.use(cors({ origin: config.corsOrigins.split(',').map(s => s.trim()), credentials: true }));
-} else {
-  // Default: open CORS (identical to previous behavior).
-  app.use(cors());
-}
+// CORS — fail-closed when no allowlist is configured.
+// In production (AUTH_REQUIRED=true) an empty CORS_ORIGINS blocks all
+// cross-origin browser requests. In dev/test with AUTH_REQUIRED=false the
+// explicit localhost defaults below keep local development usable.
+const _corsRaw = config.corsOrigins
+  || (!config.authRequired ? 'http://localhost:3000,http://localhost:5173,http://localhost:57647' : '');
+const _corsOrigins = _corsRaw.split(',').map(s => s.trim()).filter(Boolean);
+app.use(cors({
+  origin: _corsOrigins.length > 0 ? _corsOrigins : false,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'X-Tenant-Id', 'X-Branch-Id'],
+}));
 app.use(compression());
 // Request logging is development-only (no console.log in production);
 // slow-request performance logging stays on in every environment.
@@ -144,10 +152,22 @@ const errorTrackerRoutes = require('./routes/errorTracker.routes');
 const companyRoutes = require('./routes/company.routes');
 const updateRoutes = require('./routes/update.routes');
 const platformRoutes = require('./routes/platform.routes');
+const platformPublicRoutes = require('./routes/platformPublic.routes');
+const companyProfileRoutes = require('./routes/companyProfile.routes');
+const customerRequestRoutes = require('./routes/customerRequest.routes');
+const internalChangeCenterRoutes = require('./routes/internalChangeCenter.routes');
+const platformIntegrationRoutes = require('./routes/platformIntegration.routes');
+const loyaltyRoutes = require('./routes/loyalty.routes');
+const marketRoutes = require('./routes/market.routes');
+const gameHostingRoutes = require('./routes/gameHosting.routes');
+const playstationRoutes = require('./routes/playstation.routes');
 const companyContext = require('./middleware/companyContext');
 // Phase 33 — seed the server-authoritative platform admin store from
 // PLATFORM_ADMINS on boot (no-op once the store has entries).
 require('./services/platformAdmin.service').ensureSeeded();
+// Market (Phase F) — seed the default tenant Market config so the storefront
+// works out of the box. No-op once the config exists.
+require('./services/marketConfig.service').ensureSeeded();
 
 app.use('/api/v1', apiRouter);
 app.use('/api/v1/companies', companyRoutes);
@@ -155,7 +175,26 @@ app.use('/api/v1/update', updateRoutes);
 // Phase 33 — Master Control Center. Mounted before the optional AUTH_REQUIRED
 // guard so platform scope is enforced exclusively by requirePlatformAdmin.
 app.use('/api/v1/platform', platformRoutes);
-// Company selection is applied BEFORE authentication so the chosen company is
+// Public platform homepage — read-only catalog, no auth required.
+app.use('/api/v1/platform-public', platformPublicRoutes);
+// Public company profile — read-only profile data, no auth required.
+app.use('/api/v1/companies-public', companyProfileRoutes);
+// Customer Change & Resolution Foundation — authenticated, company-scoped.
+app.use('/api/v1/customer', customerRequestRoutes);
+// Internal Change Center & Release Management — platform-admin-only.
+app.use('/api/v1/internal', internalChangeCenterRoutes);
+// ERP ↔ Platform Integration Contract — read-only public boundary.
+app.use('/api/v1/platform-integration', platformIntegrationRoutes);
+// Phase F — OmniStore Market (customer-facing storefront). Public catalog,
+// customer auth, cart/checkout, and order tracking. Mounted under /api/v1/market.
+// Self-contained module; does not alter Core ERP routes.
+app.use('/api/v1/market', marketRoutes);
+// Phase B — Game Hosting. Self-contained module; does not alter Core ERP routes.
+// Provider integration is BLOCKED; lifecycle state machine and ownership are enforced.
+app.use('/api/v1/game-hosting', gameHostingRoutes);
+// Batch 1 — PlayStation Device & Session Foundation. Self-contained module;
+// does not alter Core ERP routes. Provider integration is BLOCKED.
+app.use('/api/v1/playstation', playstationRoutes);
 // resolved into RequestContext/TenantContext on the login POST (no-op unless
 // ENABLE_MULTI_COMPANY_LOGIN, so the auth flow is unchanged by default).
 app.use('/api/v1/auth', companyContext, authRoutes);
@@ -164,29 +203,36 @@ app.use('/api/v1/api-keys', apiKeyRoutes);
 app.use('/api/v1/audit-log', auditRoutes);
 app.use('/api/v1/webhooks', webhookRoutes);
 app.use('/api/v1/metrics', metricsRoutes);
-app.use('/api/v1/health/deep', healthRoutes);
+// v1.0.1 — AUTH-CONDITIONAL PROTECTED UTILITIES.
+// Default (AUTH_REQUIRED=false) keeps the historical open behavior; when the
+// hardened posture is on, these surfaces demand an authenticated session.
+const authGate = config.authRequired ? requireAuth : (req, res, next) => next();
+
+app.use('/api/v1/health/deep', authGate, healthRoutes);
 app.use('/api/v1/errors', errorTrackerRoutes);
 
-// Route events from the bus to outbound webhooks (additive; no-op if none)
-eventBus.subscribe('sale.created', (ev) => webhookService.dispatch('sale.created', ev.data));
-eventBus.subscribe('sale.updated', (ev) => webhookService.dispatch('sale.updated', ev.data));
-eventBus.subscribe('sale.deleted', (ev) => webhookService.dispatch('sale.deleted', ev.data));
-eventBus.subscribe('inventory.updated', (ev) => webhookService.dispatch('inventory.updated', ev.data));
-eventBus.subscribe('inventory.low', (ev) => webhookService.dispatch('inventory.low', ev.data));
+// Route events from the bus to outbound webhooks (additive; no-op if none).
+// Tenant context is extracted from the event payload and forwarded to
+// dispatch() so tenant-scoped webhooks receive only their own events.
+eventBus.subscribe('sale.created', (ev) => webhookService.dispatch('sale.created', ev.data, ev.data && ev.data.tenantId));
+eventBus.subscribe('sale.updated', (ev) => webhookService.dispatch('sale.updated', ev.data, ev.data && ev.data.tenantId));
+eventBus.subscribe('sale.deleted', (ev) => webhookService.dispatch('sale.deleted', ev.data, ev.data && ev.data.tenantId));
+eventBus.subscribe('inventory.updated', (ev) => webhookService.dispatch('inventory.updated', ev.data, ev.data && ev.data.tenantId));
+eventBus.subscribe('inventory.low', (ev) => webhookService.dispatch('inventory.low', ev.data, ev.data && ev.data.tenantId));
 
 // OAuth routes (mounted at root for OAuth callbacks)
 if (oauthConfig.enabled) {
   app.use('/auth', oauthRoutes);
 }
 
-// Swagger API documentation
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+// Swagger API documentation (auth-gated when AUTH_REQUIRED=true)
+app.use('/api-docs', authGate, swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
   customCss: '.swagger-ui .topbar { display: none }',
   customSiteTitle: 'DigiTronics V2 API Documentation'
 }));
 
-// JSON endpoint for the raw OpenAPI spec
-app.get('/api-docs.json', (req, res) => {
+// JSON endpoint for the raw OpenAPI spec (auth-gated when AUTH_REQUIRED=true)
+app.get('/api-docs.json', authGate, (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   res.send(swaggerSpec);
 });
@@ -218,6 +264,7 @@ app.use('/api/v1/vouchers', validateResource('vouchers'), voucherRoutes);
 app.use('/api/v1/dashboard', validateResource('dashboard'), dashboardRoutes);
 app.use('/api/v1/reports', validateResource('reports'), reportsRoutes);
 app.use('/api/v1/users', validateResource('users'), usersRoutes);
+app.use('/api/v1/loyalty', validateResource('loyalty'), loyaltyRoutes);
 
 // ===== Static frontend (single-process production serving) =====
 // The frontend is a plain static tree at the repository root (index.html,

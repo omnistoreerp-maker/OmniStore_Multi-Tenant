@@ -19,6 +19,12 @@ const REAL_GROUPS = [
   { group: 'products', permissions: ['products.view', 'products.create', 'products.edit', 'products.delete'] },
   { group: 'customers', permissions: ['customers.view', 'customers.create', 'customers.edit', 'customers.delete'] },
   { group: 'suppliers', permissions: ['suppliers.view', 'suppliers.create', 'suppliers.edit', 'suppliers.delete'] },
+  { group: 'partners', permissions: ['partners.view', 'partners.create', 'partners.edit', 'partners.delete'] },
+  { group: 'vouchers', permissions: ['vouchers.view', 'vouchers.create', 'vouchers.edit', 'vouchers.delete'] },
+  {
+    group: 'employees',
+    permissions: ['employees.view', 'employees.create', 'employees.edit', 'employees.delete']
+  },
   { group: 'treasury', permissions: ['treasury.view', 'treasury.create', 'treasury.edit', 'treasury.delete'] },
   { group: 'reports', permissions: ['reports.view', 'reports.financial.view'] },
   { group: 'dashboard', permissions: ['dashboard.view'] },
@@ -81,6 +87,9 @@ const ROLE_DEFAULTS = {
     'products.view', 'products.create', 'products.edit',
     'customers.view', 'customers.create', 'customers.edit',
     'suppliers.view', 'suppliers.create', 'suppliers.edit',
+    'partners.view', 'partners.create', 'partners.edit', 'partners.delete',
+    'vouchers.view', 'vouchers.create', 'vouchers.edit', 'vouchers.delete',
+    'employees.view', 'employees.create', 'employees.edit', 'employees.delete',
     'treasury.view', 'treasury.create', 'treasury.edit',
     'reports.view', 'dashboard.view',
     'users.view', 'users.create', 'users.edit', 'users.delete',
@@ -91,6 +100,9 @@ const ROLE_DEFAULTS = {
     'purchases.view', 'purchases.create', 'purchases.edit',
     'customers.view', 'customers.create', 'customers.edit',
     'suppliers.view', 'suppliers.create', 'suppliers.edit',
+    'partners.view', 'partners.create', 'partners.edit',
+    'vouchers.view', 'vouchers.create', 'vouchers.edit',
+    'employees.view',
     'inventory.view', 'inventory.create', 'inventory.edit',
     'products.view',
     'dashboard.view'
@@ -98,7 +110,7 @@ const ROLE_DEFAULTS = {
   Cashier: ['sales.view', 'sales.create', 'customers.view', 'customers.create', 'dashboard.view', 'treasury.view', 'reports.view'],
   Technician: ['inventory.view', 'inventory.create', 'inventory.edit', 'products.view', 'dashboard.view'],
   WarehouseSales: ['inventory.view', 'inventory.create', 'inventory.edit', 'products.view', 'products.create', 'products.edit', 'sales.view', 'dashboard.view'],
-  Viewer: ['dashboard.view', 'reports.view', 'sales.view', 'purchases.view', 'inventory.view', 'products.view', 'customers.view', 'suppliers.view', 'treasury.view', 'company.view']
+  Viewer: ['dashboard.view', 'reports.view', 'sales.view', 'purchases.view', 'inventory.view', 'products.view', 'customers.view', 'suppliers.view', 'partners.view', 'vouchers.view', 'treasury.view', 'company.view']
 };
 
 // Legacy verb synonyms -> canonical permission verbs. read/update/list are

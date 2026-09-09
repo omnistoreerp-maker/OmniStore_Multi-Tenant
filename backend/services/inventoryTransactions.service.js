@@ -156,6 +156,17 @@ class InventoryTransactionsService {
       }
     }
 
+    // Auto-stamp tenantId from server context when client omits it.
+    // Prevents cross-tenant read leaks (transactions without a tenantId
+    // appear in ALL tenants' filtered views).
+    if (repository.hasTenant() && (transaction.tenantId === undefined || transaction.tenantId === null || transaction.tenantId === '')) {
+      const current = repository.getCurrentTenant();
+      const currentId = current && (current.tenantId != null ? current.tenantId : current.id);
+      if (currentId != null) {
+        transaction.tenantId = String(currentId);
+      }
+    }
+
     if (!Array.isArray(db.transactions)) db.transactions = [];
     db.transactions.push(transaction);
     if (await this._save(db)) return { transaction };

@@ -106,9 +106,12 @@ describe('role ranks', () => {
 describe('registry structure', () => {
   test('groups() exposes only enforceable groups', () => {
     const all = registry.groups().flatMap(g => g.permissions);
-    expect(registry.groups().length).toBe(13);
+    expect(registry.groups().length).toBe(16);
     expect(all).toContain('sales.view');
     expect(all).toContain('users.permissions.view');
+    expect(all).toContain('partners.view');
+    expect(all).toContain('vouchers.view');
+    expect(all).toContain('employees.view');
     expect(all).not.toContain('sales.refund');
     expect(all).not.toContain('expenses.view');
   });
