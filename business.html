@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Business Management — OmniStore Platform</title>
+  <meta name="theme-color" content="#0f172a">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/digitronics-icon-192.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="platform/platform.css">
+  <style>
+    .biz-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .biz-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); box-shadow: var(--shadow); padding: 24px;
+    }
+    .biz-card h2 { margin: 0 0 6px; font-size: 20px; }
+    .biz-card p.sub { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+    .biz-card label { display: block; font-size: 13px; font-weight: 600; margin: 10px 0 4px; }
+    .biz-card input {
+      width: 100%; padding: 10px 12px; border: 1px solid var(--border);
+      border-radius: 10px; font-size: 14px; background: #fff;
+    }
+    .biz-card .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .biz-actions { margin-top: 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .biz-msg { font-size: 13px; margin-top: 10px; min-height: 18px; }
+    .biz-msg.err { color: #b91c1c; }
+    .biz-msg.ok { color: #047857; }
+    .biz-details { margin-top: 12px; font-size: 13px; color: var(--text); background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 12px 14px; display: none; }
+    .biz-details code { background: #fff; padding: 1px 6px; border-radius: 6px; border: 1px solid #e2e8f0; }
+    fieldset { border: 0; padding: 0; margin: 0 0 8px; }
+    .choice { display: flex; gap: 16px; font-size: 14px; }
+    .choice label { display: flex; gap: 6px; align-items: center; font-weight: 600; margin: 0; }
+    @media (max-width: 880px) { .biz-grid { grid-template-columns: 1fr; } }
+    .payment-note { margin-top: 10px; font-size: 12px; color: var(--muted); border-top: 1px dashed var(--border); padding-top: 10px; }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <h1>Business Management Services</h1>
+      <p>Your company workspace on OmniStore — sign in, or start a new subscription</p>
+      <nav class="platform-nav" aria-label="Breadcrumb">
+        <a href="platform.html">← Platform Home</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="biz-grid">
+
+      <!-- EXISTING COMPANY: reuses the ERP's real authentication — no parallel
+           auth system. The credentials POST goes to the LIVE /auth/login
+           endpoint; on success the session token is stored under the same
+           localStorage key the ERP already resumes on load, and the browser
+           is redirected into the company workspace (index.html). -->
+      <section class="biz-card" aria-labelledby="existing-h">
+        <h2 id="existing-h">Existing Company</h2>
+        <p class="sub">Sign in with your company account to open your workspace.</p>
+        <form id="login-form" novalidate>
+          <label for="login-username">Username or Email</label>
+          <input id="login-username" name="username" type="text" autocomplete="username" required>
+          <label for="login-password">Password</label>
+          <input id="login-password" name="password" type="password" autocomplete="current-password" required>
+          <div class="biz-actions">
+            <button class="btn-primary" type="submit">Sign in to Workspace</button>
+          </div>
+          <div class="biz-msg err" id="login-msg" role="alert"></div>
+        </form>
+      </section>
+
+      <!-- NEW SUBSCRIPTION: public onboarding via the hardened
+           POST /api/v1/platform-public/onboarding/provision endpoint
+           (rate-limited, validated, server-owned tenant metadata, generic
+           conflict errors, no client-controlled roles/ownership).
+           No fake payment step: payment is handled offline by sales. -->
+      <section class="biz-card" aria-labelledby="newsub-h">
+        <h2 id="newsub-h">New Subscription</h2>
+        <p class="sub">Create your company tenant and owner account. You sign in right after.</p>
+        <form id="provision-form" novalidate>
+          <fieldset>
+            <legend style="font-size:13px;font-weight:700;padding-top:8px">Company</legend>
+            <label for="prov-company-name">Company name</label>
+            <input id="prov-company-name" maxlength="100" required>
+            <label for="prov-company-id">Company ID <span style="font-weight:400;color:var(--muted)">(2-40 letters/digits/-/_ — this becomes your tenant)</span></label>
+            <input id="prov-company-id" maxlength="40" pattern="[A-Za-z0-9_-]{2,40}" required>
+            <label for="prov-branch-name">Main branch name</label>
+            <input id="prov-branch-name" maxlength="100" placeholder="Main Branch">
+            <label for="prov-branch-code">Main branch code</label>
+            <input id="prov-branch-code" maxlength="20" pattern="[A-Za-z0-9_-]{1,20}" placeholder="MAIN">
+          </fieldset>
+          <fieldset>
+            <legend style="font-size:13px;font-weight:700;padding-top:8px">Owner account</legend>
+            <label for="prov-admin-username">Admin username <span style="font-weight:400;color:var(--muted)">(2-40 letters/digits/_.-)</span></label>
+            <input id="prov-admin-username" maxlength="40" pattern="[A-Za-z0-9_.-]{2,40}" required>
+            <label for="prov-admin-name">Full name</label>
+            <input id="prov-admin-name" maxlength="100">
+            <label for="prov-admin-password">Password</label>
+            <input id="prov-admin-password" type="password" autocomplete="new-password" required>
+            <div class="hint">Use a strong password (mixed case, digits, symbol).</div>
+            <label for="prov-email">Contact email</label>
+            <input id="prov-email" type="email" maxlength="120">
+            <label for="prov-phone">Phone</label>
+            <input id="prov-phone" maxlength="40">
+          </fieldset>
+          <div class="biz-actions">
+            <button class="btn-primary" type="submit">Create Company</button>
+          </div>
+          <div class="biz-msg" id="provision-msg" role="alert"></div>
+          <div class="biz-details" id="provision-details"></div>
+          <div class="payment-note">Payment / billing is arranged with the DigiTronics Plus sales team — no online payment is collected here.</div>
+        </form>
+      </section>
+
+    </div>
+  </main>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var API = '/api/v1';
+      var loginForm = document.getElementById('login-form');
+      var loginMsg = document.getElementById('login-msg');
+      var provisionForm = document.getElementById('provision-form');
+      var provisionMsg = document.getElementById('provision-msg');
+      var provisionDetails = document.getElementById('provision-details');
+
+      function setText(node, text, cls) {
+        node.textContent = text || '';
+        node.className = 'biz-msg' + (cls ? ' ' + cls : '');
+      }
+
+      async function postJSON(path, body) {
+        var res = await fetch(API + path, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        var json = null;
+        try { json = await res.json(); } catch (_) {}
+        return { status: res.status, ok: res.ok, json: json };
+      }
+
+      // Existing company: real /auth/login, real token, real workspace.
+      loginForm.addEventListener('submit', async function (ev) {
+        ev.preventDefault();
+        setText(loginMsg, '');
+        var username = document.getElementById('login-username').value.trim();
+        var password = document.getElementById('login-password').value;
+        if (!username || !password) { setText(loginMsg, 'Enter your username and password.', 'err'); return; }
+        try {
+          var r = await postJSON('/auth/login', { username: username, password: password });
+          if (r.ok && r.json && r.json.success && r.json.data && r.json.data.accessToken) {
+            // Same session keys the ERP itself writes after a successful login
+            // (launchApp in index.html): the token + the remembered-username
+            // convenience key it uses to resume. Session convenience ONLY —
+            // every authorization decision stays server-side (/auth/me).
+            try { localStorage.setItem('access_token', r.json.data.accessToken); } catch (_) {}
+            if (r.json.data.user && r.json.data.user.username) {
+              try { localStorage.setItem('cairo_session_user', r.json.data.user.username); } catch (_) {}
+            }
+            setText(loginMsg, 'Signed in. Opening your workspace…', 'ok');
+            window.location.assign('index.html');
+          } else {
+            var msg = (r.json && r.json.message) || ('Sign-in failed (' + r.status + ')');
+            setText(loginMsg, msg, 'err');
+          }
+        } catch (e) {
+          setText(loginMsg, 'Network error — please try again.', 'err');
+        }
+      });
+
+      // New subscription: public onboarding, hardened endpoint.
+      provisionForm.addEventListener('submit', async function (ev) {
+        ev.preventDefault();
+        setText(provisionMsg, '');
+        provisionDetails.style.display = 'none';
+
+        var payload = {
+          companyName: document.getElementById('prov-company-name').value.trim(),
+          companyId: document.getElementById('prov-company-id').value.trim(),
+          branchName: document.getElementById('prov-branch-name').value.trim() || undefined,
+          branchCode: document.getElementById('prov-branch-code').value.trim() || undefined,
+          adminUsername: document.getElementById('prov-admin-username').value.trim(),
+          adminFullName: document.getElementById('prov-admin-name').value.trim() || undefined,
+          adminPassword: document.getElementById('prov-admin-password').value,
+          email: document.getElementById('prov-email').value.trim() || undefined,
+          phone: document.getElementById('prov-phone').value.trim() || undefined
+        };
+        Object.keys(payload).forEach(function (k) { if (payload[k] === undefined) delete payload[k]; });
+
+        if (!payload.companyName || !payload.companyId || !payload.adminUsername || !payload.adminPassword) {
+          setText(provisionMsg, 'Company name, company ID, admin username and password are required.', 'err');
+          return;
+        }
+
+        var btn = provisionForm.querySelector('button[type=submit]');
+        btn.disabled = true;
+        try {
+          var r = await postJSON('/platform-public/onboarding/provision', payload);
+          if (r.status === 201 && r.json && r.json.success && r.json.data) {
+            var d = r.json.data;
+            provisionDetails.innerHTML = '';
+            var lines = [
+              'Company created: ' + d.company.name + ' (ID: ' + d.company.id + ')',
+              'Branch: ' + d.branch.name + ' (' + d.branch.code + ')',
+              'Owner username: ' + d.admin.username
+            ];
+            lines.forEach(function (t) {
+              var p = document.createElement('div'); p.textContent = t; provisionDetails.appendChild(p);
+            });
+            provisionDetails.appendChild(document.createElement('br'));
+            var note = document.createElement('div');
+            note.textContent = 'Now sign in with your new owner account to open the workspace.';
+            provisionDetails.appendChild(note);
+            provisionDetails.style.display = 'block';
+            setText(provisionMsg, 'Company created successfully.', 'ok');
+            // Pre-fill the existing-company form with the new credentials.
+            document.getElementById('login-username').value = d.admin.username;
+            document.getElementById('login-password').value = '';
+            document.getElementById('login-password').focus();
+            provisionForm.reset();
+          } else {
+            var msg2 = (r.json && r.json.message) || ('Onboarding failed (' + r.status + ')');
+            setText(provisionMsg, msg2, 'err');
+          }
+        } catch (e) {
+          setText(provisionMsg, 'Network error — please try again.', 'err');
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

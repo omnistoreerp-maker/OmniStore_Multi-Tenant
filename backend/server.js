@@ -153,21 +153,11 @@ const companyRoutes = require('./routes/company.routes');
 const updateRoutes = require('./routes/update.routes');
 const platformRoutes = require('./routes/platform.routes');
 const platformPublicRoutes = require('./routes/platformPublic.routes');
-const companyProfileRoutes = require('./routes/companyProfile.routes');
-const customerRequestRoutes = require('./routes/customerRequest.routes');
-const internalChangeCenterRoutes = require('./routes/internalChangeCenter.routes');
 const platformIntegrationRoutes = require('./routes/platformIntegration.routes');
-const loyaltyRoutes = require('./routes/loyalty.routes');
-const marketRoutes = require('./routes/market.routes');
-const gameHostingRoutes = require('./routes/gameHosting.routes');
-const playstationRoutes = require('./routes/playstation.routes');
 const companyContext = require('./middleware/companyContext');
 // Phase 33 — seed the server-authoritative platform admin store from
 // PLATFORM_ADMINS on boot (no-op once the store has entries).
 require('./services/platformAdmin.service').ensureSeeded();
-// Market (Phase F) — seed the default tenant Market config so the storefront
-// works out of the box. No-op once the config exists.
-require('./services/marketConfig.service').ensureSeeded();
 
 app.use('/api/v1', apiRouter);
 app.use('/api/v1/companies', companyRoutes);
@@ -177,24 +167,8 @@ app.use('/api/v1/update', updateRoutes);
 app.use('/api/v1/platform', platformRoutes);
 // Public platform homepage — read-only catalog, no auth required.
 app.use('/api/v1/platform-public', platformPublicRoutes);
-// Public company profile — read-only profile data, no auth required.
-app.use('/api/v1/companies-public', companyProfileRoutes);
-// Customer Change & Resolution Foundation — authenticated, company-scoped.
-app.use('/api/v1/customer', customerRequestRoutes);
-// Internal Change Center & Release Management — platform-admin-only.
-app.use('/api/v1/internal', internalChangeCenterRoutes);
 // ERP ↔ Platform Integration Contract — read-only public boundary.
 app.use('/api/v1/platform-integration', platformIntegrationRoutes);
-// Phase F — OmniStore Market (customer-facing storefront). Public catalog,
-// customer auth, cart/checkout, and order tracking. Mounted under /api/v1/market.
-// Self-contained module; does not alter Core ERP routes.
-app.use('/api/v1/market', marketRoutes);
-// Phase B — Game Hosting. Self-contained module; does not alter Core ERP routes.
-// Provider integration is BLOCKED; lifecycle state machine and ownership are enforced.
-app.use('/api/v1/game-hosting', gameHostingRoutes);
-// Batch 1 — PlayStation Device & Session Foundation. Self-contained module;
-// does not alter Core ERP routes. Provider integration is BLOCKED.
-app.use('/api/v1/playstation', playstationRoutes);
 // resolved into RequestContext/TenantContext on the login POST (no-op unless
 // ENABLE_MULTI_COMPANY_LOGIN, so the auth flow is unchanged by default).
 app.use('/api/v1/auth', companyContext, authRoutes);
@@ -264,7 +238,6 @@ app.use('/api/v1/vouchers', validateResource('vouchers'), voucherRoutes);
 app.use('/api/v1/dashboard', validateResource('dashboard'), dashboardRoutes);
 app.use('/api/v1/reports', validateResource('reports'), reportsRoutes);
 app.use('/api/v1/users', validateResource('users'), usersRoutes);
-app.use('/api/v1/loyalty', validateResource('loyalty'), loyaltyRoutes);
 
 // ===== Static frontend (single-process production serving) =====
 // The frontend is a plain static tree at the repository root (index.html,
