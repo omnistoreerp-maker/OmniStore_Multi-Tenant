@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/suppliers.controller');
+const asyncHandler = require('../utils/asyncHandler');
 const { requirePermissionIfAuth } = require('../middleware/authorize');
 
 /**
@@ -49,8 +50,8 @@ const { requirePermissionIfAuth } = require('../middleware/authorize');
  *       401:
  *         description: Authentication required
  */
-router.get('/', requirePermissionIfAuth('suppliers.view'), ctrl.list);
-router.post('/', requirePermissionIfAuth('suppliers.create'), ctrl.create);
+router.get('/', requirePermissionIfAuth('suppliers.view'), asyncHandler(ctrl.list));
+router.post('/', requirePermissionIfAuth('suppliers.create'), asyncHandler(ctrl.create));
 
 /**
  * @openapi
@@ -67,7 +68,7 @@ router.post('/', requirePermissionIfAuth('suppliers.create'), ctrl.create);
  *       401:
  *         description: Authentication required
  */
-router.get('/stats', requirePermissionIfAuth('suppliers.view'), ctrl.getStats);
+router.get('/stats', requirePermissionIfAuth('suppliers.view'), asyncHandler(ctrl.getStats));
 
 /**
  * @openapi
@@ -130,8 +131,8 @@ router.get('/stats', requirePermissionIfAuth('suppliers.view'), ctrl.getStats);
  *       404:
  *         description: Supplier not found
  */
-router.get('/:id', requirePermissionIfAuth('suppliers.view'), ctrl.getById);
-router.put('/:id', requirePermissionIfAuth('suppliers.edit'), ctrl.update);
-router.delete('/:id', requirePermissionIfAuth('suppliers.delete'), ctrl.remove);
+router.get('/:id', requirePermissionIfAuth('suppliers.view'), asyncHandler(ctrl.getById));
+router.put('/:id', requirePermissionIfAuth('suppliers.edit'), asyncHandler(ctrl.update));
+router.delete('/:id', requirePermissionIfAuth('suppliers.delete'), asyncHandler(ctrl.remove));
 
 module.exports = router;

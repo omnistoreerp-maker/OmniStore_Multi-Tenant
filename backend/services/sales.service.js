@@ -4,6 +4,7 @@ const { eventBus } = require('./eventBus');
 const config = require('../config');
 const BaseRepository = require('../repositories/BaseRepository');
 const repository = require('../repositories').sales;
+const customersService = require('./customers.service');
 const branchStore = require('../middleware/branchStore');
 
 class SalesService {
@@ -141,6 +142,17 @@ class SalesService {
     return errors;
   }
 
+  async _validateCustomerOwnership(customerId, tenantContext) {
+    if (!customerId && customerId !== 0) return null;
+    const strId = String(customerId).trim();
+    if (!strId) return null;
+    if (!this._isIsolationActive(tenantContext)) return null;
+    const customer = await customersService.getById(strId);
+    if (!customer) return 'Customer not found';
+    if (customersService._ownershipBlocked(customer)) return 'Customer not found';
+    return null;
+  }
+
   _normalizeId(id) {
     const str = String(id).trim();
     if (/^INV-\d{6}$/i.test(str)) return str.toUpperCase();
@@ -243,6 +255,11 @@ class SalesService {
     const errors = this._validateRequired(data, true);
     if (errors.length) return { error: errors.join('; ') };
 
+    if (data.customerId !== undefined && data.customerId !== null && data.customerId !== '') {
+      const customerError = await this._validateCustomerOwnership(data.customerId, tenantContext);
+      if (customerError) return { error: customerError };
+    }
+
     if (this._isIsolationActive(tenantContext)) {
       const repo = this._repoFor(tenantContext);
       const invoice = {
@@ -253,7 +270,7 @@ class SalesService {
       };
       const created = await repo.createAsync('invoices', invoice);
       if (!created) return { error: 'Failed to persist invoice' };
-      try { eventBus.publish('sale.created', created); } catch (_) {}
+      try { eventBus.publish('sale.created', { ...created, tenantId: tenantContext.tenantId }); } catch (_) {}
       return { invoice: created };
     }
 
@@ -274,7 +291,7 @@ class SalesService {
     if (!Array.isArray(db.invoices)) db.invoices = [];
     db.invoices.push(invoice);
     if (await this._save(db)) {
-      try { eventBus.publish('sale.created', invoice); } catch (_) {}
+      try { eventBus.publish('sale.created', { ...invoice, tenantId: tenantContext && tenantContext.tenantId != null ? tenantContext.tenantId : undefined }); } catch (_) {}
       return { invoice };
     }
     return { error: 'Failed to persist invoice' };
@@ -283,6 +300,11 @@ class SalesService {
   async update(id, data, tenantContext) {
     const errors = this._validateRequired(data, false);
     if (errors.length) return { error: errors.join('; ') };
+
+    if (data.customerId !== undefined && data.customerId !== null && data.customerId !== '') {
+      const customerError = await this._validateCustomerOwnership(data.customerId, tenantContext);
+      if (customerError) return { error: customerError };
+    }
 
     if (this._isIsolationActive(tenantContext)) {
       const repo = this._repoFor(tenantContext);

@@ -295,7 +295,16 @@ function frontendPrivateGuard(req, res, next) {
   }
   next();
 }
-app.use('/', frontendPrivateGuard, express.static(FRONTEND_ROOT, {
+app.use('/', frontendPrivateGuard,
+  // Platform Online MVP: the PUBLIC entry point of the site is the Platform
+  // Home — never the ERP accounting dashboard. `/` transparently serves
+  // platform.html; the company workspace (ERP) stays directly reachable at
+  // /index.html (business.html deep-links there after a real login).
+  function platformHomeIndex(req, res, next) {
+    if (req.path === '/') req.url = '/platform.html';
+    next();
+  },
+  express.static(FRONTEND_ROOT, {
   dotfiles: 'deny',
   index: 'index.html',
   fallthrough: true

@@ -1,8 +1,12 @@
-const DIGITRONICS_PWA_VERSION = 'omnistore-erp-v45-cairotech-isolation-v1';
+const DIGITRONICS_PWA_VERSION = 'omnistore-erp-v46-platform-mvp-v1';
 const APP_SHELL_CACHE = DIGITRONICS_PWA_VERSION;
 const APP_SHELL_ASSETS = [
   './',
   './index.html',
+  './platform.html',
+  './business.html',
+  './platform/platform.css',
+  './platform/platform.js',
   './services/businessEngine/registry.js',
   './services/businessEngine/businessEngine.js',
   './services/modulePlatform/moduleRegistry.js',

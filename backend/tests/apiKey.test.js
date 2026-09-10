@@ -1,9 +1,28 @@
 // API Key unit tests: generation, validation, hashing, lifecycle, revocation.
+// All writes are isolated to a temporary data directory and never touch
+// backend/data/.
 const { randomBytes, createHash } = require('crypto');
 const { v4: uuidv4 } = require('uuid');
-const apiKeyService = require('../services/apiKey.service');
+const { makeTempDataDir } = require('./helpers/testData');
+const { registerCleanup } = require('./helpers/cleanup');
 
 describe('apiKey.service', () => {
+  let dataDir;
+  let apiKeyService;
+
+  registerCleanup(() => [], () => [dataDir]);
+
+  beforeEach(() => {
+    dataDir = makeTempDataDir('apiKey');
+    process.env.DIGITRONICS_DATA_DIR = dataDir;
+    jest.resetModules();
+    apiKeyService = require('../services/apiKey.service');
+  });
+
+  afterEach(() => {
+    delete process.env.DIGITRONICS_DATA_DIR;
+  });
+
   test('generateKey produces a key with dgv2_live_ prefix', () => {
     const result = apiKeyService.generateKey({ name: 'Test Key' });
     expect(result.key).toMatch(/^dgv2_live_/);

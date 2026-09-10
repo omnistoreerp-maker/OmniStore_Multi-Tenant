@@ -1,4 +1,5 @@
 const webhookService = require('../services/webhook.service');
+const { trustedTenantId } = require('../middleware/authorize');
 const { success, error } = require('../utils/apiResponse');
 
 function register(req, res) {
@@ -8,7 +9,7 @@ function register(req, res) {
       events: req.body.events,
       secret: req.body.secret,
       description: req.body.description,
-      tenantId: req.user && req.user.tenantId ? req.user.tenantId : null
+      tenantId: trustedTenantId(req)
     });
     return success(res, hook, 'Webhook registered', 201);
   } catch (err) {
@@ -17,13 +18,11 @@ function register(req, res) {
 }
 
 function list(req, res) {
-  const query = {};
-  if (req.user && req.user.tenantId) query.tenantId = req.user.tenantId;
-  return success(res, webhookService.list(query), 'Webhooks retrieved');
+  return success(res, webhookService.list({ tenantId: trustedTenantId(req) }), 'Webhooks retrieved');
 }
 
 function getById(req, res) {
-  const hook = webhookService.getById(req.params.id);
+  const hook = webhookService.getById(req.params.id, trustedTenantId(req));
   if (!hook) return error(res, 'Webhook not found', 404);
   return success(res, hook, 'Webhook retrieved');
 }
@@ -35,7 +34,7 @@ function update(req, res) {
       events: req.body.events,
       active: req.body.active,
       description: req.body.description
-    });
+    }, trustedTenantId(req));
     if (!hook) return error(res, 'Webhook not found', 404);
     return success(res, hook, 'Webhook updated');
   } catch (err) {
@@ -44,15 +43,16 @@ function update(req, res) {
 }
 
 function remove(req, res) {
-  const ok = webhookService.remove(req.params.id);
+  const ok = webhookService.remove(req.params.id, trustedTenantId(req));
   if (!ok) return error(res, 'Webhook not found', 404);
   return success(res, null, 'Webhook removed');
 }
 
 async function sendTest(req, res) {
-  const hook = webhookService.getById(req.params.id);
+  const tenantId = trustedTenantId(req);
+  const hook = webhookService.getById(req.params.id, tenantId);
   if (!hook) return error(res, 'Webhook not found', 404);
-  const result = await webhookService.sendTest(hook, req.body.event);
+  const result = await webhookService.sendTest(hook, req.body.event, tenantId);
   if (result.ok) return success(res, result, 'Test webhook delivered');
   return error(res, 'Test webhook failed', 502, result);
 }

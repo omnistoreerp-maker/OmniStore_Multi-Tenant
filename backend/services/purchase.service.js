@@ -4,6 +4,7 @@ const { eventBus } = require('./eventBus');
 const config = require('../config');
 const BaseRepository = require('../repositories/BaseRepository');
 const repository = require('../repositories').purchases;
+const suppliersService = require('./suppliers.service');
 const branchStore = require('../middleware/branchStore');
 
 class PurchaseService {
@@ -132,6 +133,17 @@ class PurchaseService {
     return errors;
   }
 
+  async _validateSupplierOwnership(supplierId, tenantContext) {
+    if (!supplierId && supplierId !== 0) return null;
+    const strId = String(supplierId).trim();
+    if (!strId) return null;
+    if (!this._isIsolationActive(tenantContext)) return null;
+    const supplier = await suppliersService.getById(strId);
+    if (!supplier) return 'Supplier not found';
+    if (suppliersService._ownershipBlocked(supplier)) return 'Supplier not found';
+    return null;
+  }
+
   _normalizeId(id) {
     const str = String(id).trim();
     if (/^INV-\d{6}$/i.test(str)) return str.toUpperCase();
@@ -230,6 +242,11 @@ class PurchaseService {
     const errors = this._validateRequired(data, true);
     if (errors.length) return { error: errors.join('; ') };
 
+    if (data.supplierId !== undefined && data.supplierId !== null && data.supplierId !== '') {
+      const supplierError = await this._validateSupplierOwnership(data.supplierId, tenantContext);
+      if (supplierError) return { error: supplierError };
+    }
+
     if (this._isIsolationActive(tenantContext)) {
       const repo = this._repoFor(tenantContext);
       const invoice = {
@@ -266,6 +283,11 @@ class PurchaseService {
   async update(id, data, tenantContext) {
     const errors = this._validateRequired(data, false);
     if (errors.length) return { error: errors.join('; ') };
+
+    if (data.supplierId !== undefined && data.supplierId !== null && data.supplierId !== '') {
+      const supplierError = await this._validateSupplierOwnership(data.supplierId, tenantContext);
+      if (supplierError) return { error: supplierError };
+    }
 
     if (this._isIsolationActive(tenantContext)) {
       const repo = this._repoFor(tenantContext);

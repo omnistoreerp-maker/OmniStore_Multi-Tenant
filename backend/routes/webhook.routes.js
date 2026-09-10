@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/webhook.controller');
 const { requireAuth } = require('../middleware/auth');
+const { requirePermissionIfAuth } = require('../middleware/authorize');
 
 /**
  * @openapi
@@ -53,8 +54,8 @@ const { requireAuth } = require('../middleware/auth');
  *       401:
  *         description: Authentication required
  */
-router.get('/', requireAuth, ctrl.list);
-router.post('/', requireAuth, ctrl.register);
+router.get('/', requireAuth, requirePermissionIfAuth('webhooks.manage'), ctrl.list);
+router.post('/', requireAuth, requirePermissionIfAuth('webhooks.manage'), ctrl.register);
 
 /**
  * @openapi
@@ -124,9 +125,9 @@ router.post('/', requireAuth, ctrl.register);
  *       404:
  *         description: Webhook not found
  */
-router.get('/:id', requireAuth, ctrl.getById);
-router.put('/:id', requireAuth, ctrl.update);
-router.delete('/:id', requireAuth, ctrl.remove);
+router.get('/:id', requireAuth, requirePermissionIfAuth('webhooks.manage'), ctrl.getById);
+router.put('/:id', requireAuth, requirePermissionIfAuth('webhooks.manage'), ctrl.update);
+router.delete('/:id', requireAuth, requirePermissionIfAuth('webhooks.manage'), ctrl.remove);
 
 /**
  * @openapi
@@ -160,6 +161,6 @@ router.delete('/:id', requireAuth, ctrl.remove);
  *       404:
  *         description: Webhook not found
  */
-router.post('/:id/test', requireAuth, ctrl.sendTest);
+router.post('/:id/test', requireAuth, requirePermissionIfAuth('webhooks.manage'), ctrl.sendTest);
 
 module.exports = router;

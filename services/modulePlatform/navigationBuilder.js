@@ -218,7 +218,7 @@
     const scope = item.scope || 'tenant';
     if (scope === 'tenant') return true;
     if (scope === 'master') return isPlatformMaster();
-    if (scope === 'internal') return typeof root.can === 'function' && !!root.can('manageUsers');
+    if (scope === 'internal') return isPlatformMaster();
     return false;
   }
 
@@ -240,10 +240,18 @@
     Object.entries(groups).forEach(([groupId, meta]) => {
       const dropdown = root.document.getElementById(`dropdown-${groupId}`);
       if (!dropdown) return;
-      const moduleRoutes = enabled.flatMap(module =>
-        (module.navigation || []).filter(item => item.group === groupId && canShow(item.route) && scopeVisible(item))
-          .map(item => ({ ...item, moduleId: module.id }))
-      );
+      const moduleRoutes = enabled.flatMap(module => {
+        const moduleState = loader.getModuleState(module.id);
+        // Filter by: canAccessPage + scopeVisible + business type compatible
+        return (module.navigation || [])
+          .filter(item => 
+            item.group === groupId && 
+            canShow(item.route) && 
+            scopeVisible(item) &&
+            moduleState && moduleState.compatible // NEW: business type check
+          )
+          .map(item => ({ ...item, moduleId: module.id }));
+      });
       const pluginItems = pluginNavigation.filter(item => item.group === groupId && canShow(item.route) && scopeVisible(item))
         .map(item => ({
           ...item,

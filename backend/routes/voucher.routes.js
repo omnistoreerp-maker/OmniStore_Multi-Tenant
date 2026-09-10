@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/voucher.controller');
+const asyncHandler = require('../utils/asyncHandler');
 const { requirePermissionIfAuth } = require('../middleware/authorize');
 
 /**
@@ -53,8 +54,8 @@ const { requirePermissionIfAuth } = require('../middleware/authorize');
  *       401:
  *         description: Authentication required
  */
-router.get('/', requirePermissionIfAuth('vouchers.view'), ctrl.list);
-router.post('/', requirePermissionIfAuth('vouchers.create'), ctrl.create);
+router.get('/', requirePermissionIfAuth('vouchers.view'), asyncHandler(ctrl.list));
+router.post('/', requirePermissionIfAuth('vouchers.create'), asyncHandler(ctrl.create));
 
 /**
  * @openapi
@@ -71,7 +72,7 @@ router.post('/', requirePermissionIfAuth('vouchers.create'), ctrl.create);
  *       401:
  *         description: Authentication required
  */
-router.get('/stats', requirePermissionIfAuth('vouchers.view'), ctrl.getStats);
+router.get('/stats', requirePermissionIfAuth('vouchers.view'), asyncHandler(ctrl.getStats));
 
 /**
  * @openapi
@@ -134,8 +135,8 @@ router.get('/stats', requirePermissionIfAuth('vouchers.view'), ctrl.getStats);
  *       404:
  *         description: Voucher not found
  */
-router.get('/:id', requirePermissionIfAuth('vouchers.view'), ctrl.getById);
-router.put('/:id', requirePermissionIfAuth('vouchers.edit'), ctrl.update);
-router.delete('/:id', requirePermissionIfAuth('vouchers.delete'), ctrl.remove);
+router.get('/:id', requirePermissionIfAuth('vouchers.view'), asyncHandler(ctrl.getById));
+router.put('/:id', requirePermissionIfAuth('vouchers.edit'), asyncHandler(ctrl.update));
+router.delete('/:id', requirePermissionIfAuth('vouchers.delete'), asyncHandler(ctrl.remove));
 
 module.exports = router;
