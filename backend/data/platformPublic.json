@@ -1,7 +1,7 @@
 {
   "meta": {
-    "name": "OmniStore ERP",
-    "tagline": "Multi-Tenant Enterprise Resource Planning",
+    "name": "OmniStore Platform",
+    "tagline": "Multi-Tenant Platform",
     "version": "1.0.0",
     "lastUpdated": "2026-09-03T20:00:00.000Z"
   },
@@ -14,7 +14,7 @@
     { "id": "suppliers", "title": "Suppliers", "description": "Supplier directory, terms and purchase history", "icon": "fa-truck-field" }
   ],
   "stats": [
-    { "label": "Tenants", "value": "0", "description": "Active companies" },
+    { "label": "Tenants", "value": "1", "description": "Active companies" },
     { "label": "Modules", "value": "6+", "description": "Core business modules" },
     { "label": "Uptime", "value": "99.9%", "description": "Service availability" }
   ],
@@ -22,5 +22,47 @@
     { "title": "Multi-Tenant by Design", "body": "Every company is fully isolated with its own data, users and branches." },
     { "title": "Real-Time Sync", "body": "Changes propagate instantly across sales, inventory and accounting." },
     { "title": "Role-Based Access", "body": "Granular permissions keep every user within their scope." }
+  ],
+  "sections": [
+    {
+      "id": "marketplace",
+      "title": "Marketplace",
+      "description": "Visitor-facing marketplace for products and services.",
+      "status": "active",
+      "url": "/marketplace.html",
+      "icon": "fa-store"
+    },
+    {
+      "id": "business-services",
+      "title": "Business Management Services",
+      "description": "Existing company access and new company onboarding.",
+      "status": "active",
+      "url": "/business.html",
+      "icon": "fa-building"
+    },
+    {
+      "id": "student-services",
+      "title": "Student Services",
+      "description": "Student-facing services and accounts.",
+      "status": "coming-soon",
+      "url": null,
+      "icon": "fa-graduation-cap"
+    },
+    {
+      "id": "game-hosting",
+      "title": "Game Hosting",
+      "description": "Host and manage game sessions and catalogs.",
+      "status": "under-construction",
+      "url": null,
+      "icon": "fa-gamepad"
+    },
+    {
+      "id": "media-reels",
+      "title": "Media / Reels",
+      "description": "Media content and reels sharing.",
+      "status": "coming-soon",
+      "url": null,
+      "icon": "fa-film"
+    }
   ]
 }

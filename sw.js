@@ -4,6 +4,7 @@ const APP_SHELL_ASSETS = [
   './',
   './index.html',
   './platform.html',
+  './marketplace.html',
   './business.html',
   './platform/platform.css',
   './platform/platform.js',

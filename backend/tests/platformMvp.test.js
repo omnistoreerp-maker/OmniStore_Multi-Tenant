@@ -34,6 +34,23 @@ describe('Platform MVP — static surface', () => {
     expect(html).toContain('Open Application');
     expect(html).toContain('platform/platform.js');
     expect(html).not.toContain('id="loginScreen"');
+    expect(html).toContain('id="lang-switch"');
+    expect(html).toContain('id="sections"');
+    expect(html).toContain('id="activity"');
+  });
+
+  test('Marketplace section is active and points to /marketplace.html', () => {
+    const data = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'backend', 'data', 'platformPublic.json'), 'utf8'));
+    const marketplace = data.sections.find(s => s.id === 'marketplace');
+    expect(marketplace).toBeTruthy();
+    expect(marketplace.status).toBe('active');
+    expect(marketplace.url).toBe('/marketplace.html');
+  });
+
+  test('Business Management nav link and footer are translatable', () => {
+    const html = repoFile('platform.html');
+    expect(html).toContain('data-i18n="nav_business"');
+    expect(html).toContain('data-i18n="footer_text"');
   });
 
   test('business.html signs into the REAL auth flow and posts onboarding to the hardened endpoint', () => {
@@ -54,6 +71,7 @@ describe('Platform MVP — static surface', () => {
     const sw = repoFile('sw.js');
     expect(sw).toContain("'./platform.html'");
     expect(sw).toContain("'./business.html'");
+    expect(sw).toContain("'./marketplace.html'");
     expect(sw).toContain("'./platform/platform.css'");
   });
 
@@ -102,13 +120,16 @@ describe('Platform MVP — `/` serves Platform Home and public APIs', () => {
     expect(res.text).toContain('id="loginScreen"');
   });
 
-  test('GET /platform.html and /business.html are served', async () => {
+  test('GET /platform.html and /business.html and /marketplace.html are served', async () => {
     const p = await request(server.app).get('/platform.html');
     expect(p.statusCode).toBe(200);
     expect(p.text).toContain('OmniStore ERP');
     const b = await request(server.app).get('/business.html');
     expect(b.statusCode).toBe(200);
     expect(b.text).toContain('Business Management Services');
+    const m = await request(server.app).get('/marketplace.html');
+    expect(m.statusCode).toBe(200);
+    expect(m.text).toContain('Marketplace');
   });
 
   test('public catalog API stays open with the standard envelope', async () => {
