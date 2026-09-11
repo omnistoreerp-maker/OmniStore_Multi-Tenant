@@ -30,6 +30,10 @@ DEPLOY_FILES=(
     "package.json"
     "sw.js"
     "business.html"
+)
+
+# Optional manifest file — may be absent from some release artifacts
+OPTIONAL_DEPLOY_FILES=(
     "backend/data/updateManifest.json"
 )
 
@@ -121,9 +125,28 @@ validate_stage_path() {
 # ARGUMENT PARSING
 # ============================================================================
 DRY_RUN=false
+PREFLIGHT=false
+MODE="deploy"
+
 if [ "${1:-}" = "--dry-run" ]; then
     DRY_RUN=true
+    MODE="dry-run"
     log "=== DRY RUN MODE — no changes will be made ==="
+elif [ "${1:-}" = "--preflight" ]; then
+    PREFLIGHT=true
+    MODE="preflight"
+    log "=== PREFLIGHT MODE — read-only verification only ==="
+elif [ -n "${1:-}" ]; then
+    fail "Unknown argument: $1. Supported arguments: --dry-run, --preflight"
+fi
+
+if [ -n "${2:-}" ]; then
+    fail "Unknown argument: $2. Supported arguments: --dry-run, --preflight"
+fi
+
+# In preflight mode, do not require EXPECTED_PRODUCTION_SHA
+if [ "$PREFLIGHT" = true ]; then
+    EXPECTED_PRODUCTION_SHA="${EXPECTED_PRODUCTION_SHA:-}"
 fi
 
 # ============================================================================
@@ -381,9 +404,9 @@ log "Legacy static preservation pre-check: PASS"
 log ""
 log "[8/12] Deploying selective integration..."
 
-if [ "$DRY_RUN" = true ]; then
-    log "DRY RUN: would deploy selective integration files"
-    log "DRY RUN: would skip actual file copy"
+if [ "$DRY_RUN" = true ] || [ "$PREFLIGHT" = true ]; then
+    log "PREFLIGHT/DRY RUN: would deploy selective integration files"
+    log "PREFLIGHT/DRY RUN: would skip actual file copy"
 else
     # Clean and create stage directory (controlled temp path only)
     validate_stage_path "$STAGE_DIR"
@@ -409,6 +432,20 @@ else
             log "  Deployed: $file"
         else
             fail "Required file missing from artifact: $file"
+        fi
+    done
+
+    # Deploy optional files if present
+    for file in "${OPTIONAL_DEPLOY_FILES[@]}"; do
+        if [ -f "$STAGE_DIR/$file" ]; then
+            if [ ! -s "$STAGE_DIR/$file" ]; then
+                log "  WARNING: Optional artifact file is empty: $file"
+                continue
+            fi
+            cp "$STAGE_DIR/$file" "$PRODUCTION_PATH/$file"
+            log "  Deployed optional: $file"
+        else
+            log "  SKIPPED optional (not in artifact): $file"
         fi
     done
 fi
@@ -470,8 +507,8 @@ else
     log "Service was not running — starting service"
 fi
 
-if [ "$DRY_RUN" = true ]; then
-    log "DRY RUN: would restart/start omnistore.service"
+if [ "$DRY_RUN" = true ] || [ "$PREFLIGHT" = true ]; then
+    log "PREFLIGHT/DRY RUN: would restart/start omnistore.service"
 else
     if [ "$NEED_RESTART" = true ]; then
         log "Restarting omnistore.service..."
@@ -511,12 +548,12 @@ fi
 log ""
 log "[11/12] Runtime verification..."
 
-if [ "$DRY_RUN" = true ]; then
-    log "DRY RUN: would verify runtime endpoints"
-    log "DRY RUN: would verify platform pages"
-    log "DRY RUN: would verify legacy functional smoke"
+if [ "$DRY_RUN" = true ] || [ "$PREFLIGHT" = true ]; then
+    log "PREFLIGHT/DRY RUN: would verify runtime endpoints"
+    log "PREFLIGHT/DRY RUN: would verify platform pages"
+    log "PREFLIGHT/DRY RUN: would verify legacy functional smoke"
     log ""
-    log "=== Dry Run Complete ==="
+    log "=== Preflight/Dry Run Complete ==="
     log "No changes were made."
     exit 0
 fi
