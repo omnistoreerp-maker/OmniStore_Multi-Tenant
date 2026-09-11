@@ -42,7 +42,6 @@ LEGACY_PATHS=(
     "backend/controllers"
     "backend/routes"
     "backend/services"
-    "backend/models"
     "backend/repositories"
     "backend/middleware"
     "backend/config"
