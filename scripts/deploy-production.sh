@@ -223,9 +223,9 @@ if ! sudo -n systemctl is-active omnistore.service >/dev/null 2>&1; then
     fi
 fi
 
-# Verify service unit exists
-if ! systemctl list-unit-files | grep -q "^omnistore.service"; then
-    fail "omnistore.service unit not found"
+# Verify service unit exists and is enabled
+if ! systemctl is-enabled omnistore.service >/dev/null 2>&1; then
+    fail "omnistore.service unit not found or not enabled"
 fi
 
 # Verify ExecStart points to expected production launcher
