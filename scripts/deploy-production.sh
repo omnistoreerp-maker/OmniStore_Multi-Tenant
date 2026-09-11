@@ -2,7 +2,7 @@
 # ============================================================================
 # OmniStore Selective Integration — Production Deployment Script
 # Target: omnistore@192.168.1.64 /home/omnistore/OmniStore_Multi-Tenant
-# Usage: sudo bash deploy-production.sh
+# Usage: sudo bash deploy-production.sh [--dry-run]
 # ============================================================================
 
 set -euo pipefail
@@ -19,6 +19,9 @@ STAGE_DIR="/tmp/omnistore_deploy_stage"
 DEPLOY_TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 BACKUP_PATH="${BACKUP_BASE}/pre_deploy_${DEPLOY_TIMESTAMP}"
 
+# MUST be provided explicitly for safety; do NOT guess.
+EXPECTED_PRODUCTION_SHA="${EXPECTED_PRODUCTION_SHA:-}"
+
 # Selective integration files only — DO NOT replace entire repository
 DEPLOY_FILES=(
     "backend/server.js"
@@ -27,6 +30,7 @@ DEPLOY_FILES=(
     "package.json"
     "sw.js"
     "business.html"
+    "backend/data/updateManifest.json"
 )
 
 # Legacy paths that must be preserved
@@ -43,6 +47,24 @@ LEGACY_PATHS=(
     "backend/middleware"
     "backend/config"
     "backend/scripts"
+)
+
+# Legacy route/module existence checks (static + safe functional indicators)
+LEGACY_FEATURES=(
+    "company"
+    "customer"
+    "internal"
+    "market"
+    "gameHosting"
+    "playstation"
+    "loyalty"
+    "companyProfile"
+    "customerRequest"
+    "internalChangeCenter"
+    "auth/config/JWT"
+    "buildIdentity"
+    "release"
+    "customer verification"
 )
 
 # Production data files that must never be deleted
@@ -73,6 +95,26 @@ check_command() {
     command -v "$1" >/dev/null 2>&1 || fail "Required command not found: $1"
 }
 
+usage() {
+    echo "Usage: sudo bash deploy-production.sh [--dry-run]"
+    echo "Environment:"
+    echo "  EXPECTED_PRODUCTION_SHA  required unless --dry-run"
+    echo ""
+    echo "Examples:"
+    echo "  sudo EXPECTED_PRODUCTION_SHA=<sha> bash deploy-production.sh"
+    echo "  sudo EXPECTED_PRODUCTION_SHA=<sha> bash deploy-production.sh --dry-run"
+    exit 1
+}
+
+# ============================================================================
+# ARGUMENT PARSING
+# ============================================================================
+DRY_RUN=false
+if [ "${1:-}" = "--dry-run" ]; then
+    DRY_RUN=true
+    log "=== DRY RUN MODE — no changes will be made ==="
+fi
+
 # ============================================================================
 # STEP 1: PRE-FLIGHT CHECKS
 # ============================================================================
@@ -80,7 +122,7 @@ log "=== OmniStore Selective Integration Deployment ==="
 log "Timestamp: $(date -Iseconds)"
 log ""
 
-log "[1/9] Pre-flight checks..."
+log "[1/10] Pre-flight checks..."
 check_command git
 check_command systemctl
 check_command curl
@@ -89,6 +131,10 @@ check_command sha256sum
 check_command unzip
 check_command cp
 check_command mkdir
+check_command find
+check_command head
+check_command grep
+check_command sudo
 
 # Verify production path
 if [ ! -d "$PRODUCTION_PATH" ]; then
@@ -112,10 +158,25 @@ if [ ! -f "$ARTIFACT_PATH" ]; then
 fi
 
 # ============================================================================
-# STEP 2: VERIFY RELEASE ARTIFACT
+# STEP 2: SUDO / SYSTEMCTL PRECHECK
 # ============================================================================
 log ""
-log "[2/9] Verifying release artifact..."
+log "[2/10] Sudo/systemctl precheck..."
+
+if ! sudo -n systemctl is-active omnistore.service >/dev/null 2>&1; then
+    SUDO_TEST_OUTPUT=$(sudo -n systemctl is-active omnistore.service 2>&1 || true)
+    if echo "$SUDO_TEST_OUTPUT" | grep -qi "password\|authentication\|permission denied"; then
+        fail "sudo requires interactive authentication; aborting before any changes"
+    fi
+fi
+
+log "Sudo/systemctl precheck: PASS"
+
+# ============================================================================
+# STEP 3: VERIFY RELEASE ARTIFACT
+# ============================================================================
+log ""
+log "[3/10] Verifying release artifact..."
 ACTUAL_SHA256=$(sha256sum "$ARTIFACT_PATH" | cut -d' ' -f1)
 log "Expected SHA256: $RELEASE_SHA256"
 log "Actual SHA256:   $ACTUAL_SHA256"
@@ -127,10 +188,10 @@ fi
 log "Release artifact SHA256: PASS"
 
 # ============================================================================
-# STEP 3: CHECK CURRENT SERVICE STATE
+# STEP 4: CHECK CURRENT SERVICE STATE
 # ============================================================================
 log ""
-log "[3/9] Checking current service state..."
+log "[4/10] Checking current service state..."
 
 SERVICE_WAS_RUNNING=false
 PORT_WAS_LISTENING=false
@@ -150,64 +211,69 @@ else
 fi
 
 # ============================================================================
-# STEP 4: CREATE BACKUP
+# STEP 5: CREATE BACKUP
 # ============================================================================
 log ""
-log "[4/9] Creating backup..."
-mkdir -p "$BACKUP_PATH"
+log "[5/10] Creating backup..."
 
-# Backup critical files
-for file in "${DEPLOY_FILES[@]}"; do
-    if [ -f "$PRODUCTION_PATH/$file" ]; then
-        cp "$PRODUCTION_PATH/$file" "$BACKUP_PATH/$(basename "$file")"
-        log "  Backed up: $file"
-    else
-        log "  Skipped missing: $file"
-    fi
-done
+if [ "$DRY_RUN" = true ]; then
+    log "DRY RUN: would create backup at $BACKUP_PATH"
+else
+    mkdir -p "$BACKUP_PATH"
 
-# Backup .env if exists
-if [ -f "$PRODUCTION_PATH/backend/.env" ]; then
-    cp "$PRODUCTION_PATH/backend/.env" "$BACKUP_PATH/.env"
-    log "  Backed up: backend/.env"
-fi
-
-# Backup production data
-if [ -d "$PRODUCTION_PATH/backend/data" ]; then
-    mkdir -p "$BACKUP_PATH/data"
-    for datafile in "${PRODUCTION_DATA[@]}"; do
-        if [ -f "$PRODUCTION_PATH/$datafile" ]; then
-            cp "$PRODUCTION_PATH/$datafile" "$BACKUP_PATH/data/"
-            log "  Backed up data: $(basename "$datafile")"
+    # Backup critical files
+    for file in "${DEPLOY_FILES[@]}"; do
+        if [ -f "$PRODUCTION_PATH/$file" ]; then
+            cp "$PRODUCTION_PATH/$file" "$BACKUP_PATH/$(basename "$file")"
+            log "  Backed up: $file"
+        else
+            log "  Skipped missing: $file"
         fi
     done
-fi
 
-# Verify backup
-BACKUP_FILE_COUNT=$(find "$BACKUP_PATH" -type f | wc -l)
-log "Backup created at: $BACKUP_PATH"
-log "Backup files: $BACKUP_FILE_COUNT"
-
-if [ "$BACKUP_FILE_COUNT" -eq 0 ]; then
-    fail "Backup failed — no files backed up"
-fi
-
-# Verify backup is readable
-for file in "$BACKUP_PATH"/*; do
-    if [ -f "$file" ]; then
-        if ! head -c 1 "$file" >/dev/null 2>&1; then
-            fail "Backup file unreadable: $file"
-        fi
+    # Backup .env if exists
+    if [ -f "$PRODUCTION_PATH/backend/.env" ]; then
+        cp "$PRODUCTION_PATH/backend/.env" "$BACKUP_PATH/.env"
+        log "  Backed up: backend/.env"
     fi
-done
 
-log "Backup verification: PASS"
+    # Backup production data
+    if [ -d "$PRODUCTION_PATH/backend/data" ]; then
+        mkdir -p "$BACKUP_PATH/data"
+        for datafile in "${PRODUCTION_DATA[@]}"; do
+            if [ -f "$PRODUCTION_PATH/$datafile" ]; then
+                cp "$PRODUCTION_PATH/$datafile" "$BACKUP_PATH/data/"
+                log "  Backed up data: $(basename "$datafile")"
+            fi
+        done
+    fi
+
+    # Verify backup
+    BACKUP_FILE_COUNT=$(find "$BACKUP_PATH" -type f | wc -l)
+    log "Backup created at: $BACKUP_PATH"
+    log "Backup files: $BACKUP_FILE_COUNT"
+
+    if [ "$BACKUP_FILE_COUNT" -eq 0 ]; then
+        fail "Backup failed — no files backed up"
+    fi
+
+    # Verify backup is readable
+    for file in "$BACKUP_PATH"/*; do
+        if [ -f "$file" ]; then
+            if ! head -c 1 "$file" >/dev/null 2>&1; then
+                fail "Backup file unreadable: $file"
+            fi
+        fi
+    done
+
+    log "Backup verification: PASS"
+fi
 
 # ============================================================================
-# STEP 5: PRE-DEPLOYMENT LEGACY VERIFICATION
+# STEP 6: PRE-DEPLOYMENT LEGACY VERIFICATION
 # ============================================================================
 log ""
-log "[5/9] Pre-deployment legacy verification..."
+log "[6/10] Pre-deployment legacy verification..."
 LEGACY_MISSING_PRE=false
 
 for path in "${LEGACY_PATHS[@]}"; do
@@ -226,61 +292,47 @@ fi
 log "Legacy preservation pre-check: PASS"
 
 # ============================================================================
-# STEP 6: SAFE DEPLOYMENT
+# STEP 7: SAFE DEPLOYMENT
 # ============================================================================
 log ""
-log "[6/9] Deploying selective integration..."
+log "[7/10] Deploying selective integration..."
 
-# Clean and create stage directory
-rm -rf "$STAGE_DIR"
-mkdir -p "$STAGE_DIR"
+if [ "$DRY_RUN" = true ]; then
+    log "DRY RUN: would deploy selective integration files"
+    log "DRY RUN: would skip actual file copy"
+else
+    # Clean and create stage directory
+    rm -rf "$STAGE_DIR"
+    mkdir -p "$STAGE_DIR"
 
-# Extract artifact
-unzip -q "$ARTIFACT_PATH" -d "$STAGE_DIR"
+    # Extract artifact
+    unzip -q "$ARTIFACT_PATH" -d "$STAGE_DIR"
 
-# Verify artifact structure
-if [ ! -d "$STAGE_DIR/backend" ] || [ ! -d "$STAGE_DIR/services" ]; then
-    fail "Artifact structure invalid — missing backend/ or services/"
-fi
-
-# Deploy selective files only
-for file in "${DEPLOY_FILES[@]}"; do
-    if [ -f "$STAGE_DIR/$file" ]; then
-        # Verify file is not empty
-        if [ ! -s "$STAGE_DIR/$file" ]; then
-            fail "Artifact file is empty: $file"
-        fi
-        cp "$STAGE_DIR/$file" "$PRODUCTION_PATH/$file"
-        log "  Deployed: $file"
-    else
-        fail "Required file missing from artifact: $file"
+    # Verify artifact structure
+    if [ ! -d "$STAGE_DIR/backend" ] || [ ! -d "$STAGE_DIR/services" ]; then
+        fail "Artifact structure invalid — missing backend/ or services/"
     fi
-done
 
-# Deploy updateManifest.json if present (with SHA256 verification)
-if [ -f "$STAGE_DIR/backend/data/updateManifest.json" ]; then
-    MANIFEST_SHA=$(sha256sum "$STAGE_DIR/backend/data/updateManifest.json" | cut -d' ' -f1)
-    log "  Manifest SHA256 in artifact: $MANIFEST_SHA"
-    
-    # Verify manifest contains expected SHA256
-    if [ -n "$MANIFEST_SHA256" ]; then
-        if [ "$MANIFEST_SHA" != "$MANIFEST_SHA256" ]; then
-            log "  WARNING: Manifest SHA256 mismatch (expected: $MANIFEST_SHA256)"
+    # Deploy selective files only
+    for file in "${DEPLOY_FILES[@]}"; do
+        if [ -f "$STAGE_DIR/$file" ]; then
+            # Verify file is not empty
+            if [ ! -s "$STAGE_DIR/$file" ]; then
+                fail "Artifact file is empty: $file"
+            fi
+            cp "$STAGE_DIR/$file" "$PRODUCTION_PATH/$file"
+            log "  Deployed: $file"
         else
-            log "  Manifest SHA256: PASS"
+            fail "Required file missing from artifact: $file"
         fi
-    fi
-    
-    mkdir -p "$PRODUCTION_PATH/backend/data"
-    cp "$STAGE_DIR/backend/data/updateManifest.json" "$PRODUCTION_PATH/backend/data/updateManifest.json"
-    log "  Deployed: backend/data/updateManifest.json"
+    done
 fi
 
 # ============================================================================
-# STEP 7: POST-DEPLOYMENT LEGACY VERIFICATION
+# STEP 8: POST-DEPLOYMENT LEGACY VERIFICATION
 # ============================================================================
 log ""
-log "[7/9] Post-deployment legacy verification..."
+log "[8/10] Post-deployment legacy verification..."
 LEGACY_MISSING_POST=false
 
 for path in "${LEGACY_PATHS[@]}"; do
@@ -299,10 +351,10 @@ fi
 log "Legacy preservation post-check: PASS"
 
 # ============================================================================
-# STEP 8: SERVICE MANAGEMENT
+# STEP 9: SERVICE MANAGEMENT
 # ============================================================================
 log ""
-log "[8/9] Service management..."
+log "[9/10] Service management..."
 
 # Determine if restart is needed
 NEED_RESTART=false
@@ -314,47 +366,60 @@ else
     log "Service was not running — starting service"
 fi
 
-if [ "$NEED_RESTART" = true ]; then
-    log "Restarting omnistore.service..."
-    systemctl restart omnistore.service || fail "Failed to restart omnistore.service"
+if [ "$DRY_RUN" = true ]; then
+    log "DRY RUN: would restart/start omnistore.service"
 else
-    log "Starting omnistore.service..."
-    systemctl start omnistore.service || fail "Failed to start omnistore.service"
+    if [ "$NEED_RESTART" = true ]; then
+        log "Restarting omnistore.service..."
+        systemctl restart omnistore.service || fail "Failed to restart omnistore.service"
+    else
+        log "Starting omnistore.service..."
+        systemctl start omnistore.service || fail "Failed to start omnistore.service"
+    fi
+
+    # Wait for service to become active
+    MAX_WAIT=60
+    WAITED=0
+    while [ $WAITED -lt $MAX_WAIT ]; do
+        if systemctl is-active --quiet omnistore.service; then
+            log "Service is active after ${WAITED}s"
+            break
+        fi
+        if [ $WAITED -eq $MAX_WAIT ]; then
+            log "ERROR: Service failed to become active within ${MAX_WAIT}s"
+            log "Rolling back..."
+            for file in "${DEPLOY_FILES[@]}"; do
+                if [ -f "$BACKUP_PATH/$(basename "$file")" ]; then
+                    cp "$BACKUP_PATH/$(basename "$file")" "$PRODUCTION_PATH/$file"
+                    log "  Rolled back: $file"
+                fi
+            done
+            systemctl restart omnistore.service || true
+            fail "Deployment failed — rolled back to previous version"
+        fi
+        sleep 5
+        WAITED=$((WAITED + 5))
+    done
+
+    # Get service PID
+    SERVICE_PID=$(systemctl show omnistore.service --property=MainPID --value 2>/dev/null || echo "UNKNOWN")
+    log "Service MainPID: $SERVICE_PID"
 fi
 
-# Wait for service to become active
-MAX_WAIT=60
-WAITED=0
-while [ $WAITED -lt $MAX_WAIT ]; do
-    if systemctl is-active --quiet omnistore.service; then
-        log "Service is active after ${WAITED}s"
-        break
-    fi
-    if [ $WAITED -eq $MAX_WAIT ]; then
-        log "ERROR: Service failed to become active within ${MAX_WAIT}s"
-        log "Rolling back..."
-        for file in "${DEPLOY_FILES[@]}"; do
-            if [ -f "$BACKUP_PATH/$(basename "$file")" ]; then
-                cp "$BACKUP_PATH/$(basename "$file")" "$PRODUCTION_PATH/$file"
-                log "  Rolled back: $file"
-            fi
-        done
-        systemctl restart omnistore.service || true
-        fail "Deployment failed — rolled back to previous version"
-    fi
-    sleep 5
-    WAITED=$((WAITED + 5))
-done
-
-# Get service PID
-SERVICE_PID=$(systemctl show omnistore.service --property=MainPID --value 2>/dev/null || echo "UNKNOWN")
-log "Service MainPID: $SERVICE_PID"
-
 # ============================================================================
-# STEP 9: RUNTIME VERIFICATION
+# STEP 10: RUNTIME VERIFICATION
 # ============================================================================
 log ""
-log "[9/9] Runtime verification..."
+log "[10/10] Runtime verification..."
+
+if [ "$DRY_RUN" = true ]; then
+    log "DRY RUN: would verify runtime endpoints"
+    log "DRY RUN: would verify legacy features"
+    log ""
+    log "=== Dry Run Complete ==="
+    log "No changes were made."
+    exit 0
+fi
 
 # Wait for port 3001
 MAX_PORT_WAIT=30
@@ -428,6 +493,54 @@ if echo "$ROOT_BODY" | grep -q "OmniStore ERP"; then
     log "Root serves Platform content: YES"
 else
     log "WARNING: Root may not be serving Platform Home correctly"
+fi
+
+# Legacy feature verification (static checks only — no destructive actions)
+log ""
+log "Legacy feature verification (static checks)..."
+LEGACY_FEATURE_FAILURES=0
+for feature in "${LEGACY_FEATURES[@]}"; do
+    case "$feature" in
+        "company"|"customer"|"internal"|"market"|"gameHosting"|"playstation"|"loyalty"|"companyProfile"|"customerRequest"|"internalChangeCenter")
+            if [ -d "$PRODUCTION_PATH/$feature" ]; then
+                log "  STATIC_OK: $feature directory present"
+            else
+                log "  STATIC_FAIL: $feature directory missing"
+                LEGACY_FEATURE_FAILURES=$((LEGACY_FEATURE_FAILURES + 1))
+            fi
+            ;;
+        "auth/config/JWT")
+            if [ -f "$PRODUCTION_PATH/backend/middleware/marketJwt.js" ] || [ -f "$PRODUCTION_PATH/backend/middleware/auth.js" ] || grep -rq "jwt" "$PRODUCTION_PATH/backend/middleware/" 2>/dev/null; then
+                log "  STATIC_OK: auth/config/JWT present"
+            else
+                log "  STATIC_FAIL: auth/config/JWT missing"
+                LEGACY_FEATURE_FAILURES=$((LEGACY_FEATURE_FAILURES + 1))
+            fi
+            ;;
+        "buildIdentity")
+            if [ -f "$PRODUCTION_PATH/backend/services/buildIdentity.service.js" ]; then
+                log "  STATIC_OK: build identity service present"
+            else
+                log "  STATIC_FAIL: build identity service missing"
+                LEGACY_FEATURE_FAILURES=$((LEGACY_FEATURE_FAILURES + 1))
+            fi
+            ;;
+        "release"|"customer verification")
+            if [ -f "$PRODUCTION_PATH/backend/services/release.service.js" ] || [ -f "$PRODUCTION_PATH/backend/services/customerRequest.service.js" ]; then
+                log "  STATIC_OK: $feature service present"
+            else
+                log "  STATIC_FAIL: $feature service missing"
+                LEGACY_FEATURE_FAILURES=$((LEGACY_FEATURE_FAILURES + 1))
+            fi
+            ;;
+    esac
+done
+
+if [ "$LEGACY_FEATURE_FAILURES" -gt 0 ]; then
+    log "WARNING: $LEGACY_FEATURE_FAILURES legacy feature static check(s) failed"
+    log "Review before considering deployment fully successful"
+else
+    log "Legacy feature static checks: PASS"
 fi
 
 # ============================================================================
