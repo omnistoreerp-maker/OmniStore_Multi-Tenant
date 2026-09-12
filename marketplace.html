@@ -3,142 +3,542 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="OmniStore Marketplace — discover products and services from active companies.">
   <title data-i18n="marketplace_title">Marketplace — OmniStore Platform</title>
   <link rel="stylesheet" href="platform/platform.css">
   <style>
+    :root {
+      --market-accent: #0ea5e9;
+      --market-accent-2: #6366f1;
+      --market-glass: rgba(255, 255, 255, 0.72);
+      --market-border: rgba(255, 255, 255, 0.45);
+      --market-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      --market-radius: 20px;
+      --market-transition: 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+    }
+
+    .market-page {
+      min-height: 100vh;
+    }
+
     .market-hero {
-      background: linear-gradient(135deg, #0f172a, #1e293b);
+      background: linear-gradient(135deg, rgba(15, 23, 42, 0.85), rgba(30, 41, 59, 0.85));
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
       color: #fff;
       padding: 56px 16px;
-      text-align: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     }
+
+    .market-header-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
     .market-hero h1 {
       margin: 0 0 8px;
       font-size: clamp(28px, 5vw, 44px);
+      font-weight: 700;
+      letter-spacing: -0.02em;
     }
+
     .market-hero p {
       margin: 0;
       opacity: 0.85;
-      font-size: clamp(14px, 2.2vw, 18px);
+      font-size: clamp(15px, 2.2vw, 18px);
+      font-weight: 500;
     }
-    .market-toolbar {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-between;
-      margin: 16px 0;
-    }
-    .market-toolbar input {
-      flex: 1;
-      min-width: 220px;
-      padding: 10px 12px;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      background: #fff;
-      font-size: 14px;
-    }
-    .market-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
-    }
-    .market-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 18px;
-      box-shadow: var(--shadow);
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .market-card h3 {
-      margin: 0;
-      font-size: 17px;
-    }
-    .market-card p {
-      margin: 0;
-      color: var(--muted);
-      font-size: 13px;
-    }
-    .market-card .price {
-      font-weight: 700;
-      color: var(--text);
-    }
-    .market-card .company {
-      font-size: 12px;
-      color: var(--muted);
-    }
-    .empty-state {
-      text-align: center;
-      padding: 40px 16px;
-      color: var(--muted);
-    }
-    .back-link {
-      display: inline-block;
-      margin: 12px 16px;
-      color: #fff;
-      text-decoration: none;
-      opacity: 0.9;
-    }
-    .back-link:hover { opacity: 1; }
+
     .market-header-actions {
       display: flex;
       align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      padding: 8px 14px;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      border-radius: 999px;
+      color: #fff;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      transition: transform var(--market-transition), background var(--market-transition), opacity var(--market-transition);
+    }
+
+    .back-link:hover {
+      background: rgba(255, 255, 255, 0.18);
+      transform: translateY(-1px);
+      opacity: 1;
+    }
+
+    .back-link:active {
+      transform: scale(0.96);
+      transition: transform 0.1s ease;
+    }
+
+    .lang-btn {
+      background: rgba(255, 255, 255, 0.15);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      padding: 10px 18px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform var(--market-transition), background var(--market-transition), box-shadow var(--market-transition);
+    }
+
+    .lang-btn:hover {
+      background: rgba(255, 255, 255, 0.25);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .lang-btn:active {
+      transform: scale(0.96);
+      transition: transform 0.1s ease;
+    }
+
+    .market-toolbar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      margin: 24px 0;
+    }
+
+    .market-search-wrap {
+      flex: 1;
+      min-width: 220px;
+      position: relative;
+    }
+
+    .market-search-wrap input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1px solid var(--market-border);
+      border-radius: 14px;
+      background: var(--market-glass);
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      font-size: 14px;
+      color: var(--text);
+      transition: transform var(--market-transition), box-shadow var(--market-transition), border-color var(--market-transition);
+    }
+
+    .market-search-wrap input:focus {
+      outline: none;
+      border-color: rgba(255, 255, 255, 0.8);
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+      transform: translateY(-1px);
+    }
+
+    .market-search-wrap input::placeholder {
+      color: var(--muted);
+      opacity: 0.8;
+    }
+
+    .market-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .market-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 18px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--market-accent), var(--market-accent-2));
+      color: #fff;
+      border: none;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+      transition: transform var(--market-transition), box-shadow var(--market-transition), opacity var(--market-transition);
+    }
+
+    .market-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 20px rgba(99, 102, 241, 0.35);
+      opacity: 0.95;
+    }
+
+    .market-btn:active {
+      transform: scale(0.96);
+      transition: transform 0.1s ease;
+    }
+
+    .market-btn-secondary {
+      background: rgba(243, 244, 246, 0.7);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      color: var(--text);
+      border: 1px solid var(--market-border);
+      box-shadow: none;
+    }
+
+    .market-btn-secondary:hover {
+      background: rgba(229, 231, 235, 0.8);
+      box-shadow: none;
+      opacity: 1;
+    }
+
+    .market-section-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin: 32px 0 16px;
+      letter-spacing: -0.01em;
+    }
+
+    .market-section-subtitle {
+      font-size: 14px;
+      color: var(--muted);
+      margin: 0 0 20px;
+    }
+
+    .company-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+      margin-bottom: 32px;
+    }
+
+    .company-card {
+      background: var(--market-glass);
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      border: 1px solid var(--market-border);
+      border-radius: var(--market-radius);
+      padding: 22px;
+      box-shadow: var(--market-shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: transform var(--market-transition), box-shadow var(--market-transition), border-color var(--market-transition);
+      cursor: pointer;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .company-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 20px 40px rgba(15, 23, 42, 0.12);
+      border-color: rgba(255, 255, 255, 0.7);
+    }
+
+    .company-card:active {
+      transform: scale(0.98);
+      transition: transform 0.1s ease;
+    }
+
+    .company-icon {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #e0f2fe, #eef2ff);
+      color: var(--market-accent);
+      font-size: 20px;
+    }
+
+    .company-name {
+      font-size: 17px;
+      font-weight: 700;
+      margin: 0;
+      letter-spacing: -0.01em;
+    }
+
+    .company-meta {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .company-cta {
+      margin-top: 6px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--market-accent);
+    }
+
+    .market-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+    }
+
+    .product-card {
+      background: var(--market-glass);
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      border: 1px solid var(--market-border);
+      border-radius: var(--market-radius);
+      padding: 22px;
+      box-shadow: var(--market-shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: transform var(--market-transition), box-shadow var(--market-transition), border-color var(--market-transition);
+    }
+
+    .product-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 20px 40px rgba(15, 23, 42, 0.12);
+      border-color: rgba(255, 255, 255, 0.7);
+    }
+
+    .product-card:active {
+      transform: scale(0.98);
+      transition: transform 0.1s ease;
+    }
+
+    .product-media {
+      width: 100%;
+      aspect-ratio: 16/9;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #eef2ff, #e0f2fe);
+      display: grid;
+      place-items: center;
+      color: var(--market-accent);
+      font-size: 28px;
+      overflow: hidden;
+    }
+
+    .product-media img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .product-name {
+      font-size: 17px;
+      font-weight: 700;
+      margin: 0;
+      letter-spacing: -0.01em;
+    }
+
+    .product-desc {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.55;
+      margin: 0;
+    }
+
+    .product-meta {
+      display: flex;
+      align-items: center;
       justify-content: space-between;
       gap: 10px;
       flex-wrap: wrap;
-      margin-bottom: 10px;
-    }
-    .lang-btn {
-      background: rgba(255, 255, 255, 0.15);
-      color: #fff;
-      border: 1px solid rgba(255, 255, 255, 0.35);
-      padding: 8px 14px;
-      border-radius: 999px;
       font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
+      color: var(--muted);
     }
-    .lang-btn:hover { background: rgba(255, 255, 255, 0.25); }
-    @media (max-width: 480px) {
-      .market-header-actions { flex-direction: column; align-items: stretch; }
-      .lang-btn { width: 100%; }
+
+    .product-price {
+      font-weight: 700;
+      color: var(--text);
+      font-size: 15px;
     }
-    [dir="rtl"] .market-header-actions { flex-direction: row-reverse; }
+
+    .product-cta {
+      margin-top: 4px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--market-accent), var(--market-accent-2));
+      color: #fff;
+      font-weight: 600;
+      font-size: 14px;
+      text-decoration: none;
+      width: fit-content;
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+      transition: transform var(--market-transition), box-shadow var(--market-transition), opacity var(--market-transition);
+    }
+
+    .product-cta:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 20px rgba(99, 102, 241, 0.35);
+      opacity: 0.95;
+    }
+
+    .product-cta:active {
+      transform: scale(0.96);
+      transition: transform 0.1s ease;
+    }
+
+    .market-status {
+      padding: 18px 20px;
+      border-radius: var(--market-radius);
+      background: var(--market-glass);
+      backdrop-filter: blur(24px) saturate(180%);
+      -webkit-backdrop-filter: blur(24px) saturate(180%);
+      border: 1px solid var(--market-border);
+      box-shadow: var(--market-shadow);
+      text-align: center;
+      color: var(--muted);
+      font-weight: 600;
+      margin: 24px 0;
+    }
+
+    .market-status.error {
+      color: #b91c1c;
+      border-color: rgba(254, 202, 202, 0.8);
+      background: rgba(254, 242, 242, 0.7);
+    }
+
+    .market-status.success {
+      color: #166534;
+      border-color: rgba(187, 247, 208, 0.8);
+      background: rgba(220, 252, 231, 0.7);
+    }
+
+    .market-loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 40px 16px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .market-loading::before {
+      content: '';
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 2px solid rgba(14, 165, 233, 0.3);
+      border-top-color: var(--market-accent);
+      animation: market-spin 0.8s linear infinite;
+    }
+
+    @keyframes market-spin {
+      to { transform: rotate(360deg); }
+    }
+
     @media (max-width: 880px) {
-      .market-grid { grid-template-columns: repeat(2, 1fr); }
+      .company-grid, .market-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
     }
+
     @media (max-width: 480px) {
-      .market-grid { grid-template-columns: 1fr; }
+      .company-grid, .market-grid {
+        grid-template-columns: 1fr;
+      }
+      .market-header-top {
+        flex-direction: column;
+      }
+      .market-header-actions {
+        width: 100%;
+      }
+      .back-link, .lang-btn {
+        width: 100%;
+        justify-content: center;
+      }
+      .market-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .market-actions {
+        width: 100%;
+      }
+      .market-btn, .market-btn-secondary {
+        width: 100%;
+        justify-content: center;
+      }
     }
-    [dir="rtl"] .market-hero { text-align: center; }
+
+    [dir="rtl"] .market-header-top { flex-direction: row-reverse; }
+    [dir="rtl"] .market-header-actions { flex-direction: row-reverse; }
+    [dir="rtl"] .market-toolbar { flex-direction: row-reverse; }
+    [dir="rtl"] .market-actions { flex-direction: row-reverse; }
+    [dir="rtl"] .company-card { text-align: right; }
+    [dir="rtl"] .product-card { text-align: right; }
+    [dir="rtl"] .product-meta { flex-direction: row-reverse; }
+    [dir="rtl"] .company-cta { text-align: right; }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
   </style>
 </head>
 <body>
-  <header class="market-hero">
-    <div class="market-header-actions">
-      <a class="back-link" href="/platform.html" data-i18n="back_to_platform">← Back to Platform Home</a>
-      <button id="lang-switch" class="lang-btn" type="button">العربية</button>
-    </div>
-    <h1 data-i18n="marketplace_title">Marketplace</h1>
-    <p data-i18n="marketplace_subtitle">Discover products and services from active companies.</p>
-  </header>
+  <div class="market-page">
+    <header class="market-hero">
+      <div class="market-header-top">
+        <div>
+          <h1 data-i18n="marketplace_title">Marketplace</h1>
+          <p data-i18n="marketplace_subtitle">Discover products and services from active companies.</p>
+        </div>
+        <div class="market-header-actions">
+          <a class="back-link" href="/platform.html" data-i18n="back_to_platform">← Back to Platform Home</a>
+          <button id="lang-switch" class="lang-btn" type="button">العربية</button>
+        </div>
+      </div>
+    </header>
 
-  <main class="container">
-    <section class="market-toolbar">
-      <input id="market-search" type="search" data-i18n-placeholder="search_placeholder" placeholder="Search products...">
-      <button id="market-search-btn" class="btn-primary" data-i18n="search_button">Search</button>
-    </section>
+    <main class="container">
+      <section class="market-toolbar">
+        <div class="market-search-wrap">
+          <input id="market-search" type="search" data-i18n-placeholder="search_placeholder" placeholder="Search products...">
+        </div>
+        <div class="market-actions">
+          <button id="market-search-btn" class="market-btn" data-i18n="search_button">Search</button>
+          <button id="market-clear-btn" class="market-btn market-btn-secondary" data-i18n="clear_button">Clear</button>
+        </div>
+      </section>
 
-    <section id="market-results" class="market-grid"></section>
+      <section id="market-loading" class="market-loading" style="display:none;">
+        <span data-i18n="loading">Loading marketplace...</span>
+      </section>
 
-    <section id="market-empty" class="empty-state" style="display:none;">
-      <p data-i18n="empty_title">No public products available yet.</p>
-      <p data-i18n="empty_hint">Active companies have not published products to the marketplace.</p>
-    </section>
-  </main>
+      <section id="market-status" class="market-status" style="display:none;"></section>
+
+      <section id="companies-section" style="display:none;">
+        <h2 class="market-section-title" data-i18n="companies_title">Companies</h2>
+        <p class="market-section-subtitle" data-i18n="companies_subtitle">Browse active companies in the marketplace.</p>
+        <div id="companies-results" class="company-grid"></div>
+      </section>
+
+      <section id="market-results-section">
+        <h2 class="market-section-title" data-i18n="products_title">Products</h2>
+        <p class="market-section-subtitle" data-i18n="products_subtitle">Discover products from active companies.</p>
+        <div id="market-results" class="market-grid"></div>
+      </section>
+
+      <section id="market-empty" class="market-status" style="display:none;">
+        <div>
+          <div style="font-size: 18px; font-weight: 700; margin-bottom: 6px;" data-i18n="empty_title">No public products available yet.</div>
+          <div style="font-weight: 500;" data-i18n="empty_hint">Active companies have not published products to the marketplace.</div>
+        </div>
+      </section>
+    </main>
+  </div>
 
   <script>
     (function () {
@@ -155,9 +555,20 @@
           back_to_platform: '← Back to Platform Home',
           search_placeholder: 'Search products...',
           search_button: 'Search',
+          clear_button: 'Clear',
           empty_title: 'No public products available yet.',
           empty_hint: 'Active companies have not published products to the marketplace.',
-          loading: 'Loading marketplace...'
+          loading: 'Loading marketplace...',
+          error_title: 'Unable to load marketplace',
+          error_hint: 'Please try again later.',
+          companies_title: 'Companies',
+          companies_subtitle: 'Browse active companies in the marketplace.',
+          products_title: 'Products',
+          products_subtitle: 'Discover products from active companies.',
+          view_products: 'View products',
+          sold_by: 'Sold by',
+          price_not_available: 'Price not available',
+          product_count: 'products'
         },
         ar: {
           lang: 'ar',
@@ -167,9 +578,20 @@
           back_to_platform: 'العودة إلى الصفحة الرئيسية ←',
           search_placeholder: 'بحث عن المنتجات...',
           search_button: 'بحث',
+          clear_button: 'مسح',
           empty_title: 'لا توجد منتجات عامة متاحة حالياً.',
           empty_hint: 'الشركات النشطة لم تنشر منتجات في السوق بعد.',
-          loading: 'جارٍ تحميل السوق...'
+          loading: 'جارٍ تحميل السوق...',
+          error_title: 'تعذر تحميل السوق',
+          error_hint: 'يرجى المحاولة مرة أخرى لاحقاً.',
+          companies_title: 'الشركات',
+          companies_subtitle: 'تصفح الشركات النشطة في السوق.',
+          products_title: 'المنتجات',
+          products_subtitle: 'اكتشف المنتجات من الشركات النشطة.',
+          view_products: 'عرض المنتجات',
+          sold_by: 'يباع بواسطة',
+          price_not_available: 'السعر غير متاح',
+          product_count: 'منتجات'
         }
       };
 
@@ -204,72 +626,201 @@
         return json.data;
       }
 
-      function renderProductCard(product, companyName) {
-        const card = document.createElement('div');
-        card.className = 'market-card';
-        const title = document.createElement('h3');
-        title.textContent = product.name || 'Unnamed product';
-        const desc = document.createElement('p');
-        desc.textContent = product.description || '';
-        const price = document.createElement('div');
-        price.className = 'price';
-        const currency = product.currency || '';
-        const sell = typeof product.sellPrice === 'number' ? product.sellPrice : null;
-        price.textContent = sell !== null ? (currency + ' ' + sell.toFixed(2)) : 'Price not available';
-        const company = document.createElement('div');
-        company.className = 'company';
-        company.textContent = companyName ? ('Sold by: ' + companyName) : '';
-        card.appendChild(title);
-        card.appendChild(desc);
-        card.appendChild(price);
-        if (companyName) card.appendChild(company);
+      function showLoading() {
+        document.getElementById('market-loading').style.display = 'flex';
+        document.getElementById('market-status').style.display = 'none';
+        document.getElementById('market-empty').style.display = 'none';
+      }
+
+      function hideLoading() {
+        document.getElementById('market-loading').style.display = 'none';
+      }
+
+      function showStatus(message, type) {
+        const el = document.getElementById('market-status');
+        el.textContent = message;
+        el.className = 'market-status ' + (type || '');
+        el.style.display = 'block';
+      }
+
+      function hideStatus() {
+        document.getElementById('market-status').style.display = 'none';
+      }
+
+      function renderCompanyCard(company) {
+        const card = document.createElement('a');
+        card.className = 'company-card';
+        card.href = '/marketplace.html?company=' + encodeURIComponent(company.id);
+        card.rel = 'nofollow';
+
+        const icon = document.createElement('div');
+        icon.className = 'company-icon';
+        icon.innerHTML = '<i class="fa-solid fa-store"></i>';
+
+        const name = document.createElement('div');
+        name.className = 'company-name';
+        name.textContent = company.name || 'Unnamed company';
+
+        const meta = document.createElement('div');
+        meta.className = 'company-meta';
+        const status = company.active ? 'Active' : 'Inactive';
+        meta.textContent = status;
+
+        const cta = document.createElement('div');
+        cta.className = 'company-cta';
+        const t = TRANSLATIONS[getLang()] || TRANSLATIONS.en;
+        cta.textContent = t.view_products || 'View products';
+
+        card.appendChild(icon);
+        card.appendChild(name);
+        card.appendChild(meta);
+        card.appendChild(cta);
         return card;
       }
 
+      function renderProductCard(product, companyName) {
+        const card = document.createElement('div');
+        card.className = 'product-card';
+
+        const media = document.createElement('div');
+        media.className = 'product-media';
+        if (product.image) {
+          const img = document.createElement('img');
+          img.src = product.image;
+          img.alt = product.name || 'Product image';
+          img.loading = 'lazy';
+          media.appendChild(img);
+        } else {
+          media.innerHTML = '<i class="fa-solid fa-box"></i>';
+        }
+
+        const name = document.createElement('div');
+        name.className = 'product-name';
+        name.textContent = product.name || 'Unnamed product';
+
+        const desc = document.createElement('div');
+        desc.className = 'product-desc';
+        desc.textContent = product.description || '';
+
+        const meta = document.createElement('div');
+        meta.className = 'product-meta';
+
+        const price = document.createElement('div');
+        price.className = 'product-price';
+        const currency = product.currency || '';
+        const sell = typeof product.sellPrice === 'number' ? product.sellPrice : null;
+        price.textContent = sell !== null ? (currency + ' ' + sell.toFixed(2)) : (TRANSLATIONS[getLang()] || TRANSLATIONS.en).price_not_available;
+
+        const company = document.createElement('div');
+        company.textContent = companyName ? ((TRANSLATIONS[getLang()] || TRANSLATIONS.en).sold_by + ': ' + companyName) : '';
+
+        meta.appendChild(price);
+        if (company.textContent) meta.appendChild(company);
+
+        const cta = document.createElement('a');
+        cta.className = 'product-cta';
+        cta.textContent = (TRANSLATIONS[getLang()] || TRANSLATIONS.en).view_products;
+        cta.href = '#';
+        cta.addEventListener('click', function (e) {
+          e.preventDefault();
+        });
+
+        card.appendChild(media);
+        card.appendChild(name);
+        card.appendChild(desc);
+        card.appendChild(meta);
+        card.appendChild(cta);
+        return card;
+      }
+
+      function getQueryParam(name) {
+        const params = new URLSearchParams(window.location.search);
+        return params.get(name);
+      }
+
       async function loadMarketplace(query) {
+        showLoading();
+        hideStatus();
         const results = document.getElementById('market-results');
         const empty = document.getElementById('market-empty');
+        const companiesSection = document.getElementById('companies-section');
+        const companiesResults = document.getElementById('companies-results');
         results.innerHTML = '';
         empty.style.display = 'none';
+        companiesResults.innerHTML = '';
+        companiesSection.style.display = 'none';
+
         try {
           const companies = await loadJSON('/marketplace/companies').catch(function () { return { companies: [] }; });
           const companyList = Array.isArray(companies.companies) ? companies.companies : [];
+
           if (companyList.length === 0) {
             empty.style.display = 'block';
+            hideLoading();
             return;
           }
+
+          companyList.forEach(function (c) {
+            companiesResults.appendChild(renderCompanyCard(c));
+          });
+          companiesSection.style.display = 'block';
+
           let totalProducts = [];
+          const selectedCompany = getQueryParam('company');
+          const normalizedQuery = (query || '').trim();
+
           for (const c of companyList) {
+            if (selectedCompany && c.id !== selectedCompany) continue;
             try {
-              const data = await loadJSON('/marketplace/company/' + encodeURIComponent(c.id) + '/products' + (query ? '?search=' + encodeURIComponent(query) : ''));
+              const path = '/marketplace/company/' + encodeURIComponent(c.id) + '/products' + (normalizedQuery ? '?search=' + encodeURIComponent(normalizedQuery) : '');
+              const data = await loadJSON(path);
               const products = (data && data.products) || [];
               totalProducts = totalProducts.concat(products.map(function (p) { return Object.assign({}, p, { companyName: c.name }); }));
             } catch (_) {}
           }
+
           if (totalProducts.length === 0) {
             empty.style.display = 'block';
+            hideLoading();
             return;
           }
+
           totalProducts.forEach(function (p) {
             results.appendChild(renderProductCard(p, p.companyName));
           });
+
+          hideLoading();
+          showStatus((TRANSLATIONS[getLang()] || TRANSLATIONS.en).products_title + ': ' + totalProducts.length, 'success');
+          setTimeout(hideStatus, 2000);
         } catch (err) {
           console.error('marketplace load error:', err);
-          results.innerHTML = '<p style="color:#b91c1c">Unable to load marketplace. Please try again later.</p>';
+          hideLoading();
+          showStatus((TRANSLATIONS[getLang()] || TRANSLATIONS.en).error_title + ': ' + ((TRANSLATIONS[getLang()] || TRANSLATIONS.en).error_hint), 'error');
         }
       }
 
       function bindEvents() {
-        document.getElementById('market-search-btn').addEventListener('click', function () {
-          const q = document.getElementById('market-search').value.trim();
+        const searchInput = document.getElementById('market-search');
+        const searchBtn = document.getElementById('market-search-btn');
+        const clearBtn = document.getElementById('market-clear-btn');
+
+        searchBtn.addEventListener('click', function () {
+          const q = searchInput.value.trim();
           loadMarketplace(q || '');
         });
-        document.getElementById('market-search').addEventListener('keydown', function (e) {
+
+        clearBtn.addEventListener('click', function () {
+          searchInput.value = '';
+          loadMarketplace('');
+        });
+
+        searchInput.addEventListener('keydown', function (e) {
           if (e.key === 'Enter') {
-            const q = document.getElementById('market-search').value.trim();
+            const q = searchInput.value.trim();
             loadMarketplace(q || '');
           }
         });
+
         const switchBtn = document.getElementById('lang-switch');
         if (switchBtn) {
           switchBtn.addEventListener('click', function () {
