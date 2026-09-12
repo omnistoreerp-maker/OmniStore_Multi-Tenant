@@ -2,6 +2,7 @@
 
 const { success, error } = require('../utils/apiResponse');
 const platformCatalog = require('../services/platformCatalog.service');
+const platformActivity = require('../services/platformActivity.service');
 const CompanyProvisionService = require('../services/companyProvision.service');
 const logger = require('../utils/logger');
 
@@ -29,8 +30,8 @@ function getFeatures(req, res) {
 
 function getStats(req, res) {
   try {
-    const data = platformCatalog.getCatalog();
-    success(res, { stats: data.stats || [] }, 'Stats retrieved');
+    const stats = platformActivity.getStats();
+    success(res, stats, 'Stats retrieved');
   } catch (err) {
     error(res, 'Failed to retrieve stats', 500);
   }
@@ -42,6 +43,28 @@ function getHighlights(req, res) {
     success(res, { highlights: data.highlights || [] }, 'Highlights retrieved');
   } catch (err) {
     error(res, 'Failed to retrieve highlights', 500);
+  }
+}
+
+function getSections(req, res) {
+  try {
+    const data = platformCatalog.getCatalog();
+    success(res, { sections: data.sections || [] }, 'Sections retrieved');
+  } catch (err) {
+    error(res, 'Failed to retrieve sections', 500);
+  }
+}
+
+function activityHeartbeat(req, res) {
+  try {
+    const visitorId = req.body && req.body.visitorId;
+    if (!visitorId) return error(res, 'visitorId is required', 400);
+    const result = platformActivity.heartbeat(String(visitorId).trim());
+    if (result.error) return error(res, result.error, 400);
+    return success(res, { ok: true }, 'Heartbeat received');
+  } catch (err) {
+    logger.error('platformPublic.activityHeartbeat error:', err.message);
+    return error(res, 'Failed to record heartbeat', 500);
   }
 }
 
@@ -67,6 +90,8 @@ module.exports = {
   getFeatures,
   getStats,
   getHighlights,
+  getSections,
+  activityHeartbeat,
   provisionCompany,
   notFound
 };

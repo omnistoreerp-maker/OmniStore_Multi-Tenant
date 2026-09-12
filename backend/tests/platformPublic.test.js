@@ -95,11 +95,19 @@ describe('GET /api/v1/platform-public', () => {
     expect(res.body.data.features.length).toBe(6);
   });
 
-  test('3: anonymous can GET /stats', async () => {
+  test('3: anonymous can GET /stats with activity metrics', async () => {
     const res = await request(server).get('/api/v1/platform-public/stats');
     expect(res.status).toBe(200);
-    expect(Array.isArray(res.body.data.stats)).toBe(true);
-    expect(res.body.data.stats.length).toBe(3);
+    expect(res.body.data).toHaveProperty('visitorsNow');
+    expect(res.body.data).toHaveProperty('registeredUsers');
+    expect(res.body.data).toHaveProperty('activeBusinesses');
+    expect(res.body.data).toHaveProperty('ordersToday');
+    expect(typeof res.body.data.visitorsNow).toBe('number');
+    expect(typeof res.body.data.registeredUsers).toBe('number');
+    expect(typeof res.body.data.activeBusinesses).toBe('number');
+    expect(res.body.data.ordersToday).toBeNull();
+    expect(res.body.data.registeredUsers).toBeGreaterThanOrEqual(1);
+    expect(res.body.data.activeBusinesses).toBeGreaterThanOrEqual(1);
   });
 
   test('4: anonymous can GET /highlights', async () => {
@@ -183,9 +191,13 @@ describe('GET /api/v1/platform-public', () => {
     expect(res.body.data.features.length).toBe(6);
   });
 
-  test('18: stats array has 3 items', async () => {
+  test('18: stats response contains activity metrics', async () => {
     const res = await request(server).get('/api/v1/platform-public/stats');
-    expect(res.body.data.stats.length).toBe(3);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveProperty('visitorsNow');
+    expect(res.body.data).toHaveProperty('registeredUsers');
+    expect(res.body.data).toHaveProperty('activeBusinesses');
+    expect(res.body.data).toHaveProperty('ordersToday');
   });
 
   test('19: highlights array has 3 items', async () => {
