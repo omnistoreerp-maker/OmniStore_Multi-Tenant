@@ -2,6 +2,9 @@ module.exports = {
   testEnvironment: 'node',
   roots: ['<rootDir>/tests'],
   testMatch: ['**/*.test.js'],
+  moduleNameMapper: {
+    '^dotenv$': '<rootDir>/tests/helpers/dotenvMock.js',
+  },
   testTimeout: 30000,
   collectCoverageFrom: [
     '**/*.js',

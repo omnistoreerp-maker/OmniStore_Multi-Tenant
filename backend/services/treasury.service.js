@@ -1,5 +1,7 @@
 const { v4: uuidv4 } = require('uuid');
 const logger = require('../utils/logger');
+const config = require('../config');
+const branchStore = require('../middleware/branchStore');
 const repository = require('../repositories').treasury;
 
 class TreasuryService {
@@ -37,6 +39,45 @@ class TreasuryService {
     return currentId == null || String(tid) !== String(currentId);
   }
 
+  _branchActive() {
+    return config.branchIsolationEnabled && !!branchStore.get();
+  }
+
+  _branchBlocked(entry) {
+    if (!config.branchIsolationEnabled) return false;
+    if (!entry || typeof entry !== 'object') return true;
+    const bid = entry.branchId;
+    if (bid === undefined || bid === null || bid === '') return false;
+    const scope = branchStore.get();
+    if (!scope) return false;
+    return String(bid) !== String(scope);
+  }
+
+  _branchVisibleEntries(entries) {
+    if (!this._branchActive()) return entries;
+    const scope = branchStore.get();
+    return entries.filter(e => {
+      if (!e || typeof e !== 'object') return true;
+      if (e.branchId === undefined || e.branchId === null || e.branchId === '') return true;
+      return String(e.branchId) === scope;
+    });
+  }
+
+  _applyBranchToCreate(data) {
+    if (!config.branchIsolationEnabled) return null;
+    const scope = branchStore.get();
+    if (!scope) return null;
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      if (data.branchId != null && data.branchId !== '' && String(data.branchId) !== String(scope)) {
+        return 'Branch scope denied';
+      }
+      if (data.branchId === undefined || data.branchId === null || data.branchId === '') {
+        data.branchId = scope;
+      }
+    }
+    return null;
+  }
+
   _validateRequired(data, forCreate) {
     const errors = [];
     if (forCreate && (data.type === undefined || data.type === null || String(data.type).trim() === '')) errors.push('type is required');
@@ -62,6 +103,7 @@ class TreasuryService {
   async list(query = {}) {
     const db = await this._load();
     let entries = db.entries || [];
+    entries = this._branchVisibleEntries(entries);
 
     if (query.search) {
       const q = String(query.search).toLowerCase();
@@ -122,12 +164,15 @@ class TreasuryService {
   async getById(id) {
     const db = await this._load();
     const normalized = this._normalizeId(id);
-    return (db.entries || []).find(e => this._matchesId(e, normalized)) || null;
+    const found = (db.entries || []).find(e => this._matchesId(e, normalized)) || null;
+    if (found && this._branchBlocked(found)) return null;
+    return found;
   }
 
   async stats() {
     const db = await this._load();
-    const entries = db.entries || [];
+    let entries = db.entries || [];
+    entries = this._branchVisibleEntries(entries);
     let cashIn = 0, cashOut = 0;
     entries.forEach(e => {
       const type = String(e.type || '').toLowerCase();
@@ -138,6 +183,8 @@ class TreasuryService {
   }
 
   async create(data) {
+    const branchError = this._applyBranchToCreate(data);
+    if (branchError) return { error: branchError };
     const errors = this._validateRequired(data, true);
     if (errors.length) return { error: errors.join('; ') };
 
@@ -178,6 +225,7 @@ class TreasuryService {
     const idx = (db.entries || []).findIndex(e => this._matchesId(e, normalized));
     if (idx === -1) return { error: 'Treasury entry not found' };
     if (this._ownershipBlocked(db.entries[idx])) return { error: 'Treasury entry not found' };
+    if (this._branchBlocked(db.entries[idx])) return { error: 'Treasury entry not found' };
 
     const errors = this._validateRequired(data, false);
     if (errors.length) return { error: errors.join('; ') };
@@ -193,6 +241,7 @@ class TreasuryService {
     const idx = (db.entries || []).findIndex(e => this._matchesId(e, normalized));
     if (idx === -1) return { error: 'Treasury entry not found' };
     if (this._ownershipBlocked(db.entries[idx])) return { error: 'Treasury entry not found' };
+    if (this._branchBlocked(db.entries[idx])) return { error: 'Treasury entry not found' };
     db.entries.splice(idx, 1);
     if (await this._save(db)) return { success: true };
     return { error: 'Failed to persist deletion' };
