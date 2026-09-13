@@ -64,6 +64,8 @@ module.exports = {
   tenantUserMembershipEnabled: process.env.ENABLE_TENANT_USER_MEMBERSHIP === 'true',
   tenantRolesEnabled: process.env.ENABLE_TENANT_ROLES === 'true',
   tenantCarryEnabled: process.env.ENABLE_TENANT_CARRY === 'true',
+  customDomainResolutionEnabled: process.env.ENABLE_CUSTOM_DOMAIN_RESOLUTION === 'true',
+  platformDomain: process.env.PLATFORM_DOMAIN || 'app.omnistoreerp.com',
   // Branch-level isolation (Phase F). OPT-IN via ENABLE_BRANCH_ISOLATION.
   // When enabled, branch-scoped users (users with a trusted `branchId`) are
   // confined to their own branch: the trusted branch is taken from the STORED

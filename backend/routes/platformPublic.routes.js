@@ -2,6 +2,7 @@
 
 const router = require('express').Router();
 const ctrl = require('../controllers/platformPublic.controller');
+const tiktokCtrl = require('../controllers/tiktokFeed.controller');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
 const { error: errorResponse } = require('../utils/apiResponse');
@@ -31,10 +32,23 @@ const provisionLimiter = rateLimit({
   message: { success: false, message: 'Too many provisioning attempts, please try again later', data: null }
 });
 
+// Heartbeat limiter: 1 req/sec per IP, enough for the 60s browser cadence.
+const heartbeatLimiter = rateLimit({
+  windowMs: 1 * 1000,
+  max: isTest ? 1000 : 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => ipKeyGenerator(req.ip || req.connection.remoteAddress || 'unknown'),
+  message: { success: false, message: 'Too many heartbeats, please try again later', data: null }
+});
+
 router.get('/catalog', ctrl.getCatalog);
 router.get('/features', ctrl.getFeatures);
 router.get('/stats', ctrl.getStats);
 router.get('/highlights', ctrl.getHighlights);
+router.get('/sections', ctrl.getSections);
+router.get('/pricing', ctrl.getPricing);
+router.get('/social-feed/tiktok', tiktokCtrl.getTikTokFeed);
 
 router.post('/', ctrl.notFound);
 router.put('/', ctrl.notFound);
@@ -60,6 +74,27 @@ router.post('/highlights', ctrl.notFound);
 router.put('/highlights', ctrl.notFound);
 router.patch('/highlights', ctrl.notFound);
 router.delete('/highlights', ctrl.notFound);
+
+router.post('/sections', ctrl.notFound);
+router.put('/sections', ctrl.notFound);
+router.patch('/sections', ctrl.notFound);
+router.delete('/sections', ctrl.notFound);
+
+// Public payment intents for unauthenticated checkout / pricing page.
+const paymentLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isTest ? 10000 : 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => ipKeyGenerator(req.ip || req.connection.remoteAddress || 'unknown'),
+  message: { success: false, message: 'Too many payment attempts, please try again later', data: null }
+});
+router.post('/payments/intent', paymentLimiter, ctrl.createPublicPaymentIntent);
+router.put('/payments/intent', ctrl.notFound);
+router.patch('/payments/intent', ctrl.notFound);
+router.delete('/payments/intent', ctrl.notFound);
+
+router.post('/activity/heartbeat', heartbeatLimiter, ctrl.activityHeartbeat);
 
 router.post('/onboarding/provision', provisionLimiter, ctrl.provisionCompany);
 

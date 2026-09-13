@@ -1,0 +1,4 @@
+E:\Projects\OmniStore_Multi-Tenant\production-recovery\releases\RELEASE_ARTIFACT.zip e78438f53b0b1034e08b00286b5ae9e1328f335fd1e68732dfee4f65fc551c2e
+E:\Projects\OmniStore_Multi-Tenant\production-recovery\scripts\deploy-production.sh e41dc34679fbd5cc3bcbbd791b0a82bcf5d02f767aa10f2c0272955e7401f2cc
+E:\Projects\OmniStore_Multi-Tenant\production-recovery\scripts\production-preflight-v4.sh c22ca3bd285a775ce325bc53163b5374cc683959c99ad29f65499023e9d3fde4
+E:\Projects\OmniStore_Multi-Tenant\production-recovery\scripts\run-production-preflight.ps1 14628017c931888d53ff16318d51bf33c83a233fa04c09b472ec7dc83e05a37b

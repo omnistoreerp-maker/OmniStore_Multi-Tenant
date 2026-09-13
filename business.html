@@ -33,6 +33,57 @@
     .choice label { display: flex; gap: 6px; align-items: center; font-weight: 600; margin: 0; }
     @media (max-width: 880px) { .biz-grid { grid-template-columns: 1fr; } }
     .payment-note { margin-top: 10px; font-size: 12px; color: var(--muted); border-top: 1px dashed var(--border); padding-top: 10px; }
+
+    /* Pricing */
+    .pricing-section { margin-top: 28px; }
+    .pricing-header { text-align: center; margin-bottom: 18px; }
+    .pricing-header h2 { margin: 0 0 6px; font-size: 22px; }
+    .pricing-sub { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+    .billing-toggle { display: inline-flex; gap: 0; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; background: var(--surface); }
+    .billing-btn { appearance: none; border: 0; padding: 8px 14px; font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; background: transparent; color: var(--text); }
+    .billing-btn.active { background: var(--accent); color: #fff; }
+    .save-badge { display: inline-block; margin-left: 6px; padding: 2px 8px; border-radius: 999px; background: rgba(16,185,129,0.15); color: #10b981; font-size: 11px; border: 1px solid rgba(16,185,129,0.25); }
+    .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+    .pricing-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; display: flex; flex-direction: column; transition: transform .15s ease, box-shadow .15s ease; }
+    .pricing-card:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(15,23,42,0.10); }
+    .pricing-card.popular { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 10px 30px rgba(37,99,235,0.12); }
+    .pricing-card h3 { margin: 0 0 4px; font-size: 18px; }
+    .pricing-card .plan-tagline { margin: 0 0 10px; color: var(--muted); font-size: 13px; }
+    .pricing-card .price { margin: 6px 0 12px; font-size: 26px; font-weight: 900; }
+    .pricing-card .price span { font-size: 13px; font-weight: 600; color: var(--muted); }
+    .popular-badge { display: inline-block; margin-bottom: 8px; padding: 3px 10px; border-radius: 999px; background: rgba(37,99,235,0.12); color: var(--accent); font-size: 12px; font-weight: 800; border: 1px solid rgba(37,99,235,0.25); }
+    .plan-features { list-style: none; padding: 0; margin: 0 0 14px; }
+    .plan-features li { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--text); padding: 5px 0; }
+    .plan-features li .status { width: 16px; text-align: center; flex: 0 0 16px; }
+    .plan-features li.included .status { color: #10b981; }
+    .plan-features li.locked .status { color: #cbd5e1; }
+    .plan-features li.locked { color: var(--muted); }
+    .pricing-card .plan-action { margin-top: auto; }
+    .pricing-note { text-align: center; font-size: 12px; color: var(--muted); margin-top: 12px; }
+    @media (max-width: 880px) { .biz-grid { grid-template-columns: 1fr; } .pricing-grid { grid-template-columns: 1fr; } }
+
+    /* TikTok Reels / Shorts Feed */
+    .tiktok-feed { display: flex; gap: 14px; overflow-x: auto; padding: 10px 4px 14px; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+    .tiktok-feed__card {
+      flex: 0 0 auto; width: min(280px, 75vw); aspect-ratio: 9 / 16;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); overflow: hidden; scroll-snap-align: start;
+      display: flex; flex-direction: column;
+    }
+    .tiktok-feed__card iframe { width: 100%; height: 100%; border: 0; }
+    .tiktok-feed__fallback {
+      flex: 0 0 auto; width: min(280px, 75vw); aspect-ratio: 9 / 16;
+      background: linear-gradient(135deg, rgba(99,102,241,0.12), rgba(139,92,246,0.12));
+      border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px;
+    }
+    .tiktok-feed__empty { color: var(--muted); font-size: 14px; padding: 18px; }
+    .tiktok-feed__cta {
+      display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 999px;
+      background: linear-gradient(135deg, var(--accent2), var(--accent)); color: #fff; text-decoration: none;
+      font-weight: 800; font-size: 13px; box-shadow: 0 6px 20px rgba(0,100,255,0.25);
+    }
+    .tiktok-feed__cta:hover { transform: translateY(-1px); box-shadow: 0 10px 26px rgba(0,100,255,0.35); }
   </style>
 </head>
 <body>
@@ -113,6 +164,57 @@
       </section>
 
     </div>
+
+    <!-- PRICING PLANS -->
+    <section class="pricing-section" aria-labelledby="pricing-h">
+      <div class="pricing-header">
+        <h2 id="pricing-h">Pricing Plans</h2>
+        <p class="pricing-sub">Choose the right plan for your business. Switch billing cycle to save more.</p>
+        <div class="billing-toggle" role="group" aria-label="Billing cycle">
+          <button id="billing-monthly" class="billing-btn active" type="button">Monthly</button>
+          <button id="billing-annual" class="billing-btn" type="button">
+            Annual
+            <span class="save-badge" aria-label="Save 20 percent">Save 20%</span>
+          </button>
+        </div>
+      </div>
+      <div id="pricing-plans" class="pricing-grid"></div>
+      <p class="pricing-note">Payments are processed securely via our payment gateway. Add-ons are activated instantly after payment.</p>
+    </section>
+
+    <section class="pricing-section" aria-labelledby="student-h">
+      <div class="pricing-header">
+        <h2 id="student-h">🎓 Student Services &amp; Printing</h2>
+        <p class="pricing-sub">Print shop orders, cost calculator, and student monthly passes.</p>
+      </div>
+      <div class="pricing-grid">
+        <article class="pricing-card" style="cursor:pointer" onclick="window.location.href='student.html'">
+          <h3>Print Shop</h3>
+          <p class="plan-tagline">Calculate multi-page printing costs and submit orders online.</p>
+          <div class="plan-action" style="margin-top:auto">
+            <button class="btn-primary" style="width:100%" type="button">Open Print Shop →</button>
+          </div>
+        </article>
+        <article class="pricing-card" style="cursor:pointer" onclick="window.location.href='student.html'">
+          <h3>Student Passes</h3>
+          <p class="plan-tagline">Track monthly and weekly student passes with amounts and status.</p>
+          <div class="plan-action" style="margin-top:auto">
+            <button class="btn-primary" style="width:100%" type="button">Manage Passes →</button>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- TIKTOK REELS / SHORTS -->
+    <section class="pricing-section" aria-labelledby="tiktok-h">
+      <div class="pricing-header">
+        <h2 id="tiktok-h">Reels &amp; Shorts</h2>
+        <p class="pricing-sub">Latest videos from OmniStore on TikTok.</p>
+      </div>
+      <div id="tiktok-feed-host" class="tiktok-feed">
+        <div class="tiktok-feed__empty">Loading TikTok feed…</div>
+      </div>
+    </section>
   </main>
 
   <script>
@@ -231,6 +333,180 @@
           btn.disabled = false;
         }
       });
+
+      // ---------- Pricing plans ----------
+      var billingCycle = 'monthly';
+      var pricingPlansData = [];
+
+      function escapeHtml(str) {
+        return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+
+      async function loadPricing() {
+        var r = await fetch('/api/v1/platform-public/pricing');
+        var json = null;
+        try { json = await r.json(); } catch (_) {}
+        if (!r.ok || !json || !json.success) {
+          var host = document.getElementById('pricing-plans');
+          if (host) host.innerHTML = '<div class="pricing-note">Unable to load pricing right now.</div>';
+          return [];
+        }
+        pricingPlansData = Array.isArray(json.data && json.data.plans) ? json.data.plans : [];
+        renderPricing();
+        return pricingPlansData;
+      }
+
+      function renderPricing() {
+        var host = document.getElementById('pricing-plans');
+        if (!host) return;
+        if (!pricingPlansData.length) {
+          host.innerHTML = '<div class="pricing-note">No plans available.</div>';
+          return;
+        }
+        host.innerHTML = pricingPlansData.map(function (plan) {
+          var price = billingCycle === 'monthly' ? plan.monthlyPrice : plan.annualPrice;
+          var period = billingCycle === 'monthly' ? '/mo' : '/yr';
+          var features = Array.isArray(plan.features) ? plan.features : [];
+          var isPopular = !!plan.isPopular;
+          return '<article class="pricing-card' + (isPopular ? ' popular' : '') + '" data-plan-key="' + escapeHtml(plan.key) + '">' +
+            (isPopular ? '<div class="popular-badge">Most Popular</div>' : '') +
+            '<h3>' + escapeHtml(plan.name) + '</h3>' +
+            '<p class="plan-tagline">' + escapeHtml(plan.tagline || '') + '</p>' +
+            '<div class="price">' + escapeHtml(plan.currency || 'EGP') + ' ' + price + '<span>' + period + '</span></div>' +
+            '<ul class="plan-features">' + features.map(function (f) {
+              var cls = f && f.included ? 'included' : 'locked';
+              var icon = f && f.included ? '✔' : '—';
+              return '<li class="' + cls + '"><span class="status">' + icon + '</span><span>' + escapeHtml(f && f.text || '') + '</span></li>';
+            }).join('') + '</ul>' +
+            '<div class="plan-action">' +
+              '<button class="btn-primary" style="width:100%" type="button" onclick="startCheckout(\'' + escapeHtml(plan.key) + '\', \'' + billingCycle + '\')">Choose ' + escapeHtml(plan.name) + '</button>' +
+            '</div>' +
+          '</article>';
+        }).join('');
+      }
+
+      window.startCheckout = async function (planKey, cycle) {
+        var safeKey = String(planKey || '').trim();
+        var safeCycle = String(cycle || 'monthly').trim();
+        if (!safeKey) return;
+        var btn = event && event.target;
+        if (btn) { btn.disabled = true; btn.textContent = 'Starting checkout...'; }
+        try {
+          var payload = {
+            addonKey: safeKey,
+            amount: getPlanAmount(safeKey, safeCycle),
+            currency: 'EGP',
+            gateway: 'paymob',
+            metadata: { planKey: safeKey, billingCycle: safeCycle }
+          };
+          var r = await postJSON('/platform-public/payments/intent', payload);
+          if (r.ok && r.json && r.json.success && r.json.data) {
+            var data = r.json.data;
+            showToast('Payment intent created: ' + (data.transactionRef || '') + '. Complete payment to activate.');
+            if (data.transactionRef) {
+              window._lastPaymentRef = data.transactionRef;
+              window._lastPaymentPlan = safeKey;
+            }
+          } else {
+            var msg = (r.json && r.json.message) || ('Checkout failed (' + r.status + ')');
+            showToast(msg, 'error');
+          }
+        } catch (e) {
+          showToast('Network error during checkout.', 'error');
+        } finally {
+          if (btn) { btn.disabled = false; btn.textContent = 'Choose ' + safeKey; }
+        }
+      };
+
+      function getPlanAmount(planKey, cycle) {
+        var plan = pricingPlansData.find(function (p) { return String(p.key) === String(planKey); });
+        if (!plan) return 0;
+        return cycle === 'annual' ? (plan.annualPrice || 0) : (plan.monthlyPrice || 0);
+      }
+
+      function showToast(message, type) {
+        var toast = document.createElement('div');
+        toast.textContent = message;
+        toast.style.cssText = 'position:fixed;bottom:18px;left:18px;right:18px;padding:12px 14px;border-radius:12px;background:#0f172a;color:#f8fafc;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,0.25);z-index:9999;border:1px solid rgba(255,255,255,0.12);';
+        if (type === 'error') toast.style.background = '#7f1d1d';
+        document.body.appendChild(toast);
+        setTimeout(function () { toast.remove(); }, 4000);
+      }
+
+      document.getElementById('billing-monthly').addEventListener('click', function () {
+        billingCycle = 'monthly';
+        document.getElementById('billing-monthly').classList.add('active');
+        document.getElementById('billing-annual').classList.remove('active');
+        renderPricing();
+      });
+      document.getElementById('billing-annual').addEventListener('click', function () {
+        billingCycle = 'annual';
+        document.getElementById('billing-annual').classList.add('active');
+        document.getElementById('billing-monthly').classList.remove('active');
+        renderPricing();
+      });
+
+      loadPricing();
+
+      // ---------- TikTok Reels / Shorts ----------
+      var tiktokLoaded = false;
+
+      function ensureTikTokScript() {
+        if (tiktokLoaded) return Promise.resolve();
+        return new Promise(function (resolve) {
+          var s = document.createElement('script');
+          s.src = 'https://www.tiktok.com/embed.js';
+          s.async = true;
+          s.defer = true;
+          s.onload = function () { tiktokLoaded = true; resolve(); };
+          s.onerror = function () { resolve(); };
+          document.head.appendChild(s);
+        });
+      }
+
+      async function loadTikTokFeed() {
+        var host = document.getElementById('tiktok-feed-host');
+        if (!host) return;
+        try {
+          var r = await fetch('/api/v1/platform-public/social-feed/tiktok');
+          var json = null;
+          try { json = await r.json(); } catch (_) {}
+          if (!r.ok || !json || !json.success || !Array.isArray(json.data.embeds)) {
+            host.innerHTML = renderFallback();
+            return;
+          }
+          var embeds = json.data.embeds;
+          if (!embeds.length) {
+            host.innerHTML = renderFallback();
+            return;
+          }
+          await ensureTikTokScript();
+          host.innerHTML = embeds.map(function (item) {
+            if (item.fallback || !item.embed_html) {
+              return '<a class="tiktok-feed__fallback" href="' + escapeHtml(item.url) + '" target="_blank" rel="noopener">' +
+                '<div style="font-size:28px">🎵</div>' +
+                '<div style="font-weight:800;font-size:14px">' + escapeHtml(item.title || 'Check out our TikTok') + '</div>' +
+                '<div style="font-size:12px;color:var(--muted)">@' + escapeHtml(item.author_name || '') + '</div>' +
+                '<span class="tiktok-feed__cta">Open TikTok →</span>' +
+              '</a>';
+            }
+            return '<div class="tiktok-feed__card">' + item.embed_html + '</div>';
+          }).join('');
+        } catch (e) {
+          host.innerHTML = renderFallback();
+        }
+      }
+
+      function renderFallback() {
+        return '<a class="tiktok-feed__fallback" href="https://www.tiktok.com/@' + escapeHtml('YOUR_TIKTOK_USERNAME_HERE') + '" target="_blank" rel="noopener">' +
+          '<div style="font-size:28px">🎵</div>' +
+          '<div style="font-weight:800;font-size:14px">Check out our TikTok</div>' +
+          '<div style="font-size:12px;color:var(--muted)">@YOUR_TIKTOK_USERNAME_HERE</div>' +
+          '<span class="tiktok-feed__cta">Open TikTok →</span>' +
+        '</a>';
+      }
+
+      loadTikTokFeed();
     })();
   </script>
 </body>

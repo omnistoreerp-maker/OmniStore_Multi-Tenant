@@ -51,6 +51,56 @@ function _defaultDoc() {
       { title: 'Multi-Tenant by Design', body: 'Every company is fully isolated with its own data, users and branches.' },
       { title: 'Real-Time Sync', body: 'Changes propagate instantly across sales, inventory and accounting.' },
       { title: 'Role-Based Access', body: 'Granular permissions keep every user within their scope.' }
+    ],
+    sections: [
+      {
+        id: 'marketplace',
+        title: 'Marketplace',
+        description: 'Visitor-facing marketplace for products and services.',
+        status: 'active',
+        url: '/market.html',
+        icon: 'fa-store'
+      },
+      {
+        id: 'business-services',
+        title: 'Business Management Services',
+        description: 'Existing company access and new company onboarding.',
+        status: 'active',
+        url: '/business.html',
+        icon: 'fa-building'
+      },
+      {
+        id: 'student-services',
+        title: 'Student Services',
+        description: 'Student-facing services and accounts.',
+        status: 'coming-soon',
+        url: null,
+        icon: 'fa-graduation-cap'
+      },
+      {
+        id: 'game-hosting',
+        title: 'Game Hosting',
+        description: 'Host and manage game sessions and catalogs.',
+        status: 'under-construction',
+        url: null,
+        icon: 'fa-gamepad'
+      },
+      {
+        id: 'media-reels',
+        title: 'Media / Reels',
+        description: 'Media content and reels sharing.',
+        status: 'coming-soon',
+        url: null,
+        icon: 'fa-film'
+      },
+      {
+        id: 'student-services',
+        title: 'Student Services & Printing',
+        description: 'Print shop orders, cost calculator, and student monthly passes.',
+        status: 'active',
+        url: '/student.html',
+        icon: 'fa-graduation-cap'
+      }
     ]
   };
 }
