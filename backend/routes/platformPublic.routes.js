@@ -2,8 +2,11 @@
 
 const router = require('express').Router();
 const ctrl = require('../controllers/platformPublic.controller');
+const tiktokCtrl = require('../controllers/tiktokFeed.controller');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
+const { error: errorResponse } = require('../utils/apiResponse');
+const config = require('../config');
 
 const isTest = process.env.NODE_ENV === 'test';
 const publicLimiter = rateLimit({
@@ -44,6 +47,8 @@ router.get('/features', ctrl.getFeatures);
 router.get('/stats', ctrl.getStats);
 router.get('/highlights', ctrl.getHighlights);
 router.get('/sections', ctrl.getSections);
+router.get('/pricing', ctrl.getPricing);
+router.get('/social-feed/tiktok', tiktokCtrl.getTikTokFeed);
 
 router.post('/', ctrl.notFound);
 router.put('/', ctrl.notFound);
@@ -74,6 +79,20 @@ router.post('/sections', ctrl.notFound);
 router.put('/sections', ctrl.notFound);
 router.patch('/sections', ctrl.notFound);
 router.delete('/sections', ctrl.notFound);
+
+// Public payment intents for unauthenticated checkout / pricing page.
+const paymentLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: isTest ? 10000 : 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => ipKeyGenerator(req.ip || req.connection.remoteAddress || 'unknown'),
+  message: { success: false, message: 'Too many payment attempts, please try again later', data: null }
+});
+router.post('/payments/intent', paymentLimiter, ctrl.createPublicPaymentIntent);
+router.put('/payments/intent', ctrl.notFound);
+router.patch('/payments/intent', ctrl.notFound);
+router.delete('/payments/intent', ctrl.notFound);
 
 router.post('/activity/heartbeat', heartbeatLimiter, ctrl.activityHeartbeat);
 

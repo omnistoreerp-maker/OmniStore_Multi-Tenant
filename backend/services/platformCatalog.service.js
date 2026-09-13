@@ -58,7 +58,7 @@ function _defaultDoc() {
         title: 'Marketplace',
         description: 'Visitor-facing marketplace for products and services.',
         status: 'active',
-        url: '/marketplace.html',
+        url: '/market.html',
         icon: 'fa-store'
       },
       {
@@ -92,6 +92,14 @@ function _defaultDoc() {
         status: 'coming-soon',
         url: null,
         icon: 'fa-film'
+      },
+      {
+        id: 'student-services',
+        title: 'Student Services & Printing',
+        description: 'Print shop orders, cost calculator, and student monthly passes.',
+        status: 'active',
+        url: '/student.html',
+        icon: 'fa-graduation-cap'
       }
     ]
   };

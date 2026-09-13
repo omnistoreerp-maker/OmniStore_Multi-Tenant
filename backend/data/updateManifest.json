@@ -1,0 +1,9 @@
+{
+  "version": "1.0.0",
+  "releaseDate": "2026-08-17",
+  "downloadUrl": "https://github.com/omnistoreerp-maker/OmniStore_Multi-Tenant/releases/download/v1.0.0/OmniStore-1.0.0.zip",
+  "sha256": "a05b2f5533a28d8b01b14cf8b3ecd7f4cabcd69e77ef396972f5aba58021e415",
+  "mandatory": false,
+  "releaseNotes": "OmniStore ERP v1.0.0 — official commercial release. Tenant isolation and security gates passed; plugins 24/24, templates 19/19, SW assets 381/381, frontend scripts 331/331.",
+  "minimumSupportedVersion": ""
+}
