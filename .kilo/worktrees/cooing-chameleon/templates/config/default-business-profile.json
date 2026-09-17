@@ -1,0 +1,12 @@
+{
+  "companyName": "OmniStore ERP",
+  "companyPhone": "",
+  "companyAddress": "",
+  "taxNumber": "",
+  "businessType": "computer_shop",
+  "currency": "EGP",
+  "currencySymbol": "ج.م",
+  "language": "ar",
+  "timezone": "Africa/Cairo",
+  "dateFormat": "DD/MM/YYYY"
+}

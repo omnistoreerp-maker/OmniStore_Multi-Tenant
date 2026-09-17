@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="marketplace_title">Marketplace — OmniStore Platform</title>
+  <link rel="stylesheet" href="platform/platform.css">
+  <style>
+    .market-hero {
+      background: linear-gradient(135deg, #0f172a, #1e293b);
+      color: #fff;
+      padding: 56px 16px;
+      text-align: center;
+    }
+    .market-hero h1 {
+      margin: 0 0 8px;
+      font-size: clamp(28px, 5vw, 44px);
+    }
+    .market-hero p {
+      margin: 0;
+      opacity: 0.85;
+      font-size: clamp(14px, 2.2vw, 18px);
+    }
+    .market-toolbar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      margin: 16px 0;
+    }
+    .market-toolbar input {
+      flex: 1;
+      min-width: 220px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+      font-size: 14px;
+    }
+    .market-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .market-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .market-card h3 {
+      margin: 0;
+      font-size: 17px;
+    }
+    .market-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .market-card .price {
+      font-weight: 700;
+      color: var(--text);
+    }
+    .market-card .company {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .empty-state {
+      text-align: center;
+      padding: 40px 16px;
+      color: var(--muted);
+    }
+    .back-link {
+      display: inline-block;
+      margin: 12px 16px;
+      color: #fff;
+      text-decoration: none;
+      opacity: 0.9;
+    }
+    .back-link:hover { opacity: 1; }
+    .market-header-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .lang-btn {
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      padding: 8px 14px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .lang-btn:hover { background: rgba(255, 255, 255, 0.25); }
+    @media (max-width: 480px) {
+      .market-header-actions { flex-direction: column; align-items: stretch; }
+      .lang-btn { width: 100%; }
+    }
+    [dir="rtl"] .market-header-actions { flex-direction: row-reverse; }
+    @media (max-width: 880px) {
+      .market-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 480px) {
+      .market-grid { grid-template-columns: 1fr; }
+    }
+    [dir="rtl"] .market-hero { text-align: center; }
+  </style>
+</head>
+<body>
+  <header class="market-hero">
+    <div class="market-header-actions">
+      <a class="back-link" href="/platform.html" data-i18n="back_to_platform">← Back to Platform Home</a>
+      <button id="lang-switch" class="lang-btn" type="button">العربية</button>
+    </div>
+    <h1 data-i18n="marketplace_title">Marketplace</h1>
+    <p data-i18n="marketplace_subtitle">Discover products and services from active companies.</p>
+  </header>
+
+  <main class="container">
+    <section class="market-toolbar">
+      <input id="market-search" type="search" data-i18n-placeholder="search_placeholder" placeholder="Search products...">
+      <button id="market-search-btn" class="btn-primary" data-i18n="search_button">Search</button>
+    </section>
+
+    <section id="market-results" class="market-grid"></section>
+
+    <section id="market-empty" class="empty-state" style="display:none;">
+      <p data-i18n="empty_title">No public products available yet.</p>
+      <p data-i18n="empty_hint">Active companies have not published products to the marketplace.</p>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      'use strict';
+      const API = '/api/v1/platform-public';
+      const STORAGE_KEY = 'omnistore_platform_lang';
+
+      const TRANSLATIONS = {
+        en: {
+          lang: 'en',
+          dir: 'ltr',
+          marketplace_title: 'Marketplace',
+          marketplace_subtitle: 'Discover products and services from active companies.',
+          back_to_platform: '← Back to Platform Home',
+          search_placeholder: 'Search products...',
+          search_button: 'Search',
+          empty_title: 'No public products available yet.',
+          empty_hint: 'Active companies have not published products to the marketplace.',
+          loading: 'Loading marketplace...'
+        },
+        ar: {
+          lang: 'ar',
+          dir: 'rtl',
+          marketplace_title: 'السوق',
+          marketplace_subtitle: 'اكتشف المنتجات والخدمات من الشركات النشطة.',
+          back_to_platform: 'العودة إلى الصفحة الرئيسية ←',
+          search_placeholder: 'بحث عن المنتجات...',
+          search_button: 'بحث',
+          empty_title: 'لا توجد منتجات عامة متاحة حالياً.',
+          empty_hint: 'الشركات النشطة لم تنشر منتجات في السوق بعد.',
+          loading: 'جارٍ تحميل السوق...'
+        }
+      };
+
+      function getLang() {
+        try {
+          const saved = localStorage.getItem(STORAGE_KEY);
+          if (saved === 'ar' || saved === 'en') return saved;
+        } catch (_) {}
+        return 'en';
+      }
+
+      function applyLang(lang) {
+        const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
+        const html = document.documentElement;
+        html.setAttribute('lang', t.lang);
+        html.setAttribute('dir', t.dir);
+        document.querySelectorAll('[data-i18n]').forEach(function (node) {
+          const key = node.getAttribute('data-i18n');
+          if (t[key]) node.textContent = t[key];
+        });
+        const ph = document.querySelector('[data-i18n-placeholder]');
+        if (ph && t[ph.getAttribute('data-i18n-placeholder')]) ph.placeholder = t[ph.getAttribute('data-i18n-placeholder')];
+        const switchBtn = document.getElementById('lang-switch');
+        if (switchBtn) switchBtn.textContent = lang === 'en' ? 'العربية' : 'English';
+      }
+
+      async function loadJSON(path) {
+        const res = await fetch(API + path, { method: 'GET', headers: { Accept: 'application/json' } });
+        if (!res.ok) throw new Error('Failed to load ' + path + ': ' + res.status);
+        const json = await res.json();
+        if (!json || !json.success) throw new Error('Invalid envelope for ' + path);
+        return json.data;
+      }
+
+      function renderProductCard(product, companyName) {
+        const card = document.createElement('div');
+        card.className = 'market-card';
+        const title = document.createElement('h3');
+        title.textContent = product.name || 'Unnamed product';
+        const desc = document.createElement('p');
+        desc.textContent = product.description || '';
+        const price = document.createElement('div');
+        price.className = 'price';
+        const currency = product.currency || '';
+        const sell = typeof product.sellPrice === 'number' ? product.sellPrice : null;
+        price.textContent = sell !== null ? (currency + ' ' + sell.toFixed(2)) : 'Price not available';
+        const company = document.createElement('div');
+        company.className = 'company';
+        company.textContent = companyName ? ('Sold by: ' + companyName) : '';
+        card.appendChild(title);
+        card.appendChild(desc);
+        card.appendChild(price);
+        if (companyName) card.appendChild(company);
+        return card;
+      }
+
+      async function loadMarketplace(query) {
+        const results = document.getElementById('market-results');
+        const empty = document.getElementById('market-empty');
+        results.innerHTML = '';
+        empty.style.display = 'none';
+        try {
+          const companies = await loadJSON('/marketplace/companies').catch(function () { return { companies: [] }; });
+          const companyList = Array.isArray(companies.companies) ? companies.companies : [];
+          if (companyList.length === 0) {
+            empty.style.display = 'block';
+            return;
+          }
+          let totalProducts = [];
+          for (const c of companyList) {
+            try {
+              const data = await loadJSON('/marketplace/company/' + encodeURIComponent(c.id) + '/products' + (query ? '?search=' + encodeURIComponent(query) : ''));
+              const products = (data && data.products) || [];
+              totalProducts = totalProducts.concat(products.map(function (p) { return Object.assign({}, p, { companyName: c.name }); }));
+            } catch (_) {}
+          }
+          if (totalProducts.length === 0) {
+            empty.style.display = 'block';
+            return;
+          }
+          totalProducts.forEach(function (p) {
+            results.appendChild(renderProductCard(p, p.companyName));
+          });
+        } catch (err) {
+          console.error('marketplace load error:', err);
+          results.innerHTML = '<p style="color:#b91c1c">Unable to load marketplace. Please try again later.</p>';
+        }
+      }
+
+      function bindEvents() {
+        document.getElementById('market-search-btn').addEventListener('click', function () {
+          const q = document.getElementById('market-search').value.trim();
+          loadMarketplace(q || '');
+        });
+        document.getElementById('market-search').addEventListener('keydown', function (e) {
+          if (e.key === 'Enter') {
+            const q = document.getElementById('market-search').value.trim();
+            loadMarketplace(q || '');
+          }
+        });
+        const switchBtn = document.getElementById('lang-switch');
+        if (switchBtn) {
+          switchBtn.addEventListener('click', function () {
+            const next = getLang() === 'en' ? 'ar' : 'en';
+            try { localStorage.setItem(STORAGE_KEY, next); } catch (_) {}
+            applyLang(next);
+          });
+        }
+      }
+
+      function init() {
+        applyLang(getLang());
+        bindEvents();
+        loadMarketplace('');
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
+    })();
+  </script>
+</body>
+</html>

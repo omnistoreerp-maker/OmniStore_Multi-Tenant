@@ -1,0 +1,61 @@
+PHASE 5 SECURITY FIX REPORT
+Generated: 2026-09-14
+
+## Objective
+Apply minimal security fixes to restore branch isolation and route guards, then validate with tests.
+
+## Fixes Applied
+
+### FIX-001: Treasury Service Branch Isolation (backend/services/treasury.service.js)
+- Restored `config` and `branchStore` imports (lines 3-4)
+- Re-added 4 branch isolation methods:
+  - _branchActive(): checks if branch isolation is enabled and user has branch scope
+  - _branchBlocked(): prevents cross-branch record access (returns null for foreign branch)
+  - _branchVisibleEntries(): filters list/stats to only own branch + legacy records
+  - _applyBranchToCreate(): server-authoritative branch stamping + rejects foreign branch claims
+- Re-added 5 guard call sites:
+  - list(): applies _branchVisibleEntries() filter
+  - getById(): applies _branchBlocked() check
+  - stats(): applies _branchVisibleEntries() filter
+  - create(): applies _applyBranchToCreate()
+  - update(): applies _branchBlocked() check
+  - delete(): applies _branchBlocked() check
+
+### FIX-002: Authorize Middleware Route Guards (backend/middleware/authorize.js)
+- Re-added '/partners', '/vouchers', '/employees' to PERMISSION_GUARDED_WRITE_ROUTES set
+
+## Test Results
+
+### Treasury Branch Isolation Tests (backend/tests/treasuryBranchIsolation.test.js)
+- 12 tests PASSED, 0 failed
+- Coverage:
+  - MAIN branch sees MAIN + legacy, does NOT see OTHER
+  - OTHER branch sees OTHER + legacy, does NOT see MAIN
+  - Owner (no branch scope) sees all branches
+  - getById: own branch 200, legacy 200, foreign 404
+  - stats are branch scoped
+  - create stamps server-authoritative branch
+  - create with client-supplied foreign branchId is rejected
+  - cross-branch update blocked (404)
+  - cross-branch delete blocked (404)
+  - own-branch update works
+  - tenant + branch isolation works together
+  - blocked/missing branch context does not leak data
+
+### Treasury Async Tests (backend/tests/treasuryAsync.test.js)
+- 22 tests PASSED, 0 failed
+
+### Authorize/Security Tests
+- 12 tests PASSED, 0 failed (from security test suite)
+
+## Total: 46 tests passed across 3 test suites
+
+## Files Modified
+1. backend/services/treasury.service.js
+2. backend/middleware/authorize.js
+3. backend/tests/helpers/testServer.js (encoding fix - removed UTF-16 BOM)
+4. backend/tests/treasuryBranchIsolation.test.js (encoding fix - removed UTF-16 BOM)
+
+## Files Verified Against Production Snapshot
+- backend/services/treasury.service.js (matches exactly)
+- backend/middleware/authorize.js (matches exactly)

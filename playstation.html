@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="ps_title">PlayStation — OmniStore Platform</title>
+  <meta name="description" content="PlayStation devices, sessions and pricing management.">
+  <meta name="theme-color" content="#0f172a">
+  <link rel="stylesheet" href="platform/platform.css">
+  <style>
+    .ps-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
+    .ps-tab { padding: 8px 18px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-weight: 700; font-size: 14px; cursor: pointer; }
+    .ps-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .ps-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+    .ps-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; }
+    .ps-card h3 { margin: 0 0 6px; font-size: 17px; }
+    .ps-meta { font-size: 13px; color: var(--muted); margin: 2px 0; }
+    .ps-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .ps-btn { padding: 8px 16px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-weight: 700; font-size: 13px; cursor: pointer; }
+    .ps-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .ps-btn.danger { background: transparent; border-color: var(--red); color: var(--red); }
+    .ps-btn:disabled { opacity: 0.5; cursor: default; }
+    .ps-form { display: grid; gap: 10px; max-width: 520px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; margin: 12px 0; }
+    .ps-form label { font-size: 13px; font-weight: 700; color: var(--text2); }
+    .ps-form input, .ps-form select { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 14px; width: 100%; }
+    .ps-notice { padding: 12px 16px; border-radius: 12px; margin: 12px 0; font-size: 14px; }
+    .ps-notice.error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+    .ps-notice.empty { background: var(--surface2); border: 1px dashed var(--border); color: var(--muted); text-align: center; padding: 28px 16px; }
+    .ps-loading { text-align: center; color: var(--muted); padding: 28px 0; }
+    .ps-authbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 18px; margin: 12px 0; }
+    .ps-authbar input { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border); font-size: 14px; }
+    @media (max-width: 560px) { .ps-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <div class="header-top">
+        <div>
+          <h1 id="ps-h1">🎮 PlayStation</h1>
+          <p id="ps-sub" data-i18n="ps_sub">Devices, sessions and pricing management</p>
+        </div>
+        <div class="header-actions">
+          <button id="ps-lang-btn" class="lang-btn" type="button" aria-label="Language / اللغة">English</button>
+        </div>
+      </div>
+      <nav class="platform-nav" aria-label="Primary">
+        <a href="platform.html" data-i18n="nav_home">Platform Home</a>
+        <a href="market.html" data-i18n="nav_market">Marketplace</a>
+        <a href="index.html" data-i18n="nav_app">Open Application</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container" id="ps-app">
+    <div class="ps-loading" id="ps-boot">…</div>
+  </main>
+
+  <script>
+  (function () {
+    'use strict';
+    var API = '/api/v1/playstation';
+    var MARKET_AUTH = '/api/v1/market/auth';
+    var TENANT = 'default';
+
+    // Device states mirror backend/services/playstationDevices.service.js
+    // STATES + ALLOWED_TRANSITIONS (must stay in sync with backend).
+    var DEVICE_STATES = ['available', 'occupied', 'maintenance', 'offline', 'disabled'];
+    var DEVICE_TRANSITIONS = {
+      available: ['occupied', 'maintenance', 'offline', 'disabled'],
+      occupied: ['available', 'maintenance', 'offline'],
+      maintenance: ['available', 'offline', 'disabled'],
+      offline: ['available', 'maintenance', 'disabled'],
+      disabled: []
+    };
+    // Session states mirror backend/services/playstationSessions.service.js.
+    var SESSION_TERMINAL = ['cancelled', 'completed', 'refunded', 'expired'];
+
+    var I18N = {
+      en: {
+        ps_sub: 'Devices, sessions and pricing management',
+        nav_home: 'Platform Home', nav_market: 'Marketplace', nav_app: 'Open Application',
+        tab_devices: 'Devices', tab_sessions: 'Sessions', tab_pricing: 'Pricing',
+        login_title: 'Sign in (market customer account)',
+        email: 'Email', password: 'Password', name: 'Name', phone: 'Phone',
+        login_btn: 'Sign in', register_btn: 'Register', logout_btn: 'Sign out',
+        signed_in_as: 'Signed in as',
+        loading: 'Loading…', retry: 'Retry',
+        error_generic: 'Something went wrong. Please try again.',
+        empty_devices: 'No devices yet. Create the first device below.',
+        empty_sessions: 'No sessions yet.',
+        empty_pricing: 'No pricing profiles yet.',
+        need_login: 'Sign in to manage PlayStation devices, sessions and pricing.',
+        f_platform: 'Platform (ps4/ps5)', f_model: 'Model', f_display_name: 'Display name',
+        f_network_address: 'Network address', f_rate: 'Rate per minute', f_minimum: 'Minimum minutes',
+        f_rounding: 'Rounding minutes', f_status: 'Status filter', f_all: 'All',
+        f_device: 'Device', f_duration: 'Duration (minutes)', f_pricing_profile: 'Pricing profile (optional)',
+        f_idempotency: 'Idempotency key',
+        create: 'Create', save: 'Save', cancel_btn: 'Cancel', edit: 'Edit', details: 'Details',
+        delete_btn: 'Delete', start: 'Start', stop: 'Stop', finalize_payment: 'Finalize payment',
+        transition_to: 'Change status to', back: 'Back',
+        confirm_delete: 'Delete this record permanently?', confirm_terminate: 'Terminate this server/session? This cannot be undone.',
+        created_ok: 'Created successfully.', updated_ok: 'Updated successfully.',
+        deleted_ok: 'Deleted successfully.', action_ok: 'Done.',
+        validation_required: 'Please fill in all required fields.',
+        status_label: 'Status', sessions_for_device: 'Sessions for this device',
+        new_device: 'New device', edit_device: 'Edit device', device_details: 'Device details',
+        new_pricing: 'New pricing profile', edit_pricing: 'Edit pricing profile',
+        new_session: 'New session', session_details: 'Session details'
+      },
+      ar: {
+        ps_sub: 'إدارة الأجهزة والجلسات والأسعار',
+        nav_home: 'الرئيسية', nav_market: 'المتجر', nav_app: 'فتح التطبيق',
+        tab_devices: 'الأجهزة', tab_sessions: 'الجلسات', tab_pricing: 'الأسعار',
+        login_title: 'تسجيل الدخول (حساب عميل المتجر)',
+        email: 'البريد الإلكتروني', password: 'كلمة المرور', name: 'الاسم', phone: 'الهاتف',
+        login_btn: 'دخول', register_btn: 'تسجيل', logout_btn: 'خروج',
+        signed_in_as: 'مسجل باسم',
+        loading: 'جارٍ التحميل…', retry: 'إعادة المحاولة',
+        error_generic: 'حدث خطأ ما. حاول مرة أخرى.',
+        empty_devices: 'لا توجد أجهزة بعد. أنشئ أول جهاز بالأسفل.',
+        empty_sessions: 'لا توجد جلسات بعد.',
+        empty_pricing: 'لا توجد أسعار بعد.',
+        need_login: 'سجّل الدخول لإدارة أجهزة وجلسات وأسعار PlayStation.',
+        f_platform: 'المنصة (ps4/ps5)', f_model: 'الموديل', f_display_name: 'اسم العرض',
+        f_network_address: 'عنوان الشبكة', f_rate: 'السعر للدقيقة', f_minimum: 'الحد الأدنى للدقائق',
+        f_rounding: 'تقريب الدقائق', f_status: 'تصفية بالحالة', f_all: 'الكل',
+        f_device: 'الجهاز', f_duration: 'المدة (بالدقائق)', f_pricing_profile: 'ملف السعر (اختياري)',
+        f_idempotency: 'مفتاح عدم التكرار',
+        create: 'إنشاء', save: 'حفظ', cancel_btn: 'إلغاء', edit: 'تعديل', details: 'التفاصيل',
+        delete_btn: 'حذف', start: 'بدء', stop: 'إيقاف', finalize_payment: 'تأكيد الدفع',
+        transition_to: 'تغيير الحالة إلى', back: 'رجوع',
+        confirm_delete: 'حذف هذا السجل نهائيًا؟', confirm_terminate: 'إنهاء هذا العنصر؟ لا يمكن التراجع.',
+        created_ok: 'تم الإنشاء بنجاح.', updated_ok: 'تم التحديث بنجاح.',
+        deleted_ok: 'تم الحذف بنجاح.', action_ok: 'تم.',
+        validation_required: 'يرجى ملء كل الحقول المطلوبة.',
+        status_label: 'الحالة', sessions_for_device: 'جلسات هذا الجهاز',
+        new_device: 'جهاز جديد', edit_device: 'تعديل الجهاز', device_details: 'تفاصيل الجهاز',
+        new_pricing: 'ملف سعر جديد', edit_pricing: 'تعديل ملف السعر',
+        new_session: 'جلسة جديدة', session_details: 'تفاصيل الجلسة'
+      }
+    };
+
+    var _locale = 'ar';
+    try { _locale = localStorage.getItem('ps_locale') || 'ar'; } catch (_) {}
+    if (_locale !== 'ar' && _locale !== 'en') _locale = 'ar';
+    function t(k) { var d = I18N[_locale] || I18N.ar; return d[k] != null ? d[k] : (I18N.en[k] || k); }
+    function setLocale(l) {
+      _locale = (l === 'en') ? 'en' : 'ar';
+      try { localStorage.setItem('ps_locale', _locale); } catch (_) {}
+      document.documentElement.lang = _locale;
+      document.documentElement.dir = _locale === 'ar' ? 'rtl' : 'ltr';
+      applyI18n(); render();
+    }
+    function applyI18n() {
+      document.querySelectorAll('[data-i18n]').forEach(function (e) {
+        var k = e.getAttribute('data-i18n');
+        if (k) e.textContent = t(k);
+      });
+      var b = document.getElementById('ps-lang-btn');
+      if (b) b.textContent = _locale === 'ar' ? 'English' : 'العربية';
+    }
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+
+    function token() { try { return localStorage.getItem('mk_token') || null; } catch (_) { return null; } }
+    function setToken(x) { try { if (x) localStorage.setItem('mk_token', x); else localStorage.removeItem('mk_token'); } catch (_) {} }
+    function isAuthed() { return !!token(); }
+
+    async function req(method, path, body) {
+      var headers = { 'X-Tenant-Id': TENANT, 'Content-Type': 'application/json' };
+      if (token()) headers.Authorization = 'Bearer ' + token();
+      var opts = { method: method, headers: headers };
+      if (body !== undefined) opts.body = JSON.stringify(body);
+      var res = await fetch(API + path, opts);
+      var data = null;
+      try { data = await res.json(); } catch (_) {}
+      if (!res.ok) {
+        var err = new Error((data && data.message) || t('error_generic'));
+        err.status = res.status;
+        throw err;
+      }
+      return data ? data.data : null;
+    }
+    async function authReq(method, path, body) {
+      var headers = { 'X-Tenant-Id': TENANT, 'Content-Type': 'application/json' };
+      if (token()) headers.Authorization = 'Bearer ' + token();
+      var opts = { method: method, headers: headers };
+      if (body !== undefined) opts.body = JSON.stringify(body);
+      var res = await fetch(MARKET_AUTH + path, opts);
+      var data = null;
+      try { data = await res.json(); } catch (_) {}
+      if (!res.ok) {
+        var err = new Error((data && data.message) || t('error_generic'));
+        err.status = res.status;
+        throw err;
+      }
+      return data ? data.data : data;
+    }
+
+    var app = document.getElementById('ps-app');
+    var view = { tab: 'devices', route: null, id: null };
+    function setApp(html) { app.innerHTML = html; }
+    function loadingHtml() { return '<div class="ps-loading">' + esc(t('loading')) + '</div>'; }
+    function errorHtml(msg) {
+      return '<div class="ps-notice error">' + esc(msg || t('error_generic')) + '</div>' +
+        '<p><button class="ps-btn" id="ps-retry" type="button">' + esc(t('retry')) + '</button></p>';
+    }
+    function emptyHtml(msg) { return '<div class="ps-notice empty">' + esc(msg) + '</div>'; }
+    function wireRetry() {
+      var b = document.getElementById('ps-retry');
+      if (b) b.addEventListener('click', function () { render(); });
+    }
+    function fieldRow(label, inner) {
+      return '<div><label style="font-size:13px;font-weight:700">' + esc(label) + '</label><div style="margin-top:4px">' + inner + '</div></div>';
+    }
+    function inputHtml(id, val, type) {
+      return '<input id="' + id + '" type="' + (type || 'text') + '" value="' + esc(val || '') + '" style="padding:8px 12px;border-radius:10px;border:1px solid var(--border);width:100%">';
+    }
+    function fmtVal(v) {
+      if (v === null || v === undefined || v === '') return '—';
+      if (typeof v === 'object') return esc(JSON.stringify(v));
+      return esc(String(v));
+    }
+
+    function authBar() {
+      if (isAuthed()) {
+        return '<div class="ps-authbar"><span>' + esc(t('signed_in_as')) + '</span>' +
+          '<button class="ps-btn" id="ps-logout" type="button">' + esc(t('logout_btn')) + '</button></div>';
+      }
+      return '<div class="ps-authbar"><strong>' + esc(t('login_title')) + '</strong>' +
+        '<input id="ps-email" type="email" placeholder="' + esc(t('email')) + '">' +
+        '<input id="ps-pass" type="password" placeholder="' + esc(t('password')) + '">' +
+        '<input id="ps-name" placeholder="' + esc(t('name')) + '">' +
+        '<button class="ps-btn primary" id="ps-login" type="button">' + esc(t('login_btn')) + '</button>' +
+        '<button class="ps-btn" id="ps-register" type="button">' + esc(t('register_btn')) + '</button>' +
+        '<span id="ps-auth-msg" style="color:var(--red)"></span></div>';
+    }
+    function wireAuthBar() {
+      var lo = document.getElementById('ps-logout');
+      if (lo) lo.addEventListener('click', function () { setToken(null); render(); });
+      var li = document.getElementById('ps-login');
+      if (li) li.addEventListener('click', async function () {
+        var m = document.getElementById('ps-auth-msg');
+        try {
+          var r = await authReq('POST', '/login', {
+            email: document.getElementById('ps-email').value.trim(),
+            password: document.getElementById('ps-pass').value
+          });
+          setToken(r && (r.token || (r.data && r.data.token)));
+          render();
+        } catch (e) { if (m) m.textContent = e.message; }
+      });
+      var rg = document.getElementById('ps-register');
+      if (rg) rg.addEventListener('click', async function () {
+        var m = document.getElementById('ps-auth-msg');
+        try {
+          var email = document.getElementById('ps-email').value.trim();
+          var pass = document.getElementById('ps-pass').value;
+          var name = document.getElementById('ps-name').value.trim() || email;
+          if (!email || !pass) { if (m) m.textContent = t('validation_required'); return; }
+          var r = await authReq('POST', '/register', { email: email, name: name, password: pass });
+          setToken(r && (r.token || (r.data && r.data.token)));
+          render();
+        } catch (e) { if (m) m.textContent = e.message; }
+      });
+    }
+
+    function tabsHtml() {
+      function tab(id, label) {
+        return '<button class="ps-tab' + (view.tab === id ? ' active' : '') + '" data-tab="' + id + '" type="button">' + esc(label) + '</button>';
+      }
+      return '<div class="ps-tabs">' + tab('devices', t('tab_devices')) + tab('sessions', t('tab_sessions')) + tab('pricing', t('tab_pricing')) + '</div>';
+    }
+    function wireTabs() {
+      document.querySelectorAll('.ps-tab').forEach(function (b) {
+        b.addEventListener('click', function () { view = { tab: b.getAttribute('data-tab'), route: null, id: null }; render(); });
+      });
+    }
+
+    // ---------- Devices ----------
+    async function pageDevices(filterStatus) {
+      var html = '<h2>' + esc(t('tab_devices')) + '</h2>';
+      html += '<div style="margin:8px 0"><label>' + esc(t('f_status')) + ' </label>' +
+        '<select id="ps-dev-filter"><option value="">' + esc(t('f_all')) + '</option>' +
+        DEVICE_STATES.map(function (s) {
+          return '<option value="' + s + '"' + (filterStatus === s ? ' selected' : '') + '>' + esc(s) + '</option>';
+        }).join('') + '</select></div>';
+      html += '<div id="ps-dev-list">' + loadingHtml() + '</div>';
+      html += '<h3>' + esc(t('new_device')) + '</h3>' + deviceFormHtml(null);
+      setApp(authBar() + tabsHtml() + html);
+      wireAuthBar(); wireTabs();
+      document.getElementById('ps-dev-filter').addEventListener('change', function (e) { pageDevices(e.target.value || null); });
+      wireDeviceForm(null);
+      var list = document.getElementById('ps-dev-list');
+      try {
+        var q = filterStatus ? '?status=' + encodeURIComponent(filterStatus) : '';
+        var r = await req('GET', '/devices' + q);
+        var items = (r && r.devices) || [];
+        if (!items.length) { list.innerHTML = emptyHtml(t('empty_devices')); return; }
+        list.innerHTML = '<div class="ps-grid">' + items.map(function (d) {
+          return '<div class="ps-card"><h3>' + esc(d.display_name || d.id) + '</h3>' +
+            '<div class="ps-meta">ID: ' + esc(d.id) + '</div>' +
+            '<div class="ps-meta">' + esc(t('status_label')) + ': ' + esc(d.status) + '</div>' +
+            '<div class="ps-meta">' + esc(d.platform || '') + ' ' + esc(d.model || '') + '</div>' +
+            '<div class="ps-actions"><button class="ps-btn" data-view="' + esc(d.id) + '" type="button">' + esc(t('details')) + '</button></div></div>';
+        }).join('') + '</div>';
+        list.querySelectorAll('[data-view]').forEach(function (b) {
+          b.addEventListener('click', function () { view = { tab: 'devices', route: 'device', id: b.getAttribute('data-view') }; render(); });
+        });
+      } catch (e) { list.innerHTML = errorHtml(e.message); wireRetry(); }
+    }
+    function deviceFormHtml(d) {
+      d = d || {};
+      return '<div class="ps-form">' +
+        fieldRow(t('f_platform'), '<select id="ps-d-platform"><option value="ps4"' + (d.platform === 'ps4' ? ' selected' : '') + '>ps4</option><option value="ps5"' + (d.platform === 'ps5' ? ' selected' : '') + '>ps5</option></select>') +
+        fieldRow(t('f_model'), inputHtml('ps-d-model', d.model)) +
+        fieldRow(t('f_display_name'), inputHtml('ps-d-name', d.display_name)) +
+        fieldRow(t('f_network_address'), inputHtml('ps-d-addr', d.network_address)) +
+        '<div><button class="ps-btn primary" id="ps-d-save" type="button">' + esc(d.id ? t('save') : t('create')) + '</button></div>' +
+        '<div id="ps-d-msg" style="color:var(--red)"></div></div>';
+    }
+    function wireDeviceForm(id) {
+      var btn = document.getElementById('ps-d-save');
+      if (!btn) return;
+      if (!isAuthed()) { btn.disabled = true; return; }
+      btn.addEventListener('click', async function () {
+        var m = document.getElementById('ps-d-msg');
+        var payload = {
+          platform: document.getElementById('ps-d-platform').value,
+          model: document.getElementById('ps-d-model').value.trim(),
+          display_name: document.getElementById('ps-d-name').value.trim(),
+          network_address: document.getElementById('ps-d-addr').value.trim()
+        };
+        if (!payload.model || !payload.display_name || !payload.network_address) { m.textContent = t('validation_required'); return; }
+        try {
+          if (id) await req('PUT', '/devices/' + encodeURIComponent(id), payload);
+          else await req('POST', '/devices', payload);
+          m.style.color = 'var(--green)'; m.textContent = t(id ? 'updated_ok' : 'created_ok');
+          render();
+        } catch (e) { m.textContent = e.message; }
+      });
+    }
+    async function pageDevice(id) {
+      setApp(authBar() + tabsHtml() + loadingHtml());
+      wireAuthBar(); wireTabs();
+      try {
+        var r = await req('GET', '/devices/' + encodeURIComponent(id));
+        var d = r && (r.device || r);
+        if (!d || !d.id) { setApp(authBar() + tabsHtml() + emptyHtml(t('empty_devices'))); wireAuthBar(); wireTabs(); return; }
+        var html = '<p><button class="ps-btn" id="ps-back" type="button">' + esc(t('back')) + '</button></p>';
+        html += '<h2>' + esc(t('device_details')) + '</h2><div class="ps-card"><h3>' + esc(d.display_name || d.id) + '</h3>';
+        Object.keys(d).forEach(function (k) { html += '<div class="ps-meta">' + esc(k) + ': ' + fmtVal(d[k]) + '</div>'; });
+        html += '</div>';
+        if (isAuthed()) {
+          var nexts = DEVICE_TRANSITIONS[d.status] || [];
+          if (nexts.length) {
+            html += '<h3>' + esc(t('transition_to')) + '</h3><div class="ps-actions">';
+            nexts.forEach(function (s) {
+              html += '<button class="ps-btn" data-trans="' + esc(s) + '" type="button">' + esc(s) + '</button>';
+            });
+            html += '</div>';
+          }
+          html += '<h3>' + esc(t('edit_device')) + '</h3>' + deviceFormHtml(d);
+          html += '<p><button class="ps-btn danger" id="ps-d-del" type="button">' + esc(t('delete_btn')) + '</button></p><div id="ps-d-msg" style="color:var(--red)"></div>';
+        }
+        setApp(authBar() + tabsHtml() + html);
+        wireAuthBar(); wireTabs();
+        document.getElementById('ps-back').addEventListener('click', function () { view = { tab: 'devices', route: null, id: null }; render(); });
+        wireDeviceForm(d.id);
+        document.querySelectorAll('[data-trans]').forEach(function (b) {
+          b.addEventListener('click', async function () {
+            try {
+              await req('POST', '/devices/' + encodeURIComponent(d.id) + '/transition', { status: b.getAttribute('data-trans') });
+              render();
+            } catch (e) { var m = document.getElementById('ps-d-msg'); if (m) m.textContent = e.message; }
+          });
+        });
+        var del = document.getElementById('ps-d-del');
+        if (del) del.addEventListener('click', async function () {
+          if (!confirm(t('confirm_delete'))) return;
+          try {
+            await req('DELETE', '/devices/' + encodeURIComponent(d.id));
+            view = { tab: 'devices', route: null, id: null }; render();
+          } catch (e) { var m = document.getElementById('ps-d-msg'); if (m) m.textContent = e.message; }
+        });
+      } catch (e) {
+        setApp(authBar() + tabsHtml() + errorHtml(e.message));
+        wireAuthBar(); wireTabs(); wireRetry();
+      }
+    }
+
+    // ---------- Pricing ----------
+    async function pagePricing() {
+      var html = '<h2>' + esc(t('tab_pricing')) + '</h2><div id="ps-pr-list">' + loadingHtml() + '</div>';
+      html += '<h3>' + esc(t('new_pricing')) + '</h3>' + pricingFormHtml(null);
+      setApp(authBar() + tabsHtml() + html);
+      wireAuthBar(); wireTabs(); wirePricingForm(null);
+      var list = document.getElementById('ps-pr-list');
+      try {
+        var r = await req('GET', '/pricing');
+        var items = (r && r.pricing) || (r && r.profiles) || [];
+        if (!items.length) { list.innerHTML = emptyHtml(t('empty_pricing')); return; }
+        list.innerHTML = '<div class="ps-grid">' + items.map(function (p) {
+          return '<div class="ps-card"><h3>' + esc(p.platform || p.id) + '</h3>' +
+            '<div class="ps-meta">' + esc(String(p.rate_per_minute)) + ' / min</div>' +
+            '<div class="ps-actions"><button class="ps-btn" data-view="' + esc(p.id) + '" type="button">' + esc(t('details')) + '</button></div></div>';
+        }).join('') + '</div>';
+        list.querySelectorAll('[data-view]').forEach(function (b) {
+          b.addEventListener('click', function () { view = { tab: 'pricing', route: 'pricing', id: b.getAttribute('data-view') }; render(); });
+        });
+      } catch (e) { list.innerHTML = errorHtml(e.message); wireRetry(); }
+    }
+    function pricingFormHtml(p) {
+      p = p || {};
+      return '<div class="ps-form">' +
+        fieldRow(t('f_platform'), '<select id="ps-p-platform"><option value="ps4"' + (p.platform === 'ps4' ? ' selected' : '') + '>ps4</option><option value="ps5"' + (p.platform === 'ps5' ? ' selected' : '') + '>ps5</option></select>') +
+        fieldRow(t('f_rate'), inputHtml('ps-p-rate', p.rate_per_minute, 'number')) +
+        fieldRow(t('f_minimum'), inputHtml('ps-p-min', p.minimum_minutes, 'number')) +
+        fieldRow(t('f_rounding'), inputHtml('ps-p-round', p.rounding_minutes, 'number')) +
+        '<div><button class="ps-btn primary" id="ps-p-save" type="button">' + esc(p.id ? t('save') : t('create')) + '</button></div>' +
+        '<div id="ps-p-msg" style="color:var(--red)"></div></div>';
+    }
+    function wirePricingForm(id) {
+      var btn = document.getElementById('ps-p-save');
+      if (!btn) return;
+      if (!isAuthed()) { btn.disabled = true; return; }
+      btn.addEventListener('click', async function () {
+        var m = document.getElementById('ps-p-msg');
+        var payload = {
+          platform: document.getElementById('ps-p-platform').value,
+          rate_per_minute: Number(document.getElementById('ps-p-rate').value),
+          minimum_minutes: parseInt(document.getElementById('ps-p-min').value, 10),
+          rounding_minutes: parseInt(document.getElementById('ps-p-round').value, 10)
+        };
+        if (!payload.platform || !(payload.rate_per_minute >= 0) || !(payload.minimum_minutes > 0) || !(payload.rounding_minutes > 0)) { m.textContent = t('validation_required'); return; }
+        try {
+          if (id) await req('PUT', '/pricing/' + encodeURIComponent(id), payload);
+          else await req('POST', '/pricing', payload);
+          m.style.color = 'var(--green)'; m.textContent = t(id ? 'updated_ok' : 'created_ok');
+          render();
+        } catch (e) { m.textContent = e.message; }
+      });
+    }
+    async function pagePricingDetails(id) {
+      setApp(authBar() + tabsHtml() + loadingHtml());
+      wireAuthBar(); wireTabs();
+      try {
+        var r = await req('GET', '/pricing/' + encodeURIComponent(id));
+        var p = r && (r.pricing || r.profile || r);
+        if (!p || !p.id) { setApp(authBar() + tabsHtml() + emptyHtml(t('empty_pricing'))); wireAuthBar(); wireTabs(); return; }
+        var html = '<p><button class="ps-btn" id="ps-back" type="button">' + esc(t('back')) + '</button></p>';
+        html += '<h2>' + esc(t('edit_pricing')) + '</h2><div class="ps-card">';
+        Object.keys(p).forEach(function (k) { html += '<div class="ps-meta">' + esc(k) + ': ' + fmtVal(p[k]) + '</div>'; });
+        html += '</div>';
+        if (isAuthed()) {
+          html += pricingFormHtml(p);
+          html += '<p><button class="ps-btn danger" id="ps-p-del" type="button">' + esc(t('delete_btn')) + '</button></p>';
+          // prefill with current values is handled by pricingFormHtml(p)
+        }
+        setApp(authBar() + tabsHtml() + html);
+        wireAuthBar(); wireTabs();
+        document.getElementById('ps-back').addEventListener('click', function () { view = { tab: 'pricing', route: null, id: null }; render(); });
+        // form above was already rendered prefilled with live values; just wire it
+        wirePricingForm(p.id);
+        var del = document.getElementById('ps-p-del');
+        if (del) del.addEventListener('click', async function () {
+          if (!confirm(t('confirm_delete'))) return;
+          try {
+            await req('DELETE', '/pricing/' + encodeURIComponent(p.id));
+            view = { tab: 'pricing', route: null, id: null }; render();
+          } catch (e) { var m = document.getElementById('ps-p-msg'); if (m) m.textContent = e.message; }
+        });
+      } catch (e) {
+        setApp(authBar() + tabsHtml() + errorHtml(e.message));
+        wireAuthBar(); wireTabs(); wireRetry();
+      }
+    }
+
+    // ---------- Sessions ----------
+    async function pageSessions(filterStatus) {
+      var html = '<h2>' + esc(t('tab_sessions')) + '</h2>';
+      html += '<div style="margin:8px 0"><label>' + esc(t('f_status')) + ' </label>' +
+        '<select id="ps-s-filter"><option value="">' + esc(t('f_all')) + '</option>' +
+        ['pending', 'active', 'completed', 'cancelled', 'interrupted', 'expired', 'unpaid', 'refunded'].map(function (s) {
+          return '<option value="' + s + '"' + (filterStatus === s ? ' selected' : '') + '>' + esc(s) + '</option>';
+        }).join('') + '</select></div>';
+      html += '<div id="ps-s-list">' + loadingHtml() + '</div>';
+      html += '<h3>' + esc(t('new_session')) + '</h3>' + sessionFormHtml();
+      setApp(authBar() + tabsHtml() + html);
+      wireAuthBar(); wireTabs(); wireSessionForm();
+      document.getElementById('ps-s-filter').addEventListener('change', function (e) { pageSessions(e.target.value || null); });
+      var list = document.getElementById('ps-s-list');
+      try {
+        var q = filterStatus ? '?status=' + encodeURIComponent(filterStatus) : '';
+        var r = await req('GET', '/sessions' + q);
+        var items = (r && r.sessions) || [];
+        if (!items.length) { list.innerHTML = emptyHtml(t('empty_sessions')); return; }
+        list.innerHTML = '<div class="ps-grid">' + items.map(function (s) {
+          return '<div class="ps-card"><h3>' + esc(s.id) + '</h3>' +
+            '<div class="ps-meta">' + esc(t('status_label')) + ': ' + esc(s.status) + '</div>' +
+            '<div class="ps-meta">' + esc(t('f_device')) + ': ' + esc(s.device_id) + '</div>' +
+            '<div class="ps-actions"><button class="ps-btn" data-view="' + esc(s.id) + '" type="button">' + esc(t('details')) + '</button></div></div>';
+        }).join('') + '</div>';
+        list.querySelectorAll('[data-view]').forEach(function (b) {
+          b.addEventListener('click', function () { view = { tab: 'sessions', route: 'session', id: b.getAttribute('data-view') }; render(); });
+        });
+      } catch (e) { list.innerHTML = errorHtml(e.message); wireRetry(); }
+    }
+    function sessionFormHtml() {
+      return '<div class="ps-form">' +
+        fieldRow(t('f_device'), '<select id="ps-s-device"></select>') +
+        fieldRow(t('f_duration'), inputHtml('ps-s-duration', '60', 'number')) +
+        fieldRow(t('f_pricing_profile'), inputHtml('ps-s-pricing', '')) +
+        '<div><button class="ps-btn primary" id="ps-s-save" type="button">' + esc(t('create')) + '</button></div>' +
+        '<div id="ps-s-msg" style="color:var(--red)"></div></div>';
+    }
+    async function wireSessionForm() {
+      var btn = document.getElementById('ps-s-save');
+      if (!btn) return;
+      try {
+        var r = await req('GET', '/devices');
+        var sel = document.getElementById('ps-s-device');
+        ((r && r.devices) || []).forEach(function (d) {
+          var o = document.createElement('option');
+          o.value = d.id; o.textContent = (d.display_name || d.id) + ' (' + d.status + ')';
+          sel.appendChild(o);
+        });
+      } catch (_) {}
+      if (!isAuthed()) { btn.disabled = true; return; }
+      btn.addEventListener('click', async function () {
+        var m = document.getElementById('ps-s-msg');
+        var payload = {
+          device_id: document.getElementById('ps-s-device').value,
+          duration_minutes: parseInt(document.getElementById('ps-s-duration').value, 10)
+        };
+        var pp = document.getElementById('ps-s-pricing').value.trim();
+        if (pp) payload.pricing_profile_id = pp;
+        if (!payload.device_id || !(payload.duration_minutes > 0)) { m.textContent = t('validation_required'); return; }
+        try {
+          await req('POST', '/sessions', payload);
+          m.style.color = 'var(--green)'; m.textContent = t('created_ok');
+          render();
+        } catch (e) { m.textContent = e.message; }
+      });
+    }
+    async function pageSession(id) {
+      setApp(authBar() + tabsHtml() + loadingHtml());
+      wireAuthBar(); wireTabs();
+      try {
+        var r = await req('GET', '/sessions/' + encodeURIComponent(id));
+        var s = r && (r.session || r);
+        if (!s || !s.id) { setApp(authBar() + tabsHtml() + emptyHtml(t('empty_sessions'))); wireAuthBar(); wireTabs(); return; }
+        var html = '<p><button class="ps-btn" id="ps-back" type="button">' + esc(t('back')) + '</button></p>';
+        html += '<h2>' + esc(t('session_details')) + '</h2><div class="ps-card"><h3>' + esc(s.id) + '</h3>';
+        ['status', 'device_id', 'customer_id', 'duration_minutes', 'started_at', 'ended_at', 'total_amount', 'currency', 'payment_status'].forEach(function (k) {
+          if (s[k] !== undefined && s[k] !== null) html += '<div class="ps-meta">' + esc(k) + ': ' + fmtVal(s[k]) + '</div>';
+        });
+        html += '<div class="ps-actions">';
+        if (s.status === 'pending' && isAuthed()) html += '<button class="ps-btn primary" data-act="start" type="button">' + esc(t('start')) + '</button>';
+        if (s.status === 'active' && isAuthed()) html += '<button class="ps-btn primary" data-act="stop" type="button">' + esc(t('stop')) + '</button>';
+        if ((s.status === 'pending' || s.status === 'active' || s.status === 'interrupted') && isAuthed()) html += '<button class="ps-btn danger" data-act="cancel" type="button">' + esc(t('cancel_btn')) + '</button>';
+        if ((s.status === 'completed' || s.status === 'unpaid') && isAuthed()) html += '<button class="ps-btn primary" data-act="pay" type="button">' + esc(t('finalize_payment')) + '</button>';
+        html += '</div><div id="ps-s-msg" style="color:var(--red)"></div></div>';
+        setApp(authBar() + tabsHtml() + html);
+        wireAuthBar(); wireTabs();
+        document.getElementById('ps-back').addEventListener('click', function () { view = { tab: 'sessions', route: null, id: null }; render(); });
+        document.querySelectorAll('[data-act]').forEach(function (b) {
+          b.addEventListener('click', async function () {
+            var act = b.getAttribute('data-act');
+            var m = document.getElementById('ps-s-msg');
+            try {
+              if (act === 'cancel') {
+                if (!confirm(t('confirm_terminate'))) return;
+                await req('POST', '/sessions/' + encodeURIComponent(s.id) + '/cancel', {});
+              } else if (act === 'pay') {
+                var key = 'ps-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+                await req('POST', '/sessions/' + encodeURIComponent(s.id) + '/payment', { idempotencyKey: key });
+              } else {
+                await req('POST', '/sessions/' + encodeURIComponent(s.id) + '/' + act, {});
+              }
+              render();
+            } catch (e) { if (m) m.textContent = e.message; }
+          });
+        });
+      } catch (e) {
+        setApp(authBar() + tabsHtml() + errorHtml(e.message));
+        wireAuthBar(); wireTabs(); wireRetry();
+      }
+    }
+
+    function render() {
+      if (!isAuthed()) {
+        setApp(authBar() + tabsHtml() +
+          '<div class="ps-notice empty">' + esc(t('need_login')) + '</div>');
+        wireAuthBar(); wireTabs();
+        return;
+      }
+      if (view.tab === 'pricing' && !view.route) return pagePricing();
+      if (view.tab === 'pricing' && view.route === 'pricing') return pagePricingDetails(view.id);
+      if (view.tab === 'sessions' && !view.route) return pageSessions(null);
+      if (view.tab === 'sessions' && view.route === 'session') return pageSession(view.id);
+      return pageDevices(null);
+    }
+
+    function init() {
+      document.documentElement.lang = _locale;
+      document.documentElement.dir = _locale === 'ar' ? 'rtl' : 'ltr';
+      var langBtn = document.getElementById('ps-lang-btn');
+      if (langBtn) langBtn.addEventListener('click', function () { setLocale(_locale === 'ar' ? 'en' : 'ar'); });
+      applyI18n();
+      render();
+    }
+
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+    else init();
+  })();
+  </script>
+</body>
+</html>

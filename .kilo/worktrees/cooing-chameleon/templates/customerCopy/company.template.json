@@ -1,0 +1,11 @@
+{
+  "company_name": "{{COMPANY_NAME}}",
+  "company_phone": "{{COMPANY_PHONE}}",
+  "company_address": "{{COMPANY_ADDRESS}}",
+  "tax_number": "{{TAX_NUMBER}}",
+  "currency": "EGP",
+  "currency_symbol": "ج.م",
+  "language": "ar",
+  "timezone": "Africa/Cairo",
+  "business_type": "computer_shop"
+}

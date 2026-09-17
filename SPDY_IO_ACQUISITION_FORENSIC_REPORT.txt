@@ -1,0 +1,121 @@
+# SPDY.IO ACQUISITION FORENSIC REPORT
+
+## 1. EXECUTIVE_SUMMARY
+
+- **Domain**: `spdy.io`
+- **Original Registration Date**: 2019-03-13 (publicly verified)
+- **Current Registrar**: NameSilo, LLC (IANA ID 1479)
+- **Current Expiration Date**: 2027-03-13 (active)
+- **Current Nameservers**: `zoe.ns.cloudflare.com`, `fred.ns.cloudflare.com` (Cloudflare)
+- **NameSilo Account Access**: UNAVAILABLE (no authenticated session available)
+- **Cloudflare Account Access**: UNAVAILABLE (no authenticated session available)
+- **Acquisition Timeline**: Insufficient evidence to verify user's claim of acquisition 1 month ago.
+- **OmniStore Association**: NO direct evidence found.
+
+## 2. VERIFIED_DOMAIN_FACTS
+
+| Fact                          | Value                     | Source                     | Confidence  |
+|-------------------------------|---------------------------|--------------------------|-------------|
+| Original Registration Date     | 2019-03-13                 | WHOIS/Registry              | HIGH        |
+| Current Registrar              | NameSilo, LLC (IANA ID 1479)| WHOIS/Registry              | HIGH        |
+| Current Expiration Date       | 2027-03-13                 | WHOIS/Registry              | HIGH        |
+| Current Nameservers           | `zoe.ns.cloudflare.com`, `fred.ns.cloudflare.com` | WHOIS/Registry | HIGH        |
+| Last Registry Update          | 2026-09-01                 | WHOIS/Registry              | HIGH        |
+| DNSSEC Status                  | unsigned                  | WHOIS/Registry              | HIGH        |
+| Registry Domain ID            | 68b6b81d90054f3eadc52049a6982f31-DONUTS | WHOIS/Registry | HIGH        |
+| Transfer History               | UNKNOWN                    | No public evidence         | N/A         |
+| Previous Owner                | UNKNOWN                    | No public evidence         | N/A         |
+
+## 3. NAMESILO_ACCOUNT_EVIDENCE
+
+- **Access**: UNAVAILABLE (no authenticated session available)
+- **Domain Presence**: Cannot verify if `spdy.io` is currently listed in the account.
+- **Acquisition Date**: UNKNOWN (no access to NameSilo account)
+- **Transaction History**: UNAVAILABLE
+- **Order/Invoice Date**: UNKNOWN
+
+## 4. CLOUDFLARE_ACCOUNT_EVIDENCE
+
+- **Access**: UNAVAILABLE (no authenticated session available)
+- **Zone Presence**: Cannot verify if `spdy.io` exists as a Cloudflare zone.
+- **Zone Creation Date**: UNKNOWN (no access to Cloudflare account)
+- **Nameservers Assignment**: Cannot verify if current nameservers match public WHOIS data.
+- **DNS Records**: UNAVAILABLE
+- **Audit Logs**: UNAVAILABLE
+
+## 5. CLOUDFLARE_AUDIT_TIMELINE
+
+- **Earliest Cloudflare Event**: UNKNOWN (no access to Cloudflare account)
+- **Zone Creation Date**: UNKNOWN (no access to Cloudflare account)
+- **Nameservers Assigned**: UNKNOWN (no access to Cloudflare account)
+
+## 6. DNS_AND_NAMESERVER_TIMELINE
+
+| Event                          | Date/Time               | Source                     | Confidence  |
+|-------------------------------|--------------------------|--------------------------|-------------|
+| Original Nameservers (if any) | UNKNOWN                  | No public evidence         | N/A         |
+| Current Nameservers            | 2026-09-16 (public WHOIS) | WHOIS/Registry              | HIGH        |
+| DNSSEC Status                  | unsigned (2026-09-16)    | WHOIS/Registry              | HIGH        |
+
+## 7. OMNISTORE_ASSOCIATION_CHECK
+
+- **Direct Evidence**: NO
+- **Indirect/Circumstantial Evidence**: NO
+- **OmniStore, OmniStore ERP, DigiTronics Plus, or related emails**: NO public association found.
+
+## 8. ACQUISITION_TIMELINE
+
+- **User Claim**: `spdy.io` acquired approximately 1 month ago (2026-08-16).
+- **Public Evidence**: Original registration in 2019, no public transfer history.
+- **NameSilo Evidence**: UNAVAILABLE (no access to account).
+- **Cloudflare Evidence**: UNAVAILABLE (no access to account).
+- **Conclusion**: Insufficient evidence to verify the user's claim.
+
+## 9. VERIFIED_VS_UNKNOWN
+
+| Category                      | Verified/Confirmed       | Unknown/Unavailable        |
+|-------------------------------|---------------------------|----------------------------|
+| Original Registration Date    | ✅ 2019-03-13               | ❌ Transfer history        |
+| Current Registrar             | ✅ NameSilo, LLC          | ❌ Acquisition date         |
+| Current Nameservers           | ✅ Cloudflare              | ❌ Cloudflare zone creation |
+| OmniStore Association         | ❌ NO                     | ❌ No evidence              |
+| NameSilo Account Access       | ❌ UNAVAILABLE             | ✅ No access               |
+| Cloudflare Account Access     | ❌ UNAVAILABLE             | ✅ No access               |
+
+## 10. FINAL_CONCLUSION
+
+- The domain `spdy.io` was originally registered in **2019-03-13** and is currently held by **NameSilo, LLC**.
+- **No public evidence** exists to confirm the user's claim of acquisition 1 month ago.
+- **No authenticated access** to NameSilo or Cloudflare accounts was available to verify acquisition or zone creation dates.
+- **No direct or indirect evidence** connects `spdy.io` to OmniStore, OmniStore ERP, DigiTronics Plus, or related entities.
+- **Previous owner and transfer history** remain **UNKNOWN** due to lack of public or authenticated access.
+
+## 11. EVIDENCE_SOURCES
+
+- Public WHOIS data from [whois.com](https://www.whois.com/whois/spdy.io)
+- Registry Domain ID from Verisign
+- ICANN WHOIS lookup
+
+
+## REQUIRED FINAL STATUS VARIABLES
+
+`PUBLIC_REGISTRY=PARTIAL`
+`NAMESILO_ACCOUNT_ACCESS=UNAVAILABLE`
+`NAMESILO_ACQUISITION_DATE=UNKNOWN`
+`CLOUDFLARE_ACCOUNT_ACCESS=UNAVAILABLE`
+`CLOUDFLARE_ZONE_CREATION_DATE=UNKNOWN`
+`EARLIEST_CLOUDFLARE_EVENT=UNKNOWN`
+`CURRENT_NAMESERVERS=zoe.ns.cloudflare.com, fred.ns.cloudflare.com`
+`ORIGINAL_REGISTRATION_DATE=2019-03-13`
+`TRANSFER_HISTORY=UNKNOWN`
+`PREVIOUS_OWNER=UNKNOWN`
+`OMNISTORE_PUBLIC_ASSOCIATION=NO`
+`ACQUISITION_TIMELINE=INSUFFICIENT`
+`DNS_CHANGED_BY_THIS_AUDIT=NO`
+`CLOUDFLARE_CHANGED_BY_THIS_AUDIT=NO`
+`NAMESILO_CHANGED_BY_THIS_AUDIT=NO`
+`PRODUCTION_CHANGED_BY_THIS_AUDIT=NO`
+`FILES_MODIFIED_BY_THIS_AUDIT=NO`
+
+
+`READ_ONLY_AUDIT_COMPLETE=PASS`

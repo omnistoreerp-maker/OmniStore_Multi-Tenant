@@ -1,0 +1,9 @@
+{
+  "invoiceTemplate": "standard",
+  "receiptSize": "A4",
+  "showLogo": true,
+  "showTax": true,
+  "footerText": "شكرًا لتعاملكم معنا",
+  "copies": 1,
+  "printPreviewFirst": true
+}

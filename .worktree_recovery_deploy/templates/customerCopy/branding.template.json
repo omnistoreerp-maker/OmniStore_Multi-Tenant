@@ -1,0 +1,9 @@
+{
+  "application_name": "OmniStore ERP",
+  "customer_display_name": "{{CUSTOMER_DISPLAY_NAME}}",
+  "logo": "{{CUSTOMER_LOGO}}",
+  "primary_color": "#2563eb",
+  "secondary_color": "#0f172a",
+  "version_label": "UAT/Beta",
+  "show_demo_safety_labels": true
+}

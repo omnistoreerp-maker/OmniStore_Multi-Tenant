@@ -1,0 +1,10 @@
+{
+  "$schema": "../sdk/profile.schema.json",
+  "id": "restaurant",
+  "name": "Restaurant",
+  "nameAr": "مطعم",
+  "version": "1.0.0",
+  "aliases": [],
+  "settings": { "defaultTaxRate": 0, "inventoryMethod": "weighted_average", "profitCalculationMethod": "recipe_cost" },
+  "templates": ["sale", "purchase", "purchase_return", "sales_return", "expense", "income", "inventory_adjustment", "opening_balance", "closing_balance", "treasury_deposit", "treasury_withdraw", "customer_payment", "supplier_payment", "internal_transfer", "manual_journal"]
+}

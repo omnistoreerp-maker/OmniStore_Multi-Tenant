@@ -1,0 +1,15 @@
+{
+  "id": "{{PROVIDER_ID}}",
+  "name": "{{PROVIDER_NAME}}",
+  "type": "preview",
+  "adapter": "{{ADAPTER_ID}}",
+  "configured": false,
+  "connected": false,
+  "previewOnly": true,
+  "capabilities": {
+    "read": true,
+    "write": false,
+    "transactions": false,
+    "sync": false
+  }
+}

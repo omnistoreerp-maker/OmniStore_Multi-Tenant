@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="OmniStore Platform Home — real-time activity, business services, and ecosystem overview.">
+  <title data-i18n="platform_name">OmniStore ERP — Platform Home</title>
+  <link rel="stylesheet" href="platform/platform.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <div class="header-top">
+        <div>
+          <h1 id="meta-name">OmniStore ERP</h1>
+          <p id="meta-tagline">Multi-Tenant Enterprise Resource Planning</p>
+        </div>
+        <div class="header-actions">
+          <button id="lang-switch" class="lang-btn" type="button">العربية</button>
+        </div>
+      </div>
+      <nav class="platform-nav" aria-label="Platform">
+        <a href="internal.html">Change Center</a>
+        <a href="customer.html">My Requests</a>
+        <a href="playstation.html">PlayStation</a>
+        <a href="index.html">Open Application</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section id="stats" class="section stats" aria-label="Platform Overview"></section>
+
+    <section id="features" class="section features" aria-label="Core Modules"></section>
+
+    <section id="highlights" class="section highlights" aria-label="Highlights"></section>
+
+    <section id="sections" class="section sections" aria-label="Platform Services"></section>
+
+    <section id="cta" class="section cta">
+      <a class="btn-primary" href="index.html" data-i18n="cta">Open Application</a>
+    </section>
+
+    <section id="footer" class="section footer">
+      <p>OmniStore Platform v<span id="meta-version">1.0.0</span></p>
+    </section>
+  </main>
+
+  <div id="activity-dock" class="activity-dock" role="status" aria-live="polite" aria-label="Live activity">
+    <div class="dock-metric">
+      <span class="dock-icon" aria-hidden="true">👁</span>
+      <span class="dock-text"><span class="dock-label" data-i18n="visitors_now_label">Visitors Now</span>
+      <span class="dock-value" id="activity-visitors-now">--</span></span>
+      <span class="activity-live" id="activity-visitors-live" style="display:none">
+        <span class="activity-live-dot" aria-hidden="true"></span>
+        <span data-i18n="live_label">Live</span>
+      </span>
+    </div>
+    <div class="dock-metric">
+      <span class="dock-icon" aria-hidden="true">👤</span>
+      <span class="dock-text"><span class="dock-label" data-i18n="registered_users_label">Registered Users</span>
+      <span class="dock-value" id="activity-registered-users">--</span></span>
+    </div>
+    <div class="dock-metric">
+      <span class="dock-icon" aria-hidden="true">🏢</span>
+      <span class="dock-text"><span class="dock-label" data-i18n="active_businesses_label">Active Businesses</span>
+      <span class="dock-value" id="activity-active-businesses">--</span></span>
+    </div>
+    <div class="dock-metric">
+      <span class="dock-icon" aria-hidden="true">🛒</span>
+      <span class="dock-text"><span class="dock-label" data-i18n="orders_today_label">Orders Today</span>
+      <span class="dock-value" id="activity-orders-today">--</span></span>
+    </div>
+  </div>
+
+  <script src="platform/platform.js"></script>
+</body>
+</html>

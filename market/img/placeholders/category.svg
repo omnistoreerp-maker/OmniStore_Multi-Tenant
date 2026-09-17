@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" width="200" height="200" role="img" aria-label="Category placeholder">
+  <rect width="200" height="200" rx="12" fill="#f3f4f6"/>
+  <g transform="translate(100,100)" fill="#9ca3af">
+    <rect x="-40" y="-30" width="80" height="60" rx="6" fill="none" stroke="#9ca3af" stroke-width="4"/>
+    <path d="M-20 -30 L-20 10 L30 10 L30 -30 Z" fill="none" stroke="#9ca3af" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M-20 -10 L20 -10" stroke="#9ca3af" stroke-width="4" stroke-linecap="round"/>
+  </g>
+</svg>

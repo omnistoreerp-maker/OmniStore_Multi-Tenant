@@ -1,0 +1,15 @@
+{
+  "version_type": "UAT/Beta",
+  "preview_only": true,
+  "accounting_posting_enabled": false,
+  "inventory_posting_enabled": false,
+  "official_financial_statements_enabled": false,
+  "feedback_storage": "memory-only",
+  "required_tests": [
+    "screens",
+    "workflows",
+    "reports",
+    "navigation",
+    "usability"
+  ]
+}

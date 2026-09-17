@@ -1,0 +1,93 @@
+{
+  "_meta": {
+    "format": "omnistore-configuration-preview",
+    "previewOnly": true,
+    "permanentSave": false
+  },
+  "businessProfile": {
+    "companyName": "OmniStore ERP",
+    "companyPhone": "",
+    "companyAddress": "",
+    "taxNumber": "",
+    "businessType": "computer_shop",
+    "currency": "EGP",
+    "currencySymbol": "ج.م",
+    "language": "ar",
+    "timezone": "Africa/Cairo",
+    "dateFormat": "DD/MM/YYYY"
+  },
+  "pos": {
+    "barcodeSearch": true,
+    "quickProductSearch": true,
+    "allowDiscountPreview": true,
+    "maxDiscountPercent": 20,
+    "defaultPaymentMethod": "cash",
+    "showStockDuringSale": true,
+    "warnLowStock": true,
+    "receiptAfterSale": true
+  },
+  "inventory": {
+    "costMethod": "average",
+    "multiWarehouse": true,
+    "allowNegativeStock": false,
+    "reservationEnabled": true,
+    "serialTracking": true,
+    "batchTracking": false,
+    "expiryTracking": false,
+    "reorderEnabled": true,
+    "defaultReorderLevel": 5
+  },
+  "accounting": {
+    "validationEnabled": true,
+    "autoPreview": true,
+    "postingEnabled": false,
+    "inventoryMethod": "average",
+    "profitMethod": "gross_margin",
+    "defaultCashAccount": "cash_on_hand",
+    "defaultRevenueAccount": "sales_revenue",
+    "defaultCOGSAccount": "cost_of_sales",
+    "defaultInventoryAccount": "inventory_asset",
+    "defaultTaxRate": 0
+  },
+  "user": {
+    "language": "ar",
+    "tableDensity": "comfortable",
+    "keyboardShortcuts": true,
+    "confirmBeforeActions": true,
+    "notificationsPreview": true
+  },
+  "security": {
+    "sessionTimeoutMinutes": 30,
+    "minimumPasswordLength": 8,
+    "requireStrongPassword": true,
+    "twoFactorPreview": false,
+    "auditTrailEnabled": true,
+    "lockAfterAttempts": 5
+  },
+  "backup": {
+    "exportFormat": "json",
+    "includeConfiguration": true,
+    "includeAttachments": false,
+    "encryptionPreview": false,
+    "automaticBackupEnabled": false,
+    "retentionCopies": 7
+  },
+  "print": {
+    "invoiceTemplate": "standard",
+    "receiptSize": "A4",
+    "showLogo": true,
+    "showTax": true,
+    "footerText": "شكرًا لتعاملكم معنا",
+    "copies": 1,
+    "printPreviewFirst": true
+  },
+  "theme": {
+    "mode": "light",
+    "primaryColor": "#2563eb",
+    "accentColor": "#0ea5e9",
+    "fontSize": "medium",
+    "direction": "rtl",
+    "compactSidebar": true,
+    "reducedMotion": false
+  }
+}

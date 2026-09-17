@@ -1,0 +1,11 @@
+{
+  "SUPABASE_URL": "",
+  "SUPABASE_ANON_KEY": "",
+  "EDGE_FUNCTION_URL": "",
+  "PROJECT_REF": "",
+  "STORAGE_BUCKET": "mario-fely-assets",
+  "JWT_SECRET_STATUS": "stored server-side in Supabase project secrets",
+  "SERVICE_ROLE_STATUS": "stored server-side in Supabase Edge Function secrets",
+  "production_mode": false,
+  "persist_in_browser": false
+}

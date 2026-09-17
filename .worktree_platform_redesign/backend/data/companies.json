@@ -1,0 +1,28 @@
+[
+  {
+    "id": "digitronics",
+    "code": "DIGI",
+    "name": "DigiTronics",
+    "active": true
+  },
+  {
+    "id": "nile",
+    "code": "NILE",
+    "name": "Nile Electronics",
+    "active": true
+  },
+  {
+    "id": "astra",
+    "code": "ASTRA",
+    "name": "Astra Components",
+    "active": false
+  },
+  {
+    "id": "cairotech",
+    "code": "CAIROTECH",
+    "name": "CairoTech",
+    "active": true,
+    "createdAt": "2026-08-16T16:55:12.753Z",
+    "updatedAt": "2026-08-16T16:55:12.753Z"
+  }
+]

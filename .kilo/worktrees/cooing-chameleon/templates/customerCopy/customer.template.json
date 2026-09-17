@@ -1,0 +1,10 @@
+{
+  "customer_code": "{{CUSTOMER_CODE}}",
+  "customer_name": "{{CUSTOMER_NAME}}",
+  "contact_name": "{{CONTACT_NAME}}",
+  "contact_phone": "{{CONTACT_PHONE}}",
+  "contact_email": "{{CONTACT_EMAIL}}",
+  "copy_status": "planned",
+  "source_release": "20.0.0-master",
+  "target_directory": "{{NEW_CUSTOMER_COPY_DIRECTORY}}"
+}

@@ -1,0 +1,17 @@
+[Unit]
+Description=Cloudflare Named Tunnel for OmniStore
+After=network-online.target nginx.service
+Wants=network-online.target nginx.service
+
+[Service]
+Type=simple
+User=omnistore
+ExecStart=/usr/bin/cloudflared tunnel --config /home/omnistore/.cloudflared/config.yml run omnistore
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+Environment=HOME=/home/omnistore
+
+[Install]
+WantedBy=multi-user.target

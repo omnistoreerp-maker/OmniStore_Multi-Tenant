@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Requests — OmniStore Platform</title>
+  <link rel="stylesheet" href="customer/customer.css">
+</head>
+<body>
+  <header class="page-header">
+    <div class="container">
+      <h1>My Requests</h1>
+      <p class="subtitle">Track your change requests, see when they're released, and confirm when they're resolved</p>
+      <div class="build-info" id="build-info"></div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="new-request-section section">
+      <h2>Submit a New Request</h2>
+      <form id="new-request-form" class="request-form">
+        <div class="form-row">
+          <label for="title">Title</label>
+          <input type="text" id="title" name="title" maxlength="200" required placeholder="Brief summary of your request">
+        </div>
+        <div class="form-row">
+          <label for="description">Description</label>
+          <textarea id="description" name="description" rows="4" maxlength="5000" required placeholder="What happened? What did you expect?"></textarea>
+        </div>
+        <div class="form-row-inline">
+          <div>
+            <label for="type">Type</label>
+            <select id="type" name="type" required>
+              <option value="BUG">Bug</option>
+              <option value="CHANGE">Change</option>
+              <option value="FEATURE">Feature</option>
+              <option value="FEEDBACK">Feedback</option>
+            </select>
+          </div>
+          <div>
+            <label for="priority">Priority</label>
+            <select id="priority" name="priority" required>
+              <option value="P0">P0 — Critical</option>
+              <option value="P1">P1 — High</option>
+              <option value="P2" selected>P2 — Medium</option>
+              <option value="P3">P3 — Low</option>
+            </select>
+          </div>
+          <div>
+            <label for="product">Product</label>
+            <select id="product" name="product" required>
+              <option value="ERP">ERP</option>
+              <option value="MARKETPLACE">Marketplace</option>
+              <option value="GAME_HOSTING">Game Hosting</option>
+              <option value="PLATFORM">Platform</option>
+            </select>
+          </div>
+        </div>
+        <button type="submit" class="btn-primary">Submit Request</button>
+        <p class="form-message" id="form-message" hidden></p>
+      </form>
+    </section>
+
+    <section class="requests-section section">
+      <div class="section-header">
+        <h2>Previous Requests</h2>
+        <span class="section-hint">Requests from before this tracking system was introduced</span>
+      </div>
+      <div id="requests-historical" class="request-list"></div>
+      <p class="empty-state" id="historical-empty" hidden>No previous requests.</p>
+    </section>
+
+    <section class="requests-section section">
+      <div class="section-header">
+        <h2>Current Requests</h2>
+        <span class="section-hint">Requests submitted through this page</span>
+      </div>
+      <div id="requests-current" class="request-list"></div>
+      <p class="empty-state" id="current-empty" hidden>No current requests. Submit a new request above.</p>
+    </section>
+  </main>
+
+  <div class="modal-overlay" id="modal-overlay" hidden>
+    <div class="modal" id="modal">
+      <div class="modal-header">
+        <h3 id="modal-title">Request Detail</h3>
+        <button class="modal-close" id="modal-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <p>OmniStore Platform — Customer Change &amp; Resolution</p>
+  </footer>
+
+  <script src="customer/customer.js"></script>
+</body>
+</html>

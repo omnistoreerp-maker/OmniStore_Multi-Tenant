@@ -1,0 +1,11 @@
+[ERROR] Uncaught exception: listen EADDRINUSE: address already in use :::3004 Error: listen EADDRINUSE: address already in use :::3004
+    at Server.setupListenHandle [as _listen2] (node:net:2009:16)
+    at listenInCluster (node:net:2066:12)
+    at Server.listen (node:net:2171:7)
+    at app.listen (E:\Projects\OmniStore_Multi-Tenant\backend\node_modules\express\lib\application.js:635:24)
+    at Object.<anonymous> (E:\Projects\OmniStore_Multi-Tenant\backend\server.js:319:22)
+    at Module._compile (node:internal/modules/cjs/loader:1871:14)
+    at Object..js (node:internal/modules/cjs/loader:2002:10)
+    at Module.load (node:internal/modules/cjs/loader:1594:32)
+    at Module._load (node:internal/modules/cjs/loader:1396:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)

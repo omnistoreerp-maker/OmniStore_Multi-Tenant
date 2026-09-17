@@ -1,0 +1,96 @@
+========================================================
+OMNISTORE LAUNCH PREFLIGHT REPORT (READ-ONLY DIAGNOSIS)
+Domain target: omnistoreerp.com
+Generated: 2026-09-16 (UTC)
+========================================================
+
+## CURRENT_DOMAIN
+omnistoreerp.com — Cloudflare zone ACTIVE in account dc14c66e… (Omnistore.live@gmail.com's Account).
+Nameservers: alexa.ns.cloudflare.com / andy.ns.cloudflare.com (DoH + zone API both confirm).
+Original registrar (per zone record): namecheap, inc. (id 1068).
+Zone activated on: 2026-09-02T11:38:24Z.
+
+## DNS_STATUS
+- apex `omnistoreerp.com` A: NOERROR/NODATA (DoH: only SOA in Authority; nslookup via 1.1.1.1 returns NO answer; curl exit 6 "Could not resolve host"). AAAA/CNAME: none.
+- `www.omnistoreerp.com` A: NXDOMAIN (no record).
+- `app.omnistoreerp.com`: A 188.114.97.6 / 188.114.96.6 (Cloudflare-proxied CNAME -> b65be45b-b281-49e2-95f7-9279d9423bc7.cfargotunnel.com). HEALTHY.
+- `cairotech.omnistoreerp.com`: proxied CNAME to same tunnel (untouched, not tested).
+=> The launch domain apex has NO address record. This is the blocker.
+
+## CLOUDFLARE_STATUS
+- Access: AVAILABLE (dashboard session, read-only API GETs via dash.cloudflare.com).
+- Zone 333729f3a23c260f574535987f5c902f (omnistoreerp.com): status=active, paused=false.
+- DNS records (total_count=2): app -> tunnel CNAME (proxied), cairotech -> tunnel CNAME (proxied). NO apex/www record.
+- SSL/TLS mode: "full", certificate_status=active.
+- Tunnel b65be45b ("omnistore-production") is owned by this account, live connections, ingress: app.omnistoreerp.com -> localhost:80, cairotech.omnistoreerp.com -> localhost:80, else 404.
+
+## PRODUCTION_SHA
+d596f2aabdb5c7a562dfe53af7c4b8b6673c4a6b  (= expected baseline; branch fix/problem-c-owner-pin-zero-amount; working tree has uncommitted state as previously documented — no checkout performed).
+
+## SERVICE_STATUS
+omnistore.service: active (running), enabled. Since 2026-09-15 17:33:51 UTC (~8h). Main PID 181691 (node scripts/start-production.js -> backend/server.js pid 181705).
+Unit: User=omnistore, WorkingDirectory=/home/omnistore/OmniStore_Multi-Tenant/backend, PORT=3001, NODE_ENV=production, EnvironmentFile=backend/.env, Restart=always.
+
+## PORT_3001_STATUS
+LISTENING (node pid 181705, fd 18). nginx listens on 0.0.0.0:80.
+
+## NGINX_STATUS
+Single site: /etc/nginx/sites-enabled/omnistore -> server_name 192.168.1.64, listen 80,
+location / -> proxy_pass http://127.0.0.1:3001 (WebSocket upgrade + X-Forwarded-* set), /backend/data/ denied (403).
+No SSL block, no HTTP->HTTPS redirect (not required: TLS terminates at Cloudflare; tunnel targets http://localhost:80).
+omnistoreerp.com traffic path (via app.*): Cloudflare -> tunnel b65be45b -> nginx :80 -> 127.0.0.1:3001 — CONFIRMED WORKING.
+
+## HTTPS_STATUS
+- https://app.omnistoreerp.com/ : 200, Server: cloudflare, cf-cache-status: DYNAMIC. PASS.
+- https://omnistoreerp.com/     : UNREACHABLE (DNS). FAIL (blocked by missing apex record).
+- Certificate: Cloudflare edge cert active (SSL mode full, status active).
+
+## PLATFORM_HOME_STATUS
+- /platform.html via app.omnistoreerp.com: 200 (Platform Home reachable on the live domain).
+- Apex `/` cannot be tested (no DNS). NOTE (behavioral, not a routing blocker):
+  Express root static handler on 3001 serves index: 'index.html' (legacy OmniStore ERP, 2.7 MB) —
+  verified locally (GET / == index.html byte-identical, md5 5a47491f…, title "OmniStore ERP").
+  `frontendPrivateGuard` on app.use('/', …) (server.js:298) controls which hosts can fetch platform files;
+  via the tunnel Host, /platform.html is allowed (200) while apex-style root still maps to index.html.
+  If the launch requirement is "apex root shows Platform Home", that requires a product decision
+  (route/index change in app code) — listed under EXACT_NEXT_ACTION as a separate follow-up,
+  NOT applied (read-only task).
+
+## CURRENT_BLOCKER
+DNS_BLOCKED  — apex `omnistoreerp.com` has no A/AAAA/CNAME record in the active Cloudflare zone,
+so the domain does not resolve and cannot reach the production server at all.
+(Secondary, non-blocking note: tunnel ingress covers app./cairotech. hostnames; an apex record
+would also need matching routing — see EXACT_NEXT_ACTION.)
+
+## EVIDENCE
+1) DoH apex A: {"Status":0,"Authority":[SOA only]} ; AAAA/CNAME same ; NS = alexa/andy.ns.cloudflare.com.
+2) nslookup omnistoreerp.com 1.1.1.1 -> no answer ; curl https://omnistoreerp.com/ -> exit 6.
+3) DoH app.omnistoreerp.com A -> 188.114.97.6/188.114.96.6 (Cloudflare).
+4) Zone API: zones?name=omnistoreerp.com -> status=active, name_servers alexa/andy, registrar namecheap.
+5) DNS records API: total_count=2 (app, cairotech) — both proxied CNAMEs to b65be45b….cfargotunnel.com.
+6) SSL settings API: value=full, certificate_status=active.
+7) Server: HEAD = d596f2aabdb5c7a562dfe53af7c4b8b6673c4a6b ; systemd active (PID 181691) ; ss shows node on *:3001.
+8) Local 3001: / = 200 (index.html legacy, md5 5a47491f…) ; /platform.html = 200 ;
+   /api/v1/health = 200 ok ; /api/v1/ready = 200 ready ; (top-level /health /ready /live = 404 by design; /api/v1/live = 401 auth-required).
+9) E2E from public Internet: https://app.omnistoreerp.com/ = 200 (title OmniStore ERP) ;
+   /api/v1/health = 200 ; /api/v1/ready = 200 ; /platform.html = 200 ;
+   /api/v1/platform-public/stats = 200 {visitorsNow:0, registeredUsers:18, activeBusinesses:4, ordersToday:null}.
+10) nginx -T / sites-available: single server block 192.168.1.64:80 -> 127.0.0.1:3001.
+
+## EXACT_NEXT_ACTION
+To make `omnistoreerp.com` itself serve production (minimal, hostname-only):
+1. In Cloudflare zone 333729f3… add ONE proxied record: `omnistoreerp.com` CNAME ->
+   b65be45b-b281-49e2-95f7-9279d9423bc7.cfargotunnel.com (proxied). (Optionally `www` -> apex CNAME.)
+2. Add tunnel ingress mapping `omnistoreerp.com -> http://localhost:80` (keep existing maps + 404 catch-all; snapshot first).
+3. Verify publicly: https://omnistoreerp.com/ (expect 200 — will show legacy ERP index per current Express root),
+   /platform.html = 200, /api/v1/health = 200.
+4. SEPARATE product decision (not part of DNS fix): whether apex `/` should serve platform.html instead of
+   legacy index.html — requires app code change (server.js root static index / route) + release cycle.
+Alternative: use https://app.omnistoreerp.com/ as the launch URL — it already works end-to-end today.
+
+## SAFETY_STATUS
+PRODUCTION_MODIFIED=NO — no files changed, no git operations, no restart, no reload.
+DNS_MODIFIED=NO ; CLOUDFLARE_MODIFIED=NO ; NGINX_MODIFIED=NO ; SERVICE_RESTARTED=NO.
+All checks were GET/read-only (server commands, public HTTP, dashboard API GETs).
+Chrome tab used for dashboard reads was returned to its previous page.
+========================================================

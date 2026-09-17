@@ -1,0 +1,14 @@
+{
+  "name": "digitronics-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Playwright end-to-end regression suite for the DigiTronics frontends",
+  "scripts": {
+    "test": "node verify.js index.html 18940 && node verify.js DigiTronics_v5.html 18941",
+    "test:index": "node verify.js index.html 18940",
+    "test:v5": "node verify.js DigiTronics_v5.html 18941"
+  },
+  "devDependencies": {
+    "playwright": "1.62.0"
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      ".firebaserc",
+      "**/.*",
+      "**/node_modules/**",
+      "backend/**",
+      "tests/**",
+      "test-results/**",
+      "coverage/**",
+      "backups/**",
+      "archive/**",
+      "release/**",
+      "releases/**",
+      "database/**",
+      "deploy/**",
+      "docs/**",
+      "Documentation/**",
+      "supabase/**",
+      "templates/**",
+      "customerRollout/**",
+      "scripts/**",
+      ".freebuff/**",
+      "render.yaml",
+      "vercel.json",
+      "docker-compose.yml",
+      "package.json",
+      "package-lock.json",
+      "*.md",
+      "*.zip",
+      "*.7z",
+      "*.rar",
+      "*.bak",
+      "*.backup",
+      "*.tmp"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ],
+    "headers": [
+      {
+        "source": "**/*.@(js|css)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      },
+      {
+        "source": "**/*.@(jpg|jpeg|gif|png|svg|webp|ico)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=31536000, immutable"
+          }
+        ]
+      },
+      {
+        "source": "manifest.json",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "sw.js",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=0, must-revalidate"
+          }
+        ]
+      }
+    ]
+  }
+}

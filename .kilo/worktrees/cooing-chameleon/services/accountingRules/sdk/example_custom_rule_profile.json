@@ -1,0 +1,28 @@
+{
+  "$schema": "./profile.schema.json",
+  "id": "service_center",
+  "name": "Service Center",
+  "version": "1.0.0",
+  "settings": { "currency": "EGP" },
+  "rules": [
+    {
+      "ruleName": "Service Income",
+      "ruleId": "service_center.service_income",
+      "templateId": "service_income",
+      "description": "Preview cash service income.",
+      "enabled": true,
+      "requiredAccounts": ["cash", "other_income"],
+      "affectedModules": ["sales", "treasury"],
+      "validationRules": ["accounts_exist", "balanced", "currency_valid", "tax_valid"],
+      "journalPreview": [
+        { "account": "cash", "side": "debit", "amount": "net_amount" },
+        { "account": "other_income", "side": "credit", "amount": "amount" },
+        { "account": "tax_payable", "side": "credit", "amount": "tax" }
+      ],
+      "inventoryImpact": "none",
+      "cashImpact": "increase",
+      "taxImpact": "output tax increases",
+      "profitImpact": "increases profit"
+    }
+  ]
+}
