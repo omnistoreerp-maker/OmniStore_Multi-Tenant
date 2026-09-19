@@ -2,14 +2,18 @@
 
 const logger = require('../utils/logger');
 
-const TIKTOK_USERNAME = 'YOUR_TIKTOK_USERNAME_HERE';
+const TIKTOK_USERNAME = '';
 const CACHE_TTL_MS = 60 * 60 * 1000;
 const MAX_EMBEDS = 6;
-const PROFILE_URL = 'https://www.tiktok.com/@' + encodeURIComponent(TIKTOK_USERNAME);
 const OEMBED_URL = 'https://www.tiktok.com/oembed';
 
 let cachedAt = 0;
 let cache = null;
+
+function _profileUrl() {
+  if (!TIKTOK_USERNAME) return '';
+  return 'https://www.tiktok.com/@' + encodeURIComponent(TIKTOK_USERNAME);
+}
 
 async function _fetchJson(url, opts) {
   const res = await fetch(url, opts || {});
@@ -38,7 +42,7 @@ async function _fetchOEmbedForUrl(videoUrl) {
   if (!result.ok || !result.data) return null;
   return {
     url: videoUrl,
-    author_name: result.data.author_name || TIKTOK_USERNAME,
+    author_name: result.data.author_name || '',
     title: result.data.title || '',
     thumbnail: result.data.thumbnail_url || '',
     embed_html: result.data.html || '',
@@ -48,7 +52,9 @@ async function _fetchOEmbedForUrl(videoUrl) {
 }
 
 async function _scrapeProfile() {
-  const result = await _fetchJson(PROFILE_URL, {
+  const profileUrl = _profileUrl();
+  if (!profileUrl) return [];
+  const result = await _fetchJson(profileUrl, {
     headers: { Accept: 'text/html,application/xhtml+xml' }
   });
   if (!result.ok || !result.data) return [];
@@ -78,9 +84,9 @@ async function fetchTikTokFeed() {
 
   if (!embeds.length) {
     embeds = [{
-      url: PROFILE_URL,
-      author_name: TIKTOK_USERNAME,
-      title: 'Check out our TikTok',
+      url: _profileUrl() || '',
+      author_name: '',
+      title: 'TikTok feed is not configured',
       thumbnail: '',
       embed_html: '',
       width: 325,
