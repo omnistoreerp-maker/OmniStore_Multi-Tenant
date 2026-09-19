@@ -171,9 +171,50 @@ function getDefaultRegistry() {
   return _defaultRegistry();
 }
 
+function _writeStore(raw) {
+  try {
+    storageAdapter.write(STORE_KEY, raw);
+  } catch (err) {
+    logger.warn('companyProfile.service: failed to write store', err.message);
+  }
+}
+
+function saveProfile(profile) {
+  if (!profile || typeof profile !== 'object') return null;
+  const companyId = String(profile.companyId || '').trim();
+  if (!companyId) return null;
+
+  const raw = _readStore();
+  const profiles = _toArray(raw);
+  const idx = profiles.findIndex(p => p && String(p.companyId) === companyId);
+
+  const sanitized = {
+    companyId,
+    identity: _sanitizeIdentity(profile.identity),
+    contact: _sanitizeContact(profile.contact),
+    products: _sanitizeRefList(profile.products || []),
+    services: _sanitizeRefList(profile.services || []),
+    offers: _sanitizeRefList(profile.offers || []),
+    media: _sanitizeMediaList(profile.media || []),
+    socialChannels: _sanitizeSocialChannels(profile.socialChannels || []),
+    lastUpdated: new Date().toISOString()
+  };
+
+  if (idx >= 0) {
+    profiles[idx] = Object.assign({}, profiles[idx], sanitized);
+  } else {
+    profiles.push(sanitized);
+  }
+
+  const out = Array.isArray(raw) ? profiles : Object.assign({}, raw, { profiles, lastUpdated: new Date().toISOString() });
+  _writeStore(out);
+  return sanitized;
+}
+
 module.exports = {
   getProfile,
   getDefaultProfile,
   listCompanyIds,
-  getDefaultRegistry
+  getDefaultRegistry,
+  saveProfile
 };

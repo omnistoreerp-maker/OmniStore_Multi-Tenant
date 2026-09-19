@@ -10,8 +10,6 @@
 // contract will be updated to consume it without changing the public
 // interface.
 
-const buildIdentity = require('../buildIdentity.service');
-
 function getServiceCatalog(companyId) {
   return {
     available: false,

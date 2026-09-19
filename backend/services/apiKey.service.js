@@ -26,9 +26,20 @@ function _save(data) {
   return repository.write(data);
 }
 
+const ALLOWED_SCOPES = ['read', 'write'];
+
 // Generate a new API key. Returns { id, key, keyHash, ... }.
 // The raw key is returned ONCE — only the hash is stored.
-function generateKey({ name, userId, scopes, rateLimitMax, expiresAt }) {
+function generateKey({ name, userId, tenantId, scopes, rateLimitMax, expiresAt }) {
+  if (Array.isArray(scopes)) {
+    const invalid = scopes.filter(s => !ALLOWED_SCOPES.includes(s));
+    if (invalid.length > 0) {
+      const err = new Error('Invalid scopes: ' + invalid.join(', ') + '. Allowed: ' + ALLOWED_SCOPES.join(', '));
+      err.statusCode = 400;
+      throw err;
+    }
+  }
+
   const rawKey = KEY_PREFIX + randomBytes(KEY_BYTES).toString('hex');
   const keyHash = _hashKey(rawKey);
 
@@ -37,7 +48,8 @@ function generateKey({ name, userId, scopes, rateLimitMax, expiresAt }) {
     keyHash,
     name: name || 'Unnamed Key',
     userId: userId || null,
-    scopes: scopes || ['read'],
+    tenantId: tenantId || null,
+    scopes: scopes && scopes.length > 0 ? scopes : ['read'],
     rateLimitMax: rateLimitMax || config.apiKeyRateLimitMax,
     enabled: true,
     createdAt: new Date().toISOString(),
@@ -87,29 +99,34 @@ function touchKey(id) {
 }
 
 // List all keys (hashed, no raw keys).
-function listKeys({ userId, enabled } = {}) {
+function listKeys({ userId, tenantId, enabled } = {}) {
   const store = _store();
   let keys = store.keys || [];
   if (userId) keys = keys.filter(k => k.userId === userId);
+  if (tenantId != null) keys = keys.filter(k => k.tenantId === tenantId);
   if (enabled !== undefined) keys = keys.filter(k => k.enabled === enabled);
   return keys.map(k => ({ ...k, keyHash: undefined }));
 }
 
 // Get a single key by ID (hashed).
-function getKey(id) {
+function getKey(id, ctx) {
   const store = _store();
   const keys = store.keys || [];
   const record = keys.find(k => k.id === id);
   if (!record) return null;
+  if (ctx && ctx.tenantId != null && record.tenantId !== ctx.tenantId) return null;
+  if (ctx && !ctx.privileged && ctx.userId != null && record.userId !== ctx.userId) return null;
   return { ...record, keyHash: undefined };
 }
 
 // Revoke a key.
-function revokeKey(id) {
+function revokeKey(id, ctx) {
   const store = _store();
   const keys = store.keys || [];
   const record = keys.find(k => k.id === id);
   if (!record) return null;
+  if (ctx && ctx.tenantId != null && record.tenantId !== ctx.tenantId) return null;
+  if (ctx && !ctx.privileged && ctx.userId != null && record.userId !== ctx.userId) return null;
   record.revokedAt = new Date().toISOString();
   record.enabled = false;
   _save(store);
@@ -117,36 +134,42 @@ function revokeKey(id) {
 }
 
 // Delete a key permanently.
-function deleteKey(id) {
+function deleteKey(id, ctx) {
   const store = _store();
   const keys = store.keys || [];
   const idx = keys.findIndex(k => k.id === id);
   if (idx === -1) return null;
+  const record = keys[idx];
+  if (ctx && ctx.tenantId != null && record.tenantId !== ctx.tenantId) return null;
+  if (ctx && !ctx.privileged && ctx.userId != null && record.userId !== ctx.userId) return null;
   const [removed] = keys.splice(idx, 1);
   _save(store);
   return { ...removed, keyHash: undefined };
 }
 
 // Enable/disable a key.
-function setKeyEnabled(id, enabled) {
+function setKeyEnabled(id, enabled, ctx) {
   const store = _store();
   const keys = store.keys || [];
   const record = keys.find(k => k.id === id);
   if (!record) return null;
+  if (ctx && ctx.tenantId != null && record.tenantId !== ctx.tenantId) return null;
+  if (ctx && !ctx.privileged && ctx.userId != null && record.userId !== ctx.userId) return null;
   record.enabled = !!enabled;
   _save(store);
   return { ...record, keyHash: undefined };
 }
 
 // Get key statistics.
-function getKeyStats() {
+function getKeyStats(tenantId) {
   const store = _store();
   const keys = store.keys || [];
+  const filtered = tenantId != null ? keys.filter(k => k.tenantId === tenantId) : keys;
   return {
-    total: keys.length,
-    enabled: keys.filter(k => k.enabled).length,
-    revoked: keys.filter(k => k.revokedAt).length,
-    expired: keys.filter(k => k.expiresAt && new Date(k.expiresAt) < new Date()).length
+    total: filtered.length,
+    enabled: filtered.filter(k => k.enabled).length,
+    revoked: filtered.filter(k => k.revokedAt).length,
+    expired: filtered.filter(k => k.expiresAt && new Date(k.expiresAt) < new Date()).length
   };
 }
 

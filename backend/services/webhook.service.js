@@ -80,18 +80,20 @@ function list(query = {}) {
   return entries.map(({ secret, ...safe }) => safe);
 }
 
-function getById(id) {
+function getById(id, tenantId) {
   const store = _store();
   const hook = store.entries.find(h => h.id === id);
   if (!hook) return null;
+  if (tenantId !== undefined && tenantId !== null && hook.tenantId !== tenantId) return null;
   const { secret: _s, ...safe } = hook;
   return safe;
 }
 
-function update(id, { url, events, active, description }) {
+function update(id, { url, events, active, description }, tenantId) {
   const store = _store();
   const hook = store.entries.find(h => h.id === id);
   if (!hook) return null;
+  if (tenantId !== undefined && tenantId !== null && hook.tenantId !== tenantId) return null;
   if (url !== undefined) {
     if (!/^https?:\/\//i.test(url)) throw new Error('Invalid webhook URL. Must be http(s).');
     hook.url = url;
@@ -104,10 +106,11 @@ function update(id, { url, events, active, description }) {
   return safe;
 }
 
-function remove(id) {
+function remove(id, tenantId) {
   const store = _store();
   const idx = store.entries.findIndex(h => h.id === id);
   if (idx === -1) return false;
+  if (tenantId !== undefined && tenantId !== null && store.entries[idx].tenantId !== tenantId) return false;
   store.entries.splice(idx, 1);
   repository.write(store);
   return true;
@@ -184,9 +187,12 @@ function _deliver(hook, eventType, payload, attempt = 0) {
 
 // Send a test event to a single webhook (used by the /test endpoint).
 // Looks up the full stored record so the signing secret is available.
-async function sendTest(hook, eventType = 'sale.created') {
+async function sendTest(hook, eventType = 'sale.created', tenantId) {
   const full = _store().entries.find(h => h.id === hook.id);
   if (!full) return { ok: false, status: 404, response: 'Webhook not found' };
+  if (tenantId !== undefined && tenantId !== null && full.tenantId !== tenantId) {
+    return { ok: false, status: 404, response: 'Webhook not found' };
+  }
   hook = full;
   const body = {
     event: eventType,

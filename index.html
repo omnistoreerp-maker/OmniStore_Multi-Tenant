@@ -1957,6 +1957,12 @@ document.addEventListener('DOMContentLoaded', function() {
         <span>🚪</span>
         <span class="btn-label">تسجيل الخروج</span>
       </button>
+
+      <!-- Platform Home -->
+      <a class="sidebar-action-btn" href="platform.html" title="Platform Home">
+        <span>🏠</span>
+        <span class="btn-label">Platform Home</span>
+      </a>
     </div>
   </nav>
   <!-- Dropdowns moved OUTSIDE sidebar to fix backdrop-filter stacking context bug -->
@@ -11491,10 +11497,10 @@ const BACKEND_STATUS_KEY = 'esoBackendStatusPersistence';
 function getBackendConfig() {
   try {
     const raw = localStorage.getItem(BACKEND_CONFIG_KEY);
-    if (!raw) return { enabled: true, apiBaseUrl: '' }; // Production default: backend-first
+    if (!raw) return { enabled: true, apiBaseUrl: '' };
     const c = JSON.parse(raw);
     return { enabled: c.enabled !== false, apiBaseUrl: String(c.apiBaseUrl || '') };
-  } catch (e) { return { enabled: true, apiBaseUrl: '' }; } // Production default: backend-first
+  } catch (e) { return { enabled: true, apiBaseUrl: '' }; }
 }
 function setBackendConfig(next) {
   const cfg = { enabled: !!next.enabled, apiBaseUrl: String(next.apiBaseUrl || '').replace(/\/+$/, '') };
@@ -11542,7 +11548,7 @@ function restoreBackendStatus() {
   } catch (e) {}
 }
 async function probeBackendHealth() {
-  if (!USE_BACKEND) {
+  if (!USE_BACKEND || !API_BASE_URL) {
     backendStatus.state = 'offline';
     persistBackendStatus();
     renderBackendConnectionStatus();
@@ -11845,7 +11851,6 @@ const backendApi = {
       finalizePayment: (id, idempotencyKey) => USE_BACKEND ? backendApi._fetch('POST', '/playstation/sessions/' + encodeURIComponent(id) + '/payment', { idempotencyKey }) : null
     }
   },
-  // ===== Loyalty (Phase 28B) — point-of-sale rewards =====
   loyalty: {
     getBalance: (customerId) => USE_BACKEND ? backendApi._fetch('GET', '/loyalty/balance/' + encodeURIComponent(customerId)) : null,
     getTransactions: (customerId, query) => {
@@ -15982,20 +15987,6 @@ function canAccessPage(page) {
   if (!currentUser) return false;
   if (page === 'platform-master') return !!platformRole && USE_BACKEND;
   if (window.OmniModuleLoader && !window.OmniModuleLoader.isRouteEnabled(page)) return false;
-  // ============ PHASE 34.2 — NAV SCOPE AUTHORIZATION (UI Phase 1) ============
-  // Explicit scope registry. Classifies routes into PLATFORM (platform masters
-  // only), INTERNAL/PREVIEW (platform masters only; never business roles) and
-  // DISABLED_IN_PRODUCTION (always false) so master/developer/preview/go-live/
-  // deployment surfaces can never render in tenant navigation nor be reached by
-  // direct showPage() routing. Backend authorization stays authoritative.
-  const NAV_DISABLED = ['customer-provisioning-preview', 'revenue-preview', 'supabase-setup-preview', 'schema-installer-preview', 'rls-preview', 'saas-billing-preview', 'auth-login-preview', 'auth-session-preview', 'workspace-preview', 'edge-function-setup-plan', 'customer-deployment-wizard'];
-  const NAV_INTERNAL = ['erp-preview-center', 'posting-readiness-center', 'production-readiness', 'customer-acceptance', 'system-health-uat', 'customer-feedback', 'uat-issues', 'demo-notes', 'client-requests', 'client-demo-package', 'training-checklist', 'demo-scenarios', 'client-signoff', 'known-limitations', 'master-release-snapshot', 'customer-copy-checklist', 'new-customer-setup-guide', 'release-health', 'configuration-center', 'config-business-profile', 'config-pos', 'config-inventory', 'config-accounting', 'config-print', 'config-theme', 'config-security', 'config-backup', 'config-export', 'config-import', 'authentication-center', 'auth-preview-roles', 'auth-preview-permissions', 'auth-security-audit', 'auth-permission-matrix', 'tenant-center', 'current-workspace', 'multi-tenant-health', 'release-readiness', 'performance-scale-dashboard', 'performance-scale-memory-usage', 'performance-scale-cpu-usage', 'performance-scale-storage-analyzer', 'performance-scale-large-dataset-analyzer', 'performance-scale-query-performance', 'performance-scale-realtime-status', 'performance-scale-cache-status', 'performance-scale-network-status', 'performance-scale-lazy-loading-status'];
-  const NAV_PLATFORM_PREFIX = ['self-platform-', 'recovery-platform-', 'saas-'];
-  const NAV_PLATFORM = ['platform-dashboard', 'monitoring-center', 'supabase-health', 'database-installer', 'migration-progress', 'installation-report', 'verification-report', 'backup-center', 'audit-dashboard', 'security-dashboard', 'security-scan', 'vulnerability-report', 'production-security-checklist', 'update-center', 'error-dashboard', 'license-center', 'license-audit', 'subscription-plans', 'subscription-dashboard', 'customer-statistics', 'customer-provisioning', 'customer-provision-report', 'provision-history', 'provision-rollback', 'workspace-audit', 'workspace-health', 'customer-health', 'customer-status', 'customer-details', 'current-customers', 'workspace-usage', 'auth-preview-users'];
-  const navPageName = String(page || '');
-  if (navPageName.indexOf('go-live-') === 0 || navPageName.indexOf('deployment-') === 0 || navPageName.indexOf('production-execution-') === 0 || navPageName.slice(-8) === '-preview' || NAV_DISABLED.indexOf(navPageName) !== -1) return false;
-  const navMasterOnly = !!(platformRole && USE_BACKEND);
-  if (NAV_INTERNAL.indexOf(navPageName) !== -1 || NAV_PLATFORM.indexOf(navPageName) !== -1 || NAV_PLATFORM_PREFIX.some(prefix => navPageName.indexOf(prefix) === 0)) return navMasterOnly;
   if (page === 'business-marketplace' || page === 'business-plugin-settings') {
     return can('manageSettings') && (!window.OmniModuleLoader || window.OmniModuleLoader.isRouteEnabled('business-marketplace'));
   }

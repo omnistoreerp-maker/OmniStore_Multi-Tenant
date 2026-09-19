@@ -78,3 +78,32 @@ describe('concurrent write safety', () => {
     expect(leftovers).toEqual([]);
   });
 });
+
+describe('fileStore write overwrite safety (Windows EPERM regression)', () => {
+  test('overwriting an existing file succeeds and preserves JSON validity', () => {
+    const dir = makeTempDataDir('filestore-overwrite');
+    process.env.DIGITRONICS_DATA_DIR = dir;
+    jest.resetModules();
+    const fileStore = require('../utils/fileStore');
+
+    const initial = { items: [{ id: 'a', value: 1 }] };
+    expect(fileStore.write('overwriteTest', initial)).toBe(true);
+
+    const firstRead = fileStore.read('overwriteTest');
+    expect(firstRead.items).toHaveLength(1);
+    expect(firstRead.items[0].value).toBe(1);
+
+    const updated = { items: [{ id: 'b', value: 2 }, { id: 'c', value: 3 }] };
+    expect(fileStore.write('overwriteTest', updated)).toBe(true);
+
+    const secondRead = fileStore.read('overwriteTest');
+    expect(secondRead.items).toHaveLength(2);
+    expect(secondRead.items[0].id).toBe('b');
+    expect(secondRead.items[1].value).toBe(3);
+
+    const raw = fs.readFileSync(path.join(dir, 'overwriteTest.json'), 'utf-8');
+    expect(() => JSON.parse(raw)).not.toThrow();
+
+    delete process.env.DIGITRONICS_DATA_DIR;
+  });
+});

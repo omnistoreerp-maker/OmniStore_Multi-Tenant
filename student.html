@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Student Services & Printing — OmniStore ERP</title>
+  <meta name="theme-color" content="#f8fbff">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/digitronics-icon-192.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="platform/platform.css">
+  <style>
+    :root {
+      --radius: 14px;
+      --space: 14px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Cairo', system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: linear-gradient(135deg, #f8fbff 0%, #edf5ff 45%, #eef2ff 100%);
+      color: #0f172a;
+      min-height: 100vh;
+      padding: calc(16px + env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+    }
+    .container { max-width: 960px; margin: 0 auto; }
+    .page-header {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 18px;
+    }
+    .page-header h1 { margin: 0; font-size: 1.25rem; }
+    .back-link {
+      display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 999px;
+      background: rgba(15,23,42,0.06); color: #0f172a; text-decoration: none; font-weight: 700; font-size: 13px;
+    }
+    .card {
+      background: rgba(255,255,255,0.78); border: 1px solid rgba(15,23,42,0.08); border-radius: var(--radius);
+      box-shadow: 0 10px 28px rgba(15,23,42,0.08); padding: 16px; margin-bottom: 14px;
+      backdrop-filter: blur(18px) saturate(160%); -webkit-backdrop-filter: blur(18px) saturate(160%);
+    }
+    .card h2 { margin: 0 0 10px; font-size: 1.05rem; }
+    .card .sub { margin: 0 0 12px; color: #64748b; font-size: 13px; }
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 6px; color: #334155; }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%; padding: 10px 12px; border: 1px solid rgba(15,23,42,0.10); border-radius: 10px; font-size: 14px; background: #fff; font-family: inherit; outline: none;
+    }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: #6366f1; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 14px; border-radius: 10px; border: 0; font-family: inherit; font-size: 14px; font-weight: 800; cursor: pointer;
+    }
+    .btn-primary { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; box-shadow: 0 6px 20px rgba(99,102,241,0.25); }
+    .btn-outline { background: rgba(15,23,42,0.05); color: #0f172a; border: 1px solid rgba(15,23,42,0.10); }
+    .btn-sm { padding: 8px 10px; font-size: 12px; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .status-badge {
+      display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 800;
+    }
+    .status-pending { background: rgba(245,158,11,0.12); color: #b45309; border: 1px solid rgba(245,158,11,0.25); }
+    .status-printing { background: rgba(59,130,246,0.12); color: #1d4ed8; border: 1px solid rgba(59,130,246,0.25); }
+    .status-ready { background: rgba(16,185,129,0.12); color: #047857; border: 1px solid rgba(16,185,129,0.25); }
+    .status-delivered { background: rgba(100,116,139,0.12); color: #334155; border: 1px solid rgba(100,116,139,0.25); }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 8px 10px; text-align: right; border-bottom: 1px solid rgba(15,23,42,0.06); }
+    th { color: #64748b; font-weight: 700; font-size: 11px; text-transform: uppercase; }
+    .empty { text-align: center; color: #64748b; padding: 18px; font-size: 13px; }
+    .toast {
+      position: fixed; bottom: 18px; left: 18px; right: 18px; padding: 12px 14px; border-radius: 12px; background: #0f172a; color: #f8fafc; font-family: inherit; font-size: 14px; font-weight: 600; z-index: 9999; border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    }
+    .toast.error { background: #7f1d1d; }
+    @media (max-width: 640px) {
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+      th, td { padding: 6px 8px; font-size: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="page-header">
+      <h1>🎓 Student Services &amp; Printing</h1>
+      <a class="back-link" href="business.html">← Business</a>
+    </div>
+
+    <!-- Cost Calculator -->
+    <section class="card" aria-labelledby="calc-h">
+      <h2 id="calc-h">🧮 Print Cost Calculator</h2>
+      <p class="sub">Estimate printing cost before placing an order.</p>
+      <div class="grid-3">
+        <div class="form-group">
+          <label>Paper Size</label>
+          <select id="calcPaperSize"><option value="A4">A4</option><option value="A3">A3</option></select>
+        </div>
+        <div class="form-group">
+          <label>Print Type</label>
+          <select id="calcPrintType"><option value="bw">Black &amp; White</option><option value="color">Color</option></select>
+        </div>
+        <div class="form-group">
+          <label>Duplex</label>
+          <select id="calcDuplex"><option value="single">Simplex</option><option value="double">Duplex</option></select>
+        </div>
+      </div>
+      <div class="grid-3">
+        <div class="form-group">
+          <label>Pages</label>
+          <input id="calcPages" type="number" min="1" value="10">
+        </div>
+        <div class="form-group">
+          <label>Copies</label>
+          <input id="calcCopies" type="number" min="1" value="1">
+        </div>
+        <div class="form-group">
+          <label>Binding</label>
+          <select id="calcBinding"><option value="no">No</option><option value="yes">Yes</option></select>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary" type="button" onclick="calculateCost()">Calculate</button>
+      </div>
+      <div id="calcResult" style="margin-top:10px;font-size:13px;color:#334155;display:none"></div>
+    </section>
+
+    <!-- New Print Order -->
+    <section class="card" aria-labelledby="order-h">
+      <h2 id="order-h">🖨️ New Print Order</h2>
+      <p class="sub">Submit a new print job for a student.</p>
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Student Name</label>
+          <input id="orderStudentName" type="text" placeholder="Ahmed Hassan">
+        </div>
+        <div class="form-group">
+          <label>Student Phone <span style="color:#ef4444">*</span></label>
+          <input id="orderStudentPhone" type="tel" placeholder="01xxxxxxxxx" style="direction:ltr">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Document Name</label>
+        <input id="orderDocName" type="text" placeholder="Thesis / Assignment / Report">
+      </div>
+      <div class="grid-3">
+        <div class="form-group">
+          <label>Pages</label>
+          <input id="orderPages" type="number" min="1" value="10">
+        </div>
+        <div class="form-group">
+          <label>Copies</label>
+          <input id="orderCopies" type="number" min="1" value="1">
+        </div>
+        <div class="form-group">
+          <label>Binding</label>
+          <select id="orderBinding"><option value="no">No</option><option value="yes">Yes</option></select>
+        </div>
+      </div>
+      <div class="grid-3">
+        <div class="form-group">
+          <label>Paper Size</label>
+          <select id="orderPaperSize"><option value="A4">A4</option><option value="A3">A3</option></select>
+        </div>
+        <div class="form-group">
+          <label>Print Type</label>
+          <select id="orderPrintType"><option value="bw">Black &amp; White</option><option value="color">Color</option></select>
+        </div>
+        <div class="form-group">
+          <label>Duplex</label>
+          <select id="orderDuplex"><option value="single">Simplex</option><option value="double">Duplex</option></select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Notes</label>
+        <textarea id="orderNotes" rows="2" placeholder="Optional notes"></textarea>
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary" type="button" onclick="submitOrder()">Submit Order</button>
+      </div>
+    </section>
+
+    <!-- Orders -->
+    <section class="card" aria-labelledby="orders-h">
+      <div class="page-header" style="padding:0;margin-bottom:10px">
+        <h2 id="orders-h" style="margin:0">📋 Orders</h2>
+        <div class="actions" style="margin:0">
+          <input id="orderSearch" class="search-input" type="search" placeholder="Search..." oninput="renderOrders()" style="padding:8px 10px;border-radius:8px;border:1px solid rgba(15,23,42,0.10);background:#fff;font-size:13px;width:180px">
+        </div>
+      </div>
+      <div id="ordersTable" class="table-wrap"></div>
+    </section>
+
+    <!-- Student Passes -->
+    <section class="card" aria-labelledby="passes-h">
+      <h2 id="passes-h">🎫 Student Monthly Passes</h2>
+      <p class="sub">Track student monthly/weekly passes.</p>
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Student Name</label>
+          <input id="passStudentName" type="text" placeholder="Ahmed Hassan">
+        </div>
+        <div class="form-group">
+          <label>Student Phone <span style="color:#ef4444">*</span></label>
+          <input id="passStudentPhone" type="tel" placeholder="01xxxxxxxxx" style="direction:ltr">
+        </div>
+      </div>
+      <div class="grid-3">
+        <div class="form-group">
+          <label>Pass Type</label>
+          <select id="passType"><option value="monthly">Monthly</option><option value="weekly">Weekly</option></select>
+        </div>
+        <div class="form-group">
+          <label>Month</label>
+          <input id="passMonth" type="month" value="">
+        </div>
+        <div class="form-group">
+          <label>Year</label>
+          <input id="passYear" type="number" min="2000" max="2099" value="">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Amount (EGP)</label>
+        <input id="passAmount" type="number" min="0" step="0.01" value="0">
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary" type="button" onclick="submitPass()">Add Pass</button>
+      </div>
+      <div id="passesTable" class="table-wrap" style="margin-top:12px"></div>
+    </section>
+
+    <!-- Settings -->
+    <section class="card" aria-labelledby="settings-h">
+      <h2 id="settings-h">⚙️ Settings</h2>
+      <p class="sub">WhatsApp number for order receipts.</p>
+      <div class="form-group">
+        <label>WhatsApp Number</label>
+        <input id="settingsWhatsapp" type="tel" placeholder="01xxxxxxxxx" style="direction:ltr">
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary" type="button" onclick="saveSettings()">Save Settings</button>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var API = '/api/v1/tenant/student-services';
+
+      function toast(message, isError) {
+        var el = document.createElement('div');
+        el.className = 'toast' + (isError ? ' error' : '');
+        el.textContent = message;
+        document.body.appendChild(el);
+        setTimeout(function () { el.remove(); }, 3500);
+      }
+
+      async function apiCall(method, path, body) {
+        var token = '';
+        try { token = localStorage.getItem('access_token') || ''; } catch (_) {}
+        var opts = { method, headers: { 'Content-Type': 'application/json', Accept: 'application/json' } };
+        if (token) opts.headers['Authorization'] = 'Bearer ' + token;
+        if (body && method !== 'GET') opts.body = JSON.stringify(body);
+        var res = await fetch(API + path, opts);
+        var json = null;
+        try { json = await res.json(); } catch (_) {}
+        if (!res.ok) throw new Error((json && json.message) || ('HTTP ' + res.status));
+        return json.data;
+      }
+
+      window.calculateCost = async function () {
+        var data = {
+          totalPages: parseInt(document.getElementById('calcPages').value, 10) || 0,
+          copies: parseInt(document.getElementById('calcCopies').value, 10) || 0,
+          paperSize: document.getElementById('calcPaperSize').value,
+          printType: document.getElementById('calcPrintType').value,
+          duplexType: document.getElementById('calcDuplex').value,
+          hasBinding: document.getElementById('calcBinding').value === 'yes'
+        };
+        try {
+          var result = await apiCall('POST', '/calculate', data);
+          var el = document.getElementById('calcResult');
+          el.style.display = 'block';
+          el.innerHTML = '<strong>Estimated Total: EGP ' + result.totalAmount.toFixed(2) + '</strong>' +
+            '<br><span style="font-size:12px;color:#64748b">Pages: ' + result.breakdown.pages + ' | Copies: ' + result.breakdown.copies + ' | Per page: EGP ' + result.breakdown.pricePerPage.toFixed(2) + ' | Binding: EGP ' + result.breakdown.bindingCost.toFixed(2) + '</span>';
+        } catch (e) {
+          toast(e.message || 'Calculation failed', true);
+        }
+      };
+
+      window.submitOrder = async function () {
+        var data = {
+          studentName: document.getElementById('orderStudentName').value.trim(),
+          studentPhone: document.getElementById('orderStudentPhone').value.trim(),
+          documentName: document.getElementById('orderDocName').value.trim(),
+          totalPages: parseInt(document.getElementById('orderPages').value, 10) || 1,
+          copies: parseInt(document.getElementById('orderCopies').value, 10) || 1,
+          paperSize: document.getElementById('orderPaperSize').value,
+          printType: document.getElementById('orderPrintType').value,
+          duplexType: document.getElementById('orderDuplex').value,
+          hasBinding: document.getElementById('orderBinding').value === 'yes',
+          notes: document.getElementById('orderNotes').value.trim()
+        };
+        if (!data.studentPhone) { toast('Student phone is required', true); return; }
+        try {
+          var result = await apiCall('POST', '/orders', data);
+          toast('Order created: ' + result.order.orderRef);
+          document.getElementById('orderDocName').value = '';
+          document.getElementById('orderNotes').value = '';
+          renderOrders();
+        } catch (e) {
+          toast(e.message || 'Failed to create order', true);
+        }
+      };
+
+      window.renderOrders = async function () {
+        var search = document.getElementById('orderSearch').value.trim();
+        var query = { page: 1, limit: 50 };
+        if (search) query.search = search;
+        var container = document.getElementById('ordersTable');
+        try {
+          var result = await apiCall('GET', '/orders?' + new URLSearchParams(query).toString());
+          var orders = result.orders || [];
+          if (!orders.length) {
+            container.innerHTML = '<div class="empty">No orders yet.</div>';
+            return;
+          }
+          var html = '<table><thead><tr><th>Ref</th><th>Student</th><th>Document</th><th>Pages</th><th>Total</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+          orders.forEach(function (o) {
+            var badgeClass = 'status-' + (o.status || 'pending');
+            html += '<tr>' +
+              '<td>' + escapeHtml(o.orderRef) + '</td>' +
+              '<td>' + escapeHtml(o.studentName || '—') + '<br><span style="font-size:11px;color:#64748b">' + escapeHtml(o.studentPhone) + '</span></td>' +
+              '<td>' + escapeHtml(o.documentName || '—') + '</td>' +
+              '<td>' + o.totalPages + ' x ' + o.copies + '</td>' +
+              '<td>EGP ' + Number(o.totalAmount).toFixed(2) + '</td>' +
+              '<td><span class="status-badge ' + badgeClass + '">' + escapeHtml(o.status) + '</span></td>' +
+              '<td><button class="btn btn-outline btn-sm" type="button" onclick="updateStatus(\'' + escapeHtml(o.id) + '\', \'printing\')">Print</button> ' +
+              '<button class="btn btn-outline btn-sm" type="button" onclick="updateStatus(\'' + escapeHtml(o.id) + '\', \'ready\')">Ready</button> ' +
+              '<button class="btn btn-outline btn-sm" type="button" onclick="updateStatus(\'' + escapeHtml(o.id) + '\', \'delivered\')">Delivered</button> ' +
+              '<button class="btn btn-outline btn-sm" type="button" onclick="sendReceipt(\'' + escapeHtml(o.id) + '\')">Receipt</button></td>' +
+              '</tr>';
+          });
+          html += '</tbody></table>';
+          container.innerHTML = html;
+        } catch (e) {
+          container.innerHTML = '<div class="empty">Failed to load orders.</div>';
+        }
+      };
+
+      window.updateStatus = async function (orderId, status) {
+        try {
+          var order = await apiCall('PATCH', '/orders/' + orderId + '/status', { status });
+          toast('Status updated to ' + order.status);
+          renderOrders();
+        } catch (e) {
+          toast(e.message || 'Failed to update status', true);
+        }
+      };
+
+      window.sendReceipt = async function (orderId) {
+        try {
+          var result = await apiCall('POST', '/orders/' + orderId + '/receipt', {});
+          toast(result.ok ? 'Receipt sent' : 'Receipt queued');
+        } catch (e) {
+          toast(e.message || 'Failed to send receipt', true);
+        }
+      };
+
+      window.submitPass = async function () {
+        var monthInput = document.getElementById('passMonth').value;
+        var data = {
+          studentName: document.getElementById('passStudentName').value.trim(),
+          studentPhone: document.getElementById('passStudentPhone').value.trim(),
+          passType: document.getElementById('passType').value,
+          month: monthInput,
+          year: parseInt(document.getElementById('passYear').value, 10) || new Date().getFullYear(),
+          amount: parseFloat(document.getElementById('passAmount').value || 0)
+        };
+        if (!data.studentPhone) { toast('Student phone is required', true); return; }
+        if (!monthInput) { toast('Month is required', true); return; }
+        try {
+          var result = await apiCall('POST', '/passes', data);
+          toast('Pass created');
+          document.getElementById('passStudentName').value = '';
+          document.getElementById('passStudentPhone').value = '';
+          document.getElementById('passAmount').value = '0';
+          renderPasses();
+        } catch (e) {
+          toast(e.message || 'Failed to create pass', true);
+        }
+      };
+
+      window.renderPasses = async function () {
+        var container = document.getElementById('passesTable');
+        try {
+          var result = await apiCall('GET', '/passes?limit=50');
+          var passes = result.passes || [];
+          if (!passes.length) {
+            container.innerHTML = '<div class="empty">No passes yet.</div>';
+            return;
+          }
+          var html = '<table><thead><tr><th>Student</th><th>Type</th><th>Period</th><th>Amount</th><th>Status</th></tr></thead><tbody>';
+          passes.forEach(function (p) {
+            html += '<tr>' +
+              '<td>' + escapeHtml(p.studentName || '—') + '<br><span style="font-size:11px;color:#64748b">' + escapeHtml(p.studentPhone) + '</span></td>' +
+              '<td>' + escapeHtml(p.passType) + '</td>' +
+              '<td>' + escapeHtml(p.month) + ' / ' + p.year + '</td>' +
+              '<td>EGP ' + Number(p.amount).toFixed(2) + '</td>' +
+              '<td><span class="status-badge status-' + (p.status || 'active') + '">' + escapeHtml(p.status) + '</span></td>' +
+              '</tr>';
+          });
+          html += '</tbody></table>';
+          container.innerHTML = html;
+        } catch (e) {
+          container.innerHTML = '<div class="empty">Failed to load passes.</div>';
+        }
+      };
+
+      window.saveSettings = async function () {
+        var data = { whatsappNumber: document.getElementById('settingsWhatsapp').value.trim() };
+        try {
+          var result = await apiCall('PUT', '/settings', data);
+          document.getElementById('settingsWhatsapp').value = result.whatsappNumber || '';
+          toast('Settings saved');
+        } catch (e) {
+          toast(e.message || 'Failed to save settings', true);
+        }
+      };
+
+      function escapeHtml(str) {
+        return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+
+      async function loadSettings() {
+        try {
+          var data = await apiCall('GET', '/settings');
+          if (data && data.whatsappNumber) document.getElementById('settingsWhatsapp').value = data.whatsappNumber;
+        } catch (_) {}
+      }
+
+      var now = new Date();
+      var ym = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+      var yearEl = document.getElementById('passYear');
+      if (yearEl) yearEl.value = now.getFullYear();
+      var monthEl = document.getElementById('passMonth');
+      if (monthEl) monthEl.value = ym;
+
+      loadSettings();
+      renderOrders();
+      renderPasses();
+    })();
+  </script>
+</body>
+</html>

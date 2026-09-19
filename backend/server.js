@@ -157,6 +157,10 @@ const companyProfileRoutes = require('./routes/companyProfile.routes');
 const customerRequestRoutes = require('./routes/customerRequest.routes');
 const internalChangeCenterRoutes = require('./routes/internalChangeCenter.routes');
 const platformIntegrationRoutes = require('./routes/platformIntegration.routes');
+const tenantOnboardingRoutes = require('./routes/tenantOnboarding.routes');
+const studentServicesPackRoutes = require('./routes/studentServicesPack.routes');
+const shiftManagementRoutes = require('./routes/shiftManagement.routes');
+const onlineStoreRoutes = require('./routes/onlineStore.routes');
 const loyaltyRoutes = require('./routes/loyalty.routes');
 const marketRoutes = require('./routes/market.routes');
 const gameHostingRoutes = require('./routes/gameHosting.routes');
@@ -175,6 +179,8 @@ app.use('/api/v1/update', updateRoutes);
 // Phase 33 — Master Control Center. Mounted before the optional AUTH_REQUIRED
 // guard so platform scope is enforced exclusively by requirePlatformAdmin.
 app.use('/api/v1/platform', platformRoutes);
+// Tenant Onboarding Wizard — guided setup + one-click demo data.
+app.use('/api/v1/tenant/onboarding', tenantOnboardingRoutes);
 // Public platform homepage — read-only catalog, no auth required.
 app.use('/api/v1/platform-public', platformPublicRoutes);
 // Public company profile — read-only profile data, no auth required.
@@ -265,6 +271,13 @@ app.use('/api/v1/dashboard', validateResource('dashboard'), dashboardRoutes);
 app.use('/api/v1/reports', validateResource('reports'), reportsRoutes);
 app.use('/api/v1/users', validateResource('users'), usersRoutes);
 app.use('/api/v1/loyalty', validateResource('loyalty'), loyaltyRoutes);
+app.use('/api/v1/tenant/student-services', studentServicesPackRoutes);
+app.use('/api/v1/tenant/shifts', shiftManagementRoutes);
+app.use('/api/v1/tenant/online-store', onlineStoreRoutes);
+
+app.get('/store/:slug', (req, res) => {
+  res.sendFile(path.join(FRONTEND_ROOT, 'store.html'));
+});
 
 // ===== Static frontend (single-process production serving) =====
 // The frontend is a plain static tree at the repository root (index.html,
@@ -295,7 +308,11 @@ function frontendPrivateGuard(req, res, next) {
   }
   next();
 }
-app.use('/', frontendPrivateGuard, express.static(FRONTEND_ROOT, {
+function platformHomeIndex(req, res, next) {
+  if (req.path === '/') req.url = '/platform.html';
+  next();
+}
+app.use('/', frontendPrivateGuard, platformHomeIndex, express.static(FRONTEND_ROOT, {
   dotfiles: 'deny',
   index: 'index.html',
   fallthrough: true
