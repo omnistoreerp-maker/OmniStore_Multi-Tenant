@@ -48,7 +48,7 @@ app.use(helmet({
       // single-file build with inline onclick handlers, and the project's own
       // nginx.conf already allows 'unsafe-inline'. Leaving the directive out
       // makes attribute handlers fall back to script-src ('unsafe-inline').
-      scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdnjs.cloudflare.com', 'https://cdn.jsdelivr.net'],
+      scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdnjs.cloudflare.com', 'https://cdn.jsdelivr.net', 'https://unpkg.com'],
       scriptSrcAttr: ["'self'", "'unsafe-inline'"], // overrides helmet's default 'none'
       styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],

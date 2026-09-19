@@ -80,7 +80,9 @@ window.MK_LOCALES = {
     order_confirmed: 'Thank you! Your order has been received.',
     continue_shopping: 'Continue shopping',
     please_wait: 'Please wait…',
-    error_generic: 'Something went wrong. Please try again.'
+    error_generic: 'Something went wrong. Please try again.',
+    under_construction_title: 'Under Construction',
+    under_construction_message: 'This feature is coming soon. Please check back later.'
     cancel: 'Cancel',
     required_field: 'This field is required',
     invalid_email: 'Enter a valid email',
@@ -345,7 +347,9 @@ window.MK_LOCALES = {
     order_confirmed: 'شكرًا! تم استلام طلبك.',
     continue_shopping: 'متابعة التسوق',
     please_wait: 'يرجى الانتظار…',
-    error_generic: 'حدث خطأ ما. حاول مرة أخرى.'
+    error_generic: 'حدث خطأ ما. حاول مرة أخرى.',
+    under_construction_title: 'قيد الإنشاء',
+    under_construction_message: 'هذه الميزة قيد الإعداد. يرجى العودة لاحقاً.'
     cancel: 'إلغاء',
     required_field: 'هذا الحقل مطلوب',
     invalid_email: 'أدخل بريدًا إلكترونيًا صالحًا',

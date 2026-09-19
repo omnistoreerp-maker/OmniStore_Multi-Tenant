@@ -20,7 +20,28 @@
       if (k) e.textContent = t(k);
     });
     const btn = document.getElementById('mk-lang-btn');
-    if (btn) btn.textContent = _locale === 'ar' ? 'English' : 'العربية';
+    if (btn) btn.textContent = lang === 'en' ? 'العربية' : 'English';
+  }
+
+  let _sections = null;
+  let _sectionsPromise = null;
+
+  async function ensureSections() {
+    if (_sections) return _sections;
+    if (_sectionsPromise) return _sectionsPromise;
+    _sectionsPromise = loadJSON('/sections').catch(() => ({ sections: [] }));
+    try {
+      _sections = await _sectionsPromise;
+    } catch (_) {
+      _sections = { sections: [] };
+    }
+    return _sections;
+  }
+
+  function isGameHostingActive() {
+    const sections = _sections ? _sections.sections : [];
+    const gh = sections.find(function (s) { return s.id === 'game-hosting'; });
+    return gh && gh.status === 'active' && gh.url;
   }
   function renderIcons() {
     if (window.lucide && typeof window.lucide.createIcons === 'function') {
@@ -1645,6 +1666,11 @@
     updateActiveNav(path);
     try {
       if (path === 'game-hosting') {
+        const ghActive = await ensureSections().then(function () { return isGameHostingActive(); });
+        if (!ghActive) {
+          setApp('<h1 class="mk-page-title">' + esc(t('under_construction_title' || 'Under Construction')) + '</h1><p>' + esc(t('under_construction_message' || 'This feature is coming soon.')) + '</p>');
+          return;
+        }
         if (param === 'my-servers') return pageGameHostingMyServers();
         if (param === 'servers') return pageGameHostingServer(decodeURIComponent(location.hash.split('/')[3] || ''));
         if (param === 'provision' || (typeof param === 'string' && param.startsWith('provision'))) return pageGameHostingProvision();
@@ -1679,7 +1705,6 @@
       'cart': ['a[href="#/cart"]', '#mk-bottom-nav a[href="#/cart"]'],
       'track': ['a[href="#/track"]', '#mk-bottom-nav a[href="#/track"]'],
       'account': ['a[href="#/account"]', '#mk-bottom-nav a[href="#/account"]'],
-      'game-hosting': ['a[href="#/game-hosting"]', '#mk-bottom-nav a[href="#/game-hosting"]', 'a[href="#/game-hosting/my-servers"]', '#mk-bottom-nav a[href="#/game-hosting/my-servers"]', 'a[href="#/game-hosting/requests"]', '#mk-bottom-nav a[href="#/game-hosting/requests"]'],
       'operator': ['#mk-op-nav a[href="#/operator"]', '#mk-mobile-op-nav a[href="#/operator"]']
     };
     const selectors = selectorMap[path] || [];
@@ -1690,10 +1715,11 @@
   }
 
   function init() {
+    ensureSections().catch(function () {});
     document.documentElement.lang = _locale;
     document.documentElement.dir = _locale === 'ar' ? 'rtl' : 'ltr';
     const langBtn = document.getElementById('mk-lang-btn');
-    if (langBtn) langBtn.addEventListener('click', () => setLocale(_locale === 'ar' ? 'en' : 'ar'));
+    if (langBtn) langBtn.addEventListener('click', () => setLocale(_locale === 'en' ? 'ar' : 'en'));
     window.addEventListener('hashchange', render);
     const menuBtn = document.getElementById('mk-menu-btn');
     const mobileNav = document.getElementById('mk-mobile-nav');
@@ -1709,6 +1735,11 @@
         });
       });
     }
+    updateAuthUI();
+    window.addEventListener('hashchange', () => { updateAuthUI(); render(); });
+    if (!location.hash) location.hash = '#/home';
+    else render();
+  }
     updateAuthUI();
     window.addEventListener('hashchange', () => { updateAuthUI(); render(); });
     if (!location.hash) location.hash = '#/home';
