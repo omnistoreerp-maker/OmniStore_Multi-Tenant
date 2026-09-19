@@ -20,7 +20,7 @@
       if (k) e.textContent = t(k);
     });
     const btn = document.getElementById('mk-lang-btn');
-    if (btn) btn.textContent = lang === 'en' ? 'العربية' : 'English';
+    if (btn) btn.textContent = _locale === 'en' ? 'العربية' : 'English';
   }
 
   let _sections = null;
