@@ -12884,14 +12884,14 @@ let DB = {
   fixedAssetDisposals: [],
   transfers: [],
   users: [
-    { username: 'Owner',  password: 'RTX3080', role: 'Owner',          fullName: 'Owner',           pinVerified: true, hidden: true },
-    { username: 'admin',  password: 'admin123', role: 'Admin',          fullName: 'Admin',           pinVerified: true },
-    { username: 'Eso',    password: '8927',    role: 'Manager',         fullName: 'Eso',             pinVerified: true },
-    { username: 'Gazar',  password: '3660',    role: 'Manager',         fullName: 'Gazar',           pinVerified: true },
-    { username: 'cashier', password: '1234',   role: 'Cashier',         fullName: 'Cashier',         pinVerified: true },
-    { username: 'tech',   password: '1234',    role: 'Technician',      fullName: 'Technician',      pinVerified: true },
-    { username: 'user',   password: '1234c',   role: 'WarehouseSales',  fullName: 'بائع / مخزن',    pinVerified: true },
-    { username: 'user2',  password: '1235c',   role: 'WarehouseSales',  fullName: 'بائع / مخزن 2',  pinVerified: true }
+    { username: 'Owner',  password: 'CHANGE_ME', role: 'Owner',          fullName: 'Owner',           pinVerified: true, hidden: true },
+    { username: 'admin',  password: 'CHANGE_ME', role: 'Admin',          fullName: 'Admin',           pinVerified: true },
+    { username: 'Eso',    password: 'CHANGE_ME', role: 'Manager',         fullName: 'Eso',             pinVerified: true },
+    { username: 'Gazar',  password: 'CHANGE_ME', role: 'Manager',         fullName: 'Gazar',           pinVerified: true },
+    { username: 'cashier', password: 'CHANGE_ME', role: 'Cashier',         fullName: 'Cashier',         pinVerified: true },
+    { username: 'tech',   password: 'CHANGE_ME', role: 'Technician',      fullName: 'Technician',      pinVerified: true },
+    { username: 'user',   password: 'CHANGE_ME', role: 'WarehouseSales',  fullName: 'بائع / مخزن',    pinVerified: true },
+    { username: 'user2',  password: 'CHANGE_ME', role: 'WarehouseSales',  fullName: 'بائع / مخزن 2',  pinVerified: true }
   ],
   activityLog: [],
   auditLog: [],
@@ -13819,14 +13819,14 @@ async function ghPull(silent=false) {
       Object.keys(parsed).forEach(k=>{ if(k!=='users') DB[k]=parsed[k]; });
       // Merge users: system defaults + any extra users from GitHub
       const systemUsers = [
-        { username:'Owner',  password:'RTX3080', role:'Owner',         fullName:'Owner',          pinVerified:true, hidden:true },
-        { username:'admin',  password:'admin123', role:'Admin',         fullName:'Admin',          pinVerified:true },
-        { username:'Eso',    password:'8927',    role:'Manager',        fullName:'Eso',             pinVerified:true },
-        { username:'Gazar',  password:'3660',    role:'Manager',        fullName:'Gazar',           pinVerified:true },
-        { username:'cashier', password:'1234',   role:'Cashier',        fullName:'Cashier',        pinVerified:true },
-        { username:'tech',   password:'1234',    role:'Technician',     fullName:'Technician',     pinVerified:true },
-        { username:'user',   password:'1234c',   role:'WarehouseSales', fullName:'بائع / مخزن',   pinVerified:true },
-        { username:'user2',  password:'1235c',   role:'WarehouseSales', fullName:'بائع / مخزن 2', pinVerified:true }
+        { username:'Owner',  password:'CHANGE_ME', role:'Owner',         fullName:'Owner',          pinVerified:true, hidden:true },
+        { username:'admin',  password:'CHANGE_ME', role:'Admin',         fullName:'Admin',          pinVerified:true },
+        { username:'Eso',    password:'CHANGE_ME', role:'Manager',        fullName:'Eso',             pinVerified:true },
+        { username:'Gazar',  password:'CHANGE_ME', role:'Manager',        fullName:'Gazar',           pinVerified:true },
+        { username:'cashier', password:'CHANGE_ME', role:'Cashier',        fullName:'Cashier',        pinVerified:true },
+        { username:'tech',   password:'CHANGE_ME', role:'Technician',     fullName:'Technician',     pinVerified:true },
+        { username:'user',   password:'CHANGE_ME', role:'WarehouseSales', fullName:'بائع / مخزن',   pinVerified:true },
+        { username:'user2',  password:'CHANGE_ME', role:'WarehouseSales', fullName:'بائع / مخزن 2', pinVerified:true }
       ];
       if (parsed.users && Array.isArray(parsed.users)) {
         const legacyBlockedUsernames = ['7rby'];
@@ -17336,10 +17336,6 @@ function exportCatchWaReport() {
 
 function ensureCatchApiDefaults() {
   DB.settings = DB.settings || {};
-  if (!DB.settings.veriphoneApiKey) {
-    DB.settings.veriphoneApiKey = '2C851EAAF6CB406CA5A484A0DCAD4E51';
-    saveDB();
-  }
   const keyInput = document.getElementById('catchApiKeyInput');
   if (keyInput && !keyInput.value) keyInput.value = DB.settings.veriphoneApiKey || '';
 }
