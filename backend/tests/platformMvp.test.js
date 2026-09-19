@@ -36,6 +36,18 @@ describe('Platform MVP — static surface', () => {
     expect(html).not.toContain('id="loginScreen"');
   });
 
+  test('Change Center and My Requests are honest Under Construction pages, not 404s', () => {
+    const home = repoFile('platform.html');
+    expect(home).toContain('href="internal.html"');
+    expect(home).toContain('href="customer.html"');
+    const internal = repoFile('internal.html');
+    const customer = repoFile('customer.html');
+    expect(internal).toContain('Under Construction');
+    expect(customer).toContain('Under Construction');
+    expect(internal).toContain('Change Center');
+    expect(customer).toContain('My Requests');
+  });
+
   test('business.html signs into the REAL auth flow and posts onboarding to the hardened endpoint', () => {
     const html = repoFile('business.html');
     expect(html).toContain("postJSON('/auth/login'");

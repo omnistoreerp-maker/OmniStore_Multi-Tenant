@@ -71,10 +71,10 @@ function _defaultDoc() {
       },
       {
         id: 'student-services',
-        title: 'Student Services',
-        description: 'Student-facing services and accounts.',
-        status: 'coming-soon',
-        url: null,
+        title: 'Student Services & Printing',
+        description: 'Print shop orders, cost calculator, and student monthly passes.',
+        status: 'active',
+        url: '/student.html',
         icon: 'fa-graduation-cap'
       },
       {
@@ -94,21 +94,40 @@ function _defaultDoc() {
         icon: 'fa-film'
       },
       {
-        id: 'student-services',
-        title: 'Student Services & Printing',
-        description: 'Print shop orders, cost calculator, and student monthly passes.',
-        status: 'active',
-        url: '/student.html',
-        icon: 'fa-graduation-cap'
+        id: 'support',
+        title: 'Support',
+        description: 'Help center, tickets, and customer requests.',
+        status: 'coming-soon',
+        url: null,
+        icon: 'fa-headset'
       }
     ]
   };
 }
 
+function _dedupeSections(sections) {
+  if (!Array.isArray(sections)) return [];
+  const seen = new Set();
+  const out = [];
+  for (const section of sections) {
+    if (!section || !section.id || seen.has(section.id)) continue;
+    seen.add(section.id);
+    out.push(section);
+  }
+  return out;
+}
+
 function getCatalog() {
+  const defaults = _defaultDoc();
   const store = _readStore();
-  if (!store) return _defaultDoc();
-  return store;
+  if (!store) return defaults;
+  const merged = Object.assign({}, defaults, store);
+  if (!Array.isArray(store.sections) || store.sections.length === 0) {
+    merged.sections = defaults.sections;
+  } else {
+    merged.sections = _dedupeSections(store.sections);
+  }
+  return merged;
 }
 
 function getDefaultDoc() {
