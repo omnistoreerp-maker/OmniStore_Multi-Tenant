@@ -50,6 +50,12 @@ function _generateId(prefix) {
   return prefix + '-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
 }
 
+function _rejectTenantIdInPayload(data) {
+  if (data && typeof data === 'object' && Object.prototype.hasOwnProperty.call(data, 'tenantId')) {
+    throw new Error('tenantId cannot be supplied in payload');
+  }
+}
+
 function _findRate(rates, paperSize, printType, duplexType) {
   return rates.find(r =>
     r.paperSize === paperSize &&
@@ -69,6 +75,7 @@ function listRates(tenantContext) {
 function upsertRate(tenantContext, data) {
   const tid = _tenantId(tenantContext);
   if (!tid) throw new Error('Tenant context is required');
+  _rejectTenantIdInPayload(data);
 
   const doc = _readStore();
   const rates = Array.isArray(doc.printRates) ? doc.printRates : [];
@@ -153,6 +160,7 @@ function calculateCost(tenantContext, pages, copies, paperSize, printType, duple
 function createOrder(tenantContext, data) {
   const tid = _tenantId(tenantContext);
   if (!tid) throw new Error('Tenant context is required');
+  _rejectTenantIdInPayload(data);
 
   const studentName = String(data.studentName || '').trim();
   const studentPhone = String(data.studentPhone || '').trim();
@@ -167,7 +175,7 @@ function createOrder(tenantContext, data) {
 
   if (!studentPhone) throw new Error('studentPhone is required');
 
-  const cost = calculateCost(tid, totalPages, copies, paperSize, printType, duplexType, hasBinding);
+  const cost = calculateCost({ tenantId: tid }, totalPages, copies, paperSize, printType, duplexType, hasBinding);
 
   const doc = _readStore();
   const orders = Array.isArray(doc.printOrders) ? doc.printOrders : [];
@@ -261,6 +269,7 @@ function updateOrderStatus(tenantContext, orderId, status) {
 function createPass(tenantContext, data) {
   const tid = _tenantId(tenantContext);
   if (!tid) throw new Error('Tenant context is required');
+  _rejectTenantIdInPayload(data);
 
   const studentName = String(data.studentName || '').trim();
   const studentPhone = String(data.studentPhone || '').trim();
@@ -330,27 +339,33 @@ function listPasses(tenantContext, query = {}) {
   };
 }
 
+function _tenantSettings(doc, tid) {
+  const byTenant = doc.tenantSettings && typeof doc.tenantSettings === 'object' ? doc.tenantSettings : {};
+  const current = byTenant[tid] || {};
+  return {
+    whatsappNumber: String(current.whatsappNumber || ''),
+    currency: String(current.currency || 'EGP')
+  };
+}
+
 function getSettings(tenantContext) {
   const tid = _tenantId(tenantContext);
-  const doc = _readStore();
-  const settings = doc.settings || {};
-  return {
-    whatsappNumber: String(settings.whatsappNumber || ''),
-    currency: String(settings.currency || 'EGP')
-  };
+  if (!tid) throw new Error('Tenant context is required');
+  return _tenantSettings(_readStore(), tid);
 }
 
 function updateSettings(tenantContext, data) {
   const tid = _tenantId(tenantContext);
   if (!tid) throw new Error('Tenant context is required');
+  _rejectTenantIdInPayload(data);
 
   const doc = _readStore();
-  const current = doc.settings || {};
+  const current = _tenantSettings(doc, tid);
   const next = {
     whatsappNumber: String(data.whatsappNumber || current.whatsappNumber || '').trim(),
     currency: String(data.currency || current.currency || 'EGP').trim()
   };
-  doc.settings = next;
+  doc.tenantSettings = Object.assign({}, doc.tenantSettings || {}, { [tid]: next });
   _writeStore(doc);
   return next;
 }
