@@ -12,58 +12,81 @@
 <meta name="application-name" content="OmniStore ERP">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/digitronics-icon-192.svg">
-<link rel="stylesheet" href="/styles/modern-glass-theme.css">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap');
 :root {
-  --bg-main:#0b0f19; --surface-main:rgba(18,24,38,0.72); --surface-elevated:rgba(22,28,44,0.82); --border-subtle:rgba(255,255,255,0.08); --border-medium:rgba(255,255,255,0.14);
-  --accent-primary:#6366f1; --accent-secondary:#8b5cf6; --accent-glow:rgba(99,102,241,0.25); --accent-strong-glow:rgba(99,102,241,0.45);
-  --text-main:#f8fafc; --text-secondary:#cbd5e1; --text-muted:#94a3b8;
-  --success:#10b981; --success-bg:rgba(16,185,129,0.15); --warning:#f59e0b; --warning-bg:rgba(245,158,11,0.15); --danger:#ef4444; --danger-bg:rgba(239,68,68,0.15); --info:#3b82f6; --info-bg:rgba(59,130,246,0.15);
-  --radius-xs:6px; --radius-sm:8px; --radius-md:12px; --radius-lg:16px; --radius-xl:24px; --radius-full:9999px;
-  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:20px; --space-6:24px; --space-8:32px; --space-10:40px; --space-12:48px;
-  --ease-out:cubic-bezier(0.16,1,0.3,1); --duration-fast:150ms; --duration-normal:250ms; --duration-slow:350ms;
-  --bg:var(--bg-main); --surface:var(--surface-main); --surface2:var(--surface-elevated); --border:var(--border-medium); --accent:var(--accent-primary); --accent2:var(--accent-secondary); --green:var(--success); --red:var(--danger); --yellow:var(--warning); --purple:var(--accent-secondary); --orange:#f97316; --teal:#14b8a6; --sky:#0ea5e9; --indigo:#6366f1; --emerald:#10b981; --amber:#f59e0b; --text:var(--text-main); --text2:var(--text-secondary); --muted:var(--text-muted); --glow:0 0 20px var(--accent-glow); --accent-color:var(--accent-primary); --safe-bottom:env(safe-area-inset-bottom,0px);
-  --glass-bg:var(--surface-main); --glass-border:var(--border-subtle); --glass-blur:blur(18px) saturate(180%); --glass-shadow:0 8px 32px 0 rgba(0,0,0,0.37); --glass-radius:var(--radius-lg);
-  --wallpaper-gradient:linear-gradient(135deg,#0b0f19 0%,#0f1525 45%,#0b0f19 100%);
-  --parallax-x:0px; --parallax-y:0px;
+  --bg:#f8fbff; --surface:#ffffff; --surface2:#eef4fb; --border:#d7e3f2;
+  --accent:#2563eb; --accent2:#1d4ed8; --green:#16a34a; --red:#dc2626;
+  --yellow:#f59e0b; --purple:#7c3aed; --orange:#ea580c;
+  --teal:#0f9f9a; --sky:#0284c7; --indigo:#4f46e5; --emerald:#059669; --amber:#d97706;
+  --text:#0f172a; --text2:#475569; --muted:#64748b; --glow:0 0 20px rgba(37,99,235,0.12);
+  --glass-bg:rgba(255,255,255,0.82); --glass-border:rgba(255,255,255,0.65);
+  --glass-blur:16px; --glass-shadow:0 10px 28px rgba(15,23,42,0.08);
+  --accent-color:var(--accent);
+  --wallpaper-gradient:linear-gradient(135deg,#f8fbff 0%,#edf5ff 45%,#eef2ff 100%);
+  --parallax-x:0px; --parallax-y:0px; --safe-bottom:env(safe-area-inset-bottom,0px);
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-html{font-size:16px;width:100%;max-width:100%;overflow-x:hidden;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}
-body{font-family:'Cairo',system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;min-height:100dvh;overflow-x:hidden;touch-action:manipulation;width:100%;max-width:100%;background-image:radial-gradient(circle at 14% 16%,rgba(99,102,241,0.12),transparent 28%),radial-gradient(circle at 86% 22%,rgba(139,92,246,0.10),transparent 26%),radial-gradient(circle at 50% 88%,rgba(59,130,246,0.10),transparent 30%);}
+html{font-size:16px;width:100%;max-width:100%;overflow-x:hidden;}
+body{font-family:'Cairo',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;min-height:100dvh;overflow-x:hidden;touch-action:manipulation;width:100%;max-width:100%;}
 body.mobile-nav-open{overflow:hidden;position:fixed;width:100%;inset:0;}
 img,svg,canvas,video,iframe{max-width:100%;}
 pre,code{white-space:pre-wrap;word-break:break-word;}
 table{max-width:100%;}
-body::before{content:'';position:fixed;inset:-24px;z-index:-2;pointer-events:none;background:var(--wallpaper-gradient);transform:translate3d(calc(var(--parallax-x) * -1),calc(var(--parallax-y) * -1),0) scale(1.03);transition:background .5s ease,transform .18s ease-out;}
-body::after{content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(circle at 16% 18%,rgba(99,102,241,0.10),transparent 30%),radial-gradient(circle at 82% 20%,rgba(139,92,246,0.08),transparent 28%),radial-gradient(circle at 48% 92%,rgba(59,130,246,0.08),transparent 34%);opacity:.7;}
-body.glass-soft{--glass-bg:rgba(18,24,38,0.65);--glass-blur:blur(12px) saturate(180%);--glass-shadow:0 8px 24px rgba(0,0,0,0.35);}
-body.glass-balanced{--glass-bg:rgba(18,24,38,0.75);--glass-blur:blur(18px) saturate(180%);--glass-shadow:0 10px 28px rgba(0,0,0,0.40);}
-body.glass-deep{--glass-bg:rgba(18,24,38,0.82);--glass-blur:blur(22px) saturate(180%);--glass-shadow:0 14px 38px rgba(0,0,0,0.50);}
-body.low-performance-ui{--glass-blur:blur(8px) saturate(120%);--glass-shadow:0 8px 20px rgba(0,0,0,0.30);}
+body::before{
+  content:'';position:fixed;inset:-24px;z-index:-2;pointer-events:none;
+  background:var(--wallpaper-gradient);
+  transform:translate3d(calc(var(--parallax-x) * -1),calc(var(--parallax-y) * -1),0) scale(1.03);
+  transition:background .5s ease,transform .18s ease-out;
+}
+body::after{
+  content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(circle at 16% 18%,rgba(37,99,235,.08),transparent 30%),
+    radial-gradient(circle at 82% 20%,rgba(15,159,154,.06),transparent 28%),
+    radial-gradient(circle at 48% 92%,rgba(124,58,237,.06),transparent 34%);
+  opacity:.56;
+}
+body.glass-soft{--glass-bg:rgba(255,255,255,.68);--glass-blur:12px;--glass-shadow:0 8px 24px rgba(15,23,42,.07);}
+body.glass-balanced{--glass-bg:rgba(255,255,255,.82);--glass-blur:16px;--glass-shadow:0 10px 28px rgba(15,23,42,.08);}
+body.glass-deep{--glass-bg:rgba(255,255,255,.80);--glass-blur:20px;--glass-shadow:0 14px 38px rgba(15,23,42,.10);}
+body.low-performance-ui{--glass-blur:8px;--glass-shadow:0 8px 20px rgba(31,51,84,.10);}
 body.wallpaper-light-premium,body.wallpaper-premium{--wallpaper-gradient:linear-gradient(135deg,#f8fbff 0%,#edf5ff 45%,#eef2ff 100%);}
 body.wallpaper-calm{--wallpaper-gradient:linear-gradient(135deg,#f7fbff 0%,#eef6ff 48%,#f5f9ff 100%);}
 body.wallpaper-sky{--wallpaper-gradient:linear-gradient(135deg,#eef8ff 0%,#f7fbff 45%,#edf7ff 100%);}
 body.wallpaper-aurora{--wallpaper-gradient:linear-gradient(135deg,#fbf8ff 0%,#f2f7ff 45%,#fff7ef 100%);}
 body.wallpaper-midnight{--wallpaper-gradient:linear-gradient(135deg,#101828 0%,#1e293b 54%,#172033 100%);}
-body.accent-blue{--accent:#6366f1;--accent2:#4f46e5;--accent-color:#6366f1;}
-body.accent-green{--accent:#10b981;--accent2:#059669;--accent-color:#10b981;}
-body.accent-purple{--accent:#8b5cf6;--accent2:#7c3aed;--accent-color:#8b5cf6;}
-body.accent-orange{--accent:#f97316;--accent2:#ea580c;--accent-color:#f97316;}
+body.accent-blue{--accent:#2563eb;--accent2:#1d4ed8;--accent-color:#2563eb;}
+body.accent-green{--accent:#00a854;--accent2:#047857;--accent-color:#00a854;}
+body.accent-purple{--accent:#7c3aed;--accent2:#5b21b6;--accent-color:#7c3aed;}
+body.accent-orange{--accent:#ea580c;--accent2:#c2410c;--accent-color:#ea580c;}
 [data-theme="light"]{
-  --bg-main:#f8fbff; --surface-main:rgba(255,255,255,0.78); --surface-elevated:rgba(255,255,255,0.88); --border-subtle:rgba(255,255,255,0.65); --border-medium:rgba(15,23,42,0.10);
-  --text-main:#0f172a; --text-secondary:#334155; --text-muted:#64748b; --accent-glow:rgba(37,99,235,0.18); --accent-strong-glow:rgba(37,99,235,0.30);
-  --success-bg:rgba(16,185,129,0.12); --warning-bg:rgba(245,158,11,0.12); --danger-bg:rgba(239,68,68,0.12); --info-bg:rgba(59,130,246,0.12);
-  --bg:var(--bg-main); --surface:var(--surface-main); --surface2:var(--surface-elevated); --border:var(--border-medium); --text:var(--text-main); --text2:var(--text-secondary); --muted:var(--text-muted);
-  --glass-bg:var(--surface-main); --glass-border:var(--border-subtle); --glass-shadow:0 10px 28px rgba(15,23,42,0.08);
+  --bg:#f8fbff; --surface:#ffffff; --surface2:#eef4fb; --border:#d7e3f2;
+  --text:#0f172a; --text2:#475569; --muted:#64748b;
+  --glass-bg:rgba(255,255,255,.82); --glass-border:rgba(255,255,255,.65);
+  --glass-blur:16px; --glass-shadow:0 10px 28px rgba(15,23,42,.08);
   --wallpaper-gradient:linear-gradient(135deg,#f8fbff 0%,#edf5ff 45%,#eef2ff 100%);
 }
-[data-theme="light"] body,[data-theme="light"] #app,[data-theme="light"] .main-content{background:transparent!important;color:var(--text);}
-[data-theme="light"] .sidebar{background:rgba(255,255,255,.72)!important;border-left:1px solid rgba(255,255,255,.55)!important;box-shadow:-12px 0 35px rgba(15,23,42,.10),inset 1px 0 0 rgba(255,255,255,.55)!important;}
+[data-theme="light"] body,[data-theme="light"] #app,[data-theme="light"] .main-content{
+  background:transparent!important;color:var(--text);
+}
+[data-theme="light"] .sidebar{
+  background:rgba(255,255,255,.72)!important;
+  border-left:1px solid rgba(255,255,255,.55)!important;
+  box-shadow:-12px 0 35px rgba(15,23,42,.10),inset 1px 0 0 rgba(255,255,255,.55)!important;
+}
 [data-theme="light"] .nav-icon-btn{color:#334155;}
-[data-theme="light"] .nav-icon-btn.active{background:var(--accent);color:#fff;}
-[data-theme="light"] .stat-card,[data-theme="light"] .table-container,[data-theme="light"] .report-card,[data-theme="light"] .modal{background:var(--surface-main)!important;border-color:var(--border-subtle)!important;box-shadow:0 10px 28px rgba(15,23,42,.08)!important;}
-@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){:root{--glass-bg:rgba(11,15,25,.94);--glass-border:rgba(255,255,255,.12);--glass-blur:blur(0px);--glass-shadow:0 10px 24px rgba(0,0,0,.35);}[data-theme="light"]{--glass-bg:rgba(248,251,255,.96);--glass-border:rgba(15,23,42,.10);}body::after{opacity:.35;}}
+[data-theme="light"] .nav-icon-btn.active{background:#2563eb;color:#fff;}
+[data-theme="light"] .stat-card,[data-theme="light"] .table-container,[data-theme="light"] .report-card,[data-theme="light"] .modal{
+  background:rgba(255,255,255,.82)!important;
+  border-color:rgba(255,255,255,.65)!important;
+  box-shadow:0 10px 28px rgba(15,23,42,.08)!important;
+}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  :root{--glass-bg:rgba(255,255,255,.94);--glass-border:rgba(215,227,242,.9);--glass-blur:0px;--glass-shadow:0 10px 24px rgba(15,23,42,.08);}
+  [data-theme="dark"]{--glass-bg:rgba(24,30,45,.96);--glass-border:rgba(255,255,255,.16);}
+  body::after{opacity:.35;}
+}
 
 /* LOGIN */
 #loginScreen{display:flex;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;background:radial-gradient(ellipse at center,#dce8f8 0%,#f0f4f8 70%);padding:20px;padding:calc(20px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left));}
@@ -104,11 +127,13 @@ body.accent-orange{--accent:#f97316;--accent2:#ea580c;--accent-color:#f97316;}
   align-items:center;padding:14px 0;
 
   /* Liquid Glass Core */
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border-left: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow);
+  background: rgba(255,255,255,0.72);
+  backdrop-filter: blur(18px) saturate(155%);
+  -webkit-backdrop-filter: blur(18px) saturate(155%);
+  border-left: 1px solid rgba(255,255,255,0.55);
+  box-shadow:
+    -12px 0 35px rgba(15,23,42,0.10),
+    inset 1px 0 0 rgba(255,255,255,0.55);
 }
 /* Glossy top sheen */
 .sidebar::before{
@@ -119,8 +144,8 @@ body.accent-orange{--accent:#f97316;--accent2:#ea580c;--accent-color:#f97316;}
 .sidebar.expanded{width:285px;align-items:flex-start;overflow-y:auto;}
 
 [data-theme="dark"] .sidebar{
-  background: rgba(15,17,30,0.72);
-  border-left: 1px solid var(--border-subtle);
+  background: rgba(15,17,30,0.55);
+  border-left: 1px solid rgba(255,255,255,0.10);
   box-shadow: -8px 0 32px rgba(0,0,0,0.45), inset 1px 0 0 rgba(255,255,255,0.08);
 }
 [data-theme="dark"] .sidebar::before{
@@ -143,21 +168,21 @@ body.accent-orange{--accent:#f97316;--accent2:#ea580c;--accent-color:#f97316;}
   cursor:pointer;display:flex;align-items:center;justify-content:center;
   font-size:1.35rem;
   margin-bottom:6px;position:relative;z-index:1;
-  color:var(--text-muted);
+  color:#374151;
   transition: transform .22s cubic-bezier(.34,1.56,.64,1), background .2s, box-shadow .2s;
   transform-origin: center bottom;
   -webkit-tap-highlight-color:transparent;
 }
 .nav-icon-btn:hover{
   transform: scale(1.10) translateY(-2px);
-  background: rgba(99,102,241,0.12);
-  box-shadow: 0 8px 22px rgba(99,102,241,0.14), inset 0 1px 0 rgba(255,255,255,0.55);
+  background: rgba(37,99,235,0.10);
+  box-shadow: 0 8px 22px rgba(37,99,235,0.14), inset 0 1px 0 rgba(255,255,255,0.55);
   color:var(--accent);
 }
 .nav-icon-btn:active{ transform: scale(1.05); }
 .nav-icon-btn.active{
   background: linear-gradient(135deg,var(--accent2),var(--accent));
-  box-shadow: 0 8px 22px rgba(99,102,241,0.22), inset 0 1px 0 rgba(255,255,255,0.42);
+  box-shadow: 0 8px 22px rgba(37,99,235,0.22), inset 0 1px 0 rgba(255,255,255,0.42);
   color:#fff;
 }
 [data-theme="dark"] .nav-icon-btn{ color:rgba(255,255,255,0.6); }
@@ -972,36 +997,7 @@ button.settings-link{text-align:start;font-family:inherit;}
 @media (max-width:768px){.mobile-nav-trigger{display:flex!important;}.mobile-nav-drawer-backdrop{display:none;}}
 @media (min-width:769px){.mobile-nav-drawer,.mobile-nav-drawer-backdrop{display:none;}}
 
-/* Onboarding Wizard */
-#onboardingOverlay{position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;background:rgba(15,23,42,.55);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);}
-#onboardingOverlay.open{display:flex;}
-.onboarding-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--glass-shadow);width:100%;max-width:520px;max-height:92vh;overflow-y:auto;padding:22px;position:relative;}
-.onboarding-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
-.onboarding-header h2{margin:0;font-size:1.15rem;}
-.onboarding-close{background:none;border:none;color:var(--text2);font-size:1.1rem;cursor:pointer;padding:4px 8px;border-radius:8px;}
-.onboarding-close:hover{background:var(--surface2);}
-.onboarding-steps{display:flex;gap:8px;margin-bottom:16px;}
-.onboarding-step{flex:1;height:6px;border-radius:999px;background:var(--border);}
-.onboarding-step.active{background:var(--accent);}
-.onboarding-step.done{background:var(--success);}
-.onboarding-body{margin-bottom:14px;}
-.onboarding-field{margin-bottom:12px;}
-.onboarding-field label{display:block;font-size:.82rem;font-weight:700;color:var(--text2);margin-bottom:6px;}
-.onboarding-field input,.onboarding-field select{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:var(--text);font-family:'Cairo',system-ui,sans-serif;font-size:.95rem;outline:none;}
-.onboarding-field input:focus,.onboarding-field select:focus{border-color:var(--accent);}
-.onboarding-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
-.biz-type-card{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px;cursor:pointer;text-align:center;transition:transform .12s,border-color .12s,box-shadow .12s;}
-.biz-type-card:hover{transform:translateY(-2px);border-color:var(--accent);box-shadow:0 8px 24px rgba(0,0,0,.18);}
-.biz-type-card.selected{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 10px 28px rgba(37,99,235,.14);}
-.biz-type-card .icon{font-size:1.6rem;margin-bottom:6px;}
-.biz-type-card .title{font-size:.9rem;font-weight:800;}
-.biz-type-card .sub{font-size:.75rem;color:var(--muted);margin-top:4px;}
-.onboarding-actions{display:flex;gap:10px;justify-content:space-between;align-items:center;}
-.onboarding-actions .btn-primary{width:auto;padding:10px 18px;font-size:.9rem;}
-.onboarding-actions .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text2);border-radius:10px;padding:10px 14px;font-family:inherit;font-weight:700;cursor:pointer;}
-.onboarding-actions .btn-ghost:hover{background:var(--surface2);}
-.onboarding-summary{margin:10px 0;padding:10px 12px;border-radius:10px;background:var(--surface2);border:1px solid var(--border);font-size:.85rem;color:var(--text2);}
-.onboarding-summary strong{color:var(--text);}
+
 
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
@@ -1584,7 +1580,6 @@ window.DIGITRONICS_SUPABASE = window.DIGITRONICS_SUPABASE || {
     <div id="loginSyncMsg" style="display:none;font-size:0.8rem;color:var(--accent);text-align:center;padding:8px;background:rgba(0,102,255,.07);border-radius:8px;margin-bottom:6px"></div>
     <button class="btn-primary" id="loginBtn" onclick="doLogin()">🔐 تسجيل الدخول</button>
     <div id="loginError">❌ بيانات الدخول غلط</div>
-    <div style="text-align:center;margin:0 0 10px"><a href="platform.html" style="font-size:0.78rem;color:var(--accent);text-decoration:none">🏠 OmniStore Platform Home</a></div>
     
     <div class="login-social">
       <a href="https://wa.me/201020841414" target="_blank" class="social-btn whatsapp" title="تواصل عبر واتساب">📱</a>
@@ -1962,6 +1957,12 @@ document.addEventListener('DOMContentLoaded', function() {
         <span>🚪</span>
         <span class="btn-label">تسجيل الخروج</span>
       </button>
+
+      <!-- Platform Home -->
+      <a class="sidebar-action-btn" href="platform.html" title="Platform Home">
+        <span>🏠</span>
+        <span class="btn-label">Platform Home</span>
+      </a>
     </div>
   </nav>
   <!-- Dropdowns moved OUTSIDE sidebar to fix backdrop-filter stacking context bug -->
@@ -5562,9 +5563,6 @@ document.addEventListener('DOMContentLoaded', function() {
         <button class="btn btn-outline btn-sm omni-settings-tab" data-omni-tab="barcode" onclick="switchOmniSettingsTab('barcode',this)">Barcode</button>
         <button class="btn btn-outline btn-sm omni-settings-tab" data-omni-tab="localization" onclick="switchOmniSettingsTab('localization',this)">Localization</button>
         <button class="btn btn-outline btn-sm omni-settings-tab" data-omni-tab="advanced" onclick="switchOmniSettingsTab('advanced',this)">Advanced</button>
-        <button class="btn btn-outline btn-sm omni-settings-tab" data-omni-tab="extensions" onclick="switchOmniSettingsTab('extensions',this)">Extensions</button>
-        <button class="btn btn-outline btn-sm omni-settings-tab" data-omni-tab="notifications" onclick="switchOmniSettingsTab('notifications',this)">🔔 Notifications</button>
-        <button class="btn btn-outline btn-sm omni-settings-tab" data-omni-tab="shift" onclick="switchOmniSettingsTab('shift',this)">🧾 Shifts &amp; Roles</button>
       </div>
       <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
         <div class="stat-card blue" style="padding:18px;cursor:pointer" onclick="toggleDarkMode()">
@@ -5740,123 +5738,13 @@ document.addEventListener('DOMContentLoaded', function() {
           <input id="omniSettingsImportFile" type="file" accept="application/json,.json" style="display:none" onchange="importOmniStoreSettings(this)">
           <button class="btn btn-danger" onclick="resetOmniStoreSettings()">↺ Reset to Defaults</button>
         </div>
-         <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px">
-           <div class="table-header" style="padding:0 0 10px"><div class="table-title">🧩 Module Settings & Feature Flags</div><button class="btn btn-outline btn-sm" onclick="resetOmniModules()">Reset Modules</button></div>
-           <div id="omniModuleSettingsPanel" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:9px"></div>
-         </div>
-       </div>
-       <div class="table-container omni-settings-panel" id="omniTab-extensions" style="margin-top:12px;display:none">
-         <div class="table-header">
-           <div class="table-title">🧩 Add-ons & Apps</div>
-           <div class="table-actions">
-             <button class="btn btn-outline btn-sm" onclick="renderTenantAddons()">🔄 Refresh</button>
-           </div>
-         </div>
-         <div id="tenantAddonsPanel" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px"></div>
-         <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:14px">
-           <div class="table-header" style="padding:0 0 10px"><div class="table-title">🌐 Custom Domain</div></div>
-           <div id="tenantCustomDomainPanel" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px"></div>
-          </div>
+        <div style="border-top:1px solid var(--border);margin-top:16px;padding-top:14px">
+          <div class="table-header" style="padding:0 0 10px"><div class="table-title">🧩 Module Settings & Feature Flags</div><button class="btn btn-outline btn-sm" onclick="resetOmniModules()">Reset Modules</button></div>
+          <div id="omniModuleSettingsPanel" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:9px"></div>
         </div>
-        <div class="table-container omni-settings-panel" id="omniTab-notifications" style="margin-top:12px;display:none">
-          <div class="table-header">
-            <div class="table-title">🔔 Notification Settings</div>
-            <div class="table-actions">
-              <button class="btn btn-outline btn-sm" onclick="loadNotificationSettings()">🔄 Refresh</button>
-            </div>
-          </div>
-          <div id="notificationSettingsPanel" style="padding:12px">
-            <div class="grid-2">
-              <div class="form-group">
-                <label>Telegram Bot Token</label>
-                <input id="notifTelegramToken" type="password" placeholder="123456:ABC-DEF..." style="direction:ltr;font-family:monospace;font-size:.82rem">
-                <div style="font-size:.68rem;color:var(--text2);margin-top:3px">من @BotFather</div>
-              </div>
-              <div class="form-group">
-                <label>Telegram Chat ID</label>
-                <input id="notifTelegramChatId" type="text" placeholder="-100xxxxxxxxxx أو username" style="direction:ltr;font-size:.82rem">
-                <div style="font-size:.68rem;color:var(--text2);margin-top:3px">ID القناة/المجموعة أو اسم المستخدم</div>
-              </div>
-            </div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:8px;margin-top:12px">
-              <label style="display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:9px;padding:9px;background:var(--surface2);cursor:pointer">
-                <input id="notifTelegramAlerts" type="checkbox">
-                <span style="font-size:.78rem;font-weight:700">📢 Telegram Alerts</span>
-              </label>
-              <label style="display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:9px;padding:9px;background:var(--surface2);cursor:pointer">
-                <input id="notifLowStock" type="checkbox">
-                <span style="font-size:.78rem;font-weight:700">📦 Low Stock Alerts</span>
-              </label>
-              <label style="display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:9px;padding:9px;background:var(--surface2);cursor:pointer">
-                <input id="notifSubscription" type="checkbox">
-                <span style="font-size:.78rem;font-weight:700">⏳ Subscription Alerts</span>
-              </label>
-              <label style="display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:9px;padding:9px;background:var(--surface2);cursor:pointer">
-                <input id="notifWhatsapp" type="checkbox">
-                <span style="font-size:.78rem;font-weight:700">💬 WhatsApp Enabled</span>
-              </label>
-            </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
-              <button class="btn btn-accent" onclick="saveNotificationSettings()">💾 Save Notification Settings</button>
-              <button class="btn btn-green" onclick="testTelegramConnection()">🧪 Test Telegram</button>
-            </div>
-            <div id="notifStatus" style="font-size:.78rem;color:var(--text2);margin-top:8px;min-height:20px"></div>
-          </div>
-        </div>
-        <div class="table-container omni-settings-panel" id="omniTab-shift" style="margin-top:12px;display:none">
-          <div class="table-header">
-            <div class="table-title">🧾 Cashier Shifts &amp; Multi-Role Permissions</div>
-            <div class="table-actions">
-              <button class="btn btn-outline btn-sm" onclick="loadShiftData()">🔄 Refresh</button>
-            </div>
-          </div>
-          <div style="padding:12px">
-            <div class="grid-2" style="margin-bottom:14px">
-              <div class="form-group">
-                <label>Open New Shift</label>
-                <input id="shiftOpeningCash" type="number" min="0" step="0.01" placeholder="Opening cash amount">
-              </div>
-              <div class="form-group">
-                <label>Notes</label>
-                <input id="shiftNotes" type="text" placeholder="Optional shift notes">
-              </div>
-            </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
-              <button class="btn btn-primary" onclick="openShift()">Open Shift</button>
-              <button class="btn btn-outline" onclick="closeCurrentShift()">Close Current Shift</button>
-            </div>
-            <div id="shiftStatus" style="font-size:.78rem;color:var(--text2);margin-bottom:10px;min-height:18px"></div>
-            <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:12px">
-              <div class="table-header" style="padding:0 0 8px"><div class="table-title">👥 Staff Roles</div></div>
-              <div class="grid-2">
-                <div class="form-group">
-                  <label>User ID</label>
-                  <input id="roleUserId" type="text" placeholder="user-id" style="direction:ltr;font-family:monospace">
-                </div>
-                <div class="form-group">
-                  <label>Role</label>
-                  <select id="roleRole"><option value="cashier">Cashier</option><option value="manager">Manager</option><option value="admin">Admin</option></select>
-                </div>
-              </div>
-              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-top:8px">
-                <label style="display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:9px;padding:9px;background:var(--surface2);cursor:pointer">
-                  <input id="permDiscount" type="checkbox"><span style="font-size:.78rem;font-weight:700">Can Discount</span>
-                </label>
-                <label style="display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:9px;padding:9px;background:var(--surface2);cursor:pointer">
-                  <input id="permVoid" type="checkbox"><span style="font-size:.78rem;font-weight:700">Can Void</span>
-                </label>
-                <label style="display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:9px;padding:9px;background:var(--surface2);cursor:pointer">
-                  <input id="permEditPrice" type="checkbox"><span style="font-size:.78rem;font-weight:700">Can Edit Price</span>
-                </label>
-              </div>
-              <div style="margin-top:10px">
-                <button class="btn btn-primary" onclick="saveUserRole()">Save Role</button>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="table-container" style="margin-top:12px">
-         <div class="table-header"><div class="table-title">✨ إعدادات المظهر المتقدم</div><div class="table-actions"><span class="badge badge-blue">Premium Glass UI v1.2.1 Light Theme Hotfix</span></div></div>
+      </div>
+      <div class="table-container" style="margin-top:12px">
+        <div class="table-header"><div class="table-title">✨ إعدادات المظهر المتقدم</div><div class="table-actions"><span class="badge badge-blue">Premium Glass UI v1.2.1 Light Theme Hotfix</span></div></div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px">
           <div>
             <label style="font-size:0.8rem;color:var(--text2)">الثيم</label>
@@ -7696,23 +7584,6 @@ function getJwtTenantId() {
 function getEffectiveTenantId() {
   return getJwtTenantId() || ACTIVE_TENANT_ID || null;
 }
-
-// Gating helper: returns true when the current tenant has the requested addon
-// active. Falls back to false when backend sync is off or the lookup fails.
-let cachedTenantAddons = null;
-let cachedTenantAddonsAt = 0;
-const TENANT_ADDONS_CACHE_TTL = 60000;
-async function isAddonEnabled(addonKey) {
-  if (!addonKey) return false;
-  const now = Date.now();
-  if (!cachedTenantAddons || (now - cachedTenantAddonsAt) > TENANT_ADDONS_CACHE_TTL) {
-    const data = await backendApi.extensions?.addons?.list?.();
-    cachedTenantAddons = Array.isArray(data && data.addons) ? data.addons : [];
-    cachedTenantAddonsAt = now;
-  }
-  return cachedTenantAddons.some(a => String(a.addonKey || a.addon_key) === String(addonKey) && String(a.status || '').toLowerCase() === 'active');
-}
-
 function getDbStorageKey() {
   const tenantId = getEffectiveTenantId();
   return tenantId ? (DB_KEY + '_' + tenantId) : DB_KEY;
@@ -8187,121 +8058,8 @@ function resetOmniModules() {
   showToast('✅ تمت إعادة إعدادات الوحدات');
 }
 
-// ---------------- Tenant Extensions (add-ons + custom domains) ----------------
-
-const AVAILABLE_ADDONS = [
-  { key: 'whatsapp', label: 'WhatsApp Integration', icon: '💬', description: 'Send invoices and alerts via WhatsApp.' },
-  { key: 'advanced_analytics', label: 'Advanced Analytics', icon: '📊', description: 'Deep sales and inventory analytics.' },
-  { key: 'multi_branch', label: 'Multi-Branch', icon: '🏬', description: 'Manage multiple branches from one account.' },
-  { key: 'loyalty', label: 'Loyalty Program', icon: '🎁', description: 'Points-based customer loyalty rewards.' },
-  { key: 'market', label: 'Market / Storefront', icon: '🏪', description: 'Customer-facing online storefront.' }
-];
-
-function renderTenantAddons() {
-  const addonsHost = document.getElementById('tenantAddonsPanel');
-  const domainsHost = document.getElementById('tenantCustomDomainPanel');
-  if (!addonsHost && !domainsHost) return;
-
-  const tenantId = getEffectiveTenantId();
-  if (!tenantId) {
-    if (addonsHost) addonsHost.innerHTML = '<div class="alert alert-warning">يجب تسجيل الدخول لعرض الإضافات.</div>';
-    if (domainsHost) domainsHost.innerHTML = '';
-    return;
-  }
-
-  Promise.all([
-    USE_BACKEND ? backendApi.extensions?.addons?.list?.() : Promise.resolve(null),
-    USE_BACKEND ? backendApi.extensions?.customDomains?.list?.() : Promise.resolve(null)
-  ]).then(([addonsData, domainsData]) => {
-    const addons = Array.isArray(addonsData && addonsData.addons) ? addonsData.addons : [];
-    const domains = Array.isArray(domainsData && domainsData.domains) ? domainsData.domains : [];
-
-    if (addonsHost) {
-      const activeKeys = new Set(addons.filter(a => String(a.status || '').toLowerCase() === 'active').map(a => String(a.addonKey || a.addon_key)));
-      addonsHost.innerHTML = AVAILABLE_ADDONS.map(plugin => {
-        const active = activeKeys.has(plugin.key);
-        return `<div class="table-container" style="padding:14px;margin:0;border:${active ? '2px solid var(--green)' : '1px solid var(--border)'}">
-          <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
-            <div><div style="font-size:1.05rem;font-weight:900">${escapeHtml(plugin.icon)} ${escapeHtml(plugin.label)}</div>
-            <div style="font-size:.68rem;color:var(--text2)">${escapeHtml(plugin.key)}</div></div>
-            <span class="badge ${active ? 'badge-green' : 'badge-yellow'}">${active ? 'Active' : 'Locked'}</span>
-          </div>
-          <p style="font-size:.75rem;color:var(--text2);min-height:34px;margin-top:6px">${escapeHtml(plugin.description)}</p>
-          <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:10px">
-            ${active ? `<button class="btn btn-outline btn-sm" onclick="disableTenantAddon('${escapeHtml(plugin.key)}')">Disable</button>` : `<button class="btn btn-green btn-sm" onclick="enableTenantAddon('${escapeHtml(plugin.key)}')">Enable</button>`}
-          </div>
-        </div>`;
-      }).join('') || '<div class="alert alert-info">لا توجد إضافات متاحة حالياً.</div>';
-    }
-
-    if (domainsHost) {
-      const activeDomain = domains.find(d => String(d.status || '').toLowerCase() === 'active');
-      domainsHost.innerHTML = `<div class="table-container" style="padding:14px;margin:0;border:1px solid var(--border)">
-        <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
-          <div><div style="font-size:1.05rem;font-weight:900">🌐 Custom Domain</div>
-          <div style="font-size:.68rem;color:var(--text2)">pos.mybusiness.com</div></div>
-          <span class="badge ${activeDomain ? 'badge-green' : 'badge-yellow'}">${activeDomain ? 'Active' : 'Not Configured'}</span>
-        </div>
-        <p style="font-size:.75rem;color:var(--text2);min-height:34px;margin-top:6px">أضف نطاقاً مخصصاً لاستخدامه في الوصول إلى لوحة التحكم.</p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center">
-          <input id="customDomainInput" class="search-input" placeholder="pos.mybusiness.com" style="flex:1;min-width:180px;direction:ltr">
-          <button class="btn btn-green btn-sm" onclick="registerTenantCustomDomain()">Register</button>
-        </div>
-        ${activeDomain ? `<div style="margin-top:10px;font-size:.75rem;color:var(--text2)">CNAME: <code style="direction:ltr">${escapeHtml(activeDomain.customDomain || '')}</code> → <code style="direction:ltr">app.omnistoreerp.com</code></div>` : ''}
-        <div id="customDomainStatus" style="margin-top:8px"></div>
-      </div>`;
-    }
-  }).catch(() => {
-    if (addonsHost) addonsHost.innerHTML = '<div class="alert alert-error">تعذر تحميل الإضافات.</div>';
-    if (domainsHost) domainsHost.innerHTML = '';
-  });
-}
-
-async function enableTenantAddon(addonKey) {
-  if (!addonKey) return;
-  const data = await backendApi.extensions?.addons?.upsert?.(addonKey, 'active', null);
-  if (data && data.success) {
-    cachedTenantAddons = null;
-    showToast('✅ تم تفعيل الإضافة');
-    renderTenantAddons();
-  } else {
-    showToast('تعذر تفعيل الإضافة', 'error');
-  }
-}
-
-async function disableTenantAddon(addonKey) {
-  if (!addonKey) return;
-  const data = await backendApi.extensions?.addons?.remove?.(addonKey);
-  if (data && data.success) {
-    cachedTenantAddons = null;
-    showToast('✅ تم تعطيل الإضافة');
-    renderTenantAddons();
-  } else {
-    showToast('تعذر تعطيل الإضافة', 'error');
-  }
-}
-
-async function registerTenantCustomDomain() {
-  const input = document.getElementById('customDomainInput');
-  const status = document.getElementById('customDomainStatus');
-  const domain = (input?.value || '').trim();
-  if (!domain) {
-    if (status) status.innerHTML = '<div class="alert alert-warning">أدخل النطاق أولاً.</div>';
-    return;
-  }
-  if (status) status.innerHTML = '<div class="alert alert-info">جاري التسجيل...</div>';
-  const data = await backendApi.extensions?.customDomains?.register?.(domain);
-  if (data && data.success) {
-    showToast('✅ تم تسجيل النطاق، بانتظار التحقق');
-    renderTenantAddons();
-  } else {
-    const msg = (data && data.message) || 'تعذر تسجيل النطاق';
-    if (status) status.innerHTML = `<div class="alert alert-error">${escapeHtml(msg)}</div>`;
-  }
-}
-
 function switchOmniSettingsTab(tab, button) {
-  const safeTab = ['business','subscription','printing','barcode','localization','advanced','extensions','notifications','shift'].includes(tab) ? tab : 'business';
+  const safeTab = ['business','subscription','printing','barcode','localization','advanced'].includes(tab) ? tab : 'business';
   document.querySelectorAll('.omni-settings-panel').forEach(panel => {
     panel.style.display = panel.id === `omniTab-${safeTab}` ? '' : 'none';
   });
@@ -8312,7 +8070,6 @@ function switchOmniSettingsTab(tab, button) {
   });
   if (button) button.blur();
   if (safeTab === 'advanced') renderOmniModuleSettings();
-  if (safeTab === 'extensions') renderTenantAddons();
 }
 
 function applyBusinessTypePresetToForm(type) {
@@ -8444,189 +8201,6 @@ function saveOmniStoreSettings() {
   renderBusinessProfileSettings();
   window.dispatchEvent(new CustomEvent('businessprofilechange', { detail: getBusinessProfile() }));
   showToast('✅ تم حفظ OmniStore Settings محلياً');
-}
-
-function loadNotificationSettings() {
-  const statusEl = document.getElementById('notifStatus');
-  if (statusEl) statusEl.textContent = 'Loading...';
-  if (!USE_BACKEND || !backendApi.notifications) {
-    if (statusEl) statusEl.textContent = 'Backend sync disabled.';
-    return;
-  }
-  backendApi.notifications.getSettings().then(data => {
-    if (!data) {
-      if (statusEl) statusEl.textContent = 'Failed to load settings.';
-      return;
-    }
-    const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
-    const setChk = (id, val) => { const el = document.getElementById(id); if (el) el.checked = !!val; };
-    setVal('notifTelegramToken', data.telegramBotToken);
-    setVal('notifTelegramChatId', data.telegramChatId);
-    setChk('notifTelegramAlerts', data.telegramAlertsEnabled);
-    setChk('notifLowStock', data.lowStockAlertsEnabled);
-    setChk('notifSubscription', data.subscriptionAlertsEnabled);
-    setChk('notifWhatsapp', data.whatsappEnabled);
-    if (statusEl) statusEl.textContent = 'Loaded at ' + new Date().toLocaleTimeString();
-  }).catch(() => {
-    if (statusEl) statusEl.textContent = 'Error loading settings.';
-  });
-}
-
-function saveNotificationSettings() {
-  const statusEl = document.getElementById('notifStatus');
-  if (!USE_BACKEND || !backendApi.notifications) {
-    if (statusEl) statusEl.textContent = 'Backend sync disabled.';
-    return;
-  }
-  const getVal = (id) => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
-  const getChk = (id) => { const el = document.getElementById(id); return el ? !!el.checked : false; };
-  const payload = {
-    telegramBotToken: getVal('notifTelegramToken'),
-    telegramChatId: getVal('notifTelegramChatId'),
-    telegramAlertsEnabled: getChk('notifTelegramAlerts'),
-    lowStockAlertsEnabled: getChk('notifLowStock'),
-    subscriptionAlertsEnabled: getChk('notifSubscription'),
-    whatsappEnabled: getChk('notifWhatsapp')
-  };
-  if (statusEl) statusEl.textContent = 'Saving...';
-  backendApi.notifications.saveSettings(payload).then(data => {
-    if (data) {
-      if (statusEl) statusEl.textContent = 'Saved at ' + new Date().toLocaleTimeString();
-      showToast('✅ Notification settings saved');
-    } else {
-      if (statusEl) statusEl.textContent = 'Save failed.';
-    }
-  }).catch(() => {
-    if (statusEl) statusEl.textContent = 'Error saving settings.';
-  });
-}
-
-function testTelegramConnection() {
-  const statusEl = document.getElementById('notifStatus');
-  if (!USE_BACKEND || !backendApi.notifications) {
-    if (statusEl) statusEl.textContent = 'Backend sync disabled.';
-    return;
-  }
-  const token = document.getElementById('notifTelegramToken')?.value.trim();
-  const chatId = document.getElementById('notifTelegramChatId')?.value.trim();
-  if (!token || !chatId) {
-    if (statusEl) statusEl.textContent = 'Please enter Bot Token and Chat ID first.';
-    return;
-  }
-  if (statusEl) statusEl.textContent = 'Testing Telegram...';
-  backendApi.notifications.testTelegram({ botToken: token, chatId }).then(data => {
-    if (data && data.ok) {
-      if (statusEl) statusEl.textContent = 'Telegram test sent ✅';
-      showToast('✅ Telegram test message sent');
-    } else {
-      const reason = (data && data.reason) || 'failed';
-      if (statusEl) statusEl.textContent = 'Telegram test failed: ' + reason;
-      showToast('❌ Telegram test failed: ' + reason);
-    }
-  }).catch(() => {
-    if (statusEl) statusEl.textContent = 'Telegram test error.';
-  });
-}
-
-function loadShiftData() {
-  var statusEl = document.getElementById('shiftStatus');
-  if (statusEl) statusEl.textContent = 'Loading...';
-  if (!USE_BACKEND || !backendApi.shifts) {
-    if (statusEl) statusEl.textContent = 'Backend sync disabled.';
-    return;
-  }
-  backendApi.shifts.getCurrentShift().then(function (data) {
-    if (data && data.shift && data.shift.status === 'open') {
-      if (statusEl) statusEl.textContent = 'Open shift: ' + data.shift.shiftRef + ' | Cashier: ' + (data.shift.cashierName || '—');
-    } else {
-      if (statusEl) statusEl.textContent = 'No open shift.';
-    }
-  }).catch(function () {
-    if (statusEl) statusEl.textContent = 'Error loading shift.';
-  });
-}
-
-function openShift() {
-  var statusEl = document.getElementById('shiftStatus');
-  if (!USE_BACKEND || !backendApi.shifts) {
-    if (statusEl) statusEl.textContent = 'Backend sync disabled.';
-    return;
-  }
-  var openingCash = parseFloat(document.getElementById('shiftOpeningCash').value || '0');
-  var notes = document.getElementById('shiftNotes').value.trim();
-  if (statusEl) statusEl.textContent = 'Opening shift...';
-  backendApi.shifts.openShift({ openingCash: openingCash, notes: notes }).then(function (data) {
-    if (data && data.shift) {
-      if (statusEl) statusEl.textContent = 'Shift opened: ' + data.shift.shiftRef;
-      showToast('✅ Shift opened');
-      document.getElementById('shiftOpeningCash').value = '';
-      document.getElementById('shiftNotes').value = '';
-      loadShiftData();
-    } else {
-      if (statusEl) statusEl.textContent = (data && data.message) || 'Failed to open shift.';
-    }
-  }).catch(function (e) {
-    if (statusEl) statusEl.textContent = (e && e.message) || 'Failed to open shift.';
-  });
-}
-
-function closeCurrentShift() {
-  var statusEl = document.getElementById('shiftStatus');
-  if (!USE_BACKEND || !backendApi.shifts) {
-    if (statusEl) statusEl.textContent = 'Backend sync disabled.';
-    return;
-  }
-  var actualCash = prompt('Enter actual cash amount:');
-  if (actualCash === null) return;
-  actualCash = parseFloat(actualCash || '0');
-  if (statusEl) statusEl.textContent = 'Closing shift...';
-  backendApi.shifts.getCurrentShift().then(function (current) {
-    if (!current || !current.shift) {
-      if (statusEl) statusEl.textContent = 'No open shift to close.';
-      return;
-    }
-    return backendApi.shifts.closeShift(current.shift.id, { actualCash: actualCash });
-  }).then(function (data) {
-    if (data && data.shift) {
-      if (statusEl) statusEl.textContent = 'Shift closed. Variance: EGP ' + (data.shift.cashVariance || 0).toFixed(2);
-      showToast('✅ Shift closed');
-      loadShiftData();
-    } else {
-      if (statusEl) statusEl.textContent = (data && data.message) || 'Failed to close shift.';
-    }
-  }).catch(function (e) {
-    if (statusEl) statusEl.textContent = (e && e.message) || 'Failed to close shift.';
-  });
-}
-
-function saveUserRole() {
-  var statusEl = document.getElementById('shiftStatus');
-  if (!USE_BACKEND || !backendApi.shifts) {
-    if (statusEl) statusEl.textContent = 'Backend sync disabled.';
-    return;
-  }
-  var userId = document.getElementById('roleUserId').value.trim();
-  var role = document.getElementById('roleRole').value;
-  var permissions = {
-    can_discount: document.getElementById('permDiscount').checked,
-    can_void: document.getElementById('permVoid').checked,
-    can_edit_price: document.getElementById('permEditPrice').checked
-  };
-  if (!userId) {
-    if (statusEl) statusEl.textContent = 'User ID is required.';
-    return;
-  }
-  if (statusEl) statusEl.textContent = 'Saving role...';
-  backendApi.shifts.setUserRole({ userId: userId, role: role, permissions: permissions }).then(function (data) {
-    if (data && data.userRole) {
-      if (statusEl) statusEl.textContent = 'Role saved: ' + data.userRole.role;
-      showToast('✅ Role saved');
-    } else {
-      if (statusEl) statusEl.textContent = (data && data.message) || 'Failed to save role.';
-    }
-  }).catch(function (e) {
-    if (statusEl) statusEl.textContent = (e && e.message) || 'Failed to save role.';
-  });
 }
 
 function exportOmniStoreSettings() {
@@ -12276,35 +11850,6 @@ const backendApi = {
       cancel: (id, reason) => USE_BACKEND ? backendApi._fetch('POST', '/playstation/sessions/' + encodeURIComponent(id) + '/cancel', { reason: reason || null }) : null,
       finalizePayment: (id, idempotencyKey) => USE_BACKEND ? backendApi._fetch('POST', '/playstation/sessions/' + encodeURIComponent(id) + '/payment', { idempotencyKey }) : null
     }
-  },
-  // ===== Tenant Extensions (add-ons + custom domains) =====
-  extensions: {
-    addons: {
-      list: () => USE_BACKEND ? backendApi._fetch('GET', '/tenant/addons') : null,
-      upsert: (addonKey, status, expiresAt) => USE_BACKEND ? backendApi._fetch('POST', '/tenant/addons', { addon_key: addonKey, status, expires_at: expiresAt }) : null,
-      remove: (addonKey) => USE_BACKEND ? backendApi._fetch('DELETE', '/tenant/addons/' + encodeURIComponent(addonKey)) : null
-    },
-    customDomains: {
-      list: () => USE_BACKEND ? backendApi._fetch('GET', '/tenant/custom-domains') : null,
-      register: (domainName) => USE_BACKEND ? backendApi._fetch('POST', '/tenant/custom-domains', { custom_domain: domainName }) : null,
-      updateStatus: (domainId, status) => USE_BACKEND ? backendApi._fetch('PATCH', '/platform/admin/custom-domains/' + encodeURIComponent(domainId) + '/status', { status }) : null
-    }
-  },
-  tenantOnboarding: {
-    status: () => USE_BACKEND ? backendApi._fetch('GET', '/tenant/onboarding/status') : null,
-    complete: (data) => USE_BACKEND ? backendApi._fetch('POST', '/tenant/onboarding/complete', data) : null,
-    seedDemo: (data) => USE_BACKEND ? backendApi._fetch('POST', '/tenant/onboarding/seed-demo', data) : null
-  },
-  notifications: {
-    getSettings: () => USE_BACKEND ? backendApi._fetch('GET', '/tenant/notifications/settings') : null,
-    saveSettings: (data) => USE_BACKEND ? backendApi._fetch('PUT', '/tenant/notifications/settings', data) : null,
-    testTelegram: (data) => USE_BACKEND ? backendApi._fetch('POST', '/tenant/notifications/telegram/test', data) : null
-  },
-  shifts: {
-    getCurrentShift: () => USE_BACKEND ? backendApi._fetch('GET', '/tenant/shifts/current') : null,
-    openShift: (data) => USE_BACKEND ? backendApi._fetch('POST', '/tenant/shifts/open', data) : null,
-    closeShift: (id, data) => USE_BACKEND ? backendApi._fetch('PATCH', '/tenant/shifts/' + encodeURIComponent(id) + '/close', data) : null,
-    setUserRole: (data) => USE_BACKEND ? backendApi._fetch('POST', '/tenant/shifts/roles', data) : null
   }
 };
 
@@ -16103,27 +15648,11 @@ function doLogin() {
     applyPermissions();
     initApp();
     scheduleSupabaseDiagnosticAutoTest('login');
+    showPage(getDefaultPageForCurrentRole());
+    if (usr.role !== 'Owner') logActivity('تسجيل دخول');
     startUserRegistrationTimer();
     updateGhStatusCard();
     if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = '🔐 تسجيل الدخول'; }
-
-    // Show onboarding wizard if not yet completed.
-    (async function(){
-      try {
-        var needsOnboarding = false;
-        if (window.backendApi && window.backendApi.tenantOnboarding) {
-          var res = await window.backendApi.tenantOnboarding.status();
-          if (res && res.success && res.data && !res.data.completed) needsOnboarding = true;
-        }
-        if (needsOnboarding) {
-          openOnboarding();
-        } else {
-          showPage(getDefaultPageForCurrentRole());
-        }
-      } catch (_) {
-        showPage(getDefaultPageForCurrentRole());
-      }
-    })();
   };
 
   // Phase F — bind the backend-computed effective role + effective
@@ -43908,220 +43437,8 @@ setInterval(() => {
     setInterval(check, INTERVAL);
     document.addEventListener('visibilitychange', function(){ if (!document.hidden) check(); });
   });
-
-  // ===== ONBOARDING WIZARD =====
-  var onboardingState = { step: 1, selectedType: null, completed: false };
-  var onboardingOverlay = document.getElementById('onboardingOverlay');
-  var obStoreName = document.getElementById('obStoreName');
-  var obCurrency = document.getElementById('obCurrency');
-  var obTimezone = document.getElementById('obTimezone');
-  var obNext = document.getElementById('obNext');
-  var obBack = document.getElementById('obBack');
-  var obClose = document.getElementById('onboardingClose');
-  var obSummary = document.getElementById('obSummary');
-  var obSeedDemo = document.getElementById('obSeedDemo');
-  var obStartFresh = document.getElementById('obStartFresh');
-  var bizTypeCards = document.querySelectorAll('.biz-type-card');
-
-  function showOnboardingStep(step) {
-    onboardingState.step = step;
-    ['obStep1','obStep2','obStep3'].forEach(function(id, idx){
-      var el = document.getElementById(id);
-      if (el) el.style.display = (idx + 1 === step) ? 'block' : 'none';
-    });
-    var steps = document.querySelectorAll('#onboardingSteps .onboarding-step');
-    steps.forEach(function(s, idx){
-      s.classList.remove('active','done');
-      if (idx + 1 === step) s.classList.add('active');
-      else if (idx + 1 < step) s.classList.add('done');
-    });
-    obBack.style.visibility = step === 1 ? 'hidden' : 'visible';
-    obNext.textContent = step === 3 ? 'إنهاء' : 'التالي';
-    if (step === 3) renderOnboardingSummary();
-  }
-
-  function renderOnboardingSummary() {
-    var storeName = obStoreName ? obStoreName.value.trim() : '';
-    var currency = obCurrency ? obCurrency.value : 'EGP';
-    var timezone = obTimezone ? obTimezone.value : 'Africa/Cairo';
-    var type = onboardingState.selectedType || 'Retail';
-    obSummary.innerHTML = '<strong>المتجر:</strong> ' + escapeHtml(storeName || '—') + '<br><strong>العملة:</strong> ' + escapeHtml(currency) + '<br><strong>المنطقة:</strong> ' + escapeHtml(timezone) + '<br><strong>النوع:</strong> ' + escapeHtml(type);
-  }
-
-  function openOnboarding() {
-    onboardingState.step = 1;
-    onboardingState.selectedType = null;
-    onboardingState.completed = false;
-    if (obStoreName) obStoreName.value = '';
-    if (obCurrency) obCurrency.value = 'EGP';
-    if (obTimezone) obTimezone.value = 'Africa/Cairo';
-    bizTypeCards.forEach(function(c){ c.classList.remove('selected'); });
-    if (onboardingOverlay) onboardingOverlay.classList.add('open');
-    showOnboardingStep(1);
-  }
-
-  function closeOnboarding() {
-    if (onboardingOverlay) onboardingOverlay.classList.remove('open');
-  }
-
-  function escapeHtml(str) {
-    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
-
-  async function completeOnboarding(data) {
-    var api = window.backendApi;
-    if (!api || !api.tenantOnboarding) return;
-    await api.tenantOnboarding.complete(data);
-  }
-
-  async function seedDemoData(data) {
-    var api = window.backendApi;
-    if (!api || !api.tenantOnboarding) return;
-    await api.tenantOnboarding.seedDemo(data);
-  }
-
-  async function checkOnboardingStatus() {
-    var api = window.backendApi;
-    if (!api || !api.tenantOnboarding) return false;
-    try {
-      var res = await api.tenantOnboarding.status();
-      if (res && res.success && res.data && res.data.completed) return false;
-      return true;
-    } catch (_) { return true; }
-  }
-
-  if (obNext) {
-    obNext.addEventListener('click', async function(){
-      var step = onboardingState.step;
-      if (step === 1) {
-        var storeName = obStoreName ? obStoreName.value.trim() : '';
-        if (!storeName) { alert('الرجاء إدخال اسم المتجر'); return; }
-        showOnboardingStep(2);
-      } else if (step === 2) {
-        if (!onboardingState.selectedType) { alert('الرجاء اختيار وضع العمل'); return; }
-        showOnboardingStep(3);
-      } else if (step === 3) {
-        var storeName = obStoreName ? obStoreName.value.trim() : '';
-        var currency = obCurrency ? obCurrency.value : 'EGP';
-        var timezone = obTimezone ? obTimezone.value : 'Africa/Cairo';
-        await completeOnboarding({ storeName: storeName, currency: currency, timezone: timezone, businessType: onboardingState.selectedType });
-        closeOnboarding();
-      }
-    });
-  }
-
-  if (obBack) {
-    obBack.addEventListener('click', function(){ showOnboardingStep(onboardingState.step - 1); });
-  }
-
-  if (obClose) {
-    obClose.addEventListener('click', closeOnboarding);
-  }
-
-  bizTypeCards.forEach(function(card){
-    card.addEventListener('click', function(){
-      bizTypeCards.forEach(function(c){ c.classList.remove('selected'); });
-      card.classList.add('selected');
-      onboardingState.selectedType = card.getAttribute('data-type') || 'Retail';
-    });
-  });
-
-  if (obSeedDemo) {
-    obSeedDemo.addEventListener('click', async function(){
-      var storeName = obStoreName ? obStoreName.value.trim() : '';
-      var currency = obCurrency ? obCurrency.value : 'EGP';
-      var timezone = obTimezone ? obTimezone.value : 'Africa/Cairo';
-      obSeedDemo.disabled = true;
-      obSeedDemo.textContent = '⏳ جاري تجهيز البيانات...';
-      try {
-        await completeOnboarding({ storeName: storeName, currency: currency, timezone: timezone, businessType: onboardingState.selectedType });
-        await seedDemoData({ businessType: onboardingState.selectedType });
-        closeOnboarding();
-      } catch (e) {
-        alert('فشل تجهيز البيانات التجريبية: ' + (e.message || e));
-      } finally {
-        obSeedDemo.disabled = false;
-        obSeedDemo.textContent = '✨ استكشف ببيانات تجريبية';
-      }
-    });
-  }
-
-  if (obStartFresh) {
-    obStartFresh.addEventListener('click', async function(){
-      var storeName = obStoreName ? obStoreName.value.trim() : '';
-      var currency = obCurrency ? obCurrency.value : 'EGP';
-      var timezone = obTimezone ? obTimezone.value : 'Africa/Cairo';
-      await completeOnboarding({ storeName: storeName, currency: currency, timezone: timezone, businessType: onboardingState.selectedType });
-      closeOnboarding();
-    });
-  }
 })();
-
-<div id="onboardingOverlay" aria-hidden="true">
-  <div class="onboarding-card" role="dialog" aria-labelledby="onboardingTitle">
-    <div class="onboarding-header">
-      <h2 id="onboardingTitle">🚀 ترحيب — لنجهز متجرك</h2>
-      <button class="onboarding-close" id="onboardingClose" type="button" aria-label="Close">✕</button>
-    </div>
-    <div class="onboarding-steps" id="onboardingSteps">
-      <div class="onboarding-step active" data-step="1"></div>
-      <div class="onboarding-step" data-step="2"></div>
-      <div class="onboarding-step" data-step="3"></div>
-    </div>
-    <div class="onboarding-body" id="onboardingBody">
-      <div class="onboarding-field" id="obStep1">
-        <label for="obStoreName">اسم المتجر</label>
-        <input id="obStoreName" type="text" placeholder="مثال: متجر أحمد للإلكترونيات" maxlength="120">
-        <label for="obCurrency" style="margin-top:10px">العملة</label>
-        <select id="obCurrency">
-          <option value="EGP" selected>EGP — جنيه مصري</option>
-          <option value="USD">USD — دولار أمريكي</option>
-          <option value="SAR">SAR — ريال سعودي</option>
-          <option value="AED">AED — درهم إماراتي</option>
-        </select>
-        <label for="obTimezone" style="margin-top:10px">المنطقة الزمنية</label>
-        <select id="obTimezone">
-          <option value="Africa/Cairo" selected>Africa/Cairo (GMT+2)</option>
-          <option value="Asia/Riyadh">Asia/Riyadh (GMT+3)</option>
-          <option value="Asia/Dubai">Asia/Dubai (GMT+4)</option>
-        </select>
-      </div>
-      <div class="onboarding-field" id="obStep2" style="display:none">
-        <label>اختر وضع العمل الأساسي</label>
-        <div class="onboarding-grid" id="bizTypes">
-          <div class="biz-type-card" data-type="Retail">
-            <div class="icon">🛒</div>
-            <div class="title">Retail POS</div>
-            <div class="sub">مبيعات تجزئة ومتجر</div>
-          </div>
-          <div class="biz-type-card" data-type="PlayStation Lounge">
-            <div class="icon">🎮</div>
-            <div class="title">PlayStation Lounge</div>
-            <div class="sub">صالة ألعاب وبلاي ستيشن</div>
-          </div>
-          <div class="biz-type-card" data-type="Hardware & Maintenance">
-            <div class="icon">🔧</div>
-            <div class="title">Hardware & Maintenance</div>
-            <div class="sub">صيانة وقطع غيار</div>
-          </div>
-        </div>
-      </div>
-      <div class="onboarding-field" id="obStep3" style="display:none">
-        <div class="onboarding-summary" id="obSummary"></div>
-        <label>الخطوة الأخيرة</label>
-        <p style="font-size:.85rem;color:var(--text2);margin:6px 0 10px">اختر كيف تريد المتابعة:</p>
-        <div style="display:flex;flex-direction:column;gap:10px;">
-          <button class="btn-primary" id="obSeedDemo" type="button">✨ استكشف ببيانات تجريبية</button>
-          <button class="btn-ghost" id="obStartFresh" type="button" style="width:100%">بدء نظيف بدون بيانات</button>
-        </div>
-      </div>
-    </div>
-    <div class="onboarding-actions" id="onboardingActions">
-      <button class="btn-ghost" id="obBack" type="button" style="visibility:hidden">رجوع</button>
-      <button class="btn-primary" id="obNext" type="button">التالي</button>
-    </div>
-  </div>
-</div>
+</script>
 </body>
 </html>
 

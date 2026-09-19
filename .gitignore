@@ -33,3 +33,6 @@ backend/.env.local
 backend/data/apiKeys.json
 backend/data/auditLog.json
 backend/data/users.json
+backend/data/gameHostingPlans.json
+backend/data/gameHostingServers.json
+backend/data/marketCustomers.json

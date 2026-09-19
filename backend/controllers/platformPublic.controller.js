@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 const { success, error } = require('../utils/apiResponse');
 const platformCatalog = require('../services/platformCatalog.service');

@@ -9,7 +9,6 @@ const EVENT_TYPES = Object.freeze([
   'purchase.created',
   'inventory.updated',
   'inventory.low',
-  'subscription.expiring',
   'user.created',
   'user.updated',
   'user.deleted',

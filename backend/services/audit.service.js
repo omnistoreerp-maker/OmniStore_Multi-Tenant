@@ -9,9 +9,21 @@ function _save(data) {
   return repository.write(data);
 }
 
+// FULL, unfiltered store document for WRITES. Persisting must never be
+// derived from the tenant-filtered view (BaseRepository._rawStore rule):
+// otherwise one tenant's record() would write back only its own entries
+// and silently DROP every other tenant's audit entries from the shared
+// document.
+function _storeRaw() {
+  const db = repository._rawStore();
+  if (!db || typeof db !== 'object') return { entries: [] };
+  if (!Array.isArray(db.entries)) db.entries = [];
+  return db;
+}
+
 // Record an audit event. Called by the audit middleware after response finishes.
 function record(entry) {
-  const store = _store();
+  const store = _storeRaw();
   if (!store.entries) store.entries = [];
 
   const record = {

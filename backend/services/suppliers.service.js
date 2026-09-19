@@ -3,21 +3,30 @@ const logger = require('../utils/logger');
 const repository = require('../repositories').suppliers;
 
 class SuppliersService {
-  async _load() {
-    const db = await repository.readAsync();
+  _load() {
+    const db = repository.read();
     if (!db || typeof db !== 'object') return { suppliers: [] };
     if (!Array.isArray(db.suppliers)) db.suppliers = [];
     return db;
   }
-  async _save(db) { return repository.writeAsync(db); }
+  _save(db) { return repository.write(db); }
 
-  async _loadRaw() {
-    const db = await repository._rawStoreAsync();
+  // FULL, unfiltered store document for WRITES. Persisting must never be
+  // derived from the tenant-filtered view (BaseRepository._rawStore rule):
+  // otherwise one tenant's create/update/delete would write back only its
+  // own records and silently DROP every other tenant's records from the
+  // shared document. Ownership is gated explicitly in the write methods.
+  _loadRaw() {
+    const db = repository._rawStore();
     if (!db || typeof db !== 'object') return { suppliers: [] };
     if (!Array.isArray(db.suppliers)) db.suppliers = [];
     return db;
   }
 
+  // Cross-tenant write guard. When a tenant context is active, a record
+  // that claims a DIFFERENT tenantId must never be modified or deleted by
+  // this request — it is treated as not-found, never touched. Legacy
+  // records (no tenantId) remain writable, matching the Phase 13 read rule.
   _ownershipBlocked(record) {
     if (!repository.hasTenant()) return false;
     if (!record || typeof record !== 'object') return true;
@@ -48,8 +57,8 @@ class SuppliersService {
     return this._normalizeId(supplier.id) === normalized || this._normalizeId(supplier._backendId || '') === normalized;
   }
 
-  async list(query = {}) {
-    const db = await this._load();
+  list(query = {}) {
+    const db = this._load();
     let suppliers = db.suppliers || [];
 
     if (query.search) {
@@ -106,14 +115,14 @@ class SuppliersService {
     return { suppliers: paginated, total, page, limit, totalPages };
   }
 
-  async getById(id) {
-    const db = await this._load();
+  getById(id) {
+    const db = this._load();
     const normalized = this._normalizeId(id);
     return (db.suppliers || []).find(s => this._matchesId(s, normalized)) || null;
   }
 
-  async stats() {
-    const db = await this._load();
+  stats() {
+    const db = this._load();
     const suppliers = db.suppliers || [];
     let withPhone = 0, withEmail = 0, withBalance = 0;
     suppliers.forEach(s => {
@@ -124,11 +133,11 @@ class SuppliersService {
     return { count: suppliers.length, withPhone, withEmail, withBalance };
   }
 
-  async create(data) {
+  create(data) {
     const errors = this._validateRequired(data, true);
     if (errors.length) return { error: errors.join('; ') };
 
-    const db = await this._loadRaw();
+    const db = this._loadRaw();
     const supplier = {
       id: data.id !== undefined && data.id !== null ? data.id : uuidv4(),
       ...data,
@@ -141,6 +150,9 @@ class SuppliersService {
       return { error: 'Duplicate supplier ID: ' + supplier.id };
     }
 
+    // Client-supplied tenantId cannot override the server context: when a
+    // tenant is carried, a claimed tenantId must match it. Foreign claims
+    // are rejected before any persistence.
     if (supplier.tenantId !== undefined && supplier.tenantId !== null && supplier.tenantId !== '' && repository.hasTenant()) {
       const current = repository.getCurrentTenant();
       const currentId = current && (current.tenantId != null ? current.tenantId : current.id);
@@ -151,12 +163,12 @@ class SuppliersService {
 
     if (!Array.isArray(db.suppliers)) db.suppliers = [];
     db.suppliers.push(supplier);
-    if (await this._save(db)) return { supplier };
+    if (this._save(db)) return { supplier };
     return { error: 'Failed to persist supplier' };
   }
 
-  async update(id, data) {
-    const db = await this._loadRaw();
+  update(id, data) {
+    const db = this._loadRaw();
     const normalized = this._normalizeId(id);
     const idx = (db.suppliers || []).findIndex(s => this._matchesId(s, normalized));
     if (idx === -1) return { error: 'Supplier not found' };
@@ -166,18 +178,18 @@ class SuppliersService {
     if (errors.length) return { error: errors.join('; ') };
 
     db.suppliers[idx] = { ...db.suppliers[idx], ...data, id: db.suppliers[idx].id, updatedAt: new Date().toISOString() };
-    if (await this._save(db)) return { supplier: db.suppliers[idx] };
+    if (this._save(db)) return { supplier: db.suppliers[idx] };
     return { error: 'Failed to persist update' };
   }
 
-  async delete(id) {
-    const db = await this._loadRaw();
+  delete(id) {
+    const db = this._loadRaw();
     const normalized = this._normalizeId(id);
     const idx = (db.suppliers || []).findIndex(s => this._matchesId(s, normalized));
     if (idx === -1) return { error: 'Supplier not found' };
     if (this._ownershipBlocked(db.suppliers[idx])) return { error: 'Supplier not found' };
     db.suppliers.splice(idx, 1);
-    if (await this._save(db)) return { success: true };
+    if (this._save(db)) return { success: true };
     return { error: 'Failed to persist deletion' };
   }
 }

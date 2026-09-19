@@ -29,7 +29,6 @@ const { eventBus } = require('./services/eventBus');
 const webhookService = require('./services/webhook.service');
 const jobService = require('./services/job.service');
 const schedulerService = require('./services/scheduler.service');
-const notificationEngine = require('./services/notificationEngine.service');
 
 const app = express();
 
@@ -118,12 +117,6 @@ app.use(apiKeyMiddleware);
 const tenantCarry = require('./middleware/tenantCarry');
 app.use(tenantCarry);
 
-// Custom Domain Resolution: resolve tenant from registered custom domains
-// after auth so JWT-bound tenants take precedence. No-op when
-// ENABLE_CUSTOM_DOMAIN_RESOLUTION is off.
-const customDomainResolver = require('./middleware/customDomainResolver');
-app.use(customDomainResolver);
-
 // Audit capture: records mutating operations (POST/PUT/DELETE) after response
 app.use(auditCapture);
 
@@ -164,11 +157,7 @@ const companyProfileRoutes = require('./routes/companyProfile.routes');
 const customerRequestRoutes = require('./routes/customerRequest.routes');
 const internalChangeCenterRoutes = require('./routes/internalChangeCenter.routes');
 const platformIntegrationRoutes = require('./routes/platformIntegration.routes');
-const platformAdminRoutes = require('./routes/platformAdmin.routes');
-const tenantExtensionsRoutes = require('./routes/tenantExtensions.routes');
 const tenantOnboardingRoutes = require('./routes/tenantOnboarding.routes');
-const tenantPaymentsRoutes = require('./routes/tenantPayments.routes');
-const tenantNotificationsRoutes = require('./routes/tenantNotifications.routes');
 const studentServicesPackRoutes = require('./routes/studentServicesPack.routes');
 const shiftManagementRoutes = require('./routes/shiftManagement.routes');
 const onlineStoreRoutes = require('./routes/onlineStore.routes');
@@ -190,16 +179,8 @@ app.use('/api/v1/update', updateRoutes);
 // Phase 33 — Master Control Center. Mounted before the optional AUTH_REQUIRED
 // guard so platform scope is enforced exclusively by requirePlatformAdmin.
 app.use('/api/v1/platform', platformRoutes);
-// Platform Admin Management APIs — add-ons, transaction fees, custom domains.
-app.use('/api/v1/platform/admin', platformAdminRoutes);
-// Tenant Extensions — tenant-scoped add-ons and custom domain management.
-app.use('/api/v1/tenant', tenantExtensionsRoutes);
 // Tenant Onboarding Wizard — guided setup + one-click demo data.
-app.use('/api/v1/tenant/onboarding', require('./routes/tenantOnboarding.routes'));
-// Tenant Notifications — Telegram/WhatsApp settings + test connection.
-app.use('/api/v1/tenant/notifications', tenantNotificationsRoutes);
-// Payment Gateway — tenant-scoped payment intents and webhooks.
-app.use('/api/v1/payments', tenantPaymentsRoutes);
+app.use('/api/v1/tenant/onboarding', tenantOnboardingRoutes);
 // Public platform homepage — read-only catalog, no auth required.
 app.use('/api/v1/platform-public', platformPublicRoutes);
 // Public company profile — read-only profile data, no auth required.
@@ -244,8 +225,6 @@ eventBus.subscribe('sale.updated', (ev) => webhookService.dispatch('sale.updated
 eventBus.subscribe('sale.deleted', (ev) => webhookService.dispatch('sale.deleted', ev.data, ev.data && ev.data.tenantId));
 eventBus.subscribe('inventory.updated', (ev) => webhookService.dispatch('inventory.updated', ev.data, ev.data && ev.data.tenantId));
 eventBus.subscribe('inventory.low', (ev) => webhookService.dispatch('inventory.low', ev.data, ev.data && ev.data.tenantId));
-
-notificationEngine.bootstrapEventListeners();
 
 // OAuth routes (mounted at root for OAuth callbacks)
 if (oauthConfig.enabled) {

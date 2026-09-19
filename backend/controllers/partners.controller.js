@@ -2,9 +2,9 @@ const partnersService = require('../services/partners.service');
 const { success, error } = require('../utils/apiResponse');
 const logger = require('../utils/logger');
 
-async function list(req, res) {
+function list(req, res) {
   try {
-    const result = await partnersService.list(req.query);
+    const result = partnersService.list(req.query);
     success(res, result, 'Partners retrieved');
   } catch (err) {
     logger.error('partners.list error:', err.message);
@@ -12,9 +12,9 @@ async function list(req, res) {
   }
 }
 
-async function getById(req, res) {
+function getById(req, res) {
   try {
-    const partner = await partnersService.getById(req.params.id);
+    const partner = partnersService.getById(req.params.id);
     if (!partner) return error(res, 'Partner not found', 404);
     success(res, partner, 'Partner retrieved');
   } catch (err) {
@@ -23,9 +23,9 @@ async function getById(req, res) {
   }
 }
 
-async function getStats(req, res) {
+function getStats(req, res) {
   try {
-    const result = await partnersService.stats();
+    const result = partnersService.stats();
     success(res, result, 'Partner stats retrieved');
   } catch (err) {
     logger.error('partners.stats error:', err.message);
@@ -33,9 +33,9 @@ async function getStats(req, res) {
   }
 }
 
-async function create(req, res) {
+function create(req, res) {
   try {
-    const result = await partnersService.create(req.body);
+    const result = partnersService.create(req.body);
     if (result.error) return error(res, result.error, 400);
     success(res, result.partner, 'Partner created', 201);
   } catch (err) {
@@ -44,9 +44,9 @@ async function create(req, res) {
   }
 }
 
-async function update(req, res) {
+function update(req, res) {
   try {
-    const result = await partnersService.update(req.params.id, req.body);
+    const result = partnersService.update(req.params.id, req.body);
     if (result.error === 'Partner not found') return error(res, result.error, 404);
     if (result.error) return error(res, result.error, 400);
     success(res, result.partner, 'Partner updated');
@@ -56,14 +56,14 @@ async function update(req, res) {
   }
 }
 
-async function remove(req, res) {
+function remove(req, res) {
   try {
-    const result = await partnersService.delete(req.params.id);
+    const result = partnersService.delete(req.params.id);
     if (result.error === 'Partner not found') return error(res, result.error, 404);
     if (result.error) return error(res, result.error, 500);
     success(res, null, 'Partner deleted');
   } catch (err) {
-    logger.error('partners.remove error:', err.message);
+    logger.error('partners.delete error:', err.message);
     error(res, 'Failed to delete partner', 500);
   }
 }

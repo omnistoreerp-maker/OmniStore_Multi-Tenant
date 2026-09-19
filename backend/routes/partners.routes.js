@@ -1,6 +1,5 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/partners.controller');
-const asyncHandler = require('../utils/asyncHandler');
 const { requirePermissionIfAuth } = require('../middleware/authorize');
 
 /**
@@ -50,8 +49,8 @@ const { requirePermissionIfAuth } = require('../middleware/authorize');
  *       401:
  *         description: Authentication required
  */
-router.get('/', requirePermissionIfAuth('partners.view'), asyncHandler(ctrl.list));
-router.post('/', requirePermissionIfAuth('partners.create'), asyncHandler(ctrl.create));
+router.get('/', requirePermissionIfAuth('partners.view'), ctrl.list);
+router.post('/', requirePermissionIfAuth('partners.create'), ctrl.create);
 
 /**
  * @openapi
@@ -68,7 +67,7 @@ router.post('/', requirePermissionIfAuth('partners.create'), asyncHandler(ctrl.c
  *       401:
  *         description: Authentication required
  */
-router.get('/stats', requirePermissionIfAuth('partners.view'), asyncHandler(ctrl.getStats));
+router.get('/stats', requirePermissionIfAuth('partners.view'), ctrl.getStats);
 
 /**
  * @openapi
@@ -131,8 +130,8 @@ router.get('/stats', requirePermissionIfAuth('partners.view'), asyncHandler(ctrl
  *       404:
  *         description: Partner not found
  */
-router.get('/:id', requirePermissionIfAuth('partners.view'), asyncHandler(ctrl.getById));
-router.put('/:id', requirePermissionIfAuth('partners.edit'), asyncHandler(ctrl.update));
-router.delete('/:id', requirePermissionIfAuth('partners.delete'), asyncHandler(ctrl.remove));
+router.get('/:id', requirePermissionIfAuth('partners.view'), ctrl.getById);
+router.put('/:id', requirePermissionIfAuth('partners.edit'), ctrl.update);
+router.delete('/:id', requirePermissionIfAuth('partners.delete'), ctrl.remove);
 
 module.exports = router;
