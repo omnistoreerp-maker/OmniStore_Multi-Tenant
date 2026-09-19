@@ -123,6 +123,12 @@ describe('Platform MVP — `/` serves Platform Home and public APIs', () => {
     expect(b.text).toContain('Business Management Services');
   });
 
+  test('GET /student.html is served for the active student-services catalog section', async () => {
+    const res = await request(server.app).get('/student.html');
+    expect(res.statusCode).toBe(200);
+    expect(res.text).toMatch(/student/i);
+  });
+
   test('public catalog API stays open with the standard envelope', async () => {
     const res = await request(server.app).get('/api/v1/platform-public/catalog');
     expect(res.statusCode).toBe(200);

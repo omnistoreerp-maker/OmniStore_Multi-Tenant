@@ -105,6 +105,20 @@ function _defaultDoc() {
   };
 }
 
+const ALLOWED_ACTIVE_URLS = {
+  '/market.html': true,
+  '/business.html': true,
+  '/student.html': true,
+  '/index.html': true,
+  '/platform.html': true
+};
+
+const ALLOWED_STATUSES = {
+  active: true,
+  'under-construction': true,
+  'coming-soon': true
+};
+
 function _dedupeSections(sections) {
   if (!Array.isArray(sections)) return [];
   const seen = new Set();
@@ -117,16 +131,71 @@ function _dedupeSections(sections) {
   return out;
 }
 
+function _normalizeSection(section, fallback) {
+  const base = Object.assign({}, fallback || {}, section || {});
+  if (!base.id) return null;
+
+  const rawStatus = String(base.status || 'coming-soon');
+  let status = ALLOWED_STATUSES[rawStatus] ? rawStatus : 'coming-soon';
+  let url = base.url ? String(base.url) : null;
+  if (url === '') url = null;
+
+  if (status === 'active') {
+    if (!url || !ALLOWED_ACTIVE_URLS[url]) {
+      status = 'under-construction';
+      url = null;
+    }
+  } else {
+    url = null;
+  }
+
+  return {
+    id: String(base.id),
+    title: String(base.title || (fallback && fallback.title) || base.id),
+    description: String(base.description || (fallback && fallback.description) || ''),
+    status,
+    url,
+    icon: String(base.icon || (fallback && fallback.icon) || 'fa-circle')
+  };
+}
+
+function _mergeSections(storeSections, defaultSections) {
+  const defaultsById = {};
+  const defaults = Array.isArray(defaultSections) ? defaultSections : [];
+  for (let i = 0; i < defaults.length; i++) {
+    const item = defaults[i];
+    if (item && item.id) defaultsById[item.id] = item;
+  }
+
+  const merged = [];
+  const seen = new Set();
+  const stored = _dedupeSections(storeSections);
+
+  for (let i = 0; i < stored.length; i++) {
+    const normalized = _normalizeSection(stored[i], defaultsById[stored[i].id]);
+    if (!normalized) continue;
+    seen.add(normalized.id);
+    merged.push(normalized);
+  }
+
+  for (let i = 0; i < defaults.length; i++) {
+    const item = defaults[i];
+    if (!item || !item.id || seen.has(item.id)) continue;
+    const normalized = _normalizeSection(item, item);
+    if (normalized) merged.push(normalized);
+  }
+
+  return merged;
+}
+
 function getCatalog() {
   const defaults = _defaultDoc();
   const store = _readStore();
-  if (!store) return defaults;
-  const merged = Object.assign({}, defaults, store);
-  if (!Array.isArray(store.sections) || store.sections.length === 0) {
-    merged.sections = defaults.sections;
-  } else {
-    merged.sections = _dedupeSections(store.sections);
+  if (!store) {
+    return Object.assign({}, defaults, { sections: _mergeSections([], defaults.sections) });
   }
+  const merged = Object.assign({}, defaults, store);
+  merged.sections = _mergeSections(store.sections, defaults.sections);
   return merged;
 }
 
