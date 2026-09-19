@@ -29,17 +29,16 @@ describe('Platform MVP — static surface', () => {
     const html = repoFile('platform.html');
     expect(html).toContain('OmniStore ERP');
     expect(html).toContain('Multi-Tenant Enterprise Resource Planning');
-    expect(html).toContain('Change Center');
-    expect(html).toContain('My Requests');
     expect(html).toContain('Open Application');
     expect(html).toContain('platform/platform.js');
     expect(html).not.toContain('id="loginScreen"');
   });
 
-  test('Change Center and My Requests are honest Under Construction pages, not 404s', () => {
-    const home = repoFile('platform.html');
-    expect(home).toContain('href="internal.html"');
-    expect(home).toContain('href="customer.html"');
+  test('Change Center and My Requests are present as coming-soon catalog sections with honest placeholders', () => {
+    const catalogJson = repoFile('backend/data/platformPublic.json');
+    expect(catalogJson).toContain('"id": "change-center"');
+    expect(catalogJson).toContain('"id": "my-requests"');
+    expect(catalogJson).toContain('"status": "coming-soon"');
     const internal = repoFile('internal.html');
     const customer = repoFile('customer.html');
     expect(internal).toContain('Under Construction');

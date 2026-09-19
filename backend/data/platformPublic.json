@@ -29,6 +29,8 @@
     { "id": "student-services", "title": "Student Services & Printing", "description": "Print shop orders, cost calculator, and student monthly passes.", "status": "active", "url": "/student.html", "icon": "fa-graduation-cap" },
     { "id": "game-hosting", "title": "Game Hosting", "description": "Host and manage game sessions and catalogs.", "status": "under-construction", "url": null, "icon": "fa-gamepad" },
     { "id": "media-reels", "title": "Media / Reels", "description": "Media content and reels sharing.", "status": "coming-soon", "url": null, "icon": "fa-film" },
-    { "id": "support", "title": "Support", "description": "Help center, tickets, and customer requests.", "status": "coming-soon", "url": null, "icon": "fa-headset" }
+    { "id": "support", "title": "Support", "description": "Help center, tickets, and customer requests.", "status": "coming-soon", "url": null, "icon": "fa-headset" },
+    { "id": "change-center", "title": "Change Center", "description": "Internal release and change management.", "status": "coming-soon", "url": null, "icon": "fa-arrows-rotate" },
+    { "id": "my-requests", "title": "My Requests", "description": "Customer support and request tracking.", "status": "coming-soon", "url": null, "icon": "fa-clipboard-list" }
   ]
 }
