@@ -127,6 +127,13 @@ app.use(apiKeyMiddleware);
 const tenantCarry = require('./middleware/tenantCarry');
 app.use(tenantCarry);
 
+// Custom Domain Resolution (O3): resolve tenant from registered custom domains
+// AFTER auth so JWT-bound tenants take precedence. No-op when
+// ENABLE_CUSTOM_DOMAIN_RESOLUTION is off. Restored from the verified RC
+// wiring that was dropped during the main integration.
+const customDomainResolver = require('./middleware/customDomainResolver');
+app.use(customDomainResolver);
+
 // Audit capture: records mutating operations (POST/PUT/DELETE) after response
 app.use(auditCapture);
 
