@@ -27,6 +27,7 @@ const branchStore = require('./middleware/branchStore');
 const metricsMiddleware = require('./middleware/metrics');
 const { eventBus } = require('./services/eventBus');
 const webhookService = require('./services/webhook.service');
+const notificationEngine = require('./services/notificationEngine.service');
 const jobService = require('./services/job.service');
 const schedulerService = require('./services/scheduler.service');
 
@@ -225,6 +226,13 @@ eventBus.subscribe('sale.updated', (ev) => webhookService.dispatch('sale.updated
 eventBus.subscribe('sale.deleted', (ev) => webhookService.dispatch('sale.deleted', ev.data, ev.data && ev.data.tenantId));
 eventBus.subscribe('inventory.updated', (ev) => webhookService.dispatch('inventory.updated', ev.data, ev.data && ev.data.tenantId));
 eventBus.subscribe('inventory.low', (ev) => webhookService.dispatch('inventory.low', ev.data, ev.data && ev.data.tenantId));
+
+// Route tenant events to the per-tenant Telegram/WhatsApp notification
+// engine (sale alerts, low-stock alerts, subscription alerts). Restored
+// from the verified RC build where server.js called
+// notificationEngine.bootstrapEventListeners(); the wiring was lost when
+// main was reconstructed, silently disabling every outbound notification.
+notificationEngine.bootstrapEventListeners();
 
 // OAuth routes (mounted at root for OAuth callbacks)
 if (oauthConfig.enabled) {
