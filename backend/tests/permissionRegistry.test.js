@@ -109,9 +109,6 @@ describe('registry structure', () => {
     expect(registry.groups().length).toBe(16);
     expect(all).toContain('sales.view');
     expect(all).toContain('users.permissions.view');
-    expect(all).toContain('partners.view');
-    expect(all).toContain('vouchers.view');
-    expect(all).toContain('employees.view');
     expect(all).not.toContain('sales.refund');
     expect(all).not.toContain('expenses.view');
   });

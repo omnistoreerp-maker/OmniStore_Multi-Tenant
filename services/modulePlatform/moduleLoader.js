@@ -150,7 +150,11 @@
 
   function isRouteEnabled(route) {
     const definition = findByRoute(route);
-    return definition ? !!getModuleState(definition.id)?.active : true;
+    if (!definition) return true; // Routes not in module registry are always allowed
+    const state = getModuleState(definition.id);
+    if (!state) return false;
+    // Check if module is active AND compatible with current business type
+    return state.active && state.compatible;
   }
 
   function notifyRoute(route) {

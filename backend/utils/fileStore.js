@@ -85,6 +85,9 @@ const fileStore = {
     const tmpPath = filePath + '.tmp';
     try {
       fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), 'utf-8');
+      if (fs.existsSync(filePath)) {
+        try { fs.unlinkSync(filePath); } catch (_) {}
+      }
       fs.renameSync(tmpPath, filePath);
       // Cache only what was durably written.
       const stat = fs.statSync(filePath);

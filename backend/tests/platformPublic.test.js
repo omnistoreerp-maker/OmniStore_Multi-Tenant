@@ -23,7 +23,7 @@ function seedPublic(dir) {
   });
   seed(dir, 'platformAdmins', { admins: [{ username: 'master', platformRole: 'MASTER_OWNER', createdAt: new Date().toISOString() }] });
   seed(dir, 'platformPublic', {
-    meta: { name: 'OmniStore ERP', tagline: 'Multi-Tenant ERP', version: '1.0.0', lastUpdated: new Date().toISOString() },
+    meta: { name: 'OmniStore Platform', tagline: 'Multi-Tenant Platform', version: '1.0.0', lastUpdated: new Date().toISOString() },
     features: [
       { id: 'sales', title: 'Sales', description: 'POS and orders', icon: 'fa-cart-shopping' },
       { id: 'purchases', title: 'Purchases', description: 'Vendor management', icon: 'fa-truck' },
@@ -41,6 +41,13 @@ function seedPublic(dir) {
       { title: 'Multi-Tenant', body: 'Fully isolated companies.' },
       { title: 'Real-Time Sync', body: 'Instant propagation.' },
       { title: 'RBAC', body: 'Granular permissions.' }
+    ],
+    sections: [
+      { id: 'marketplace', title: 'Marketplace', description: 'Visitor-facing marketplace.', status: 'active', url: '/market.html', icon: 'fa-store' },
+      { id: 'business-services', title: 'Business Management Services', description: 'Existing company access and new company onboarding.', status: 'active', url: '/business.html', icon: 'fa-building' },
+      { id: 'student-services', title: 'Student Services', description: 'Student-facing services.', status: 'coming-soon', url: null, icon: 'fa-graduation-cap' },
+      { id: 'game-hosting', title: 'Game Hosting', description: 'Host and manage game sessions.', status: 'under-construction', url: null, icon: 'fa-gamepad' },
+      { id: 'media-reels', title: 'Media / Reels', description: 'Media content and reels sharing.', status: 'coming-soon', url: null, icon: 'fa-film' }
     ]
   });
 }
@@ -95,11 +102,19 @@ describe('GET /api/v1/platform-public', () => {
     expect(res.body.data.features.length).toBe(6);
   });
 
-  test('3: anonymous can GET /stats', async () => {
+  test('3: anonymous can GET /stats with activity metrics', async () => {
     const res = await request(server).get('/api/v1/platform-public/stats');
     expect(res.status).toBe(200);
-    expect(Array.isArray(res.body.data.stats)).toBe(true);
-    expect(res.body.data.stats.length).toBe(3);
+    expect(res.body.data).toHaveProperty('visitorsNow');
+    expect(res.body.data).toHaveProperty('registeredUsers');
+    expect(res.body.data).toHaveProperty('activeBusinesses');
+    expect(res.body.data).toHaveProperty('ordersToday');
+    expect(typeof res.body.data.visitorsNow).toBe('number');
+    expect(typeof res.body.data.registeredUsers).toBe('number');
+    expect(typeof res.body.data.activeBusinesses).toBe('number');
+    expect(res.body.data.ordersToday).toBeNull();
+    expect(res.body.data.registeredUsers).toBeGreaterThanOrEqual(1);
+    expect(res.body.data.activeBusinesses).toBeGreaterThanOrEqual(1);
   });
 
   test('4: anonymous can GET /highlights', async () => {
@@ -109,11 +124,24 @@ describe('GET /api/v1/platform-public', () => {
     expect(res.body.data.highlights.length).toBe(3);
   });
 
+  test('4.1: anonymous can GET /sections', async () => {
+    const res = await request(server).get('/api/v1/platform-public/sections');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.data.sections)).toBe(true);
+    expect(res.body.data.sections.length).toBeGreaterThanOrEqual(5);
+    const ids = res.body.data.sections.map(s => s.id);
+    expect(ids).toContain('marketplace');
+    expect(ids).toContain('business-services');
+    expect(ids).toContain('student-services');
+    expect(ids).toContain('game-hosting');
+    expect(ids).toContain('media-reels');
+  });
+
   // ---------- authenticated access still works ----------
   test('5: authenticated user can GET /catalog', async () => {
     const res = await api(masterToken).get('/api/v1/platform-public/catalog');
     expect(res.status).toBe(200);
-    expect(res.body.data.meta.name).toBe('OmniStore ERP');
+    expect(res.body.data.meta.name).toBe('OmniStore Platform');
   });
 
   // ---------- method restrictions: POST/PUT/DELETE/PATCH return 404 ----------
@@ -176,6 +204,7 @@ describe('GET /api/v1/platform-public', () => {
     expect(data).toHaveProperty('features');
     expect(data).toHaveProperty('stats');
     expect(data).toHaveProperty('highlights');
+    expect(data).toHaveProperty('sections');
   });
 
   test('17: features array has 6 items', async () => {
@@ -183,14 +212,19 @@ describe('GET /api/v1/platform-public', () => {
     expect(res.body.data.features.length).toBe(6);
   });
 
-  test('18: stats array has 3 items', async () => {
-    const res = await request(server).get('/api/v1/platform-public/stats');
-    expect(res.body.data.stats.length).toBe(3);
-  });
-
   test('19: highlights array has 3 items', async () => {
     const res = await request(server).get('/api/v1/platform-public/highlights');
     expect(res.body.data.highlights.length).toBe(3);
+  });
+
+  test('19.1: sections include active and non-active statuses', async () => {
+    const res = await request(server).get('/api/v1/platform-public/sections');
+    expect(res.status).toBe(200);
+    const sections = res.body.data.sections;
+    const statuses = sections.map(s => s.status);
+    expect(statuses).toContain('active');
+    expect(statuses).toContain('coming-soon');
+    expect(statuses).toContain('under-construction');
   });
 
   // ---------- response envelope ----------
@@ -205,7 +239,7 @@ describe('GET /api/v1/platform-public', () => {
 
   // ---------- no secrets ----------
   test('21: no secrets in any public endpoint', async () => {
-    const endpoints = ['/api/v1/platform-public/catalog', '/api/v1/platform-public/features', '/api/v1/platform-public/stats', '/api/v1/platform-public/highlights'];
+    const endpoints = ['/api/v1/platform-public/catalog', '/api/v1/platform-public/features', '/api/v1/platform-public/stats', '/api/v1/platform-public/highlights', '/api/v1/platform-public/sections'];
     for (const ep of endpoints) {
       const res = await request(server).get(ep);
       const raw = JSON.stringify(res.body);
@@ -221,13 +255,13 @@ describe('GET /api/v1/platform-public', () => {
       .get('/api/v1/platform-public/catalog')
       .set('X-Tenant-Id', 'evil-tenant');
     expect(res.status).toBe(200);
-    expect(res.body.data.meta.name).toBe('OmniStore ERP');
+    expect(res.body.data.meta.name).toBe('OmniStore Platform');
   });
 
   test('23: ?tenant= query param does not affect response', async () => {
     const res = await request(server).get('/api/v1/platform-public/catalog?tenant=evil-tenant');
     expect(res.status).toBe(200);
-    expect(res.body.data.meta.name).toBe('OmniStore ERP');
+    expect(res.body.data.meta.name).toBe('OmniStore Platform');
   });
 
   // ---------- rate limiter headers present ----------
@@ -235,5 +269,110 @@ describe('GET /api/v1/platform-public', () => {
     const res = await request(server).get('/api/v1/platform-public/catalog');
     const hasLimit = res.headers['ratelimit-limit'] || res.headers['X-RateLimit-Limit'];
     expect(hasLimit).toBeTruthy();
+  });
+
+  // ---------- public visitor heartbeat ----------
+  test('25: anonymous can POST /activity/heartbeat with visitorId', async () => {
+    const res = await request(server)
+      .post('/api/v1/platform-public/activity/heartbeat')
+      .send({ visitorId: 'v_test_001' });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+  });
+
+  test('26: heartbeat without visitorId returns 400', async () => {
+    const res = await request(server)
+      .post('/api/v1/platform-public/activity/heartbeat')
+      .send({});
+    expect(res.status).toBe(400);
+  });
+
+  test('27: first heartbeat creates active visitor and stats reflect it', async () => {
+    const vid = 'v_test_visitor_count';
+    const beat = await request(server)
+      .post('/api/v1/platform-public/activity/heartbeat')
+      .send({ visitorId: vid });
+    expect(beat.status).toBe(200);
+
+    const stats = await request(server).get('/api/v1/platform-public/stats');
+    expect(stats.status).toBe(200);
+    expect(stats.body.data.visitorsNow).toBeGreaterThanOrEqual(1);
+  });
+
+  test('28: repeated heartbeat does not double-count same visitor', async () => {
+    const vid = 'v_test_visitor_dedup';
+    await request(server)
+      .post('/api/v1/platform-public/activity/heartbeat')
+      .send({ visitorId: vid });
+    await request(server)
+      .post('/api/v1/platform-public/activity/heartbeat')
+      .send({ visitorId: vid });
+
+    const stats = await request(server).get('/api/v1/platform-public/stats');
+    expect(stats.status).toBe(200);
+    const count = stats.body.data.visitorsNow;
+    expect(count).toBeGreaterThanOrEqual(1);
+  });
+
+  test('29: stats response contains no PII', async () => {
+    const res = await request(server).get('/api/v1/platform-public/stats');
+    expect(res.status).toBe(200);
+    const raw = JSON.stringify(res.body.data);
+    expect(raw).not.toContain('visitorId');
+    expect(raw).not.toContain('username');
+    expect(raw).not.toContain('email');
+    expect(raw).not.toContain('tenantId');
+    expect(raw).not.toContain('password');
+  });
+
+  test('30: ordersToday is null when no safe source exists', async () => {
+    const res = await request(server).get('/api/v1/platform-public/stats');
+    expect(res.status).toBe(200);
+    expect(res.body.data.ordersToday).toBeNull();
+  });
+
+  // ---------- public pricing ----------
+  test('31: anonymous can GET /pricing', async () => {
+    const res = await request(server).get('/api/v1/platform-public/pricing');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(Array.isArray(res.body.data.plans)).toBe(true);
+    expect(res.body.data.plans.length).toBeGreaterThanOrEqual(3);
+  });
+
+  test('32: pricing returns expected plan fields', async () => {
+    const res = await request(server).get('/api/v1/platform-public/pricing');
+    expect(res.status).toBe(200);
+    const plan = res.body.data.plans[0];
+    expect(plan).toHaveProperty('key');
+    expect(plan).toHaveProperty('name');
+    expect(plan).toHaveProperty('monthlyPrice');
+    expect(plan).toHaveProperty('annualPrice');
+    expect(plan).toHaveProperty('currency');
+    expect(plan).toHaveProperty('features');
+  });
+
+  test('33: anonymous can POST /payments/intent', async () => {
+    const res = await request(server)
+      .post('/api/v1/platform-public/payments/intent')
+      .send({ addonKey: 'starter', amount: 49, currency: 'EGP', gateway: 'paymob', metadata: { planKey: 'starter', billingCycle: 'monthly' } });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toHaveProperty('transactionRef');
+    expect(res.body.data.status).toBe('pending');
+  });
+
+  test('34: public payment intent without addonKey returns 400', async () => {
+    const res = await request(server)
+      .post('/api/v1/platform-public/payments/intent')
+      .send({ amount: 49 });
+    expect(res.status).toBe(400);
+  });
+
+  test('35: public payment intent without amount returns 400', async () => {
+    const res = await request(server)
+      .post('/api/v1/platform-public/payments/intent')
+      .send({ addonKey: 'starter' });
+    expect(res.status).toBe(400);
   });
 });

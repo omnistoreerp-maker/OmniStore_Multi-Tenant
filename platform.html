@@ -1,36 +1,77 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" dir="ltr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OmniStore ERP — Platform Home</title>
+  <meta name="description" content="OmniStore Platform Home — real-time activity, business services, and ecosystem overview.">
+  <title data-i18n="platform_name">OmniStore ERP — Platform Home</title>
   <link rel="stylesheet" href="platform/platform.css">
 </head>
 <body>
   <header class="site-header">
     <div class="container">
-      <h1 id="meta-name">OmniStore ERP</h1>
-      <p id="meta-tagline">Multi-Tenant Enterprise Resource Planning</p>
-      <nav class="platform-nav">
+      <div class="header-top">
+        <div>
+          <h1 id="meta-name">OmniStore ERP</h1>
+          <p id="meta-tagline">Multi-Tenant Enterprise Resource Planning</p>
+        </div>
+        <div class="header-actions">
+          <button id="lang-switch" class="lang-btn" type="button">العربية</button>
+        </div>
+      </div>
+      <nav class="platform-nav" aria-label="Platform">
         <a href="internal.html">Change Center</a>
         <a href="customer.html">My Requests</a>
+        <a href="business.html">Business Management</a>
+        <a href="index.html">Open Application</a>
       </nav>
     </div>
   </header>
 
   <main class="container">
-    <section id="stats" class="section stats"></section>
+    <section id="activity" class="section activity" aria-label="Platform Activity">
+      <div class="activity-grid">
+        <div class="activity-card">
+          <div class="activity-label" data-i18n="visitors_now_label">Visitors Now</div>
+          <div class="activity-value" id="activity-visitors-now">--</div>
+          <div class="activity-live" id="activity-visitors-live" style="display:none">
+            <span class="activity-live-dot" aria-hidden="true"></span>
+            <span data-i18n="live_label">Live</span>
+          </div>
+          <div class="activity-hint" data-i18n="activity_hint">Live public activity stats are not configured yet.</div>
+        </div>
+        <div class="activity-card">
+          <div class="activity-label" data-i18n="registered_users_label">Registered Users</div>
+          <div class="activity-value" id="activity-registered-users">--</div>
+          <div class="activity-hint" data-i18n="registered_users_hint">Accounts on the platform</div>
+        </div>
+        <div class="activity-card">
+          <div class="activity-label" data-i18n="active_businesses_label">Active Businesses</div>
+          <div class="activity-value" id="activity-active-businesses">--</div>
+          <div class="activity-hint" data-i18n="active_businesses_hint">Companies currently active</div>
+        </div>
+        <div class="activity-card">
+          <div class="activity-label" data-i18n="orders_today_label">Orders Today</div>
+          <div class="activity-value" id="activity-orders-today">--</div>
+          <div class="activity-hint" data-i18n="orders_today_hint">Sales orders placed today</div>
+        </div>
+      </div>
+    </section>
 
-    <section id="features" class="section features"></section>
+    <section id="stats" class="section stats" aria-label="Platform Overview"></section>
 
-    <section id="highlights" class="section highlights"></section>
+    <section id="features" class="section features" aria-label="Core Modules"></section>
+
+    <section id="highlights" class="section highlights" aria-label="Highlights"></section>
+
+    <section id="sections" class="section sections" aria-label="Platform Services"></section>
 
     <section id="cta" class="section cta">
-      <a class="btn-primary" href="index.html">Open Application</a>
+      <a class="btn-primary" href="index.html" data-i18n="cta">Open Application</a>
     </section>
 
     <section id="footer" class="section footer">
-      <p>OmniStore ERP v<span id="meta-version">1.0.0</span></p>
+      <p>OmniStore Platform v<span id="meta-version">1.0.0</span></p>
     </section>
   </main>
 

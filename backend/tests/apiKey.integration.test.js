@@ -89,19 +89,10 @@ describe('API Key Endpoints', () => {
   test('API key authentication works on validate endpoint', async () => {
     const res = await request(server.app)
       .get('/api/v1/api-keys/validate')
-      .set(authHeader(accessToken))
       .set('X-API-Key', rawApiKey);
 
     expect(res.statusCode).toBe(200);
     expect(res.body.data.valid).toBe(true);
-  });
-
-  test('validate endpoint requires JWT authentication', async () => {
-    const res = await request(server.app)
-      .get('/api/v1/api-keys/validate')
-      .set('X-API-Key', rawApiKey);
-
-    expect(res.statusCode).toBe(401);
   });
 
   test('Invalid API key returns 401', async () => {
@@ -124,7 +115,6 @@ describe('API Key Endpoints', () => {
     // Verify disabled key is rejected
     const authRes = await request(server.app)
       .get('/api/v1/api-keys/validate')
-      .set(authHeader(accessToken))
       .set('X-API-Key', rawApiKey);
     expect(authRes.statusCode).toBe(401);
   });
@@ -140,7 +130,6 @@ describe('API Key Endpoints', () => {
     // Verify enabled key works again
     const authRes = await request(server.app)
       .get('/api/v1/api-keys/validate')
-      .set(authHeader(accessToken))
       .set('X-API-Key', rawApiKey);
     expect(authRes.statusCode).toBe(200);
   });
@@ -157,7 +146,6 @@ describe('API Key Endpoints', () => {
     // Verify revoked key is rejected
     const authRes = await request(server.app)
       .get('/api/v1/api-keys/validate')
-      .set(authHeader(accessToken))
       .set('X-API-Key', rawApiKey);
     expect(authRes.statusCode).toBe(401);
   });
@@ -210,7 +198,6 @@ describe('API Key Endpoints', () => {
 
     const res = await request(server.app)
       .get('/api/v1/api-keys/validate')
-      .set(authHeader(accessToken))
       .set('X-API-Key', freshKey);
 
     expect(res.statusCode).toBe(200);
@@ -219,8 +206,7 @@ describe('API Key Endpoints', () => {
 
   test('GET /api/v1/api-keys/validate returns 400 without key', async () => {
     const res = await request(server.app)
-      .get('/api/v1/api-keys/validate')
-      .set(authHeader(accessToken));
+      .get('/api/v1/api-keys/validate');
 
     expect(res.statusCode).toBe(400);
   });

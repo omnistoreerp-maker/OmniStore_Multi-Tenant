@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Business Management — OmniStore Platform</title>
+  <meta name="theme-color" content="#0f172a">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/digitronics-icon-192.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="platform/platform.css">
+  <style>
+    .biz-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .biz-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); box-shadow: var(--shadow); padding: 24px;
+    }
+    .biz-card h2 { margin: 0 0 6px; font-size: 20px; }
+    .biz-card p.sub { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+    .biz-card label { display: block; font-size: 13px; font-weight: 600; margin: 10px 0 4px; }
+    .biz-card input {
+      width: 100%; padding: 10px 12px; border: 1px solid var(--border);
+      border-radius: 10px; font-size: 14px; background: #fff;
+    }
+    .biz-card .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .biz-actions { margin-top: 14px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .biz-msg { font-size: 13px; margin-top: 10px; min-height: 18px; }
+    .biz-msg.err { color: #b91c1c; }
+    .biz-msg.ok { color: #047857; }
+    .biz-details { margin-top: 12px; font-size: 13px; color: var(--text); background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 12px 14px; display: none; }
+    .biz-details code { background: #fff; padding: 1px 6px; border-radius: 6px; border: 1px solid #e2e8f0; }
+    fieldset { border: 0; padding: 0; margin: 0 0 8px; }
+    .choice { display: flex; gap: 16px; font-size: 14px; }
+    .choice label { display: flex; gap: 6px; align-items: center; font-weight: 600; margin: 0; }
+    @media (max-width: 880px) { .biz-grid { grid-template-columns: 1fr; } }
+    .payment-note { margin-top: 10px; font-size: 12px; color: var(--muted); border-top: 1px dashed var(--border); padding-top: 10px; }
+
+    /* Pricing */
+    .pricing-section { margin-top: 28px; }
+    .pricing-header { text-align: center; margin-bottom: 18px; }
+    .pricing-header h2 { margin: 0 0 6px; font-size: 22px; }
+    .pricing-sub { margin: 0 0 14px; color: var(--muted); font-size: 14px; }
+    .billing-toggle { display: inline-flex; gap: 0; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; background: var(--surface); }
+    .billing-btn { appearance: none; border: 0; padding: 8px 14px; font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; background: transparent; color: var(--text); }
+    .billing-btn.active { background: var(--accent); color: #fff; }
+    .save-badge { display: inline-block; margin-left: 6px; padding: 2px 8px; border-radius: 999px; background: rgba(16,185,129,0.15); color: #10b981; font-size: 11px; border: 1px solid rgba(16,185,129,0.25); }
+    .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+    .pricing-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; display: flex; flex-direction: column; transition: transform .15s ease, box-shadow .15s ease; }
+    .pricing-card:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(15,23,42,0.10); }
+    .pricing-card.popular { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 10px 30px rgba(37,99,235,0.12); }
+    .pricing-card h3 { margin: 0 0 4px; font-size: 18px; }
+    .pricing-card .plan-tagline { margin: 0 0 10px; color: var(--muted); font-size: 13px; }
+    .pricing-card .price { margin: 6px 0 12px; font-size: 26px; font-weight: 900; }
+    .pricing-card .price span { font-size: 13px; font-weight: 600; color: var(--muted); }
+    .popular-badge { display: inline-block; margin-bottom: 8px; padding: 3px 10px; border-radius: 999px; background: rgba(37,99,235,0.12); color: var(--accent); font-size: 12px; font-weight: 800; border: 1px solid rgba(37,99,235,0.25); }
+    .plan-features { list-style: none; padding: 0; margin: 0 0 14px; }
+    .plan-features li { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--text); padding: 5px 0; }
+    .plan-features li .status { width: 16px; text-align: center; flex: 0 0 16px; }
+    .plan-features li.included .status { color: #10b981; }
+    .plan-features li.locked .status { color: #cbd5e1; }
+    .plan-features li.locked { color: var(--muted); }
+    .pricing-card .plan-action { margin-top: auto; }
+    .pricing-note { text-align: center; font-size: 12px; color: var(--muted); margin-top: 12px; }
+    @media (max-width: 880px) { .biz-grid { grid-template-columns: 1fr; } .pricing-grid { grid-template-columns: 1fr; } }
+
+    /* TikTok Reels / Shorts Feed */
+    .tiktok-feed { display: flex; gap: 14px; overflow-x: auto; padding: 10px 4px 14px; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+    .tiktok-feed__card {
+      flex: 0 0 auto; width: min(280px, 75vw); aspect-ratio: 9 / 16;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); overflow: hidden; scroll-snap-align: start;
+      display: flex; flex-direction: column;
+    }
+    .tiktok-feed__card iframe { width: 100%; height: 100%; border: 0; }
+    .tiktok-feed__fallback {
+      flex: 0 0 auto; width: min(280px, 75vw); aspect-ratio: 9 / 16;
+      background: linear-gradient(135deg, rgba(99,102,241,0.12), rgba(139,92,246,0.12));
+      border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 18px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px;
+    }
+    .tiktok-feed__empty { color: var(--muted); font-size: 14px; padding: 18px; }
+    .tiktok-feed__cta {
+      display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 999px;
+      background: linear-gradient(135deg, var(--accent2), var(--accent)); color: #fff; text-decoration: none;
+      font-weight: 800; font-size: 13px; box-shadow: 0 6px 20px rgba(0,100,255,0.25);
+    }
+    .tiktok-feed__cta:hover { transform: translateY(-1px); box-shadow: 0 10px 26px rgba(0,100,255,0.35); }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <h1>Business Management Services</h1>
+      <p>Your company workspace on OmniStore — sign in, or start a new subscription</p>
+      <nav class="platform-nav" aria-label="Breadcrumb">
+        <a href="platform.html">← Platform Home</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="biz-grid">
+
+      <!-- EXISTING COMPANY: reuses the ERP's real authentication — no parallel
+           auth system. The credentials POST goes to the LIVE /auth/login
+           endpoint; on success the session token is stored under the same
+           localStorage key the ERP already resumes on load, and the browser
+           is redirected into the company workspace (index.html). -->
+      <section class="biz-card" aria-labelledby="existing-h">
+        <h2 id="existing-h">Existing Company</h2>
+        <p class="sub">Sign in with your company account to open your workspace.</p>
+        <form id="login-form" novalidate>
+          <label for="login-username">Username or Email</label>
+          <input id="login-username" name="username" type="text" autocomplete="username" required>
+          <label for="login-password">Password</label>
+          <input id="login-password" name="password" type="password" autocomplete="current-password" required>
+          <div class="biz-actions">
+            <button class="btn-primary" type="submit">Sign in to Workspace</button>
+          </div>
+          <div class="biz-msg err" id="login-msg" role="alert"></div>
+        </form>
+      </section>
+
+      <!-- NEW SUBSCRIPTION: public onboarding via the hardened
+           POST /api/v1/platform-public/onboarding/provision endpoint
+           (rate-limited, validated, server-owned tenant metadata, generic
+           conflict errors, no client-controlled roles/ownership).
+           No fake payment step: payment is handled offline by sales. -->
+      <section class="biz-card" aria-labelledby="newsub-h">
+        <h2 id="newsub-h">New Subscription</h2>
+        <p class="sub">Create your company tenant and owner account. You sign in right after.</p>
+        <form id="provision-form" novalidate>
+          <fieldset>
+            <legend style="font-size:13px;font-weight:700;padding-top:8px">Company</legend>
+            <label for="prov-company-name">Company name</label>
+            <input id="prov-company-name" maxlength="100" required>
+            <label for="prov-company-id">Company ID <span style="font-weight:400;color:var(--muted)">(2-40 letters/digits/-/_ — this becomes your tenant)</span></label>
+            <input id="prov-company-id" maxlength="40" pattern="[A-Za-z0-9_-]{2,40}" required>
+            <label for="prov-branch-name">Main branch name</label>
+            <input id="prov-branch-name" maxlength="100" placeholder="Main Branch">
+            <label for="prov-branch-code">Main branch code</label>
+            <input id="prov-branch-code" maxlength="20" pattern="[A-Za-z0-9_-]{1,20}" placeholder="MAIN">
+          </fieldset>
+          <fieldset>
+            <legend style="font-size:13px;font-weight:700;padding-top:8px">Owner account</legend>
+            <label for="prov-admin-username">Admin username <span style="font-weight:400;color:var(--muted)">(2-40 letters/digits/_.-)</span></label>
+            <input id="prov-admin-username" maxlength="40" pattern="[A-Za-z0-9_.-]{2,40}" required>
+            <label for="prov-admin-name">Full name</label>
+            <input id="prov-admin-name" maxlength="100">
+            <label for="prov-admin-password">Password</label>
+            <input id="prov-admin-password" type="password" autocomplete="new-password" required>
+            <div class="hint">Use a strong password (mixed case, digits, symbol).</div>
+            <label for="prov-email">Contact email</label>
+            <input id="prov-email" type="email" maxlength="120">
+            <label for="prov-phone">Phone</label>
+            <input id="prov-phone" maxlength="40">
+          </fieldset>
+          <div class="biz-actions">
+            <button class="btn-primary" type="submit">Create Company</button>
+          </div>
+          <div class="biz-msg" id="provision-msg" role="alert"></div>
+          <div class="biz-details" id="provision-details"></div>
+          <div class="payment-note">Payment / billing is arranged with the DigiTronics Plus sales team — no online payment is collected here.</div>
+        </form>
+      </section>
+
+    </div>
+
+    <!-- PRICING PLANS -->
+    <section class="pricing-section" aria-labelledby="pricing-h">
+      <div class="pricing-header">
+        <h2 id="pricing-h">Pricing Plans</h2>
+        <p class="pricing-sub">Choose the right plan for your business. Switch billing cycle to save more.</p>
+        <div class="billing-toggle" role="group" aria-label="Billing cycle">
+          <button id="billing-monthly" class="billing-btn active" type="button">Monthly</button>
+          <button id="billing-annual" class="billing-btn" type="button">
+            Annual
+            <span class="save-badge" aria-label="Save 20 percent">Save 20%</span>
+          </button>
+        </div>
+      </div>
+      <div id="pricing-plans" class="pricing-grid"></div>
+      <p class="pricing-note">Payments are processed securely via our payment gateway. Add-ons are activated instantly after payment.</p>
+    </section>
+
+    <section class="pricing-section" aria-labelledby="student-h">
+      <div class="pricing-header">
+        <h2 id="student-h">🎓 Student Services &amp; Printing</h2>
+        <p class="pricing-sub">Print shop orders, cost calculator, and student monthly passes.</p>
+      </div>
+      <div class="pricing-grid">
+        <article class="pricing-card" style="cursor:pointer" onclick="window.location.href='student.html'">
+          <h3>Print Shop</h3>
+          <p class="plan-tagline">Calculate multi-page printing costs and submit orders online.</p>
+          <div class="plan-action" style="margin-top:auto">
+            <button class="btn-primary" style="width:100%" type="button">Open Print Shop →</button>
+          </div>
+        </article>
+        <article class="pricing-card" style="cursor:pointer" onclick="window.location.href='student.html'">
+          <h3>Student Passes</h3>
+          <p class="plan-tagline">Track monthly and weekly student passes with amounts and status.</p>
+          <div class="plan-action" style="margin-top:auto">
+            <button class="btn-primary" style="width:100%" type="button">Manage Passes →</button>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- TIKTOK REELS / SHORTS -->
+    <section class="pricing-section" aria-labelledby="tiktok-h">
+      <div class="pricing-header">
+        <h2 id="tiktok-h">Reels &amp; Shorts</h2>
+        <p class="pricing-sub">Latest videos from OmniStore on TikTok.</p>
+      </div>
+      <div id="tiktok-feed-host" class="tiktok-feed">
+        <div class="tiktok-feed__empty">Loading TikTok feed…</div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var API = '/api/v1';
+      var loginForm = document.getElementById('login-form');
+      var loginMsg = document.getElementById('login-msg');
+      var provisionForm = document.getElementById('provision-form');
+      var provisionMsg = document.getElementById('provision-msg');
+      var provisionDetails = document.getElementById('provision-details');
+
+      function setText(node, text, cls) {
+        node.textContent = text || '';
+        node.className = 'biz-msg' + (cls ? ' ' + cls : '');
+      }
+
+      async function postJSON(path, body) {
+        var res = await fetch(API + path, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        var json = null;
+        try { json = await res.json(); } catch (_) {}
+        return { status: res.status, ok: res.ok, json: json };
+      }
+
+      // Existing company: real /auth/login, real token, real workspace.
+      loginForm.addEventListener('submit', async function (ev) {
+        ev.preventDefault();
+        setText(loginMsg, '');
+        var username = document.getElementById('login-username').value.trim();
+        var password = document.getElementById('login-password').value;
+        if (!username || !password) { setText(loginMsg, 'Enter your username and password.', 'err'); return; }
+        try {
+          var r = await postJSON('/auth/login', { username: username, password: password });
+          if (r.ok && r.json && r.json.success && r.json.data && r.json.data.accessToken) {
+            // Same session keys the ERP itself writes after a successful login
+            // (launchApp in index.html): the token + the remembered-username
+            // convenience key it uses to resume. Session convenience ONLY —
+            // every authorization decision stays server-side (/auth/me).
+            try { localStorage.setItem('access_token', r.json.data.accessToken); } catch (_) {}
+            if (r.json.data.user && r.json.data.user.username) {
+              try { localStorage.setItem('cairo_session_user', r.json.data.user.username); } catch (_) {}
+            }
+            setText(loginMsg, 'Signed in. Opening your workspace…', 'ok');
+            window.location.assign('index.html');
+          } else {
+            var msg = (r.json && r.json.message) || ('Sign-in failed (' + r.status + ')');
+            setText(loginMsg, msg, 'err');
+          }
+        } catch (e) {
+          setText(loginMsg, 'Network error — please try again.', 'err');
+        }
+      });
+
+      // New subscription: public onboarding, hardened endpoint.
+      provisionForm.addEventListener('submit', async function (ev) {
+        ev.preventDefault();
+        setText(provisionMsg, '');
+        provisionDetails.style.display = 'none';
+
+        var payload = {
+          companyName: document.getElementById('prov-company-name').value.trim(),
+          companyId: document.getElementById('prov-company-id').value.trim(),
+          branchName: document.getElementById('prov-branch-name').value.trim() || undefined,
+          branchCode: document.getElementById('prov-branch-code').value.trim() || undefined,
+          adminUsername: document.getElementById('prov-admin-username').value.trim(),
+          adminFullName: document.getElementById('prov-admin-name').value.trim() || undefined,
+          adminPassword: document.getElementById('prov-admin-password').value,
+          email: document.getElementById('prov-email').value.trim() || undefined,
+          phone: document.getElementById('prov-phone').value.trim() || undefined
+        };
+        Object.keys(payload).forEach(function (k) { if (payload[k] === undefined) delete payload[k]; });
+
+        if (!payload.companyName || !payload.companyId || !payload.adminUsername || !payload.adminPassword) {
+          setText(provisionMsg, 'Company name, company ID, admin username and password are required.', 'err');
+          return;
+        }
+
+        var btn = provisionForm.querySelector('button[type=submit]');
+        btn.disabled = true;
+        try {
+          var r = await postJSON('/platform-public/onboarding/provision', payload);
+          if (r.status === 201 && r.json && r.json.success && r.json.data) {
+            var d = r.json.data;
+            provisionDetails.innerHTML = '';
+            var lines = [
+              'Company created: ' + d.company.name + ' (ID: ' + d.company.id + ')',
+              'Branch: ' + d.branch.name + ' (' + d.branch.code + ')',
+              'Owner username: ' + d.admin.username
+            ];
+            lines.forEach(function (t) {
+              var p = document.createElement('div'); p.textContent = t; provisionDetails.appendChild(p);
+            });
+            provisionDetails.appendChild(document.createElement('br'));
+            var note = document.createElement('div');
+            note.textContent = 'Now sign in with your new owner account to open the workspace.';
+            provisionDetails.appendChild(note);
+            provisionDetails.style.display = 'block';
+            setText(provisionMsg, 'Company created successfully.', 'ok');
+            // Pre-fill the existing-company form with the new credentials.
+            document.getElementById('login-username').value = d.admin.username;
+            document.getElementById('login-password').value = '';
+            document.getElementById('login-password').focus();
+            provisionForm.reset();
+          } else {
+            var msg2 = (r.json && r.json.message) || ('Onboarding failed (' + r.status + ')');
+            setText(provisionMsg, msg2, 'err');
+          }
+        } catch (e) {
+          setText(provisionMsg, 'Network error — please try again.', 'err');
+        } finally {
+          btn.disabled = false;
+        }
+      });
+
+      // ---------- Pricing plans ----------
+      var billingCycle = 'monthly';
+      var pricingPlansData = [];
+
+      function escapeHtml(str) {
+        return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      }
+
+      async function loadPricing() {
+        var r = await fetch('/api/v1/platform-public/pricing');
+        var json = null;
+        try { json = await r.json(); } catch (_) {}
+        if (!r.ok || !json || !json.success) {
+          var host = document.getElementById('pricing-plans');
+          if (host) host.innerHTML = '<div class="pricing-note">Unable to load pricing right now.</div>';
+          return [];
+        }
+        pricingPlansData = Array.isArray(json.data && json.data.plans) ? json.data.plans : [];
+        renderPricing();
+        return pricingPlansData;
+      }
+
+      function renderPricing() {
+        var host = document.getElementById('pricing-plans');
+        if (!host) return;
+        if (!pricingPlansData.length) {
+          host.innerHTML = '<div class="pricing-note">No plans available.</div>';
+          return;
+        }
+        host.innerHTML = pricingPlansData.map(function (plan) {
+          var price = billingCycle === 'monthly' ? plan.monthlyPrice : plan.annualPrice;
+          var period = billingCycle === 'monthly' ? '/mo' : '/yr';
+          var features = Array.isArray(plan.features) ? plan.features : [];
+          var isPopular = !!plan.isPopular;
+          return '<article class="pricing-card' + (isPopular ? ' popular' : '') + '" data-plan-key="' + escapeHtml(plan.key) + '">' +
+            (isPopular ? '<div class="popular-badge">Most Popular</div>' : '') +
+            '<h3>' + escapeHtml(plan.name) + '</h3>' +
+            '<p class="plan-tagline">' + escapeHtml(plan.tagline || '') + '</p>' +
+            '<div class="price">' + escapeHtml(plan.currency || 'EGP') + ' ' + price + '<span>' + period + '</span></div>' +
+            '<ul class="plan-features">' + features.map(function (f) {
+              var cls = f && f.included ? 'included' : 'locked';
+              var icon = f && f.included ? '✔' : '—';
+              return '<li class="' + cls + '"><span class="status">' + icon + '</span><span>' + escapeHtml(f && f.text || '') + '</span></li>';
+            }).join('') + '</ul>' +
+            '<div class="plan-action">' +
+              '<button class="btn-primary" style="width:100%" type="button" onclick="startCheckout(\'' + escapeHtml(plan.key) + '\', \'' + billingCycle + '\')">Choose ' + escapeHtml(plan.name) + '</button>' +
+            '</div>' +
+          '</article>';
+        }).join('');
+      }
+
+      window.startCheckout = async function (planKey, cycle) {
+        var safeKey = String(planKey || '').trim();
+        var safeCycle = String(cycle || 'monthly').trim();
+        if (!safeKey) return;
+        var btn = event && event.target;
+        if (btn) { btn.disabled = true; btn.textContent = 'Starting checkout...'; }
+        try {
+          var payload = {
+            addonKey: safeKey,
+            amount: getPlanAmount(safeKey, safeCycle),
+            currency: 'EGP',
+            gateway: 'paymob',
+            metadata: { planKey: safeKey, billingCycle: safeCycle }
+          };
+          var r = await postJSON('/platform-public/payments/intent', payload);
+          if (r.ok && r.json && r.json.success && r.json.data) {
+            var data = r.json.data;
+            showToast('Payment intent created: ' + (data.transactionRef || '') + '. Complete payment to activate.');
+            if (data.transactionRef) {
+              window._lastPaymentRef = data.transactionRef;
+              window._lastPaymentPlan = safeKey;
+            }
+          } else {
+            var msg = (r.json && r.json.message) || ('Checkout failed (' + r.status + ')');
+            showToast(msg, 'error');
+          }
+        } catch (e) {
+          showToast('Network error during checkout.', 'error');
+        } finally {
+          if (btn) { btn.disabled = false; btn.textContent = 'Choose ' + safeKey; }
+        }
+      };
+
+      function getPlanAmount(planKey, cycle) {
+        var plan = pricingPlansData.find(function (p) { return String(p.key) === String(planKey); });
+        if (!plan) return 0;
+        return cycle === 'annual' ? (plan.annualPrice || 0) : (plan.monthlyPrice || 0);
+      }
+
+      function showToast(message, type) {
+        var toast = document.createElement('div');
+        toast.textContent = message;
+        toast.style.cssText = 'position:fixed;bottom:18px;left:18px;right:18px;padding:12px 14px;border-radius:12px;background:#0f172a;color:#f8fafc;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,0.25);z-index:9999;border:1px solid rgba(255,255,255,0.12);';
+        if (type === 'error') toast.style.background = '#7f1d1d';
+        document.body.appendChild(toast);
+        setTimeout(function () { toast.remove(); }, 4000);
+      }
+
+      document.getElementById('billing-monthly').addEventListener('click', function () {
+        billingCycle = 'monthly';
+        document.getElementById('billing-monthly').classList.add('active');
+        document.getElementById('billing-annual').classList.remove('active');
+        renderPricing();
+      });
+      document.getElementById('billing-annual').addEventListener('click', function () {
+        billingCycle = 'annual';
+        document.getElementById('billing-annual').classList.add('active');
+        document.getElementById('billing-monthly').classList.remove('active');
+        renderPricing();
+      });
+
+      loadPricing();
+
+      // ---------- TikTok Reels / Shorts ----------
+      var tiktokLoaded = false;
+
+      function ensureTikTokScript() {
+        if (tiktokLoaded) return Promise.resolve();
+        return new Promise(function (resolve) {
+          var s = document.createElement('script');
+          s.src = 'https://www.tiktok.com/embed.js';
+          s.async = true;
+          s.defer = true;
+          s.onload = function () { tiktokLoaded = true; resolve(); };
+          s.onerror = function () { resolve(); };
+          document.head.appendChild(s);
+        });
+      }
+
+      async function loadTikTokFeed() {
+        var host = document.getElementById('tiktok-feed-host');
+        if (!host) return;
+        try {
+          var r = await fetch('/api/v1/platform-public/social-feed/tiktok');
+          var json = null;
+          try { json = await r.json(); } catch (_) {}
+          if (!r.ok || !json || !json.success || !Array.isArray(json.data.embeds)) {
+            host.innerHTML = renderFallback();
+            return;
+          }
+          var embeds = json.data.embeds;
+          if (!embeds.length) {
+            host.innerHTML = renderFallback();
+            return;
+          }
+          await ensureTikTokScript();
+          host.innerHTML = embeds.map(function (item) {
+            if (item.fallback || !item.embed_html) {
+              return '<a class="tiktok-feed__fallback" href="' + escapeHtml(item.url) + '" target="_blank" rel="noopener">' +
+                '<div style="font-size:28px">🎵</div>' +
+                '<div style="font-weight:800;font-size:14px">' + escapeHtml(item.title || 'Check out our TikTok') + '</div>' +
+                '<div style="font-size:12px;color:var(--muted)">@' + escapeHtml(item.author_name || '') + '</div>' +
+                '<span class="tiktok-feed__cta">Open TikTok →</span>' +
+              '</a>';
+            }
+            return '<div class="tiktok-feed__card">' + item.embed_html + '</div>';
+          }).join('');
+        } catch (e) {
+          host.innerHTML = renderFallback();
+        }
+      }
+
+      function renderFallback() {
+        return '<a class="tiktok-feed__fallback" href="https://www.tiktok.com/@' + escapeHtml('YOUR_TIKTOK_USERNAME_HERE') + '" target="_blank" rel="noopener">' +
+          '<div style="font-size:28px">🎵</div>' +
+          '<div style="font-weight:800;font-size:14px">Check out our TikTok</div>' +
+          '<div style="font-size:12px;color:var(--muted)">@YOUR_TIKTOK_USERNAME_HERE</div>' +
+          '<span class="tiktok-feed__cta">Open TikTok →</span>' +
+        '</a>';
+      }
+
+      loadTikTokFeed();
+    })();
+  </script>
+</body>
+</html>

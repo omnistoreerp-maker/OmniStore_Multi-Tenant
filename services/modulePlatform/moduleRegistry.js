@@ -231,14 +231,14 @@
       permissions: ['viewHealth'],
       navigation: [
         nav('health', 'Health Monitor', '🩺', 'admin'),
-        nav('supabase-diagnostic', 'Supabase Diagnostic', '☁️', 'master_integrations', 'master'),
-        nav('performance-engine', 'محرك الأداء', '⚡', 'internal', 'internal'),
-        nav('qa-center', 'مركز الجودة', '✅', 'internal', 'internal'),
-        nav('training-center', 'مركز التدريب', '🎓', 'internal', 'internal'),
-        nav('production', 'Production Checklist', '✅', 'internal', 'internal'),
+        nav('supabase-diagnostic', 'Supabase Diagnostic', '☁️', 'admin'),
+        nav('performance-engine', 'محرك الأداء', '⚡', 'admin'),
+        nav('qa-center', 'مركز الجودة', '✅', 'admin'),
+        nav('training-center', 'مركز التدريب', '🎓', 'admin'),
+        nav('production', 'Production Checklist', '✅', 'admin'),
         nav('plugins', 'مركز الإضافات', '🧩', 'admin'),
-        nav('command-center', 'مركز القيادة', '🛰️', 'internal', 'internal'),
-        nav('opshub', 'مركز التحكم', '🧠', 'internal', 'internal')
+        nav('command-center', 'مركز القيادة', '🛰️', 'admin'),
+        nav('opshub', 'مركز التحكم', '🧠', 'admin')
       ],
       defaultSettings: { diagnosticsEnabled: true }
     }),

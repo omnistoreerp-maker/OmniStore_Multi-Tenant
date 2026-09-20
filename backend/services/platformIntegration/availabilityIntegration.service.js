@@ -21,7 +21,6 @@
 // - Availability is based on the ERP's global product stock model (stockQty).
 
 const inventoryService = require('../inventory.service');
-const { getBuildIdentity } = require('../buildIdentity.service');
 const productIntegration = require('./productIntegration.service');
 
 /**
