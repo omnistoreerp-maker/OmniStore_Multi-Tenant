@@ -77,7 +77,17 @@ app.use(compression());
 // slow-request performance logging stays on in every environment.
 if (config.env === 'development') app.use(morgan('dev'));
 app.use(requestPerfLogger(config.slowRequestMs));
-app.use(express.json({ limit: config.bodyLimit }));
+// express.json with a verify hook that captures the RAW request body for
+// every parsed JSON request. The payments webhook (O2) signs the raw bytes,
+// so it must verify the HMAC against exactly what the gateway sent — not a
+// re-serialization of the parsed object.
+app.use(express.json({
+  limit: config.bodyLimit,
+  verify(req, _res, buf) {
+    // Only JSON requests reach this hook; keep the capture bounded by bodyLimit.
+    req.rawBody = buf;
+  }
+}));
 app.use(express.urlencoded({ extended: true }));
 app.use(sanitizeBody);
 
@@ -157,7 +167,11 @@ const companyProfileRoutes = require('./routes/companyProfile.routes');
 const customerRequestRoutes = require('./routes/customerRequest.routes');
 const internalChangeCenterRoutes = require('./routes/internalChangeCenter.routes');
 const platformIntegrationRoutes = require('./routes/platformIntegration.routes');
+const platformAdminRoutes = require('./routes/platformAdmin.routes');
+const tenantExtensionsRoutes = require('./routes/tenantExtensions.routes');
 const tenantOnboardingRoutes = require('./routes/tenantOnboarding.routes');
+const tenantPaymentsRoutes = require('./routes/tenantPayments.routes');
+const tenantNotificationsRoutes = require('./routes/tenantNotifications.routes');
 const studentServicesPackRoutes = require('./routes/studentServicesPack.routes');
 const shiftManagementRoutes = require('./routes/shiftManagement.routes');
 const onlineStoreRoutes = require('./routes/onlineStore.routes');
@@ -195,6 +209,19 @@ app.use('/api/v1/platform-integration', platformIntegrationRoutes);
 // customer auth, cart/checkout, and order tracking. Mounted under /api/v1/market.
 // Self-contained module; does not alter Core ERP routes.
 app.use('/api/v1/market', marketRoutes);
+// Platform Admin Management APIs — add-ons, transaction fees, custom domains.
+// Enforced exclusively by requireAuth + requirePlatformAdmin (platform scope is
+// separate from every tenant scope). Restored from the verified RC wiring that
+// was dropped during the main integration.
+app.use('/api/v1/platform/admin', platformAdminRoutes);
+// Tenant Extensions — tenant-scoped add-ons and custom domain management.
+// Tenant id comes only from the trusted server-side context, never the body.
+app.use('/api/v1/tenant', tenantExtensionsRoutes);
+// Tenant Notifications — Telegram/WhatsApp settings + test connection.
+app.use('/api/v1/tenant/notifications', tenantNotificationsRoutes);
+// Tenant Payments — tenant-scoped add-on purchase intents, status and list,
+// plus the gateway webhook which is HMAC-verified (fail-closed without secret).
+app.use('/api/v1/payments', tenantPaymentsRoutes);
 // Phase B — Game Hosting. Self-contained module; does not alter Core ERP routes.
 // Provider integration is BLOCKED; lifecycle state machine and ownership are enforced.
 app.use('/api/v1/game-hosting', gameHostingRoutes);

@@ -12,12 +12,12 @@ function _trustedTenantId(req) {
   return null;
 }
 
-function createPaymentIntent(req, res) {
+async function createPaymentIntent(req, res) {
   try {
     const tenantId = _trustedTenantId(req);
     if (!tenantId) return error(res, 'Tenant context required', 400);
     const { addonKey, amount, currency, gateway, metadata } = req.body || {};
-    const record = paymentService.createPaymentIntent({
+    const record = await paymentService.createPaymentIntent({
       tenantId,
       addonKey,
       amount,
@@ -32,12 +32,14 @@ function createPaymentIntent(req, res) {
   }
 }
 
-function getPaymentStatus(req, res) {
+async function getPaymentStatus(req, res) {
   try {
     const tenantId = _trustedTenantId(req);
     const { ref } = req.params || {};
-    const record = paymentService.getPaymentByRef(ref);
+    const record = await paymentService.getPaymentByRef(ref);
     if (!record) return error(res, 'Payment not found', 404);
+    // Tenant isolation: a tenant must never learn that another tenant's
+    // transaction ref exists — respond with the same 404 as a missing ref.
     if (tenantId && String(record.tenantId) !== tenantId) return error(res, 'Payment not found', 404);
     success(res, record, 'Payment retrieved');
   } catch (err) {
@@ -46,11 +48,11 @@ function getPaymentStatus(req, res) {
   }
 }
 
-function listPayments(req, res) {
+async function listPayments(req, res) {
   try {
     const tenantId = _trustedTenantId(req);
     if (!tenantId) return error(res, 'Tenant context required', 400);
-    const records = paymentService.listPaymentsForTenant(tenantId);
+    const records = await paymentService.listPaymentsForTenant(tenantId);
     success(res, { payments: records }, 'Payments retrieved');
   } catch (err) {
     logger.error('tenantPayments.listPayments error:', err.message);
@@ -58,13 +60,13 @@ function listPayments(req, res) {
   }
 }
 
-function handlePaymentWebhook(req, res) {
+async function handlePaymentWebhook(req, res) {
   try {
-    const { transactionRef, status, gateway, payload } = req.body || {};
+    const { transactionRef, status, payload } = req.body || {};
     if (!transactionRef || !status) {
       return error(res, 'transactionRef and status are required', 400);
     }
-    const result = paymentService.updatePaymentStatus({
+    const result = await paymentService.updatePaymentStatus({
       transactionRef,
       status,
       payload: payload || {}
@@ -73,7 +75,7 @@ function handlePaymentWebhook(req, res) {
     success(res, result, 'Payment status updated');
   } catch (err) {
     logger.error('tenantPayments.handlePaymentWebhook error:', err.message);
-    error(res, 'Failed to process payment webhook', 400);
+    error(res, err.message || 'Failed to process payment webhook', 400);
   }
 }
 
