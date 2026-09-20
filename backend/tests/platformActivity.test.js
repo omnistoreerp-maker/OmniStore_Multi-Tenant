@@ -120,7 +120,7 @@ describe('platformActivity HTTP — public heartbeat stays usable and clean', ()
   });
 
   // Kept main's assertion: the platform orders aggregator is already wired in
-  // main, so ordersToday is a real number here (c3c83bd predates the wiring).
+  // main, so ordersToday is a real number here (d0c4368 predates the wiring).
   test('stats stay aggregate-only after heartbeats (no PII, ordersToday is a number)', async () => {
     await request(server.app)
       .post('/api/v1/platform-public/activity/heartbeat')
