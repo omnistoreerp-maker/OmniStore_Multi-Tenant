@@ -1825,6 +1825,7 @@ window.DIGITRONICS_SUPABASE = window.DIGITRONICS_SUPABASE || {
     <div class="nav-dropdown-item" data-page="crm"><span class="icon">🧩</span> CRM والمتابعة</div>
     <div class="nav-dropdown-item" data-page="broadcast"><span class="icon">📢</span> رسائل جماعية</div>
     <div class="nav-dropdown-item" data-page="students"><span class="icon">🎓</span> خدمات الطلاب</div>
+    <div class="nav-dropdown-item" data-page="loyalty"><span class="icon">🎁</span> برنامج الولاء</div>
   </div>
 
   <div class="nav-dropdown" id="dropdown-admin">
@@ -3736,6 +3737,57 @@ window.DIGITRONICS_SUPABASE = window.DIGITRONICS_SUPABASE || {
       </div>
     </div>
 
+
+    <!-- LOYALTY PAGE (Day 8) -->
+    <div class="page" id="page-loyalty">
+      <div class="page-header"><div class="page-title">🎁 برنامج الولاء</div>
+        <div class="table-actions">
+          <button class="btn btn-outline btn-sm" onclick="renderLoyaltyPage()">🔄 تحديث</button>
+        </div>
+      </div>
+      <div id="loyAlert" style="margin-bottom:8px"></div>
+
+      <div class="table-container" style="margin-bottom:12px">
+        <div class="table-header"><div class="table-title">📊 مؤشرات الولاء (من الخادم)</div></div>
+        <div id="loyMetricsState" style="display:none;padding:14px;text-align:center;color:var(--text2)"></div>
+        <div id="loyMetricsBody" style="padding:10px 12px"></div>
+      </div>
+
+      <div class="table-container" style="margin-bottom:12px">
+        <div class="table-header"><div class="table-title">⚙️ إعدادات البرنامج (عرض فقط)</div></div>
+        <div id="loyConfigState" style="display:none;padding:14px;text-align:center;color:var(--text2)"></div>
+        <div id="loyConfigBody" style="padding:10px 12px;font-size:0.82rem;color:var(--text2)"></div>
+      </div>
+
+      <div class="table-container" style="margin-bottom:12px">
+        <div class="table-header">
+          <div class="table-title">🎯 رصيد عميل</div>
+          <div class="table-actions" style="flex:1">
+            <select class="search-input" id="loyCustomer" style="min-width:220px;flex:1"></select>
+            <select class="search-input" id="loyTxType" style="max-width:170px">
+              <option value="">كل الحركات</option>
+              <option value="earn">إضافة</option>
+              <option value="redeem">استبدال</option>
+              <option value="bonus">مكافأة</option>
+              <option value="return_deduct">خصم إرجاع</option>
+              <option value="adjustment">تسوية</option>
+            </select>
+            <button class="btn btn-primary btn-sm" onclick="loyaltyLoadCustomer()">عرض</button>
+          </div>
+        </div>
+        <div id="loyBalanceState" style="display:none;padding:14px;text-align:center;color:var(--text2)"></div>
+        <div id="loyBalanceBody" style="padding:10px 12px"></div>
+      </div>
+
+      <div class="table-container">
+        <div class="table-header"><div class="table-title">📋 حركات النقاط</div></div>
+        <div id="loyTxState" style="display:none;padding:14px;text-align:center;color:var(--text2)"></div>
+        <div class="table-wrap"><table class="data-table">
+          <thead><tr><th>التاريخ</th><th>النوع</th><th>النقاط</th><th>الرصيد بعدها</th><th>المرجع</th><th>المستخدم</th></tr></thead>
+          <tbody id="loyTxBody"></tbody>
+        </table></div>
+      </div>
+    </div>
 
     <!-- STUDENT SERVICES PAGE -->
     <div class="page" id="page-students">
@@ -13689,6 +13741,7 @@ function canAccessPage(page) {
     broadcast: 'manageCRM',
     reports: 'viewReports',
     students: 'viewReports',
+    loyalty: 'viewCustomers',
     analytics: 'viewReports',
     'top-products': 'viewReports',
     'inventory-analysis': 'viewReports',
@@ -16842,6 +16895,7 @@ function showPage(page, options = {}) {
   if (page === 'suppliers') renderSuppliers();
   if (page === 'customers') renderCustomersTable();
   if (page === 'students') renderStudentsPage();
+  if (page === 'loyalty') renderLoyaltyPage();
   if (page === 'installments') renderInstallments();
   if (page === 'returns') renderReturns();
   if (page === 'warranty') renderWarranty();
@@ -26599,6 +26653,215 @@ async function renderStudentsPage() {
   studentsLoadPasses();
   studentsLoadRates();
   studentsLoadSettings();
+}
+
+// ================= LOYALTY (Day 8) =================
+// Read-only surface over the existing /api/v1/loyalty endpoints (metrics, config,
+// per-customer balance and transaction ledger) using the same backendApi._fetch
+// convention as the reports and student-services modules. Points, tiers and the
+// outstanding liability are returned by the server and are never recomputed here.
+// The POS keeps its own local loyalty ledger, so this page deliberately does not
+// write points: no earn/redeem/reverse call is issued from the ERP.
+const LOYALTY_BASE = '/loyalty';
+const LOYALTY_TYPE_LABELS = { earn: 'إضافة', redeem: 'استبدال', bonus: 'مكافأة', return_deduct: 'خصم إرجاع', adjustment: 'تسوية' };
+const LOYALTY_TIER_LABELS = { bronze: 'برونزي', silver: 'فضي', gold: 'ذهبي', platinum: 'بلاتيني' };
+
+function loyEl(id) { return document.getElementById(id); }
+function loyEscape(v) { return (typeof escapeHtml === 'function') ? escapeHtml(v) : String(v == null ? '' : v); }
+function loyMoney(v) { return (typeof formatMoney === 'function') ? formatMoney(Number(v) || 0) : String(Number(v) || 0); }
+function loyInt(v) { const n = parseInt(v, 10); return Number.isFinite(n) ? n : 0; }
+function loyVal(id) { const el = loyEl(id); return el ? String(el.value || '') : ''; }
+
+function loySetState(id, message) {
+  const el = loyEl(id);
+  if (!el) return;
+  if (!message) { el.style.display = 'none'; el.textContent = ''; return; }
+  el.style.display = 'block';
+  el.textContent = message;
+}
+
+function loyAlert(kind, message) {
+  const host = loyEl('loyAlert');
+  if (!host) return;
+  if (!message) { host.innerHTML = ''; return; }
+  const cls = kind === 'error' ? 'alert alert-danger' : kind === 'warn' ? 'alert alert-warning' : 'alert alert-info';
+  host.innerHTML = '<div class="' + cls + '">' + loyEscape(message) + '</div>';
+}
+
+function loyBackendError(action) {
+  if (!USE_BACKEND) return 'بيانات الولاء تُقرأ من الخادم. الرجاء تفعيل الاتصال بالخادم أولاً.';
+  return 'تعذّر ' + action + ': ' + ((backendStatus && backendStatus.lastError) || 'خطأ في الخادم');
+}
+
+function loyTile(label, value) {
+  return '<div style="min-width:150px;flex:1;border:1px solid var(--border);border-radius:10px;padding:10px">' +
+    '<div style="font-size:0.74rem;color:var(--text2);margin-bottom:4px">' + loyEscape(label) + '</div>' +
+    '<div style="font-size:1.05rem;font-weight:700">' + loyEscape(value) + '</div></div>';
+}
+
+async function loyaltyPopulateCustomers(force) {
+  const sel = loyEl('loyCustomer');
+  if (!sel) return;
+  if (loyaltyPopulateCustomers._done && !force) return;
+  let customers = Array.isArray(DB.customers) ? DB.customers : [];
+  if (USE_BACKEND && typeof digitronicsDataAdapter !== 'undefined') {
+    try { const list = await digitronicsDataAdapter.listCustomers(); if (Array.isArray(list)) customers = list; } catch (_) {}
+  }
+  const keep = sel.value;
+  sel.innerHTML = '<option value="">— اختر عميلاً —</option>' + customers.map(function (c) {
+    return '<option value="' + loyEscape(c.id) + '">' + loyEscape(c.name || c.id) + '</option>';
+  }).join('');
+  if (keep) sel.value = keep;
+  loyaltyPopulateCustomers._done = true;
+}
+
+async function loyaltyLoadMetrics() {
+  const body = loyEl('loyMetricsBody');
+  if (!body) return;
+  if (!USE_BACKEND) { body.innerHTML = ''; loySetState('loyMetricsState', loyBackendError('تحميل مؤشرات الولاء')); return; }
+  loySetState('loyMetricsState', '⏳ جارٍ تحميل المؤشرات…');
+  const resp = await backendApi._fetch('GET', LOYALTY_BASE + '/metrics');
+  const data = resp && resp.data;
+  if (!data) { body.innerHTML = ''; loySetState('loyMetricsState', loyBackendError('تحميل مؤشرات الولاء')); return; }
+  const dist = data.tierDistribution || {};
+  const tiles = [
+    ['نقاط ممنوحة', loyInt(data.totalIssued)],
+    ['نقاط مستبدلة', loyInt(data.totalRedeemed)],
+    ['نقاط مرتجعة', loyInt(data.totalReturned)],
+    ['مكافآت', loyInt(data.totalBonus)],
+    ['تسويات', loyInt(data.totalAdjusted)],
+    ['نقاط منتهية', loyInt(data.expiredPoints)],
+    ['التزام متبقٍ', loyInt(data.outstandingLiability)],
+    ['عملاء نشطون', loyInt(data.activeCustomerCount)]
+  ];
+  body.innerHTML = '<div style="display:flex;gap:12px;flex-wrap:wrap">' + tiles.map(function (t) {
+    return loyTile(t[0], String(t[1]));
+  }).join('') + '</div>' +
+    '<div style="margin-top:10px;font-size:0.78rem;color:var(--text2)">التوزيع حسب الفئة: ' +
+    ['bronze', 'silver', 'gold', 'platinum'].map(function (k) {
+      return loyEscape(LOYALTY_TIER_LABELS[k] || k) + ' ' + String(loyInt(dist[k]));
+    }).join(' • ') +
+    ' — إجمالي الحركات: ' + String(loyInt(data.transactionCount)) + '</div>';
+  loySetState('loyMetricsState', null);
+}
+
+async function loyaltyLoadConfig() {
+  const body = loyEl('loyConfigBody');
+  if (!body) return;
+  if (!USE_BACKEND) { body.innerHTML = ''; loySetState('loyConfigState', loyBackendError('تحميل إعدادات الولاء')); return; }
+  loySetState('loyConfigState', '⏳ جارٍ تحميل الإعدادات…');
+  const resp = await backendApi._fetch('GET', LOYALTY_BASE + '/config');
+  const cfg = resp && resp.data;
+  if (!cfg) { body.innerHTML = ''; loySetState('loyConfigState', loyBackendError('تحميل إعدادات الولاء')); return; }
+  const rows = [
+    ['الحالة', cfg.enabled === false ? 'معطّل' : 'مفعّل'],
+    ['نقاط لكل مبلغ', cfg.earnPerAmount != null ? String(cfg.earnPerAmount) : '—'],
+    ['نقاط لكل وحدة', cfg.pointsPerUnit != null ? String(cfg.pointsPerUnit) : '—'],
+    ['قيمة النقطة', cfg.redeemValue != null ? String(cfg.redeemValue) : '—'],
+    ['أقصى نسبة استبدال', cfg.maxRedeemPercent != null ? String(cfg.maxRedeemPercent) + '%' : '—'],
+    ['نقاط هدية الميلاد', cfg.birthdayBonusPoints != null ? String(cfg.birthdayBonusPoints) : '—'],
+    ['انتهاء الصلاحية', cfg.expiryEnabled ? ('مفعّل (' + (cfg.defaultExpiryDays != null ? String(cfg.defaultExpiryDays) + ' يوم' : '—') + ')') : 'معطّل']
+  ];
+  body.innerHTML = rows.map(function (r) {
+    return '<div style="display:flex;justify-content:space-between;gap:12px;border-bottom:1px dashed var(--border);padding:6px 0">' +
+      '<span>' + loyEscape(r[0]) + '</span><strong style="color:var(--text)">' + loyEscape(r[1]) + '</strong></div>';
+  }).join('') +
+    '<div style="margin-top:8px;font-size:0.76rem;color:var(--text2)">التعديل يتم من إعدادات النظام الحالية؛ هذه الصفحة للعرض فقط ولا تغيّر سلوك نقاط الكاشير المحلي.</div>';
+  loySetState('loyConfigState', null);
+}
+
+async function loyaltyLoadCustomer() {
+  const body = loyEl('loyBalanceBody');
+  const txBody = loyEl('loyTxBody');
+  const customerId = loyVal('loyCustomer');
+  if (txBody) txBody.innerHTML = '';
+  if (!customerId) {
+    if (body) body.innerHTML = '';
+    loySetState('loyBalanceState', 'اختر عميلاً لعرض رصيد النقاط والحركات.');
+    loySetState('loyTxState', 'لا توجد حركات لعرضها.');
+    return;
+  }
+  loyAlert(null);
+  if (!USE_BACKEND) {
+    if (body) body.innerHTML = '';
+    loySetState('loyBalanceState', loyBackendError('تحميل رصيد النقاط'));
+    loySetState('loyTxState', loyBackendError('تحميل حركات النقاط'));
+    return;
+  }
+  loySetState('loyBalanceState', '⏳ جارٍ تحميل الرصيد…');
+  loySetState('loyTxState', '⏳ جارٍ تحميل الحركات…');
+  const params = new URLSearchParams();
+  params.set('page', '1');
+  params.set('limit', '50');
+  const type = loyVal('loyTxType');
+  if (type) params.set('type', type);
+  const results = await Promise.all([
+    backendApi._fetch('GET', LOYALTY_BASE + '/balance/' + encodeURIComponent(customerId)),
+    backendApi._fetch('GET', LOYALTY_BASE + '/transactions/' + encodeURIComponent(customerId) + '?' + params.toString())
+  ]);
+  const bal = results[0] && results[0].data;
+  const tx = results[1] && results[1].data;
+
+  if (!bal) {
+    if (body) body.innerHTML = '';
+    loySetState('loyBalanceState', loyBackendError('تحميل رصيد النقاط'));
+    loyAlert('error', loyBackendError('تحميل رصيد النقاط'));
+  } else {
+    const tier = bal.tier || {};
+    const tierName = LOYALTY_TIER_LABELS[tier.code] || tier.code || '—';
+    const nextExpiry = bal.nextExpiry ? String(bal.nextExpiry).slice(0, 10) : '—';
+    if (body) {
+      body.innerHTML = '<div style="display:flex;gap:12px;flex-wrap:wrap">' +
+        loyTile('النقاط المتاحة', String(loyInt(bal.points))) +
+        loyTile('الفئة', String(tierName)) +
+        loyTile('إجمالي المكتسب', String(loyInt(bal.totalEarned))) +
+        loyTile('نقاط منتهية', String(loyInt(bal.expiredPoints))) +
+        loyTile('أقرب انتهاء', nextExpiry) +
+        loyTile('عدد الحركات', String(loyInt(bal.transactionCount))) + '</div>';
+    }
+    loySetState('loyBalanceState', null);
+  }
+
+  if (!tx) {
+    if (txBody) txBody.innerHTML = '';
+    loySetState('loyTxState', loyBackendError('تحميل حركات النقاط'));
+    return;
+  }
+  const list = Array.isArray(tx.transactions) ? tx.transactions : [];
+  if (!list.length) {
+    if (txBody) txBody.innerHTML = '';
+    loySetState('loyTxState', 'لا توجد حركات نقاط مطابقة لهذا العميل.');
+    return;
+  }
+  if (txBody) {
+    txBody.innerHTML = list.map(function (t) {
+      const pts = Number(t.points) || 0;
+      const color = pts < 0 ? 'var(--red)' : 'var(--green)';
+      const when = t.createdAt ? String(t.createdAt).slice(0, 10) : '—';
+      return '<tr>' +
+        '<td>' + loyEscape(when) + '</td>' +
+        '<td>' + loyEscape(LOYALTY_TYPE_LABELS[t.type] || t.type || '—') + '</td>' +
+        '<td style="color:' + color + '">' + loyEscape((pts > 0 ? '+' : '') + String(pts)) + '</td>' +
+        '<td>' + loyEscape(String(t.balanceAfter != null ? loyInt(t.balanceAfter) : '—')) + '</td>' +
+        '<td>' + loyEscape(t.ref || '—') + '</td>' +
+        '<td>' + loyEscape(t.userName || '—') + '</td>' +
+        '</tr>';
+    }).join('');
+  }
+  loySetState('loyTxState', null);
+}
+
+async function renderLoyaltyPage() {
+  loyAlert(null);
+  await loyaltyPopulateCustomers();
+  loyaltyLoadMetrics();
+  loyaltyLoadConfig();
+  const sel = loyEl('loyCustomer');
+  if (sel && sel.value) loyaltyLoadCustomer();
+  else {
+    loySetState('loyBalanceState', 'اختر عميلاً لعرض رصيد النقاط والحركات.');
+    loySetState('loyTxState', 'لا توجد حركات لعرضها.');
+  }
 }
 
 // ================= PLAYSTATION MODULE (Day 7) =================
