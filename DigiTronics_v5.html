@@ -1676,6 +1676,8 @@ window.DIGITRONICS_SUPABASE = window.DIGITRONICS_SUPABASE || {
     <div class="nav-dropdown-item" data-page="returns"><span class="icon">↩️</span> المرتجعات</div>
     <div class="nav-dropdown-item" data-page="quotations"><span class="icon">🏷️</span> عروض الأسعار</div>
     <div class="nav-dropdown-item" data-page="rep-mobile"><span class="icon">📱</span> موبايل المندوب</div>
+    <div class="nav-dropdown-item" onclick="openModulePage('market.html'); closeAllNavDropdowns();"><span class="icon">🛍️</span> السوق الإلكتروني (Market)</div>
+    <div class="nav-dropdown-item" onclick="openModulePage('store.html'); closeAllNavDropdowns();"><span class="icon">🏬</span> المتجر الأونلاين (Online Store)</div>
   </div>
 
   <div class="nav-dropdown" id="dropdown-inventory">
@@ -1885,6 +1887,7 @@ window.DIGITRONICS_SUPABASE = window.DIGITRONICS_SUPABASE || {
     <div class="nav-dropdown-item" data-page="production-execution-pending-operations"><span class="icon">⏳</span> Pending Operations</div>
     <div class="nav-dropdown-item" data-page="production-execution-rollback-manager"><span class="icon">↩️</span> Rollback Manager</div>
     <div class="nav-dropdown-item" data-page="production-execution-verification-center"><span class="icon">✅</span> Verification Center</div>
+    <div class="nav-dropdown-item" onclick="openModulePage('business.html'); closeAllNavDropdowns();"><span class="icon">🏢</span> إدارة الأعمال (Business)</div>
   </div>
 
   <div class="nav-dropdown" id="dropdown-maintenance">
@@ -26608,6 +26611,19 @@ function openPlaystationModule() {
     if (win) return;
   } catch (_) {}
   window.location.href = 'playstation.html';
+}
+
+// ================= STANDALONE MODULE LAUNCHERS (Day 7) =================
+// Market, Business Management and the Online Store already ship as standalone
+// pages on this origin and backend. DigiTronics links to them rather than
+// rebuilding them: no new backend, no duplicated module UI.
+function openModulePage(url) {
+  if (!url) return;
+  try {
+    const win = window.open(url, '_blank');
+    if (win) return;
+  } catch (_) {}
+  window.location.href = url;
 }
 
 async function renderReports() {
