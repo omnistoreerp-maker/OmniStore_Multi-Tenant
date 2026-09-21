@@ -12734,6 +12734,10 @@ const digitronicsDataAdapter = {
     if (!be) return null;
     return { ...be, name: be.name || '', position: be.position || '', phone: be.phone || '', phone2: be.phone2 || '', address: be.address || '', status: be.status || 'active', salary: parseFloat(be.salary) || 0, commission: parseFloat(be.commission) || 0, bonus: parseFloat(be.bonus) || 0, advance: parseFloat(be.advance) || 0, vacationDays: parseInt(be.vacationDays, 10) || 0 };
   },
+  _findEmployee(id) {
+    const key = String(id);
+    return (DB.employees || []).find(e => String(e.id) === key || String(e._backendId || '') === key) || null;
+  },
   async listEmployees() {
     if (!USE_BACKEND) return DB.employees;
     try {
@@ -32209,7 +32213,7 @@ function calcAttendanceOvertime(att) {
 }
 
 function employeeCheckIn(id) {
-  const emp = DB.employees.find(e => String(e.id) === String(id));
+  const emp = _findEmployee(id);
   if (!emp || !canManageEmployee(emp)) { permissionDenied(); return; }
   const existing = getTodayAttendance(id);
   if (existing && existing.checkIn) { showToast('تم تسجيل الحضور اليوم بالفعل', 'error'); return; }
@@ -32235,7 +32239,7 @@ function employeeCheckIn(id) {
 }
 
 function employeeCheckOut(id) {
-  const emp = DB.employees.find(e => String(e.id) === String(id));
+  const emp = _findEmployee(id);
   if (!emp || !canManageEmployee(emp)) { permissionDenied(); return; }
   const att = getTodayAttendance(id);
   if (!att || !att.checkIn) { showToast('سجل الحضور أولاً', 'error'); return; }
@@ -32254,7 +32258,7 @@ function employeeCheckOut(id) {
 }
 
 function openEmployeeLeaveModal(id) {
-  const emp = DB.employees.find(e => String(e.id) === String(id));
+  const emp = _findEmployee(id);
   if (!emp || !canManageEmployee(emp) || !can('manageEmployees')) { permissionDenied(); return; }
   document.getElementById('leaveEmployeeId').value = emp.id;
   document.getElementById('leaveEmployeeName').value = emp.name;
@@ -32449,7 +32453,7 @@ function openEmployeeModal() {
 }
 
 function editEmployee(id) {
-  const emp = DB.employees.find(e => e.id === id);
+  const emp = _findEmployee(id);
   if (!emp) return;
   if (!canManageEmployee(emp) || !can('manageEmployees')) { permissionDenied(); return; }
   populateEmployeeBranchControls();
@@ -32496,8 +32500,9 @@ async function saveEmployee() {
    if (!name) { showToast('أدخل اسم الموظف', 'error'); return; }
 
    if (editingEmployeeId) {
-     const emp = DB.employees.find(e => e.id === editingEmployeeId);
+     const emp = _findEmployee(editingEmployeeId);
      if (!emp) { showToast('الموظف غير موجود', 'error'); return; }
+     const backendKey = (USE_BACKEND && emp._backendId) ? emp._backendId : String(emp.id);
      emp.name = name;
      emp.position = position;
      emp.phone = phone;
@@ -32518,6 +32523,7 @@ async function saveEmployee() {
      if (USE_BACKEND && backendApi && backendApi.employees && emp._backendId) {
        try { await backendApi.employees.update(emp._backendId, emp); } catch (_) {}
      }
+     editingEmployeeId = backendKey;
    } else {
      const newEmp = {
        id: Date.now(),
@@ -32590,9 +32596,9 @@ function renderHRManagement() {
       <td>${canFullHR ? (paidDate ? paidDate.toLocaleDateString('ar-EG') : 'لم يُصرف') : '***'}</td>
       <td>${canFullHR ? statusBadge : '<span class="badge badge-blue">حضور شخصي</span>'}</td>
       <td>
-        <button class="btn btn-sm btn-outline" onclick="employeeCheckIn(${e.id})">حضور</button>
-        <button class="btn btn-sm btn-outline" onclick="employeeCheckOut(${e.id})">انصراف</button>
-        ${canFullHR ? `<button class="btn btn-sm btn-green" onclick="paySalary(${e.id})">💰 صرف</button>` : ''}
+        <button class="btn btn-sm btn-outline" onclick="employeeCheckIn('${escapeHtml(e.id)}')">حضور</button>
+        <button class="btn btn-sm btn-outline" onclick="employeeCheckOut('${escapeHtml(e.id)}')">انصراف</button>
+        ${canFullHR ? `<button class="btn btn-sm btn-green" onclick="paySalary('${escapeHtml(e.id)}')">💰 صرف</button>` : ''}
       </td>
     </tr>`;
   }).join('') || '<tr><td colspan="7" style="text-align:center">لا يوجد موظفين</td></tr>';
@@ -32643,7 +32649,12 @@ async function renderEmployees() {
    // Phase 23B: fetch from backend when enabled
    let employees = getVisibleEmployees();
    if (USE_BACKEND && typeof digitronicsDataAdapter !== 'undefined') {
-     try { employees = await digitronicsDataAdapter.listEmployees(); } catch (_) {}
+     try {
+       employees = await digitronicsDataAdapter.listEmployees();
+       // Hydrate the local mirror so row actions (pay/attendance/edit/delete)
+       // operate on the same records that were just rendered from the API.
+       if (Array.isArray(employees)) DB.employees = employees.slice();
+     } catch (_) {}
    }
    const search = String(document.getElementById('employeeSearchInput')?.value || '').trim().toLowerCase();
    const branchFilter = String(document.getElementById('employeeBranchFilter')?.value || '').trim();
@@ -32669,7 +32680,7 @@ async function renderEmployees() {
    const tbody = document.getElementById('employeesTbody');
    tbody.innerHTML = filtered.map((e, idx) => {
      const att = getTodayAttendance(e.id);
-     const attendanceBtns = `<button class="btn btn-sm btn-outline" onclick="employeeCheckIn(${e.id})">حضور</button><button class="btn btn-sm btn-outline" onclick="employeeCheckOut(${e.id})">انصراف</button>`;
+     const attendanceBtns = `<button class="btn btn-sm btn-outline" onclick="employeeCheckIn('${escapeHtml(e.id)}')">حضور</button><button class="btn btn-sm btn-outline" onclick="employeeCheckOut('${escapeHtml(e.id)}')">انصراف</button>`;
      return `<tr>
      <td>${idx + 1}</td>
      <td>${escapeHtml(e.name)}<div style="font-size:.68rem;color:var(--text2)">${escapeHtml(e.branchName || getBranchNameById(getEmployeeBranchId(e)))} · ${att?.checkIn ? 'حاضر اليوم' : 'لم يسجل حضور'}</div></td>
@@ -32683,11 +32694,11 @@ async function renderEmployees() {
      <td>${e.lastPaid ? new Date(e.lastPaid).toLocaleDateString('ar-EG') : 'لم يُصرف'}</td>
      <td>
        ${attendanceBtns}
-       ${canFullHR ? `<button class="btn btn-sm btn-accent" onclick="openEmployeeProfile(${e.id})">👤 ملف</button>
-       <button class="btn btn-sm btn-green" onclick="paySalary(${e.id})">💰 صرف</button>
-       <button class="btn btn-sm btn-yellow" onclick="openEmployeeLeaveModal(${e.id})">🌴 إجازة</button>
-       <button class="btn btn-sm btn-outline" onclick="editEmployee(${e.id})">✏️ تعديل</button>
-       <button class="btn btn-sm btn-danger" onclick="deleteEmployeeById(${e.id})">🗑️</button>` : ''}
+       ${canFullHR ? `<button class="btn btn-sm btn-accent" onclick="openEmployeeProfile('${escapeHtml(e.id)}')">👤 ملف</button>
+       <button class="btn btn-sm btn-green" onclick="paySalary('${escapeHtml(e.id)}')">💰 صرف</button>
+       <button class="btn btn-sm btn-yellow" onclick="openEmployeeLeaveModal('${escapeHtml(e.id)}')">🌴 إجازة</button>
+       <button class="btn btn-sm btn-outline" onclick="editEmployee('${escapeHtml(e.id)}')">✏️ تعديل</button>
+       <button class="btn btn-sm btn-danger" onclick="deleteEmployeeById('${escapeHtml(e.id)}')">🗑️</button>` : ''}
      </td>
    </tr>`;
    }).join('') || '<tr><td colspan="11" style="text-align:center">لا يوجد موظفين</td></tr>';
@@ -32728,7 +32739,7 @@ async function renderEmployees() {
  }
 
 function paySalary(id) {
-  const emp = DB.employees.find(e => e.id === id);
+  const emp = _findEmployee(id);
   if (!emp) return;
   if (!canManageEmployee(emp) || !can('manageEmployees')) { permissionDenied(); return; }
   const vacationDays = Math.max(0, parseInt(emp.vacationDays, 10) || 0);
@@ -32830,12 +32841,15 @@ function confirmPaySalary(id) {
 
 async function deleteEmployee(idx) {
    if (!requirePermission('manageEmployees')) return;
-   if (!confirm('هل تريد حذف هذا الموظف؟')) return;
    const emp = DB.employees[idx];
+   if (!emp) return;
+   if (!confirm('هل تريد حذف هذا الموظف؟')) return;
    DB.employees.splice(idx, 1);
-   // Phase 23B: delete in backend when enabled
-   if (USE_BACKEND && backendApi && backendApi.employees && emp && emp._backendId) {
+   // Phase 23B: delete in backend when enabled (id-first, then legacy index path)
+   if (USE_BACKEND && backendApi && backendApi.employees && emp._backendId) {
      try { await backendApi.employees.delete(emp._backendId); } catch (_) {}
+   } else if (USE_BACKEND && backendApi && backendApi.employees && emp.id !== undefined && emp.id !== null) {
+     try { await backendApi.employees.delete(emp.id); } catch (_) {}
    }
    saveDB();
    renderEmployees();
@@ -32846,7 +32860,7 @@ async function deleteEmployee(idx) {
  }
 
 function deleteEmployeeById(id) {
-  const idx = DB.employees.findIndex(e => String(e.id) === String(id));
+  const idx = DB.employees.findIndex(e => String(e.id) === String(id) || String(e._backendId || '') === String(id));
   if (idx >= 0) deleteEmployee(idx);
 }
 
@@ -33197,7 +33211,7 @@ function saveEvaluation() {
 
 // ================= EMPLOYEE PROFILE =================
 function openEmployeeProfile(empId) {
-  const emp = DB.employees.find(e => String(e.id) === String(empId));
+  const emp = _findEmployee(empId);
   if (!emp) return;
   document.getElementById('profileEmployeeId').value = emp.id;
   const salBtn = document.getElementById('empProfileTabSalary');
