@@ -28326,10 +28326,23 @@ async function reverseTreasuryEntry(entryId) {
 
    DB.cashFlow = Array.isArray(DB.cashFlow) ? DB.cashFlow : [];
    // Resolve by raw id string first (never Number() — UUIDs collapse to NaN);
-   // fall back to the backend id so API rows are reversible even when they
-   // are not present in the local mirror.
-   const row = DB.cashFlow.find(c => String(c.id) === String(entryId))
+   // fall back to the backend id so API rows are reversible even when their
+   // local id differs. A backend row the local mirror has never seen is
+   // fetched by id so it stays reversible — with zero backend mutations.
+   let row = DB.cashFlow.find(c => String(c.id) === String(entryId))
      || DB.cashFlow.find(c => String(c._backendId || '') === String(entryId));
+   if (!row && USE_BACKEND && backendApi && backendApi.treasury) {
+     try {
+       const res = await backendApi.treasury.getById(entryId);
+       if (res && res.success && res.data) {
+         row = normalizeTreasuryEntry(res.data);
+         row._backendId = res.data.id || entryId;
+         row._importedFromBackend = true;
+         if (row.reversedBy) return showToast('تم استرجاع هذه الحركة مسبقًا', 'info');
+         DB.cashFlow.unshift(row);
+       }
+     } catch (_) {}
+   }
    if (!row) return showToast('الحركة غير موجودة', 'error');
    if (row.reversalOf) return showToast('هذه حركة عكسية بالفعل', 'info');
    if (row.reversedBy) return showToast('تم استرجاع هذه الحركة مسبقًا', 'info');
