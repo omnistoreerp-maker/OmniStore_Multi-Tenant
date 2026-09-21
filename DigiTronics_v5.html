@@ -25396,7 +25396,7 @@ function renderTreasuryReverseAction(c) {
   if (!canReverse) return '-';
   if (c.reversalOf) return '<span class="badge badge-blue">قيد عكسي</span>';
   if (c.reversedBy) return '<span class="badge badge-yellow">تم استرجاعها</span>';
-  return `<button class="btn btn-outline btn-sm" onclick="reverseTreasuryEntry(${Number(c.id) || 0})">↩️ استرجاع</button>`;
+  return `<button class="btn btn-outline btn-sm" onclick="reverseTreasuryEntry('${String(c.id ?? (c._backendId ?? ''))}')">↩️ استرجاع</button>`;
 }
 
 async function reverseTreasuryEntry(entryId) {
@@ -25421,7 +25421,7 @@ async function reverseTreasuryEntry(entryId) {
    }
 
    DB.cashFlow = Array.isArray(DB.cashFlow) ? DB.cashFlow : [];
-   const row = DB.cashFlow.find(c => Number(c.id) === Number(entryId));
+   const row = DB.cashFlow.find(c => String(c.id) === String(entryId)) || DB.cashFlow.find(c => String(c._backendId || '') === String(entryId));
    if (!row) return showToast('الحركة غير موجودة', 'error');
    if (row.reversalOf) return showToast('هذه حركة عكسية بالفعل', 'info');
    if (row.reversedBy) return showToast('تم استرجاع هذه الحركة مسبقًا', 'info');
@@ -25469,10 +25469,10 @@ async function reverseTreasuryEntry(entryId) {
      saveDB();
    }
 
-   // Phase 23B: delete original from backend when enabled
-   if (USE_BACKEND && backendApi && backendApi.treasury && row._backendId) {
-     try { await backendApi.treasury.delete(row._backendId); } catch (_) {}
-   }
+   // NOTE: no backend mutation happens before the final confirm() below.
+   // The original entry is intentionally NOT deleted from the backend: a
+   // reversal keeps the original as an audit trail and adds the opposite
+   // entry (net zero) — mirroring the local behavior.
 
    const movementType = row.type === 'in' ? 'وارد' : 'صادر';
    const when = row.date ? new Date(row.date).toLocaleString('ar-EG') : '-';
@@ -25503,9 +25503,20 @@ async function reverseTreasuryEntry(entryId) {
      reversalOf: row.id,
      reversalReason: reasonText
    };
-   // Phase 23B: create opposite entry in backend when enabled
+   // Phase 23B: create the opposite entry in the backend — the ONLY backend
+   // mutation of a reversal, and it happens strictly after the final
+   // confirm() above. A backend failure surfaces as an error toast and leaves
+   // the local mirror untouched (no false local-only reversal).
    if (USE_BACKEND && backendApi && backendApi.treasury) {
-     try { await backendApi.treasury.create(newEntry); } catch (_) {}
+     try {
+       const res = await backendApi.treasury.create(newEntry);
+       if (res && res.success && res.data) { newEntry._backendId = res.data.id || null; newEntry._syncedToBackend = true; }
+       else throw new Error((res && res.error) || 'backend reversal rejected');
+     } catch (e) {
+       logAppError('treasury.reverse', e);
+       showToast('⚠️ تعذر حفظ القيد العكسي على الخادم — لم يتم الاسترجاع. حاول مرة أخرى', 'error');
+       return;
+     }
    }
    DB.cashFlow.unshift(newEntry);
 
