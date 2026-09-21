@@ -1821,6 +1821,7 @@ window.DIGITRONICS_SUPABASE = window.DIGITRONICS_SUPABASE || {
     <div class="nav-dropdown-item" data-page="accountstatement"><span class="icon">📋</span> كشف الحساب</div>
     <div class="nav-dropdown-item" data-page="crm"><span class="icon">🧩</span> CRM والمتابعة</div>
     <div class="nav-dropdown-item" data-page="broadcast"><span class="icon">📢</span> رسائل جماعية</div>
+    <div class="nav-dropdown-item" data-page="students"><span class="icon">🎓</span> خدمات الطلاب</div>
   </div>
 
   <div class="nav-dropdown" id="dropdown-admin">
@@ -3731,6 +3732,142 @@ window.DIGITRONICS_SUPABASE = window.DIGITRONICS_SUPABASE || {
       </div>
     </div>
 
+
+    <!-- STUDENT SERVICES PAGE -->
+    <div class="page" id="page-students">
+      <div class="page-header"><div class="page-title">🎓 خدمات الطلاب</div>
+        <div class="table-actions">
+          <button class="btn btn-outline btn-sm" onclick="renderStudentsPage()">🔄 تحديث</button>
+        </div>
+      </div>
+      <div id="stuAlert" style="margin-bottom:8px"></div>
+
+      <div class="table-container" style="margin-bottom:12px">
+        <div class="table-header"><div class="table-title">🧮 حاسبة تكلفة الطباعة</div></div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;padding:10px 12px">
+          <div class="form-group" style="margin:0">
+            <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">حجم الورق</label>
+            <select class="search-input" id="stuCalcPaper"><option value="A4">A4</option><option value="A3">A3</option></select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">نوع الطباعة</label>
+            <select class="search-input" id="stuCalcType"><option value="bw">أبيض وأسود</option><option value="color">ملون</option></select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">الوجهان</label>
+            <select class="search-input" id="stuCalcDuplex"><option value="single">وجه واحد</option><option value="double">وجهان</option></select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">الصفحات</label>
+            <input class="search-input" type="number" min="1" value="10" id="stuCalcPages" style="max-width:110px">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">النسخ</label>
+            <input class="search-input" type="number" min="1" value="1" id="stuCalcCopies" style="max-width:110px">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">تجليد</label>
+            <select class="search-input" id="stuCalcBinding"><option value="no">لا</option><option value="yes">نعم</option></select>
+          </div>
+        </div>
+        <div style="padding:10px 12px"><button class="btn btn-primary btn-sm" onclick="studentsCalculate()">🧮 احسب التكلفة</button></div>
+        <div id="stuCalcResult" style="display:none;padding:0 12px 12px;color:var(--text2);font-size:0.82rem"></div>
+      </div>
+
+      <div class="table-container" style="margin-bottom:12px">
+        <div class="table-header"><div class="table-title">🖨️ طلب طباعة جديد</div></div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;padding:10px 12px">
+          <div class="form-group" style="margin:0">
+            <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">اسم الطالب</label>
+            <input class="search-input" id="stuOrderName" placeholder="اسم الطالب">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">هاتف الطالب *</label>
+            <input class="search-input" id="stuOrderPhone" placeholder="01xxxxxxxxx" style="direction:ltr">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">اسم المستند</label>
+            <input class="search-input" id="stuOrderDoc" placeholder="بحث / واجب / تقرير">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">الصفحات</label>
+            <input class="search-input" type="number" min="1" value="10" id="stuOrderPages" style="max-width:110px">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">النسخ</label>
+            <input class="search-input" type="number" min="1" value="1" id="stuOrderCopies" style="max-width:110px">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">حجم الورق</label>
+            <select class="search-input" id="stuOrderPaper"><option value="A4">A4</option><option value="A3">A3</option></select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">نوع الطباعة</label>
+            <select class="search-input" id="stuOrderType"><option value="bw">أبيض وأسود</option><option value="color">ملون</option></select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">الوجهان</label>
+            <select class="search-input" id="stuOrderDuplex"><option value="single">وجه واحد</option><option value="double">وجهان</option></select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">تجليد</label>
+            <select class="search-input" id="stuOrderBinding"><option value="no">لا</option><option value="yes">نعم</option></select>
+          </div>
+          <div class="form-group" style="margin:0;min-width:200px;flex:1">
+            <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">ملاحظات</label>
+            <input class="search-input" id="stuOrderNotes" placeholder="ملاحظات اختيارية" style="width:100%">
+          </div>
+        </div>
+        <div style="padding:10px 12px"><button class="btn btn-primary btn-sm" onclick="studentsCreateOrder()">إرسال الطلب</button></div>
+      </div>
+
+      <div class="table-container" style="margin-bottom:12px">
+        <div class="table-header">
+          <div class="table-title">📋 طلبات الطباعة</div>
+          <div class="table-actions" style="flex:1">
+            <input class="search-input" id="stuOrderSearch" placeholder="بحث: اسم / هاتف / مرجع" oninput="studentsLoadOrders()" style="min-width:220px;flex:1">
+            <select class="search-input" id="stuOrderStatus" onchange="studentsLoadOrders()" style="max-width:170px">
+              <option value="">كل الحالات</option>
+              <option value="pending">قيد الانتظار</option>
+              <option value="printing">قيد الطباعة</option>
+              <option value="ready">جاهز</option>
+              <option value="delivered">تم التسليم</option>
+            </select>
+          </div>
+        </div>
+        <div id="stuOrdersState" style="display:none;padding:14px;text-align:center;color:var(--text2)"></div>
+        <div id="stuOrdersBody"></div>
+      </div>
+
+      <div class="table-container">
+        <div class="table-header"><div class="table-title">🎫 اشتراكات الطلاب</div></div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;padding:10px 12px;border-bottom:1px solid var(--border)">
+          <div class="form-group" style="margin:0">
+            <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">اسم الطالب</label>
+            <input class="search-input" id="stuPassName" placeholder="اسم الطالب">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">هاتف الطالب *</label>
+            <input class="search-input" id="stuPassPhone" placeholder="01xxxxxxxxx" style="direction:ltr">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">النوع</label>
+            <select class="search-input" id="stuPassType"><option value="monthly">شهري</option><option value="weekly">أسبوعي</option></select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">الشهر *</label>
+            <input class="search-input" type="month" id="stuPassMonth">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">المبلغ</label>
+            <input class="search-input" type="number" min="0" step="0.01" value="0" id="stuPassAmount" style="max-width:130px">
+          </div>
+        </div>
+        <div style="padding:10px 12px"><button class="btn btn-primary btn-sm" onclick="studentsCreatePass()">إضافة اشتراك</button></div>
+        <div id="stuPassesState" style="display:none;padding:14px;text-align:center;color:var(--text2)"></div>
+        <div id="stuPassesBody"></div>
+      </div>
+    </div>
 
     <!-- QUOTATIONS PAGE -->
     <div class="page" id="page-quotations">
@@ -13486,6 +13623,7 @@ function canAccessPage(page) {
     crm: 'manageCRM',
     broadcast: 'manageCRM',
     reports: 'viewReports',
+    students: 'viewReports',
     analytics: 'viewReports',
     'top-products': 'viewReports',
     'inventory-analysis': 'viewReports',
@@ -16637,6 +16775,7 @@ function showPage(page, options = {}) {
   if (page === 'purchases') renderPurchases();
   if (page === 'suppliers') renderSuppliers();
   if (page === 'customers') renderCustomersTable();
+  if (page === 'students') renderStudentsPage();
   if (page === 'installments') renderInstallments();
   if (page === 'returns') renderReturns();
   if (page === 'warranty') renderWarranty();
@@ -26097,6 +26236,218 @@ async function financialReportsEnsureLoaded() {
   }
   await finPopulateSelectors();
   await finLoad();
+}
+
+// ================= STUDENT SERVICES (Day 6) =================
+// Wraps the existing /api/v1/tenant/student-services endpoints (print orders,
+// passes, cost calculator) using the same backendApi._fetch convention as the
+// financial reports tab. The backend is the source of truth: costs and totals
+// are returned by the server and are never recomputed here.
+const STUDENT_SERVICES_BASE = '/tenant/student-services';
+const STUDENT_ORDER_STATUSES = ['pending', 'printing', 'ready', 'delivered'];
+const STUDENT_STATUS_LABELS = { pending: 'قيد الانتظار', printing: 'قيد الطباعة', ready: 'جاهز', delivered: 'تم التسليم' };
+
+function stuEl(id) { return document.getElementById(id); }
+function stuEscape(v) { return (typeof escapeHtml === 'function') ? escapeHtml(v) : String(v == null ? '' : v); }
+function stuMoney(v) { return (typeof formatMoney === 'function') ? formatMoney(Number(v) || 0) : String(Number(v) || 0); }
+function stuInt(v, min) { const n = parseInt(v, 10); return Number.isFinite(n) ? Math.max(min, n) : min; }
+function stuVal(id) { const el = stuEl(id); return el ? String(el.value || '') : ''; }
+
+function stuSetState(el, message) {
+  if (!el) return;
+  if (!message) { el.style.display = 'none'; el.textContent = ''; return; }
+  el.style.display = 'block';
+  el.textContent = message;
+}
+
+function stuAlert(kind, message) {
+  const host = stuEl('stuAlert');
+  if (!host) return;
+  if (!message) { host.innerHTML = ''; return; }
+  const cls = kind === 'error' ? 'alert alert-danger' : kind === 'warn' ? 'alert alert-warning' : 'alert alert-info';
+  const style = kind === 'error' ? ' style="color:var(--red);border-color:var(--red)"' : '';
+  host.innerHTML = '<div class="' + cls + '"' + style + '>' + stuEscape(message) + '</div>';
+}
+
+function stuBackendError(action) {
+  if (!USE_BACKEND) return 'خدمات الطلاب تُقرأ من الخادم. الرجاء تفعيل الاتصال بالخادم أولاً.';
+  return 'تعذّر ' + action + ': ' + ((backendStatus && backendStatus.lastError) || 'خطأ في الخادم');
+}
+
+async function studentsCalculate() {
+  const result = stuEl('stuCalcResult');
+  if (!USE_BACKEND) { stuAlert('warn', stuBackendError('حساب التكلفة')); return; }
+  const payload = {
+    totalPages: stuInt(stuVal('stuCalcPages'), 1),
+    copies: stuInt(stuVal('stuCalcCopies'), 1),
+    paperSize: stuVal('stuCalcPaper') || 'A4',
+    printType: stuVal('stuCalcType') || 'bw',
+    duplexType: stuVal('stuCalcDuplex') || 'single',
+    hasBinding: stuVal('stuCalcBinding') === 'yes'
+  };
+  stuAlert(null);
+  if (result) { result.style.display = 'block'; result.textContent = '⏳ جارٍ الحساب…'; }
+  const resp = await backendApi._fetch('POST', STUDENT_SERVICES_BASE + '/calculate', payload);
+  const data = resp && resp.data;
+  if (!data) {
+    if (result) { result.style.display = 'none'; result.innerHTML = ''; }
+    stuAlert('error', stuBackendError('حساب التكلفة'));
+    return;
+  }
+  const b = data.breakdown || {};
+  if (result) {
+    result.style.display = 'block';
+    result.innerHTML = '<strong>' + stuMoney(data.totalAmount) + '</strong> — ' +
+      stuEscape(b.pages) + ' صفحة × ' + stuEscape(b.copies) + ' نسخة × ' + stuMoney(b.pricePerPage) +
+      ' + تجليد ' + stuMoney(b.bindingCost);
+  }
+}
+
+async function studentsCreateOrder() {
+  if (!USE_BACKEND) { stuAlert('warn', stuBackendError('إنشاء الطلب')); return; }
+  const phone = stuVal('stuOrderPhone').trim();
+  if (!phone) { stuAlert('info', 'رقم هاتف الطالب مطلوب.'); return; }
+  const payload = {
+    studentName: stuVal('stuOrderName').trim(),
+    studentPhone: phone,
+    documentName: stuVal('stuOrderDoc').trim(),
+    totalPages: stuInt(stuVal('stuOrderPages'), 1),
+    copies: stuInt(stuVal('stuOrderCopies'), 1),
+    paperSize: stuVal('stuOrderPaper') || 'A4',
+    printType: stuVal('stuOrderType') || 'bw',
+    duplexType: stuVal('stuOrderDuplex') || 'single',
+    hasBinding: stuVal('stuOrderBinding') === 'yes',
+    notes: stuVal('stuOrderNotes').trim()
+  };
+  stuAlert(null);
+  const resp = await backendApi._fetch('POST', STUDENT_SERVICES_BASE + '/orders', payload);
+  const data = resp && resp.data;
+  if (!data || !data.order) { stuAlert('error', stuBackendError('إنشاء الطلب')); return; }
+  if (stuEl('stuOrderDoc')) stuEl('stuOrderDoc').value = '';
+  if (stuEl('stuOrderNotes')) stuEl('stuOrderNotes').value = '';
+  stuAlert('info', 'تم إنشاء الطلب: ' + (data.order.orderRef || data.order.id));
+  studentsLoadOrders();
+}
+
+async function studentsLoadOrders() {
+  const body = stuEl('stuOrdersBody');
+  const state = stuEl('stuOrdersState');
+  if (!body) return;
+  if (!USE_BACKEND) { stuSetState(state, stuBackendError('تحميل الطلبات')); body.innerHTML = ''; return; }
+  stuSetState(state, '⏳ جارٍ تحميل الطلبات…');
+  const params = new URLSearchParams();
+  params.set('page', '1');
+  params.set('limit', '50');
+  const search = stuVal('stuOrderSearch').trim();
+  const status = stuVal('stuOrderStatus');
+  if (search) params.set('search', search);
+  if (status) params.set('status', status);
+  try {
+    const resp = await backendApi._fetch('GET', STUDENT_SERVICES_BASE + '/orders?' + params.toString());
+    const data = resp && resp.data;
+    if (!data) { stuSetState(state, stuBackendError('تحميل الطلبات')); body.innerHTML = ''; return; }
+    const orders = data.orders || [];
+    if (!orders.length) { stuSetState(state, 'لا توجد طلبات مطابقة.'); body.innerHTML = ''; return; }
+    stuSetState(state, null);
+    const rows = orders.map(function (o) {
+      const id = stuEscape(o.id);
+      const actions = STUDENT_ORDER_STATUSES.filter(function (s) { return s !== o.status; }).map(function (s) {
+        return '<button class="btn btn-outline btn-sm" onclick="studentsUpdateOrderStatus(\'' + id + '\',\'' + s + '\')">' + stuEscape(STUDENT_STATUS_LABELS[s]) + '</button>';
+      }).join(' ') + ' <button class="btn btn-outline btn-sm" onclick="studentsSendReceipt(\'' + id + '\')">إرسال إيصال</button>';
+      return [
+        stuEscape(o.orderRef || o.id),
+        stuEscape(o.studentName || '—') + '<br><span style="font-size:.72rem;color:var(--text2)">' + stuEscape(o.studentPhone || '') + '</span>',
+        stuEscape(o.documentName || '—'),
+        stuEscape(o.totalPages) + ' × ' + stuEscape(o.copies),
+        stuMoney(o.totalAmount),
+        stuEscape(STUDENT_STATUS_LABELS[o.status] || o.status),
+        actions
+      ];
+    });
+    body.innerHTML = finRenderRows(['المرجع', 'الطالب', 'المستند', 'الصفحات', 'الإجمالي', 'الحالة', 'إجراءات'], rows);
+  } catch (e) {
+    stuSetState(state, 'خطأ غير متوقع: ' + ((e && e.message) || e));
+    body.innerHTML = '';
+  }
+}
+
+async function studentsUpdateOrderStatus(orderId, status) {
+  const resp = await backendApi._fetch('PATCH', STUDENT_SERVICES_BASE + '/orders/' + encodeURIComponent(orderId) + '/status', { status: status });
+  const data = resp && resp.data;
+  if (!data || !data.id) { stuAlert('error', stuBackendError('تحديث حالة الطلب')); return; }
+  stuAlert('info', 'تم تحديث الحالة إلى ' + (STUDENT_STATUS_LABELS[data.status] || data.status));
+  studentsLoadOrders();
+}
+
+async function studentsSendReceipt(orderId) {
+  const resp = await backendApi._fetch('POST', STUDENT_SERVICES_BASE + '/orders/' + encodeURIComponent(orderId) + '/receipt', {});
+  const data = resp && resp.data;
+  if (!data || !data.ok) { stuAlert('error', stuBackendError('إرسال الإيصال')); return; }
+  stuAlert('info', 'تم إرسال الإيصال عبر واتساب.');
+}
+
+async function studentsLoadPasses() {
+  const body = stuEl('stuPassesBody');
+  const state = stuEl('stuPassesState');
+  if (!body) return;
+  if (!USE_BACKEND) { stuSetState(state, stuBackendError('تحميل الاشتراكات')); body.innerHTML = ''; return; }
+  stuSetState(state, '⏳ جارٍ تحميل الاشتراكات…');
+  try {
+    const resp = await backendApi._fetch('GET', STUDENT_SERVICES_BASE + '/passes?limit=50');
+    const data = resp && resp.data;
+    if (!data) { stuSetState(state, stuBackendError('تحميل الاشتراكات')); body.innerHTML = ''; return; }
+    const passes = data.passes || [];
+    if (!passes.length) { stuSetState(state, 'لا توجد اشتراكات.'); body.innerHTML = ''; return; }
+    stuSetState(state, null);
+    const rows = passes.map(function (p) {
+      return [
+        stuEscape(p.studentName || '—') + '<br><span style="font-size:.72rem;color:var(--text2)">' + stuEscape(p.studentPhone || '') + '</span>',
+        stuEscape(p.passType === 'weekly' ? 'أسبوعي' : 'شهري'),
+        stuEscape(p.month) + ' / ' + stuEscape(p.year),
+        stuMoney(p.amount),
+        stuEscape(p.status)
+      ];
+    });
+    body.innerHTML = finRenderRows(['الطالب', 'النوع', 'الفترة', 'المبلغ', 'الحالة'], rows);
+  } catch (e) {
+    stuSetState(state, 'خطأ غير متوقع: ' + ((e && e.message) || e));
+    body.innerHTML = '';
+  }
+}
+
+async function studentsCreatePass() {
+  if (!USE_BACKEND) { stuAlert('warn', stuBackendError('إضافة الاشتراك')); return; }
+  const phone = stuVal('stuPassPhone').trim();
+  const month = stuVal('stuPassMonth');
+  if (!phone) { stuAlert('info', 'رقم هاتف الطالب مطلوب.'); return; }
+  if (!month) { stuAlert('info', 'شهر الاشتراك مطلوب.'); return; }
+  const payload = {
+    studentName: stuVal('stuPassName').trim(),
+    studentPhone: phone,
+    passType: stuVal('stuPassType') || 'monthly',
+    month: month,
+    year: stuInt((month.split('-')[0] || ''), new Date().getFullYear()),
+    amount: Number(stuVal('stuPassAmount')) || 0
+  };
+  stuAlert(null);
+  const resp = await backendApi._fetch('POST', STUDENT_SERVICES_BASE + '/passes', payload);
+  const data = resp && resp.data;
+  if (!data || !data.id) { stuAlert('error', stuBackendError('إضافة الاشتراك')); return; }
+  if (stuEl('stuPassName')) stuEl('stuPassName').value = '';
+  if (stuEl('stuPassPhone')) stuEl('stuPassPhone').value = '';
+  if (stuEl('stuPassAmount')) stuEl('stuPassAmount').value = '0';
+  stuAlert('info', 'تم إضافة الاشتراك.');
+  studentsLoadPasses();
+}
+
+async function renderStudentsPage() {
+  const month = stuEl('stuPassMonth');
+  if (month && !month.value) {
+    const now = new Date();
+    month.value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  }
+  studentsLoadOrders();
+  studentsLoadPasses();
 }
 
 async function renderReports() {
