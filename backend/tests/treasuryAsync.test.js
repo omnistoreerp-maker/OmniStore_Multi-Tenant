@@ -10,8 +10,9 @@
 // Covers: tenant read isolation, create stamping, client-supplied tenantId
 // rejection, cross-tenant update/delete blocked with data survival, stats
 // scoping, the MANDATORY data-loss regression, concurrent interleaved
-// requests, async error propagation, and financial-side-effect documentation
-// (a sale does NOT auto-create a treasury entry — current behavior preserved).
+// requests, async error propagation, and financial-side-effect coverage
+// (Day 1 sales posting workflow: a cash sale auto-posts a linked treasury
+// receipt stamped with the server tenant).
 
 const fs = require('fs');
 const request = require('supertest');
@@ -254,11 +255,18 @@ describe('3B.2-E — Treasury async domain (tenantStore isolation)', () => {
     expect(res.body.data.ref).toBe('SALE-1');
   });
 
-  test('a sale does NOT auto-create a treasury entry (current behavior, no invented coupling)', async () => {
-    const before = readStore(dir, 'treasury').entries.map(e => e.id);
+  test('a cash sale auto-posts a treasury receipt linked to the invoice (Day 1 sales posting workflow)', async () => {
     const sale = await post('/api/v1/sales', { id: 'INV-SIDE-1', items: [{ productId: 'p1', qty: 1, price: 50 }], total: 50, payment: 'cash' }, tokenA);
     expect(sale.statusCode).toBe(201);
-    const after = readStore(dir, 'treasury').entries.map(e => e.id);
-    expect(after).toEqual(before); // exactly the same entries — no duplicate/auto entry
+    const after = readStore(dir, 'treasury').entries;
+    const receipt = after.find(e => e.saleId === 'INV-SIDE-1' && e.source === 'sale');
+    expect(receipt).toBeTruthy();
+    expect(receipt.type).toBe('in');
+    expect(receipt.amount).toBe(50);
+    // stamped with the SERVER tenant of the caller — never leaks cross-tenant
+    expect(String(receipt.tenantId)).toBe('corp-a');
+    // and it is invisible to the other tenant's filtered view
+    const listB = await get('/api/v1/treasury', tokenB);
+    expect((listB.body.data.entries || []).some(e => e.saleId === 'INV-SIDE-1')).toBe(false);
   });
 });

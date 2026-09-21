@@ -125,12 +125,12 @@ describe('3B.2-E — First Company Go-Live Smoke', () => {
     expect(list.body.data.invoices.some(i => i.id === 'SMK-INV-1')).toBe(true);
   });
 
-  test('INVENTORY: product exists and stock is untouched (sales does not auto-decrement)', async () => {
+  test('INVENTORY: sale decremented stock via the sales posting workflow (100 - 2 = 98)', async () => {
     const prod = await get('/api/v1/inventory/SMK-PROD-1', tokenA);
     expect(prod.statusCode).toBe(200);
-    // Current architecture: sales and inventory are decoupled — a sale does not
-    // mutate product stock. Assert the documented behavior, not invented logic.
-    expect(prod.body.data.stockQty).toBe(100);
+    // Day 1 sales posting workflow: a cash sale deducts stock server-side and
+    // posts a linked treasury receipt. Assert the documented behavior.
+    expect(prod.body.data.stockQty).toBe(98);
   });
 
   test('PURCHASE: create a purchase and see it in the list', async () => {

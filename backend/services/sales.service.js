@@ -6,6 +6,7 @@ const BaseRepository = require('../repositories/BaseRepository');
 const repository = require('../repositories').sales;
 const customersService = require('./customers.service');
 const branchStore = require('../middleware/branchStore');
+const salePosting = require('./salePosting.service');
 
 class SalesService {
   async _load(tenantContext) {
@@ -268,8 +269,16 @@ class SalesService {
         createdAt: data.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
+      // Day 1 — Sales Posting: deduct stock + treasury receipt. Rejections
+      // (e.g. insufficient stock) happen BEFORE any persistence.
+      const posting = await salePosting.applyOnCreate(invoice, tenantContext);
+      if (posting.error) return { error: posting.error };
+      if (posting.posted) invoice.postedEffects = posting.summary;
       const created = await repo.createAsync('invoices', invoice);
-      if (!created) return { error: 'Failed to persist invoice' };
+      if (!created) {
+        await salePosting.rollback(posting.summary, invoice);
+        return { error: 'Failed to persist invoice' };
+      }
       try { eventBus.publish('sale.created', { ...created, tenantId: tenantContext.tenantId }); } catch (_) {}
       return { invoice: created };
     }
@@ -288,12 +297,18 @@ class SalesService {
       return { error: 'Duplicate invoice ID: ' + invoice.id };
     }
 
+    // Day 1 — Sales Posting: deduct stock + treasury receipt (legacy path).
+    const posting = await salePosting.applyOnCreate(invoice, tenantContext);
+    if (posting.error) return { error: posting.error };
+    if (posting.posted) invoice.postedEffects = posting.summary;
+
     if (!Array.isArray(db.invoices)) db.invoices = [];
     db.invoices.push(invoice);
     if (await this._save(db)) {
       try { eventBus.publish('sale.created', { ...invoice, tenantId: tenantContext && tenantContext.tenantId != null ? tenantContext.tenantId : undefined }); } catch (_) {}
       return { invoice };
     }
+    await salePosting.rollback(posting.summary, invoice);
     return { error: 'Failed to persist invoice' };
   }
 
@@ -333,6 +348,10 @@ class SalesService {
       const existing = await repo.findAsync('invoices', this._normalizeId(id));
       if (!existing) return { error: 'Invoice not found' };
       if (this._branchBlocked(existing)) return { error: 'Invoice not found' };
+      // Day 1 — reverse posted effects (stock restore + treasury removal)
+      if (existing.postedEffects) {
+        try { await salePosting.rollback(existing.postedEffects, existing); } catch (e) { logger.error('salePosting rollback failed for sale', existing.id, e.message); }
+      }
       const ok = await repo.deleteAsync('invoices', this._normalizeId(id));
       if (!ok) return { error: 'Invoice not found' };
       return { success: true };
@@ -343,6 +362,10 @@ class SalesService {
     const idx = (db.invoices || []).findIndex(inv => this._normalizeId(inv.id) === normalized);
     if (idx === -1) return { error: 'Invoice not found' };
     if (this._ownershipBlocked(db.invoices[idx]) || this._branchBlocked(db.invoices[idx])) return { error: 'Invoice not found' };
+    // Day 1 — reverse posted effects (stock restore + treasury removal)
+    if (db.invoices[idx].postedEffects) {
+      try { await salePosting.rollback(db.invoices[idx].postedEffects, db.invoices[idx]); } catch (e) { logger.error('salePosting rollback failed for sale', db.invoices[idx].id, e.message); }
+    }
     db.invoices.splice(idx, 1);
     if (await this._save(db)) return { success: true };
     return { error: 'Failed to persist deletion' };
