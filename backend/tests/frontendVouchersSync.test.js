@@ -91,7 +91,8 @@ describe('frontend vouchers backend-mode sync (real index.html function)', () =>
 
   test('renderVouchers hydrates the DB mirror from the API response', () => {
     // Deletion is id-based against DB.vouchers; without hydration it operates
-    // on stale local records while the grid shows API rows.
-    expect(HTML.includes('DB.vouchers = vouchers.slice()')).toBe(true);
+    // on stale local records while the grid shows API rows. The hydration
+    // goes through mergeBackendRows so pending local records survive.
+    expect(HTML.includes('DB.vouchers = mergeBackendRows(DB.vouchers, vouchers)')).toBe(true);
   });
 });

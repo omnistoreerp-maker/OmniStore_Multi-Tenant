@@ -185,6 +185,6 @@ describe('frontend employees backend-mode sync (real index.html functions)', () 
     // The adapter must write the API rows back into DB.employees so
     // subsequent row actions operate on what was rendered.
     expect(/async listEmployees\s*\(/.test(HTML)).toBe(true);
-    expect(HTML.includes('DB.employees = employees.slice()')).toBe(true);
+    expect(HTML.includes('DB.employees = mergeBackendRows(DB.employees, employees)')).toBe(true);
   });
 });

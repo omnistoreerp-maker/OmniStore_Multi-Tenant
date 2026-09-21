@@ -97,7 +97,9 @@ describe('frontend partners backend-mode sync (real index.html function)', () =>
 
   test('renderPartners hydrates the DB mirror from the API response', () => {
     // Row actions are idx-based against DB.partners; without hydration they
-    // operate on stale local records while the grid shows API rows.
-    expect(HTML.includes('DB.partners = partners.slice()')).toBe(true);
+    // operate on stale local records while the grid shows API rows. The
+    // hydration goes through mergeBackendRows so pending local records
+    // (failed/offline creates) are kept visible instead of replaced-and-lost.
+    expect(HTML.includes('DB.partners = mergeBackendRows(DB.partners, partners)')).toBe(true);
   });
 });

@@ -11970,6 +11970,32 @@ const backendOpQueue = {
   }
 };
 
+// Merge a freshly listed backend collection into the local mirror WITHOUT
+// dropping local records that the backend does not have yet (creates made
+// while the backend was unreachable — _syncedToBackend falsy). Backend rows
+// win for records they represent (matched by id or _backendId); pending
+// local records stay appended so they remain visible and retryable instead
+// of being silently replaced-and-lost by hydration.
+function mergeBackendRows(localRows, backendRows) {
+  const backend = Array.isArray(backendRows) ? backendRows.slice() : [];
+  const local = Array.isArray(localRows) ? localRows : [];
+  const known = new Set();
+  backend.forEach(r => {
+    if (!r || typeof r !== 'object') return;
+    if (r.id !== undefined && r.id !== null) known.add(String(r.id));
+    if (r._backendId !== undefined && r._backendId !== null) known.add(String(r._backendId));
+  });
+  const validBackend = backend.filter(r => r && typeof r === 'object');
+  const pending = local.filter(r => {
+    if (!r || typeof r !== 'object') return false;
+    if (r._syncedToBackend) return false;
+    if (r.id !== undefined && r.id !== null && known.has(String(r.id))) return false;
+    if (r._backendId !== undefined && r._backendId !== null && known.has(String(r._backendId))) return false;
+    return true;
+  });
+  return validBackend.concat(pending);
+}
+
 const digitronicsDataAdapter = {
   mode() {
     return isSupabaseEnabled() ? 'supabase' : 'legacy';
@@ -24108,8 +24134,9 @@ async function renderProductsTable(filter = '') {
     try {
       products = await digitronicsDataAdapter.listProducts();
       // Hydrate the mirror so row actions and delete sync operate on exactly
-      // the records rendered from the API.
-      if (Array.isArray(products)) DB.products = products.slice();
+      // the records rendered from the API — while keeping local records the
+      // backend does not have yet (failed/offline creates) visible.
+      if (Array.isArray(products)) DB.products = mergeBackendRows(DB.products, products);
     } catch (_) {}
   }
   // R1: window the rendered rows so a 10k/100k product DB does not freeze the
@@ -25568,8 +25595,9 @@ async function renderSuppliers() {
      try {
        suppliers = await digitronicsDataAdapter.listSuppliers();
        // Hydrate the mirror so idx-based row actions and delete sync operate
-       // on exactly the records rendered from the API.
-       if (Array.isArray(suppliers)) DB.suppliers = suppliers.slice();
+       // on exactly the records rendered from the API — without dropping
+       // local records pending their first backend sync.
+       if (Array.isArray(suppliers)) DB.suppliers = mergeBackendRows(DB.suppliers, suppliers);
      } catch (_) {}
    }
   // Single-pass aggregation for supplier debt stats (was O(suppliers*(invoices+payments+vouchers)))
@@ -26158,8 +26186,9 @@ async function renderCustomersTable(filter = '') {
     try {
       customers = await digitronicsDataAdapter.listCustomers();
       // Hydrate the mirror so idx-based row actions and delete sync operate
-      // on exactly the records rendered from the API.
-      if (Array.isArray(customers)) DB.customers = customers.slice();
+      // on exactly the records rendered from the API — without dropping
+      // local records pending their first backend sync.
+      if (Array.isArray(customers)) DB.customers = mergeBackendRows(DB.customers, customers);
     } catch (_) {}
   }
   if (filter) customers = customers.filter(c => c.name.toLowerCase().includes(filter.toLowerCase()) || (c.phone && c.phone.includes(filter)));
@@ -32673,8 +32702,9 @@ async function renderEmployees() {
      try {
        employees = await digitronicsDataAdapter.listEmployees();
        // Hydrate the local mirror so row actions (pay/attendance/edit/delete)
-       // operate on the same records that were just rendered from the API.
-       if (Array.isArray(employees)) DB.employees = employees.slice();
+       // operate on the same records that were just rendered from the API,
+       // while local records pending their first backend sync stay visible.
+       if (Array.isArray(employees)) DB.employees = mergeBackendRows(DB.employees, employees);
      } catch (_) {}
    }
    const search = String(document.getElementById('employeeSearchInput')?.value || '').trim().toLowerCase();
@@ -33619,8 +33649,9 @@ async function renderPartners() {
      try {
        partners = await digitronicsDataAdapter.listPartners();
        // Hydrate the local mirror so row actions (edit/delete/transactions)
-       // operate on the same records that were just rendered from the API.
-       if (Array.isArray(partners)) DB.partners = partners.slice();
+       // operate on the same records that were just rendered from the API,
+       // while local records pending their first backend sync stay visible.
+       if (Array.isArray(partners)) DB.partners = mergeBackendRows(DB.partners, partners);
      } catch (_) {}
    }
    const grid = document.getElementById('partnersGrid');
@@ -41111,8 +41142,9 @@ async function renderVouchers() {
      try {
        vouchers = await digitronicsDataAdapter.listVouchers();
        // Hydrate the mirror so delete sync operates on exactly the records
-       // rendered from the API.
-       if (Array.isArray(vouchers)) DB.vouchers = vouchers.slice();
+       // rendered from the API — without dropping local records pending
+       // their first backend sync.
+       if (Array.isArray(vouchers)) DB.vouchers = mergeBackendRows(DB.vouchers, vouchers);
      } catch (_) {}
    }
    let sorted = [...vouchers].sort((a, b) => new Date(b.date) - new Date(a.date));
