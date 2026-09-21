@@ -3867,6 +3867,52 @@ window.DIGITRONICS_SUPABASE = window.DIGITRONICS_SUPABASE || {
         <div id="stuPassesState" style="display:none;padding:14px;text-align:center;color:var(--text2)"></div>
         <div id="stuPassesBody"></div>
       </div>
+
+      <div class="table-container" style="margin-bottom:12px">
+        <div class="table-header"><div class="table-title">💵 أسعار الطباعة</div></div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;padding:10px 12px;border-bottom:1px solid var(--border)">
+          <div class="form-group" style="margin:0">
+            <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">حجم الورق</label>
+            <select class="search-input" id="stuRatePaper"><option value="A4">A4</option><option value="A3">A3</option></select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">نوع الطباعة</label>
+            <select class="search-input" id="stuRateType"><option value="bw">أبيض وأسود</option><option value="color">ملون</option></select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">الوجهان</label>
+            <select class="search-input" id="stuRateDuplex"><option value="single">وجه واحد</option><option value="double">وجهان</option></select>
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">سعر الصفحة</label>
+            <input class="search-input" type="number" min="0" step="0.01" value="0" id="stuRatePrice" style="max-width:130px">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">سعر التجليد</label>
+            <input class="search-input" type="number" min="0" step="0.01" value="0" id="stuRateBinding" style="max-width:130px">
+          </div>
+        </div>
+        <div style="padding:10px 12px"><button class="btn btn-primary btn-sm" onclick="studentsSaveRate()">حفظ السعر</button></div>
+        <div id="stuRatesState" style="display:none;padding:14px;text-align:center;color:var(--text2)"></div>
+        <div id="stuRatesBody"></div>
+      </div>
+
+      <div class="table-container">
+        <div class="table-header"><div class="table-title">⚙️ إعدادات خدمات الطلاب</div></div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;padding:10px 12px">
+          <div class="form-group" style="margin:0">
+            <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">رقم واتساب الإيصالات</label>
+            <input class="search-input" id="stuSetWhatsapp" placeholder="01xxxxxxxxx" style="direction:ltr">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">العملة</label>
+            <input class="search-input" id="stuSetCurrency" placeholder="EGP" style="direction:ltr;max-width:120px">
+          </div>
+          <div class="form-group" style="margin:0">
+            <button class="btn btn-primary btn-sm" onclick="studentsSaveSettings()">حفظ الإعدادات</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- QUOTATIONS PAGE -->
@@ -26440,6 +26486,89 @@ async function studentsCreatePass() {
   studentsLoadPasses();
 }
 
+async function studentsLoadRates() {
+  const body = stuEl('stuRatesBody');
+  const state = stuEl('stuRatesState');
+  if (!body) return;
+  if (!USE_BACKEND) { stuSetState(state, stuBackendError('تحميل الأسعار')); body.innerHTML = ''; return; }
+  stuSetState(state, '⏳ جارٍ تحميل الأسعار…');
+  try {
+    const resp = await backendApi._fetch('GET', STUDENT_SERVICES_BASE + '/rates');
+    const data = resp && resp.data;
+    if (!Array.isArray(data)) { stuSetState(state, stuBackendError('تحميل الأسعار')); body.innerHTML = ''; return; }
+    if (!data.length) { stuSetState(state, 'لا توجد أسعار مُعرّفة بعد.'); body.innerHTML = ''; return; }
+    stuSetState(state, null);
+    const rows = data.map(function (r) {
+      const id = stuEscape(r.id);
+      return [
+        stuEscape(r.paperSize),
+        stuEscape(r.printType === 'color' ? 'ملون' : 'أبيض وأسود'),
+        stuEscape(r.duplexType === 'double' ? 'وجهان' : 'وجه واحد'),
+        stuMoney(r.pricePerPage),
+        stuMoney(r.bindingPrice),
+        '<button class="btn btn-outline btn-sm" onclick="studentsDeleteRate(\'' + id + '\')">حذف</button>'
+      ];
+    });
+    body.innerHTML = finRenderRows(['حجم الورق', 'النوع', 'الوجهان', 'سعر الصفحة', 'التجليد', 'إجراء'], rows);
+  } catch (e) {
+    stuSetState(state, 'خطأ غير متوقع: ' + ((e && e.message) || e));
+    body.innerHTML = '';
+  }
+}
+
+async function studentsSaveRate() {
+  if (!USE_BACKEND) { stuAlert('warn', stuBackendError('حفظ السعر')); return; }
+  const price = Number(stuVal('stuRatePrice')) || 0;
+  if (price <= 0) { stuAlert('info', 'سعر الصفحة يجب أن يكون أكبر من صفر.'); return; }
+  const payload = {
+    paperSize: stuVal('stuRatePaper') || 'A4',
+    printType: stuVal('stuRateType') || 'bw',
+    duplexType: stuVal('stuRateDuplex') || 'single',
+    pricePerPage: price,
+    bindingPrice: Number(stuVal('stuRateBinding')) || 0
+  };
+  stuAlert(null);
+  const resp = await backendApi._fetch('POST', STUDENT_SERVICES_BASE + '/rates', payload);
+  const data = resp && resp.data;
+  if (!data || !data.id) { stuAlert('error', stuBackendError('حفظ السعر')); return; }
+  stuAlert('info', 'تم حفظ سعر الطباعة.');
+  studentsLoadRates();
+}
+
+async function studentsDeleteRate(rateId) {
+  const resp = await backendApi._fetch('DELETE', STUDENT_SERVICES_BASE + '/rates/' + encodeURIComponent(rateId));
+  const data = resp && resp.data;
+  if (!data || !data.ok) { stuAlert('error', stuBackendError('حذف السعر')); return; }
+  stuAlert('info', 'تم حذف سعر الطباعة.');
+  studentsLoadRates();
+}
+
+async function studentsLoadSettings() {
+  if (!USE_BACKEND) return;
+  try {
+    const resp = await backendApi._fetch('GET', STUDENT_SERVICES_BASE + '/settings');
+    const data = resp && resp.data;
+    if (!data) return;
+    if (stuEl('stuSetWhatsapp') && !stuEl('stuSetWhatsapp').value) stuEl('stuSetWhatsapp').value = data.whatsappNumber || '';
+    if (stuEl('stuSetCurrency') && !stuEl('stuSetCurrency').value) stuEl('stuSetCurrency').value = data.currency || '';
+  } catch (_) {}
+}
+
+async function studentsSaveSettings() {
+  if (!USE_BACKEND) { stuAlert('warn', stuBackendError('حفظ الإعدادات')); return; }
+  const payload = {
+    whatsappNumber: stuVal('stuSetWhatsapp').trim(),
+    currency: stuVal('stuSetCurrency').trim() || 'EGP'
+  };
+  stuAlert(null);
+  const resp = await backendApi._fetch('PUT', STUDENT_SERVICES_BASE + '/settings', payload);
+  const data = resp && resp.data;
+  if (!data) { stuAlert('error', stuBackendError('حفظ الإعدادات')); return; }
+  if (stuEl('stuSetWhatsapp')) stuEl('stuSetWhatsapp').value = data.whatsappNumber || '';
+  if (stuEl('stuSetCurrency')) stuEl('stuSetCurrency').value = data.currency || '';
+  stuAlert('info', 'تم حفظ إعدادات خدمات الطلاب.');
+}
+
 async function renderStudentsPage() {
   const month = stuEl('stuPassMonth');
   if (month && !month.value) {
@@ -26448,6 +26577,8 @@ async function renderStudentsPage() {
   }
   studentsLoadOrders();
   studentsLoadPasses();
+  studentsLoadRates();
+  studentsLoadSettings();
 }
 
 async function renderReports() {
