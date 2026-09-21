@@ -1663,6 +1663,7 @@ window.DIGITRONICS_SUPABASE = window.DIGITRONICS_SUPABASE || {
     <div class="nav-dropdown-item" data-page="daily"><span class="icon">📅</span> التقرير اليومي</div>
     <div class="nav-dropdown-item" data-page="serialsearch"><span class="icon">🔍</span> بحث بالسيريال</div>
     <div class="nav-dropdown-item" data-page="accountstatement"><span class="icon">🪪</span> كشف حساب</div>
+    <div class="nav-dropdown-item" data-page="playstation"><span class="icon">🎮</span> PlayStation</div>
   </div>
 
   <div class="nav-dropdown" id="dropdown-sales">
@@ -3911,6 +3912,21 @@ window.DIGITRONICS_SUPABASE = window.DIGITRONICS_SUPABASE || {
           <div class="form-group" style="margin:0">
             <button class="btn btn-primary btn-sm" onclick="studentsSaveSettings()">حفظ الإعدادات</button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PLAYSTATION MODULE (launcher — reuses the standalone playstation.html) -->
+    <div class="page" id="page-playstation">
+      <div class="page-header"><div class="page-title">🎮 PlayStation</div></div>
+      <div class="alert alert-info" style="font-size:.85rem">
+        وحدة PlayStation متاحة كتطبيق مستقل يعمل مع نفس الخادم ونفس جلسة الدخول: الأجهزة، الأسعار، الجلسات، والتحصيل.
+      </div>
+      <div class="table-container" style="margin-top:12px">
+        <div class="table-header"><div class="table-title">فتح وحدة PlayStation</div></div>
+        <div style="padding:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-primary btn-sm" onclick="openPlaystationModule()">🎮 فتح وحدة PlayStation</button>
+          <span style="font-size:.78rem;color:var(--text2)">يفتح التطبيق المستقل <code>playstation.html</code> في تبويب جديد.</span>
         </div>
       </div>
     </div>
@@ -13856,6 +13872,7 @@ function canAccessPage(page) {
     backup: 'manageSettings',
     sync: 'manageSettings',
     settings: 'manageSettings',
+    playstation: 'manageSettings',
     opshub: 'manageApprovals',
     employees: 'manageEmployees',
     hr: 'manageEmployees',
@@ -26579,6 +26596,18 @@ async function renderStudentsPage() {
   studentsLoadPasses();
   studentsLoadRates();
   studentsLoadSettings();
+}
+
+// ================= PLAYSTATION MODULE (Day 7) =================
+// The PlayStation capability already ships as a standalone page (playstation.html)
+// on the same origin and backend. DigiTronics exposes it through navigation rather
+// than rebuilding its UI: no new backend, no duplicated device/session logic.
+function openPlaystationModule() {
+  try {
+    const win = window.open('playstation.html', '_blank');
+    if (win) return;
+  } catch (_) {}
+  window.location.href = 'playstation.html';
 }
 
 async function renderReports() {
