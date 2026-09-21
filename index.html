@@ -24105,7 +24105,12 @@ async function renderProductsTable(filter = '') {
   // Phase 23B: fetch from backend when enabled
   let products = DB.products;
   if (USE_BACKEND && typeof digitronicsDataAdapter !== 'undefined') {
-    try { products = await digitronicsDataAdapter.listProducts(); } catch (_) {}
+    try {
+      products = await digitronicsDataAdapter.listProducts();
+      // Hydrate the mirror so row actions and delete sync operate on exactly
+      // the records rendered from the API.
+      if (Array.isArray(products)) DB.products = products.slice();
+    } catch (_) {}
   }
   // R1: window the rendered rows so a 10k/100k product DB does not freeze the
   // UI. Data and search are unaffected; only the DOM slice is capped and a
@@ -24555,9 +24560,11 @@ async function deleteProduct(id) {
   if (!confirm('هل تريد حذف هذا المنتج؟')) return;
   
   const p = DB.products.find(x => x.id === id);
-  // Phase 23B: delete in backend when enabled
+  // Phase 23B: delete in backend when enabled (id-first, then legacy index path)
   if (USE_BACKEND && backendApi && backendApi.inventory && p && p._backendId) {
     try { await backendApi.inventory.delete(p._backendId); } catch (_) {}
+  } else if (USE_BACKEND && backendApi && backendApi.inventory && p && p.id !== undefined && p.id !== null) {
+    try { await backendApi.inventory.delete(p.id); } catch (_) {}
   }
   DB.products = DB.products.filter(x => x.id !== id);
   DB.serials = DB.serials.filter(s => s.productId !== id);
@@ -25558,7 +25565,12 @@ async function renderSuppliers() {
    // Phase 23B: fetch from backend when enabled
    let suppliers = DB.suppliers;
    if (USE_BACKEND && typeof digitronicsDataAdapter !== 'undefined') {
-     try { suppliers = await digitronicsDataAdapter.listSuppliers(); } catch (_) {}
+     try {
+       suppliers = await digitronicsDataAdapter.listSuppliers();
+       // Hydrate the mirror so idx-based row actions and delete sync operate
+       // on exactly the records rendered from the API.
+       if (Array.isArray(suppliers)) DB.suppliers = suppliers.slice();
+     } catch (_) {}
    }
   // Single-pass aggregation for supplier debt stats (was O(suppliers*(invoices+payments+vouchers)))
   const suppAgg = new Map();
@@ -25905,9 +25917,11 @@ async function deleteSupplier(idx) {
    if (!confirm('هل تريد حذف هذا المورد؟')) return;
    const s = DB.suppliers[idx];
    DB.suppliers.splice(idx, 1);
-   // Phase 23B: delete in backend when enabled
+   // Phase 23B: delete in backend when enabled (id-first, then legacy index path)
    if (USE_BACKEND && backendApi && backendApi.suppliers && s && s._backendId) {
      try { await backendApi.suppliers.delete(s._backendId); } catch (_) {}
+   } else if (USE_BACKEND && backendApi && backendApi.suppliers && s && s.id !== undefined && s.id !== null) {
+     try { await backendApi.suppliers.delete(s.id); } catch (_) {}
    }
    saveDB();
    renderSuppliers();
@@ -26141,7 +26155,12 @@ async function renderCustomersTable(filter = '') {
   // Phase 23B: fetch from backend when enabled
   let customers = DB.customers;
   if (USE_BACKEND && typeof digitronicsDataAdapter !== 'undefined') {
-    try { customers = await digitronicsDataAdapter.listCustomers(); } catch (_) {}
+    try {
+      customers = await digitronicsDataAdapter.listCustomers();
+      // Hydrate the mirror so idx-based row actions and delete sync operate
+      // on exactly the records rendered from the API.
+      if (Array.isArray(customers)) DB.customers = customers.slice();
+    } catch (_) {}
   }
   if (filter) customers = customers.filter(c => c.name.toLowerCase().includes(filter.toLowerCase()) || (c.phone && c.phone.includes(filter)));
   // R1: precompute ajel totals per customer in a single pass (was O(customers*invoices)).
@@ -26402,9 +26421,11 @@ async function deleteCustomer(idx) {
   if (!confirm('هل تريد حذف هذا العميل؟')) return;
   const c = DB.customers[idx];
   DB.customers.splice(idx, 1);
-  // Phase 23B: delete in backend when enabled
+  // Phase 23B: delete in backend when enabled (id-first, then legacy index path)
   if (USE_BACKEND && backendApi && backendApi.customers && c && c._backendId) {
     try { await backendApi.customers.delete(c._backendId); } catch (_) {}
+  } else if (USE_BACKEND && backendApi && backendApi.customers && c && c.id !== undefined && c.id !== null) {
+    try { await backendApi.customers.delete(c.id); } catch (_) {}
   }
   saveDB();
   renderCustomersTable();
@@ -41087,7 +41108,12 @@ async function renderVouchers() {
    // Phase 23B: fetch from backend when enabled
    let vouchers = DB.vouchers;
    if (USE_BACKEND && typeof digitronicsDataAdapter !== 'undefined') {
-     try { vouchers = await digitronicsDataAdapter.listVouchers(); } catch (_) {}
+     try {
+       vouchers = await digitronicsDataAdapter.listVouchers();
+       // Hydrate the mirror so delete sync operates on exactly the records
+       // rendered from the API.
+       if (Array.isArray(vouchers)) DB.vouchers = vouchers.slice();
+     } catch (_) {}
    }
    let sorted = [...vouchers].sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -41163,11 +41189,13 @@ function clearVoucherFilter() {
 async function deleteVoucher(id) {
    if (!requirePermission('editTreasury')) return;
    if (!confirm('هل تريد حذف هذا السند؟')) return;
-   const voucher = (DB.vouchers || []).find(v => v.id === id);
-   DB.vouchers = (DB.vouchers || []).filter(v => v.id !== id);
-   // Phase 23B: delete in backend when enabled
+   const voucher = (DB.vouchers || []).find(v => v.id === id || v._backendId === id);
+   DB.vouchers = (DB.vouchers || []).filter(v => v.id !== id && v._backendId !== id);
+   // Phase 23B: delete in backend when enabled (id-first, then legacy path)
    if (USE_BACKEND && backendApi && backendApi.vouchers && voucher && voucher._backendId) {
      try { await backendApi.vouchers.delete(voucher._backendId); } catch (_) {}
+   } else if (USE_BACKEND && backendApi && backendApi.vouchers && voucher && voucher.id !== undefined && voucher.id !== null) {
+     try { await backendApi.vouchers.delete(voucher.id); } catch (_) {}
    }
    saveDB();
    renderVouchers();
