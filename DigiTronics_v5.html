@@ -3609,6 +3609,7 @@ window.DIGITRONICS_SUPABASE = window.DIGITRONICS_SUPABASE || {
         <div class="tab" onclick="switchReportTab('monthly',this)">أرباح شهرية</div>
         <div class="tab" onclick="switchReportTab('charts',this)">📊 رسوم بيانية</div>
         <div class="tab" onclick="switchReportTab('devices',this)">💻 الأجهزة والضمان</div>
+        <div class="tab" onclick="switchReportTab('financial',this)">💰 مالية</div>
       </div>
       <div class="tab-content" id="rtab-charts">
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-top:8px">
@@ -3691,6 +3692,42 @@ window.DIGITRONICS_SUPABASE = window.DIGITRONICS_SUPABASE || {
           <div id="deviceReportSummary" style="padding:8px 12px;color:var(--text2);font-size:0.78rem">لا توجد بيانات</div>
           <div class="overflow-x"><table class="data-table"><thead><tr><th>فتح</th><th>الحالة</th><th>الضمان</th><th>الصنف</th><th>Serial</th><th>IMEI</th><th>Service Tag</th><th>المالك الحالي</th><th>الهاتف</th><th>الملاك السابقون</th><th>مرات البيع</th><th>مرتجعات</th><th>آخر فاتورة بيع</th><th>آخر مرتجع</th><th>عدد الصيانات</th><th>صيانة داخل الضمان</th><th>صيانة مدفوعة</th><th>آخر صيانة</th><th>آخر نشاط</th></tr></thead><tbody id="deviceReportsTbody"></tbody></table></div>
         </div>
+      </div>
+      <div class="tab-content" id="rtab-financial">
+        <div class="table-container" style="margin-bottom:12px">
+          <div class="table-header"><div class="table-title">💰 التقارير المالية</div></div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;padding:10px 12px;border-bottom:1px solid var(--border)">
+            <div class="form-group" style="margin:0">
+              <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">من تاريخ</label>
+              <input class="search-input" type="date" id="finFrom" onchange="finLoadCurrent()">
+            </div>
+            <div class="form-group" style="margin:0">
+              <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">إلى تاريخ</label>
+              <input class="search-input" type="date" id="finTo" onchange="finLoadCurrent()">
+            </div>
+            <div class="form-group" style="margin:0;display:none" id="finCustomerWrap">
+              <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">العميل</label>
+              <select class="search-input" id="finCustomer" onchange="finLoadCurrent()"><option value="">— اختر عميلاً —</option></select>
+            </div>
+            <div class="form-group" style="margin:0;display:none" id="finSupplierWrap">
+              <label style="display:block;font-size:0.78rem;color:var(--text2);margin-bottom:4px">المورد</label>
+              <select class="search-input" id="finSupplier" onchange="finLoadCurrent()"><option value="">— اختر مورداً —</option></select>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;padding:10px 12px">
+            <button class="btn btn-primary btn-sm" data-fin-report="sales-daily" onclick="finSwitchReport('sales-daily')">🧾 مبيعات يومية</button>
+            <button class="btn btn-outline btn-sm" data-fin-report="purchases-daily" onclick="finSwitchReport('purchases-daily')">🛍️ مشتريات يومية</button>
+            <button class="btn btn-outline btn-sm" data-fin-report="cash-flow" onclick="finSwitchReport('cash-flow')">💵 التدفق النقدي</button>
+            <button class="btn btn-outline btn-sm" data-fin-report="inventory" onclick="finSwitchReport('inventory')">📦 ملخص المخزون</button>
+            <button class="btn btn-outline btn-sm" data-fin-report="customer-statement" onclick="finSwitchReport('customer-statement')">👤 كشف حساب عميل</button>
+            <button class="btn btn-outline btn-sm" data-fin-report="supplier-statement" onclick="finSwitchReport('supplier-statement')">🏭 كشف حساب مورد</button>
+            <button class="btn btn-outline btn-sm" onclick="finLoadCurrent(true)">🔄 تحديث</button>
+          </div>
+        </div>
+        <div id="finAlert" style="margin-bottom:8px"></div>
+        <div id="finLoading" style="display:none;text-align:center;padding:16px;color:var(--text2)">⏳ جارٍ تحميل التقرير…</div>
+        <div id="finEmpty" style="display:none"></div>
+        <div id="finBody"></div>
       </div>
     </div>
 
@@ -25785,10 +25822,281 @@ function deleteExpense(id) {
 function switchReportTab(tab, el) {
   if (tab === 'charts') { setTimeout(renderCharts, 100); }
   if (tab === 'devices') { setTimeout(renderDeviceLifecycleReports, 20); }
+  if (tab === 'financial') { setTimeout(financialReportsEnsureLoaded, 20); }
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
   el.classList.add('active');
   document.getElementById('rtab-' + tab).classList.add('active');
+}
+
+// ================= FINANCIAL REPORTS (Day 5) =================
+// The backend is the single source of truth: every figure rendered here comes
+// straight from the Day 4 computed readers (/api/v1/reports/*). The UI never
+// re-derives financial totals — it only formats and lays out server responses.
+const FINANCIAL_REPORTS = {
+  'sales-daily':        { path: '/reports/summary/sales/daily',     entity: null,       title: 'المبيعات اليومية' },
+  'purchases-daily':    { path: '/reports/summary/purchases/daily', entity: null,       title: 'المشتريات اليومية' },
+  'cash-flow':          { path: '/reports/cash-flow',               entity: null,       title: 'التدفق النقدي' },
+  'inventory':          { path: '/reports/summary/inventory',       entity: null,       title: 'ملخص المخزون' },
+  'customer-statement': { path: '/reports/statement/customer/',     entity: 'customer', title: 'كشف حساب عميل' },
+  'supplier-statement': { path: '/reports/statement/supplier/',     entity: 'supplier', title: 'كشف حساب مورد' }
+};
+const FINANCIAL_CATEGORY_LABELS = {
+  'sale-receipt': 'مقبوضات بيع',
+  'customer-payment': 'دفعات عملاء',
+  'purchase-payment': 'مدفوعات شراء',
+  'manual': 'حركة يدوية'
+};
+const FINANCIAL_ROW_LABELS = {
+  opening: 'رصيد افتتاحي',
+  'sale-cash': 'بيع نقدي',
+  invoice: 'فاتورة آجلة',
+  payment: 'دفعة',
+  'purchase-cash': 'شراء نقدي',
+  purchase: 'فاتورة شراء آجلة'
+};
+let finActiveReport = 'sales-daily';
+let finRequestSeq = 0;
+
+function finEl(id) { return document.getElementById(id); }
+function finEscape(v) { return (typeof escapeHtml === 'function') ? escapeHtml(v) : String(v == null ? '' : v); }
+function finMoney(v) { return (typeof formatMoney === 'function') ? formatMoney(Number(v) || 0) : String(Number(v) || 0); }
+function finNum(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
+
+function finSetAlert(kind, message) {
+  const host = finEl('finAlert');
+  if (!host) return;
+  if (!message) { host.innerHTML = ''; return; }
+  const cls = kind === 'error' ? 'alert alert-danger' : kind === 'warn' ? 'alert alert-warning' : 'alert alert-info';
+  const style = kind === 'error' ? ' style="color:var(--red);border-color:var(--red)"' : '';
+  host.innerHTML = '<div class="' + cls + '"' + style + '>' + finEscape(message) + '</div>';
+}
+
+function finSetBusy(busy, label) {
+  const box = finEl('finLoading');
+  if (box) {
+    box.style.display = busy ? 'block' : 'none';
+    if (label) box.textContent = label;
+  }
+  document.querySelectorAll('#rtab-financial [data-fin-report]').forEach(function (b) { b.disabled = !!busy; });
+}
+
+function finShowEmpty(show, message) {
+  const box = finEl('finEmpty');
+  if (!box) return;
+  if (!show) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.style.display = 'block';
+  box.innerHTML = '<div class="alert alert-info">' + finEscape(message || 'لا توجد بيانات لهذه الفترة') + '</div>';
+}
+
+function finStats(items) {
+  if (!items || !items.length) return '';
+  const cards = items.map(function (it) {
+    return '<div class="stat-card ' + it[0] + '" style="padding:12px"><div class="stat-value">' + it[1] + '</div><div class="stat-label">' + finEscape(it[2]) + '</div></div>';
+  }).join('');
+  return '<div class="stats-grid" style="margin-bottom:12px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">' + cards + '</div>';
+}
+
+function finRenderRows(headers, rows) {
+  if (!rows || !rows.length) return '';
+  const head = headers.map(function (h) { return '<th>' + finEscape(h) + '</th>'; }).join('');
+  const body = rows.map(function (cells) {
+    return '<tr>' + cells.map(function (c) { return '<td>' + c + '</td>'; }).join('') + '</tr>';
+  }).join('');
+  return '<div class="table-container"><div class="overflow-x"><table class="data-table"><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table></div></div>';
+}
+
+function finRenderSalesDaily(data) {
+  const t = data.totals || {};
+  const rows = (data.rows || []).map(function (r) {
+    return [finEscape(r.date), finEscape(r.count), finMoney(r.cashTotal), finMoney(r.creditTotal), finMoney(r.total)];
+  });
+  return finStats([
+    ['blue', finMoney(t.total), 'إجمالي المبيعات'],
+    ['green', finMoney(t.cashTotal), 'مبيعات نقدية'],
+    ['yellow', finMoney(t.creditTotal), 'مبيعات آجلة'],
+    ['purple', finEscape(t.count || 0), 'عدد الفواتير']
+  ]) + finRenderRows(['اليوم', 'الفواتير', 'نقدي', 'آجل', 'الإجمالي'], rows);
+}
+
+function finRenderPurchasesDaily(data) {
+  const t = data.totals || {};
+  const rows = (data.rows || []).map(function (r) {
+    return [finEscape(r.date), finEscape(r.count), finMoney(r.cashTotal), finMoney(r.creditTotal), finMoney(r.total)];
+  });
+  return finStats([
+    ['blue', finMoney(t.total), 'إجمالي المشتريات'],
+    ['green', finMoney(t.cashTotal), 'مشتريات نقدية'],
+    ['yellow', finMoney(t.creditTotal), 'مشتريات آجلة'],
+    ['purple', finEscape(t.count || 0), 'عدد الفواتير']
+  ]) + finRenderRows(['اليوم', 'الفواتير', 'نقدي', 'آجل', 'الإجمالي'], rows);
+}
+
+function finRenderCashFlow(data) {
+  const cats = data.byCategory || {};
+  const catRows = Object.keys(cats).map(function (k) {
+    const c = cats[k] || {};
+    return [FINANCIAL_CATEGORY_LABELS[k] || finEscape(k), finMoney(c.in), finMoney(c.out), finEscape(c.count || 0)];
+  });
+  const rows = (data.rows || []).map(function (r) {
+    return [finEscape(r.date), r.type === 'in' ? 'وارد' : 'صادر', FINANCIAL_CATEGORY_LABELS[r.category] || finEscape(r.category), finEscape(r.reference), finEscape(r.description || ''), finMoney(r.amount)];
+  });
+  const summary = finStats([
+    ['green', finMoney(data.in), 'إجمالي الوارد'],
+    ['red', finMoney(data.out), 'إجمالي الصادر'],
+    ['blue', finMoney(data.net), 'الصافي'],
+    ['purple', finEscape((finNum(data.countIn) + finNum(data.countOut))), 'عدد الحركات']
+  ]);
+  const catBlock = catRows.length ? ('<div class="table-title" style="margin:8px 0">حسب الفئة</div>' + finRenderRows(['الفئة', 'وارد', 'صادر', 'عدد'], catRows)) : '';
+  return summary + catBlock + finRenderRows(['التاريخ', 'النوع', 'الفئة', 'المرجع', 'البيان', 'المبلغ'], rows);
+}
+
+function finRenderInventory(data) {
+  const t = data.totals || {};
+  const rows = (data.rows || []).map(function (r) {
+    return [finEscape(r.productName || r.productId), finEscape(r.in), finEscape(r.out), finEscape(r.reversals), finEscape(r.net), (r.currentStock == null ? '-' : finEscape(r.currentStock))];
+  });
+  return finStats([
+    ['green', finEscape(t.in || 0), 'إجمالي الوارد'],
+    ['red', finEscape(t.out || 0), 'إجمالي الصادر'],
+    ['yellow', finEscape(t.net || 0), 'الصافي'],
+    ['purple', finEscape(t.products || 0), 'عدد المنتجات']
+  ]) + finRenderRows(['المنتج', 'وارد', 'صادر', 'مرتجعات', 'الصافي', 'المخزون الحالي'], rows);
+}
+
+function finRenderStatement(data) {
+  const rows = (data.rows || []).map(function (r) {
+    const debit = finNum(r.debit);
+    const credit = finNum(r.credit);
+    return [finEscape(r.date || '-'), FINANCIAL_ROW_LABELS[r.type] || finEscape(r.type), finEscape(r.reference), (debit ? finMoney(debit) : '-'), (credit ? finMoney(credit) : '-'), finMoney(r.running)];
+  });
+  return finStats([
+    ['blue', finMoney(data.opening), 'الرصيد الافتتاحي'],
+    ['green', finMoney(data.balance), 'الرصيد الحالي'],
+    ['red', finMoney(data.outstanding), 'المستحق']
+  ]) + finRenderRows(['التاريخ', 'الحركة', 'المرجع', 'مدين', 'دائن', 'الرصيد'], rows);
+}
+
+function finRenderActive(data) {
+  if (!data) return '';
+  const rows = Array.isArray(data.rows) ? data.rows : [];
+  switch (finActiveReport) {
+    case 'sales-daily': return rows.length ? finRenderSalesDaily(data) : '';
+    case 'purchases-daily': return rows.length ? finRenderPurchasesDaily(data) : '';
+    case 'inventory': return rows.length ? finRenderInventory(data) : '';
+    case 'cash-flow': return (finNum(data.countIn) + finNum(data.countOut) > 0 || rows.length) ? finRenderCashFlow(data) : '';
+    case 'customer-statement':
+    case 'supplier-statement': return finRenderStatement(data);
+    default: return '';
+  }
+}
+
+async function finLoad() {
+  const def = FINANCIAL_REPORTS[finActiveReport];
+  const body = finEl('finBody');
+  if (!def || !body) return;
+  finShowEmpty(false);
+
+  if (!USE_BACKEND) {
+    finSetAlert('warn', 'التقارير المالية تُقرأ مباشرة من الخادم. الرجاء تفعيل الاتصال بالخادم أولاً.');
+    body.innerHTML = '';
+    return;
+  }
+
+  let urlPath = def.path;
+  if (def.entity === 'customer') {
+    const cid = (finEl('finCustomer') && finEl('finCustomer').value) || '';
+    if (!cid) { finSetAlert('info', 'اختر عميلاً لعرض كشف الحساب.'); body.innerHTML = ''; return; }
+    urlPath += encodeURIComponent(cid);
+  } else if (def.entity === 'supplier') {
+    const sid = (finEl('finSupplier') && finEl('finSupplier').value) || '';
+    if (!sid) { finSetAlert('info', 'اختر مورداً لعرض كشف الحساب.'); body.innerHTML = ''; return; }
+    urlPath += encodeURIComponent(sid);
+  }
+
+  const params = [];
+  const from = (finEl('finFrom') && finEl('finFrom').value) || '';
+  const to = (finEl('finTo') && finEl('finTo').value) || '';
+  if (from) params.push('from=' + encodeURIComponent(from));
+  if (to) params.push('to=' + encodeURIComponent(to));
+  if (params.length) urlPath += '?' + params.join('&');
+
+  const seq = ++finRequestSeq;
+  finSetAlert(null);
+  finSetBusy(true, '⏳ جارٍ تحميل «' + def.title + '»…');
+  body.innerHTML = '';
+  try {
+    const resp = await backendApi._fetch('GET', urlPath);
+    if (seq !== finRequestSeq) return;
+    const data = resp && resp.data;
+    if (!data) {
+      const detail = (backendStatus && backendStatus.lastError) ? backendStatus.lastError : 'تعذّر الوصول إلى الخادم';
+      finSetAlert('error', 'تعذّر جلب التقرير: ' + detail);
+      return;
+    }
+    const html = finRenderActive(data);
+    if (!html) { finShowEmpty(true, 'لا توجد بيانات لهذه الفترة.'); return; }
+    body.innerHTML = html;
+  } catch (err) {
+    if (seq !== finRequestSeq) return;
+    finSetAlert('error', 'خطأ غير متوقع أثناء تحميل التقرير: ' + ((err && err.message) || err));
+  } finally {
+    if (seq === finRequestSeq) finSetBusy(false);
+  }
+}
+
+function finSwitchReport(report) {
+  if (!FINANCIAL_REPORTS[report]) return;
+  finActiveReport = report;
+  document.querySelectorAll('#rtab-financial [data-fin-report]').forEach(function (b) {
+    const on = b.getAttribute('data-fin-report') === report;
+    b.classList.toggle('btn-primary', on);
+    b.classList.toggle('btn-outline', !on);
+  });
+  const cw = finEl('finCustomerWrap');
+  const sw = finEl('finSupplierWrap');
+  if (cw) cw.style.display = FINANCIAL_REPORTS[report].entity === 'customer' ? 'block' : 'none';
+  if (sw) sw.style.display = FINANCIAL_REPORTS[report].entity === 'supplier' ? 'block' : 'none';
+  finLoad();
+}
+
+function finLoadCurrent() { finLoad(); }
+
+async function finPopulateSelectors(force) {
+  const cSel = finEl('finCustomer');
+  const sSel = finEl('finSupplier');
+  if (!cSel || !sSel) return;
+  if (finPopulateSelectors._done && !force) return;
+  let customers = Array.isArray(DB.customers) ? DB.customers : [];
+  let suppliers = Array.isArray(DB.suppliers) ? DB.suppliers : [];
+  if (USE_BACKEND && typeof digitronicsDataAdapter !== 'undefined') {
+    try { const list = await digitronicsDataAdapter.listCustomers(); if (Array.isArray(list)) customers = list; } catch (_) {}
+    try { const list = await digitronicsDataAdapter.listSuppliers(); if (Array.isArray(list)) suppliers = list; } catch (_) {}
+  }
+  const keepC = cSel.value;
+  const keepS = sSel.value;
+  cSel.innerHTML = '<option value="">— اختر عميلاً —</option>' + customers.map(function (c) {
+    return '<option value="' + finEscape(c.id) + '">' + finEscape(c.name || c.id) + '</option>';
+  }).join('');
+  sSel.innerHTML = '<option value="">— اختر مورداً —</option>' + suppliers.map(function (s) {
+    return '<option value="' + finEscape(s.id) + '">' + finEscape(s.name || s.id) + '</option>';
+  }).join('');
+  if (keepC) cSel.value = keepC;
+  if (keepS) sSel.value = keepS;
+  finPopulateSelectors._done = true;
+}
+
+async function financialReportsEnsureLoaded() {
+  const from = finEl('finFrom');
+  const to = finEl('finTo');
+  if (from && to && !from.value && !to.value) {
+    const end = new Date();
+    const start = new Date(end.getTime() - 29 * 24 * 60 * 60 * 1000);
+    from.value = start.toISOString().slice(0, 10);
+    to.value = end.toISOString().slice(0, 10);
+  }
+  await finPopulateSelectors();
+  await finLoad();
 }
 
 async function renderReports() {
