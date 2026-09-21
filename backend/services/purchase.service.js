@@ -6,6 +6,7 @@ const BaseRepository = require('../repositories/BaseRepository');
 const repository = require('../repositories').purchases;
 const suppliersService = require('./suppliers.service');
 const branchStore = require('../middleware/branchStore');
+const purchasePosting = require('./purchasePosting.service');
 
 class PurchaseService {
   async _load(tenantContext) {
@@ -255,8 +256,16 @@ class PurchaseService {
         createdAt: data.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
+      // Day 2 — Purchase Posting: stock-in + treasury payment. Rejections
+      // (e.g. invalid qty) happen BEFORE any persistence.
+      const posting = await purchasePosting.applyOnCreate(invoice, tenantContext);
+      if (posting.error) return { error: posting.error };
+      if (posting.posted) invoice.postedEffects = posting.summary;
       const created = await repo.createAsync('invoices', invoice);
-      if (!created) return { error: 'Failed to persist invoice' };
+      if (!created) {
+        await purchasePosting.rollback(posting.summary, invoice);
+        return { error: 'Failed to persist invoice' };
+      }
       try { eventBus.publish('purchase.created', created); } catch (_) {}
       return { invoice: created };
     }
@@ -274,10 +283,47 @@ class PurchaseService {
       return { error: 'Duplicate invoice ID: ' + invoice.id };
     }
 
+    // Day 2 — Purchase Posting: stock-in + treasury payment (legacy path).
+    const posting = await purchasePosting.applyOnCreate(invoice, tenantContext);
+    if (posting.error) return { error: posting.error };
+    if (posting.posted) invoice.postedEffects = posting.summary;
+
     if (!Array.isArray(db.invoices)) db.invoices = [];
     db.invoices.push(invoice);
     if (await this._save(db)) return { invoice };
+    await purchasePosting.rollback(posting.summary, invoice);
     return { error: 'Failed to persist invoice' };
+  }
+
+  // Day 2 — UPDATE-safe reposting: validate the merged invoice FIRST, then
+  // reverse the old posting in full, then post the merged one. An invalid
+  // update leaves the old posting untouched (no partial write). Legacy
+  // invoices (no postedEffects) are only posted when the update touches
+  // posting-relevant fields; otherwise the update stays a plain field merge.
+  async _repost(existing, data, tenantContext) {
+    const candidate = { ...existing, ...data, id: existing.id };
+    const hadPosting = !!(existing.postedEffects && existing.postedEffects.posted);
+    const touchesPosting = data.items !== undefined || data.total !== undefined ||
+      data.payment !== undefined || data.paymentType !== undefined || data.invoiceType !== undefined;
+    if (!hadPosting && !touchesPosting) return { data, undo: async () => {} };
+
+    const plan = await purchasePosting.planAdditions(candidate);
+    if (plan.error) return { error: plan.error };
+
+    if (hadPosting) await purchasePosting.rollback(existing.postedEffects, existing);
+    const posting = await purchasePosting.applyOnCreate(candidate, tenantContext);
+    if (posting.error) {
+      if (hadPosting) await purchasePosting.applyOnCreate(existing, tenantContext); // best-effort restore
+      return { error: posting.error };
+    }
+    const mergedData = { ...data, postedEffects: posting.summary };
+    return {
+      data: mergedData,
+      undo: async () => {
+        await purchasePosting.rollback(posting.summary, candidate);
+        if (hadPosting) await purchasePosting.applyOnCreate(existing, tenantContext);
+      }
+    };
   }
 
   async update(id, data, tenantContext) {
@@ -294,8 +340,13 @@ class PurchaseService {
       const existing = await repo.findAsync('invoices', this._normalizeId(id));
       if (!existing) return { error: 'Invoice not found' };
       if (this._branchBlocked(existing)) return { error: 'Invoice not found' };
-      const merged = await repo.updateAsync('invoices', this._normalizeId(id), data);
-      if (!merged) return { error: 'Invoice not found' };
+      const repost = await this._repost(existing, data, tenantContext);
+      if (repost.error) return { error: repost.error };
+      const merged = await repo.updateAsync('invoices', this._normalizeId(id), repost.data);
+      if (!merged) {
+        await repost.undo();
+        return { error: 'Invoice not found' };
+      }
       return { invoice: merged };
     }
 
@@ -305,8 +356,12 @@ class PurchaseService {
     if (idx === -1) return { error: 'Invoice not found' };
     if (this._ownershipBlocked(db.invoices[idx]) || this._branchBlocked(db.invoices[idx])) return { error: 'Invoice not found' };
 
-    db.invoices[idx] = { ...db.invoices[idx], ...data, id: db.invoices[idx].id, updatedAt: new Date().toISOString() };
+    const existingInvoice = db.invoices[idx];
+    const repost = await this._repost(existingInvoice, data, tenantContext);
+    if (repost.error) return { error: repost.error };
+    db.invoices[idx] = { ...existingInvoice, ...repost.data, id: existingInvoice.id, updatedAt: new Date().toISOString() };
     if (await this._save(db)) return { invoice: db.invoices[idx] };
+    await repost.undo();
     return { error: 'Failed to persist update' };
   }
 
@@ -316,6 +371,10 @@ class PurchaseService {
       const existing = await repo.findAsync('invoices', this._normalizeId(id));
       if (!existing) return { error: 'Invoice not found' };
       if (this._branchBlocked(existing)) return { error: 'Invoice not found' };
+      // Day 2 — reverse posted effects (stock-out + treasury removal)
+      if (existing.postedEffects) {
+        try { await purchasePosting.rollback(existing.postedEffects, existing); } catch (e) { logger.error('purchasePosting rollback failed for purchase', existing.id, e.message); }
+      }
       const ok = await repo.deleteAsync('invoices', this._normalizeId(id));
       if (!ok) return { error: 'Invoice not found' };
       return { success: true };
@@ -326,6 +385,10 @@ class PurchaseService {
     const idx = (db.invoices || []).findIndex(inv => this._normalizeId(inv.id) === normalized);
     if (idx === -1) return { error: 'Invoice not found' };
     if (this._ownershipBlocked(db.invoices[idx]) || this._branchBlocked(db.invoices[idx])) return { error: 'Invoice not found' };
+    // Day 2 — reverse posted effects (stock-out + treasury removal)
+    if (db.invoices[idx].postedEffects) {
+      try { await purchasePosting.rollback(db.invoices[idx].postedEffects, db.invoices[idx]); } catch (e) { logger.error('purchasePosting rollback failed for purchase', db.invoices[idx].id, e.message); }
+    }
     db.invoices.splice(idx, 1);
     if (await this._save(db)) return { success: true };
     return { error: 'Failed to persist deletion' };
