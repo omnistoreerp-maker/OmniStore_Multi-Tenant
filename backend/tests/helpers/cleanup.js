@@ -1,7 +1,6 @@
 // Cleanup helpers: remove temp data dirs and stop child processes.
 const fs = require('fs');
 const { stopServer } = require('./testServer');
-
 function removeDir(dir) {
   try {
     if (dir && fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });

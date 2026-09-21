@@ -124,6 +124,7 @@ const PERMISSION_GUARDED_WRITE_ROUTES = new Set([
   '/vouchers',
   '/employees',
   '/treasury',
+  '/customer-payments',
   '/dashboard',
   '/reports',
   '/users',

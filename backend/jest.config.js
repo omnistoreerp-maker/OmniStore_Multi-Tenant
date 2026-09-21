@@ -2,6 +2,7 @@ module.exports = {
   testEnvironment: 'node',
   roots: ['<rootDir>/tests'],
   testMatch: ['**/*.test.js'],
+  setupFilesAfterEnv: ['<rootDir>/tests/helpers/envHygiene.js'],
   testTimeout: 30000,
   collectCoverageFrom: [
     '**/*.js',

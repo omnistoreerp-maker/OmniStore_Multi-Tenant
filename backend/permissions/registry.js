@@ -26,6 +26,7 @@ const REAL_GROUPS = [
     permissions: ['employees.view', 'employees.create', 'employees.edit', 'employees.delete']
   },
   { group: 'treasury', permissions: ['treasury.view', 'treasury.create', 'treasury.edit', 'treasury.delete'] },
+  { group: 'customerPayments', permissions: ['customerPayments.view', 'customerPayments.create', 'customerPayments.edit', 'customerPayments.delete'] },
   { group: 'reports', permissions: ['reports.view', 'reports.financial.view'] },
   { group: 'dashboard', permissions: ['dashboard.view'] },
   {
@@ -91,6 +92,7 @@ const ROLE_DEFAULTS = {
     'vouchers.view', 'vouchers.create', 'vouchers.edit', 'vouchers.delete',
     'employees.view', 'employees.create', 'employees.edit', 'employees.delete',
     'treasury.view', 'treasury.create', 'treasury.edit',
+    'customerPayments.view', 'customerPayments.create', 'customerPayments.edit',
     'reports.view', 'dashboard.view',
     'users.view', 'users.create', 'users.edit', 'users.delete',
     'audit.view', 'company.view', 'settings.view'

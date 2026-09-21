@@ -30,6 +30,7 @@ module.exports = {
   customers: repository('customers'),
   suppliers: repository('suppliers'),
   treasury: repository('treasury'),
+  customerPayments: repository('customerPayments'),
   employees: repository('employees'),
   partners: repository('partners'),
   vouchers: repository('vouchers'),

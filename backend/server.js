@@ -134,6 +134,7 @@ const inventoryTransactionsRoutes = require('./routes/inventoryTransactions.rout
 const customersRoutes = require('./routes/customers.routes');
 const suppliersRoutes = require('./routes/suppliers.routes');
 const treasuryRoutes = require('./routes/treasury.routes');
+const customerPaymentsRoutes = require('./routes/customerPayments.routes');
 const employeesRoutes = require('./routes/employees.routes');
 const partnersRoutes = require('./routes/partners.routes');
 const voucherRoutes = require('./routes/voucher.routes');
@@ -264,6 +265,7 @@ app.use('/api/v1/inventory-transactions', validateResource('inventory-transactio
 app.use('/api/v1/customers', validateResource('customers'), customersRoutes);
 app.use('/api/v1/suppliers', validateResource('suppliers'), suppliersRoutes);
 app.use('/api/v1/treasury', validateResource('treasury'), treasuryRoutes);
+app.use('/api/v1/customer-payments', validateResource('customer-payments'), customerPaymentsRoutes);
 app.use('/api/v1/employees', validateResource('employees'), employeesRoutes);
 app.use('/api/v1/partners', validateResource('partners'), partnersRoutes);
 app.use('/api/v1/vouchers', validateResource('vouchers'), voucherRoutes);

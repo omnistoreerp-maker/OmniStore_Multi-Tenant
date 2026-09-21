@@ -66,6 +66,7 @@ const SCHEMAS = {
   reports: _makeSchema({ required: ['type'], strings: ['type', 'title', 'month', 'user'] }),
   dashboard: _makeSchema({ required: ['key'], strings: ['key', 'title', 'period', 'user'] }),
   vouchers: _makeSchema({ required: ['type'], strings: ['type', 'partyName', 'partyType', 'method', 'date', 'user'], numbers: ['amount'] }),
+  'customer-payments': _makeSchema({ required: ['customerId', 'amount'], strings: ['method', 'date', 'desc', 'user'], numbers: ['amount'] }),
   users: _makeSchema({ required: ['username'], strings: ['username', 'password', 'role', 'fullName', 'phone'] })
 };
 
