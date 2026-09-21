@@ -102,6 +102,19 @@ router.post('/', requirePermissionIfAuth('reports.view'), ctrl.create);
  */
 router.get('/stats', requirePermissionIfAuth('reports.view'), ctrl.getStats);
 
+// DAY 4 — computed financial readers wired to live posting sources (read-only,
+// nothing persisted). Operational summaries keep `reports.view`; money data
+// (treasury-backed cash flow, customer/supplier statements) requires the
+// financial gate.
+const financialReportsController = require('../controllers/financialReports.controller');
+
+router.get('/summary/sales/daily', requirePermissionIfAuth('reports.view'), financialReportsController.dailySales);
+router.get('/summary/purchases/daily', requirePermissionIfAuth('reports.view'), financialReportsController.dailyPurchases);
+router.get('/summary/inventory', requirePermissionIfAuth('reports.view'), financialReportsController.inventorySummary);
+router.get('/statement/customer/:customerId', requirePermissionIfAuth('customerPayments.view'), financialReportsController.customerStatement);
+router.get('/statement/supplier/:supplierId', requirePermissionIfAuth('reports.financial.view'), financialReportsController.supplierStatement);
+router.get('/cash-flow', requirePermissionIfAuth('reports.financial.view'), financialReportsController.cashFlow);
+
 /**
  * @openapi
  * /api/v1/reports/{id}:
