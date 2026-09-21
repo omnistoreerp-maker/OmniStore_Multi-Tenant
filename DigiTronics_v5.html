@@ -18929,7 +18929,8 @@ async function addTreasuryOutRequired(amount, method, desc, entryDate, meta = {}
    const entryDateValue = entryDate ? localDateTimeString(entryDate) : localDateTimeString();
    // Phase 23B: create in backend when enabled
    if (USE_BACKEND && backendApi && backendApi.treasury) {
-     try { await backendApi.treasury.create({ type: 'out', amount: safeAmount, method: safeMethod, desc: safeDesc, date: entryDateValue, ...meta }); } catch (_) {}
+     const r = await backendApi.treasury.create({ type: 'out', amount: safeAmount, method: safeMethod, desc: safeDesc, date: entryDateValue, ...meta });
+     if (!r || !r.success) { logAppError('treasury.create', new Error('backend treasury create failed')); showToast('⚠️ تعذر تنفيذ العملية على الخادم — لم يتم الحفظ. حاول مرة أخرى', 'error'); return; }
    }
    const ok = addCashEntry('out', amount, method || 'cash', desc, entryDate, meta);
    if (!ok) return false;
@@ -18972,7 +18973,8 @@ async function addStockMovement(productId, type, qty, reason, user, meta = {}) {
   };
   // Phase 23B: create in backend when enabled
   if (USE_BACKEND && backendApi && backendApi.inventoryTransactions) {
-    try { await backendApi.inventoryTransactions.create(movement); } catch (_) {}
+    const r = await backendApi.inventoryTransactions.create(movement);
+    if (!r || !r.success) { logAppError('inventoryTransactions.create', new Error('backend inventoryTransactions create failed')); showToast('⚠️ تعذر تنفيذ العملية على الخادم — لم يتم الحفظ. حاول مرة أخرى', 'error'); return; }
   }
   DB.stockMovement.unshift(movement);
   if (DB.stockMovement.length > 500) DB.stockMovement = DB.stockMovement.slice(0, 500);
@@ -21663,7 +21665,8 @@ async function saveEditProduct() {
   
   // Phase 23B: update in backend when enabled
   if (USE_BACKEND && backendApi && backendApi.inventory && p._backendId) {
-    try { await backendApi.inventory.update(p._backendId, p); } catch (_) {}
+    const r = await backendApi.inventory.update(p._backendId, p);
+    if (!r || !r.success) { logAppError('inventory.update', new Error('backend inventory update failed')); showToast('⚠️ تعذر تنفيذ العملية على الخادم — لم يتم الحفظ. حاول مرة أخرى', 'error'); return; }
   }
   
   logProductChange('تعديل منتج', p.name, `من: ${oldName} (${oldBuy}/${oldSell}) إلى: ${p.name} (${p.buyPrice}/${p.sellPrice})`);
@@ -21799,7 +21802,8 @@ async function deleteProduct(id) {
   const p = DB.products.find(x => x.id === id);
   // Phase 23B: delete in backend when enabled
   if (USE_BACKEND && backendApi && backendApi.inventory && p && p._backendId) {
-    try { await backendApi.inventory.delete(p._backendId); } catch (_) {}
+    const r = await backendApi.inventory.delete(p._backendId);
+    if (!r || !r.success) { logAppError('inventory.delete', new Error('backend inventory delete failed')); showToast('⚠️ تعذر تنفيذ العملية على الخادم — لم يتم الحفظ. حاول مرة أخرى', 'error'); return; }
   }
   DB.products = DB.products.filter(x => x.id !== id);
   DB.serials = DB.serials.filter(s => s.productId !== id);
@@ -22712,7 +22716,8 @@ async function updatePurchaseInvoice(id) {
   logActivity('تعديل فاتورة شراء', `#${id}${purTMsg}`);
   // Phase 23B: update in backend when enabled
   if (USE_BACKEND && backendApi && backendApi.purchases && inv._backendId) {
-    try { await backendApi.purchases.update(inv._backendId, inv); } catch (_) {}
+    const r = await backendApi.purchases.update(inv._backendId, inv);
+    if (!r || !r.success) { logAppError('purchases.update', new Error('backend purchases update failed')); showToast('⚠️ تعذر تنفيذ العملية على الخادم — لم يتم الحفظ. حاول مرة أخرى', 'error'); return; }
   }
   saveDB();
   auditAndSyncFinanceStock('updatePurchaseInvoice');
@@ -22773,7 +22778,8 @@ async function saveSupplier() {
      exists.balance = Number.isFinite(balance) ? balance : 0;
      // Phase 23B: update in backend when enabled
      if (USE_BACKEND && backendApi && backendApi.suppliers && exists._backendId) {
-       try { await backendApi.suppliers.update(exists._backendId, exists); } catch (_) {}
+       const r = await backendApi.suppliers.update(exists._backendId, exists);
+       if (!r || !r.success) { logAppError('suppliers.update', new Error('backend suppliers update failed')); showToast('⚠️ تعذر تنفيذ العملية على الخادم — لم يتم الحفظ. حاول مرة أخرى', 'error'); return; }
      }
    } else {
      const now = new Date().toISOString();
@@ -23146,11 +23152,13 @@ async function deleteSupplier(idx) {
    if (!requirePermission('deleteData')) return;
    if (!confirm('هل تريد حذف هذا المورد؟')) return;
    const s = DB.suppliers[idx];
+     // Phase 23B (fail-closed): backend delete FIRST — failure keeps the local record intact (no resurrection path).
+     if (USE_BACKEND && backendApi && backendApi.suppliers && s && s._backendId) {
+     const r = await backendApi.suppliers.delete(s._backendId);
+     if (!r || !r.success) { logAppError('suppliers.delete', new Error('backend suppliers delete failed')); showToast('⚠️ تعذر تنفيذ العملية على الخادم — لم يتم الحفظ. حاول مرة أخرى', 'error'); return; }
+     }
    DB.suppliers.splice(idx, 1);
    // Phase 23B: delete in backend when enabled
-   if (USE_BACKEND && backendApi && backendApi.suppliers && s && s._backendId) {
-     try { await backendApi.suppliers.delete(s._backendId); } catch (_) {}
-   }
    saveDB();
    renderSuppliers();
    showToast('تم الحذف');
@@ -23349,7 +23357,8 @@ async function saveCustomer() {
     exists.updatedAt = new Date().toISOString();
     // Phase 23B: update in backend when enabled
     if (USE_BACKEND && backendApi && backendApi.customers && exists._backendId) {
-      try { await backendApi.customers.update(exists._backendId, exists); } catch (_) {}
+      const r = await backendApi.customers.update(exists._backendId, exists);
+      if (!r || !r.success) { logAppError('customers.update', new Error('backend customers update failed')); showToast('⚠️ تعذر تنفيذ العملية على الخادم — لم يتم الحفظ. حاول مرة أخرى', 'error'); return; }
     }
   } else {
     const now = new Date().toISOString();
@@ -25978,7 +25987,8 @@ async function createTreasurySettlement(type, amount, note, method = 'cash') {
 
    // Phase 23B: create in backend when enabled
    if (USE_BACKEND && backendApi && backendApi.treasury) {
-     try { await backendApi.treasury.create({ type: safeType, amount: safeAmount, method, desc: safeNote, date: new Date().toISOString() }); } catch (_) {}
+     const r = await backendApi.treasury.create({ type: safeType, amount: safeAmount, method, desc: safeNote, date: new Date().toISOString() });
+     if (!r || !r.success) { logAppError('treasury.create', new Error('backend treasury create failed')); showToast('⚠️ تعذر تنفيذ العملية على الخادم — لم يتم الحفظ. حاول مرة أخرى', 'error'); return; }
    }
    addCashEntry(safeType, safeAmount, method, safeNote);
    logActivity('قيد تسوية خزنة', `${label} - ${formatMoney(safeAmount)} - ${safeNote}`);
@@ -30738,7 +30748,8 @@ async function saveEmployee() {
      emp.vacationDays = Math.max(0, vacationDays);
      // Phase 23B: update in backend when enabled
      if (USE_BACKEND && backendApi && backendApi.employees && emp._backendId) {
-       try { await backendApi.employees.update(emp._backendId, emp); } catch (_) {}
+       const r = await backendApi.employees.update(emp._backendId, emp);
+       if (!r || !r.success) { logAppError('employees.update', new Error('backend employees update failed')); showToast('⚠️ تعذر تنفيذ العملية على الخادم — لم يتم الحفظ. حاول مرة أخرى', 'error'); return; }
      }
    } else {
      const newEmp = {
@@ -31768,7 +31779,8 @@ async function savePartner() {
      };
      // Phase 23B: update in backend when enabled
      if (USE_BACKEND && backendApi && backendApi.partners && DB.partners[editingPartnerIndex]._backendId) {
-       try { await backendApi.partners.update(DB.partners[editingPartnerIndex]._backendId, DB.partners[editingPartnerIndex]); } catch (_) {}
+       const r = await backendApi.partners.update(DB.partners[editingPartnerIndex]._backendId, DB.partners[editingPartnerIndex]);
+       if (!r || !r.success) { logAppError('partners.update', new Error('backend partners update failed')); showToast('⚠️ تعذر تنفيذ العملية على الخادم — لم يتم الحفظ. حاول مرة أخرى', 'error'); return; }
      }
      syncPartnerWithCapitalPartner(DB.partners[editingPartnerIndex]);
      showToast('تم تعديل الشريك');
@@ -31857,11 +31869,13 @@ async function deletePartner(idx) {
    if (!confirm('هل تريد حذف هذا الشريك؟')) return;
    const partner = DB.partners[idx];
    if (!partner) return;
+     // Phase 23B (fail-closed): backend delete FIRST — failure keeps the local record intact (no resurrection path).
+     if (USE_BACKEND && backendApi && backendApi.partners && partner && partner._backendId) {
+     const r = await backendApi.partners.delete(partner._backendId);
+     if (!r || !r.success) { logAppError('partners.delete', new Error('backend partners delete failed')); showToast('⚠️ تعذر تنفيذ العملية على الخادم — لم يتم الحفظ. حاول مرة أخرى', 'error'); return; }
+     }
    DB.partners.splice(idx, 1);
    // Phase 23B: delete in backend when enabled
-   if (USE_BACKEND && backendApi && backendApi.partners && partner && partner._backendId) {
-     try { await backendApi.partners.delete(partner._backendId); } catch (_) {}
-   }
    DB.partnerTransactions = (DB.partnerTransactions || []).filter(t => Number(t.partnerId) !== Number(partner.id));
    const cpIdx = (DB.capitalPartners || []).findIndex(cp => String(cp.partnerId) === String(partner.id));
    if (cpIdx >= 0) DB.capitalPartners.splice(cpIdx, 1);
@@ -35609,7 +35623,8 @@ async function deleteUser(username) {
   if (u && u.hidden) { showToast('لا يمكن حذف هذا المستخدم', 'error'); return; }
   // Phase 23B: delete in backend when enabled
   if (USE_BACKEND && backendApi && backendApi.users && u && u._backendId) {
-    try { await backendApi.users.delete(u._backendId); } catch (_) {}
+    const r = await backendApi.users.delete(u._backendId);
+    if (!r || !r.success) { logAppError('users.delete', new Error('backend users delete failed')); showToast('⚠️ تعذر تنفيذ العملية على الخادم — لم يتم الحفظ. حاول مرة أخرى', 'error'); return; }
   }
   DB.users = DB.users.filter(x => x.username !== username);
   saveDB();
@@ -37524,11 +37539,13 @@ async function deletePurchaseInvoice(id) {
   }
 
   // Remove the invoice
+    // Phase 23B (fail-closed): backend delete FIRST — failure keeps the local record intact (no resurrection path).
+    if (USE_BACKEND && backendApi && backendApi.purchases && true) {
+    const r = await backendApi.purchases.delete(inv._backendId || id);
+    if (!r || !r.success) { logAppError('purchases.delete', new Error('backend purchases delete failed')); showToast('⚠️ تعذر تنفيذ العملية على الخادم — لم يتم الحفظ. حاول مرة أخرى', 'error'); return; }
+    }
   DB.purchaseInvoices = DB.purchaseInvoices.filter(p => p.id !== id);
   // Phase 23B: delete in backend when enabled
-  if (USE_BACKEND && backendApi && backendApi.purchases) {
-    try { await backendApi.purchases.delete(inv._backendId || id); } catch (_) {}
-  }
   logActivity('حذف فاتورة شراء', `#${id} - ${inv.supplier || ''} - ${formatMoney(inv.total)}`);
   saveDB();
   renderPurchases();
@@ -39045,11 +39062,13 @@ async function deleteVoucher(id) {
    if (!requirePermission('editTreasury')) return;
    if (!confirm('هل تريد حذف هذا السند؟')) return;
    const voucher = (DB.vouchers || []).find(v => v.id === id);
+     // Phase 23B (fail-closed): backend delete FIRST — failure keeps the local record intact (no resurrection path).
+     if (USE_BACKEND && backendApi && backendApi.vouchers && voucher && voucher._backendId) {
+     const r = await backendApi.vouchers.delete(voucher._backendId);
+     if (!r || !r.success) { logAppError('vouchers.delete', new Error('backend vouchers delete failed')); showToast('⚠️ تعذر تنفيذ العملية على الخادم — لم يتم الحفظ. حاول مرة أخرى', 'error'); return; }
+     }
    DB.vouchers = (DB.vouchers || []).filter(v => v.id !== id);
    // Phase 23B: delete in backend when enabled
-   if (USE_BACKEND && backendApi && backendApi.vouchers && voucher && voucher._backendId) {
-     try { await backendApi.vouchers.delete(voucher._backendId); } catch (_) {}
-   }
    saveDB();
    renderVouchers();
    showToast('تم حذف السند');
