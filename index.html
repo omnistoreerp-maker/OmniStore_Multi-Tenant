@@ -33595,7 +33595,12 @@ async function renderPartners() {
    // Phase 23B: fetch from backend when enabled
    let partners = DB.partners;
    if (USE_BACKEND && typeof digitronicsDataAdapter !== 'undefined') {
-     try { partners = await digitronicsDataAdapter.listPartners(); } catch (_) {}
+     try {
+       partners = await digitronicsDataAdapter.listPartners();
+       // Hydrate the local mirror so row actions (edit/delete/transactions)
+       // operate on the same records that were just rendered from the API.
+       if (Array.isArray(partners)) DB.partners = partners.slice();
+     } catch (_) {}
    }
    const grid = document.getElementById('partnersGrid');
    const totalCapital = partners.reduce((sum, p) => sum + (p.capital || 0), 0);
@@ -33624,9 +33629,11 @@ async function deletePartner(idx) {
    const partner = DB.partners[idx];
    if (!partner) return;
    DB.partners.splice(idx, 1);
-   // Phase 23B: delete in backend when enabled
-   if (USE_BACKEND && backendApi && backendApi.partners && partner && partner._backendId) {
+   // Phase 23B: delete in backend when enabled (id-first, then legacy index path)
+   if (USE_BACKEND && backendApi && backendApi.partners && partner._backendId) {
      try { await backendApi.partners.delete(partner._backendId); } catch (_) {}
+   } else if (USE_BACKEND && backendApi && backendApi.partners && partner.id !== undefined && partner.id !== null) {
+     try { await backendApi.partners.delete(partner.id); } catch (_) {}
    }
    DB.partnerTransactions = (DB.partnerTransactions || []).filter(t => Number(t.partnerId) !== Number(partner.id));
    const cpIdx = (DB.capitalPartners || []).findIndex(cp => String(cp.partnerId) === String(partner.id));
