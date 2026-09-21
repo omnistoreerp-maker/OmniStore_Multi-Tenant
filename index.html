@@ -25216,7 +25216,13 @@ async function renderPurchases(filter = '') {
   // Phase 23B: fetch from backend when enabled
   let purchases = DB.purchaseInvoices;
   if (USE_BACKEND && typeof digitronicsDataAdapter !== 'undefined') {
-    try { purchases = await digitronicsDataAdapter.listPurchases(); } catch (_) {}
+    try {
+      purchases = await digitronicsDataAdapter.listPurchases();
+      // Hydrate the mirror so delete row actions resolve exactly the records
+      // rendered from the API — without dropping local records pending their
+      // first backend sync.
+      if (Array.isArray(purchases)) DB.purchaseInvoices = mergeBackendRows(DB.purchaseInvoices, purchases);
+    } catch (_) {}
   }
   if (filter) {
     purchases = purchases.filter(p =>
@@ -39153,7 +39159,13 @@ async function renderInvoices(filter = '') {
   // Phase 23B: fetch from backend when enabled
   let invoices = DB.saleInvoices;
   if (USE_BACKEND && typeof digitronicsDataAdapter !== 'undefined') {
-    try { invoices = await digitronicsDataAdapter.listSales(); } catch (_) {}
+    try {
+      invoices = await digitronicsDataAdapter.listSales();
+      // Hydrate the mirror so delete/edit row actions resolve exactly the
+      // records rendered from the API — without dropping local records
+      // pending their first backend sync.
+      if (Array.isArray(invoices)) DB.saleInvoices = mergeBackendRows(DB.saleInvoices, invoices);
+    } catch (_) {}
   }
   if (filter) {
     invoices = invoices.filter(inv => 
@@ -39610,7 +39622,7 @@ function editSerialsChanged(idx) {
 // ===== DELETE SALE INVOICE (with full inventory + treasury sync) =====
 async function deleteSaleInvoice(id) {
   if (!requirePermission('deleteData')) return;
-  const inv = DB.saleInvoices.find(i => i.id === id);
+  const inv = DB.saleInvoices.find(i => String(i.id) === String(id) || String(i._backendId || '') === String(id));
   if (!inv) return;
   if (!confirm(`⚠️ هل تريد حذف فاتورة البيع #${id} نهائياً؟\n\nسيتم:\n• إعادة السيريالات للمخزون\n• خصم المبلغ من الخزنة\n\nهذا الإجراء لا يمكن التراجع عنه!`)) return;
 
@@ -39633,8 +39645,9 @@ async function deleteSaleInvoice(id) {
     addCashEntry('out', inv.total, inv.payment || 'cash', `إلغاء فاتورة بيع #${id} - ${inv.customer}`);
   }
 
-  // Remove the invoice
-  DB.saleInvoices = DB.saleInvoices.filter(i => i.id !== id);
+  // Remove the invoice (match on id AND backend id — the row may be
+  // addressed by either after hydration)
+  DB.saleInvoices = DB.saleInvoices.filter(i => String(i.id) !== String(id) && String(i._backendId || '') !== String(id));
   // Phase 23B: delete in backend when enabled
   if (USE_BACKEND && backendApi && backendApi.sales) {
     try { await backendApi.sales.delete(inv._backendId || id); } catch (_) {}
@@ -39652,7 +39665,7 @@ async function deleteSaleInvoice(id) {
 // ===== DELETE PURCHASE INVOICE (with full inventory + treasury sync) =====
 async function deletePurchaseInvoice(id) {
   if (!requirePermission('deleteData')) return;
-  const inv = DB.purchaseInvoices.find(p => p.id === id);
+  const inv = DB.purchaseInvoices.find(p => String(p.id) === String(id) || String(p._backendId || '') === String(id));
   if (!inv) return;
   if (!confirm(`⚠️ هل تريد حذف فاتورة الشراء #${id} نهائياً؟\n\nسيتم:\n• حذف السيريالات المرتبطة بها\n• إرجاع المبلغ للخزنة\n\nهذا الإجراء لا يمكن التراجع عنه!`)) return;
 
@@ -39676,7 +39689,7 @@ async function deletePurchaseInvoice(id) {
   }
 
   // Remove the invoice
-  DB.purchaseInvoices = DB.purchaseInvoices.filter(p => p.id !== id);
+  DB.purchaseInvoices = DB.purchaseInvoices.filter(p => String(p.id) !== String(id) && String(p._backendId || '') !== String(id));
   // Phase 23B: delete in backend when enabled
   if (USE_BACKEND && backendApi && backendApi.purchases) {
     try { await backendApi.purchases.delete(inv._backendId || id); } catch (_) {}
