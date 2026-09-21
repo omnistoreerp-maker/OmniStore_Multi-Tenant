@@ -63,7 +63,7 @@ function makePromptScript(rules) {
 }
 
 function buildSandbox(opts = {}) {
-  const calls = { backendCreate: [], backendDelete: [], toasts: [], appErrors: [] };
+  const calls = { backendCreate: [], backendDelete: [], backendGetById: [], toasts: [], appErrors: [] };
   const db = {
     cashFlow: (opts.cashFlow || []).map(r => ({ ...r })),
     settings: {
@@ -85,7 +85,13 @@ function buildSandbox(opts = {}) {
           if (opts.backendCreateFails) return Promise.resolve({ success: false, error: opts.backendCreateError || 'rejected' });
           return Promise.resolve({ success: true, data: { id: 'uuid-new-' + calls.backendCreate.length } });
         },
-        delete: (id) => { calls.backendDelete.push(String(id)); return Promise.resolve({ success: true }); }
+        delete: (id) => { calls.backendDelete.push(String(id)); return Promise.resolve({ success: true }); },
+        getById: (id) => {
+          calls.backendGetById.push(String(id));
+          const hit = (opts.backendRows || []).find(r => String(r.id) === String(id));
+          if (!hit) return Promise.resolve({ success: false });
+          return Promise.resolve({ success: true, data: hit });
+        }
       }
     },
     currentUser: opts.currentUser || { username: 'owner-1', role: 'Owner' },
@@ -228,5 +234,55 @@ describe('frontend treasury reversal backend-mode gate (real index.html function
     const fn = extractFunction('renderTreasuryReverseAction');
     expect(fn).not.toMatch(/Number\(c\.id\)/);
     expect(fn).toContain("String(c.id ?? (c._backendId ?? ''))");
+  });
+
+  test('a backend row absent from the local mirror is fetched, appended, and reversed — zero extra mutations', async () => {
+    const uuid = 'uuid-remote-only-1';
+    const { context, db, calls } = buildSandbox({
+      cashFlow: [], // the mirror has never seen this row
+      backendRows: [{ id: uuid, type: 'in', amount: 77, method: 'cash', desc: 'server only' }],
+      confirmResult: true,
+      reversePinThreshold: 999999,
+      prompts: [{ expectedText: 'سبب الاسترجاع', value: 'صف من الخادم' }]
+    });
+    await context.reverseTreasuryEntry(uuid);
+    expect(calls.backendGetById).toEqual([uuid]);
+    // Exactly one backend mutation: the opposite entry. No delete, no update.
+    expect(calls.backendCreate).toHaveLength(1);
+    expect(calls.backendCreate[0].type).toBe('out');
+    expect(calls.backendCreate[0].reversalOf).toBe(uuid);
+    expect(calls.backendDelete).toHaveLength(0);
+    // The fetched row joined the local mirror (audit trail) and is marked.
+    expect(db.cashFlow).toHaveLength(2);
+    expect(db.cashFlow.find(r => String(r.id) === uuid)._backendId).toBe(uuid);
+  });
+
+  test('an unknown id (neither local nor backend) mutates nothing', async () => {
+    const { context, db, calls } = buildSandbox({
+      cashFlow: [],
+      backendRows: [],
+      reversePinThreshold: 999999
+    });
+    await context.reverseTreasuryEntry('nope-404');
+    expect(calls.backendCreate).toHaveLength(0);
+    expect(calls.backendDelete).toHaveLength(0);
+    expect(db.cashFlow).toHaveLength(0);
+    expect(calls.toasts.some(t => t.msg.includes('الحركة غير موجودة'))).toBe(true);
+  });
+
+  test('an already-reversed backend row is refused without any mutation', async () => {
+    const uuid = 'uuid-already-reversed';
+    const { context, db, calls } = buildSandbox({
+      cashFlow: [],
+      backendRows: [{ id: uuid, type: 'in', amount: 55, method: 'cash', desc: 'done', reversedBy: 123 }],
+      confirmResult: true,
+      reversePinThreshold: 999999,
+      prompts: [{ expectedText: 'سبب الاسترجاع', value: 'x' }]
+    });
+    await context.reverseTreasuryEntry(uuid);
+    expect(calls.backendCreate).toHaveLength(0);
+    expect(calls.backendDelete).toHaveLength(0);
+    expect(db.cashFlow).toHaveLength(0);
+    expect(calls.toasts.some(t => t.msg.includes('مسبقًا'))).toBe(true);
   });
 });
