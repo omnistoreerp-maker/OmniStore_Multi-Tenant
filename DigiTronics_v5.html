@@ -1664,6 +1664,7 @@ window.DIGITRONICS_SUPABASE = window.DIGITRONICS_SUPABASE || {
     <div class="nav-dropdown-item" data-page="serialsearch"><span class="icon">🔍</span> بحث بالسيريال</div>
     <div class="nav-dropdown-item" data-page="accountstatement"><span class="icon">🪪</span> كشف حساب</div>
     <div class="nav-dropdown-item" data-page="playstation"><span class="icon">🎮</span> PlayStation</div>
+    <div class="nav-dropdown-item" data-page="reels"><span class="icon">🎬</span> الوسائط والريلز</div>
   </div>
 
   <div class="nav-dropdown" id="dropdown-sales">
@@ -3737,6 +3738,28 @@ window.DIGITRONICS_SUPABASE = window.DIGITRONICS_SUPABASE || {
       </div>
     </div>
 
+
+    <!-- MEDIA / REELS PAGE (Day 8) -->
+    <div class="page" id="page-reels">
+      <div class="page-header"><div class="page-title">🎬 الوسائط والريلز</div>
+        <div class="table-actions">
+          <button class="btn btn-outline btn-sm" onclick="reelsLoad()">🔄 تحديث</button>
+        </div>
+      </div>
+      <div id="reelsAlert" style="margin-bottom:8px"></div>
+
+      <div class="table-container">
+        <div class="table-header">
+          <div class="table-title">📱 آخر المنشورات (TikTok / Reels)</div>
+          <div class="table-actions" style="flex:1">
+            <span id="reelsCacheInfo" style="font-size:0.74rem;color:var(--text2)"></span>
+            <a class="btn btn-outline btn-sm" id="reelsProfileLink" href="#" target="_blank" rel="noopener" style="display:none">فتح الحساب ↗</a>
+          </div>
+        </div>
+        <div id="reelsState" style="display:none;padding:14px;text-align:center;color:var(--text2)"></div>
+        <div id="reelsBody" style="padding:12px"></div>
+      </div>
+    </div>
 
     <!-- LOYALTY PAGE (Day 8) -->
     <div class="page" id="page-loyalty">
@@ -13707,6 +13730,7 @@ function canAccessPage(page) {
   if (page === 'supabase-diagnostic') return can('all') || currentUser.role === 'Manager';
   if (page === 'training-center') return currentUser && ['Owner','Admin','Manager','Cashier','Technician'].includes(currentUser.role);
   if (page === 'command-center') return can('all') || currentUser.role === 'Manager';
+  if (page === 'reels') return !!currentUser;
   if (page === 'live-sync') return !!currentUser;
   if (page === 'pwa') return !!currentUser;
   if (can('all')) return true;
@@ -16896,6 +16920,7 @@ function showPage(page, options = {}) {
   if (page === 'customers') renderCustomersTable();
   if (page === 'students') renderStudentsPage();
   if (page === 'loyalty') renderLoyaltyPage();
+  if (page === 'reels') reelsLoad();
   if (page === 'installments') renderInstallments();
   if (page === 'returns') renderReturns();
   if (page === 'warranty') renderWarranty();
@@ -26653,6 +26678,100 @@ async function renderStudentsPage() {
   studentsLoadPasses();
   studentsLoadRates();
   studentsLoadSettings();
+}
+
+// ================= MEDIA / REELS (Day 8) =================
+// Read-only surface over the existing public feed endpoint
+// (/api/v1/platform-public/social-feed/tiktok). The server's embed list is
+// rendered as cards (thumbnail + title + outbound link). The remote embed_html is
+// deliberately NOT injected into the ERP DOM: it carries third-party scripts, so
+// linking out keeps this page passive. The handle and the one-hour cache belong
+// to the backend service — nothing about the feed is fabricated here.
+const REELS_FEED_PATH = '/platform-public/social-feed/tiktok';
+
+function reelsEl(id) { return document.getElementById(id); }
+function reelsEscape(v) { return (typeof escapeHtml === 'function') ? escapeHtml(v) : String(v == null ? '' : v); }
+
+function reelsSetState(message) {
+  const el = reelsEl('reelsState');
+  if (!el) return;
+  if (!message) { el.style.display = 'none'; el.textContent = ''; return; }
+  el.style.display = 'block';
+  el.textContent = message;
+}
+
+function reelsAlert(kind, message) {
+  const host = reelsEl('reelsAlert');
+  if (!host) return;
+  if (!message) { host.innerHTML = ''; return; }
+  const cls = kind === 'error' ? 'alert alert-danger' : kind === 'warn' ? 'alert alert-warning' : 'alert alert-info';
+  host.innerHTML = '<div class="' + cls + '">' + reelsEscape(message) + '</div>';
+}
+
+function reelsSafeUrl(url) {
+  const u = String(url || '');
+  if (/^https:\/\/(www\.)?tiktok\.com\//i.test(u)) return u;
+  if (/^https:\/\//i.test(u)) return u;
+  return '#';
+}
+
+function reelsCard(embed) {
+  const e = embed || {};
+  const title = e.title || 'منشور';
+  const author = e.author_name || '';
+  const thumb = typeof e.thumbnail === 'string' ? e.thumbnail : '';
+  const pic = (/^https:\/\//i.test(thumb))
+    ? '<img src="' + reelsEscape(thumb) + '" alt="" style="width:100%;height:180px;object-fit:cover;border-radius:10px;background:var(--border)">'
+    : '<div style="height:180px;border-radius:10px;background:var(--border);display:flex;align-items:center;justify-content:center;color:var(--text2)">🎬</div>';
+  return '<div style="min-width:240px;max-width:280px;flex:1;border:1px solid var(--border);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px">' +
+    pic +
+    '<div style="font-size:0.82rem;font-weight:600;min-height:38px">' + reelsEscape(title) + '</div>' +
+    (author ? '<div style="font-size:0.74rem;color:var(--text2)">@' + reelsEscape(author) + '</div>' : '') +
+    '<a class="btn btn-outline btn-sm" href="' + reelsEscape(reelsSafeUrl(e.url)) + '" target="_blank" rel="noopener">مشاهدة ↗</a>' +
+    '</div>';
+}
+
+async function reelsLoad() {
+  const body = reelsEl('reelsBody');
+  if (!body) return;
+  reelsAlert(null);
+  const link = reelsEl('reelsProfileLink');
+  if (link) { link.style.display = 'none'; link.href = '#'; }
+  const info = reelsEl('reelsCacheInfo');
+  if (info) info.textContent = '';
+  if (!USE_BACKEND) {
+    body.innerHTML = '';
+    reelsSetState('الوسائط تُقرأ من الخادم. الرجاء تفعيل الاتصال بالخادم أولاً.');
+    return;
+  }
+  reelsSetState('⏳ جارٍ تحميل المنشورات…');
+  const resp = await backendApi._fetch('GET', REELS_FEED_PATH);
+  const data = resp && resp.data;
+  const embeds = data && Array.isArray(data.embeds) ? data.embeds : null;
+  if (!embeds) {
+    body.innerHTML = '';
+    reelsSetState('تعذّر تحميل الوسائط: ' + ((backendStatus && backendStatus.lastError) || 'خطأ في الخادم'));
+    return;
+  }
+  if (!embeds.length) {
+    body.innerHTML = '';
+    reelsSetState('لا توجد منشورات متاحة حالياً.');
+    return;
+  }
+  body.innerHTML = '<div style="display:flex;gap:12px;flex-wrap:wrap">' + embeds.map(reelsCard).join('') + '</div>';
+  reelsSetState(null);
+
+  const isFallback = embeds.length === 1 && embeds[0] && embeds[0].fallback === true;
+  if (isFallback) {
+    reelsAlert('warn', 'لا توجد منشورات مباشرة: حساب المنصة لم يُهيأ بعد في خدمة الوسائط على الخادم.');
+  } else if (link) {
+    const profile = String(embeds[0].url || '').split('/video/')[0];
+    if (/^https:\/\//i.test(profile)) { link.href = profile; link.style.display = 'inline-flex'; }
+  }
+  const cache = data.cache || {};
+  if (info && cache.cachedAt) {
+    info.textContent = 'آخر تحديث: ' + String(cache.cachedAt).slice(0, 16).replace('T', ' ') + (cache.stale ? ' (منتهي)' : '');
+  }
 }
 
 // ================= LOYALTY (Day 8) =================
