@@ -19,6 +19,7 @@ const router = require('express').Router();
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
 const ctrl = require('../controllers/gameHosting.controller');
+const orderCtrl = require('../controllers/gameHostingOrder.controller');
 const asyncHandler = require('../utils/asyncHandler');
 const { requireMarketTenant, requireCustomer, requireOperator } = require('../middleware/marketAuth');
 
@@ -68,5 +69,35 @@ router.delete('/entitlements/:id', requireMarketTenant, requireOperator, limiter
 
 // Operator: Audit log
 router.get('/audit-log', requireMarketTenant, requireOperator, limiter, asyncHandler(ctrl.listAuditLog));
+
+// === Orders / billing / provisioning (Phase: Game Hosting completion) ===
+//
+// Price integrity: the client only picks planId + billingPeriod; the
+// amount is resolved server-side (gameHostingPricing.service).
+//
+// NOTE: the payment webhook endpoint is mounted WITHOUT the customer
+// guard (gateways call server-to-server). Real gateways must verify
+// an HMAC signature before trusting the payload — recorded as an
+// integration dependency in GAME_HOSTING_STATUS.
+router.get('/orders/quote', requireMarketTenant, requireCustomer, limiter, asyncHandler(orderCtrl.quoteOrder));
+router.get('/orders', requireMarketTenant, requireCustomer, limiter, asyncHandler(orderCtrl.listMyOrders));
+router.get('/orders/:id', requireMarketTenant, requireCustomer, limiter, asyncHandler(orderCtrl.getMyOrder));
+router.post('/orders', requireMarketTenant, requireCustomer, limiter, asyncHandler(orderCtrl.createOrder));
+router.post('/orders/:id/pay', requireMarketTenant, requireCustomer, limiter, asyncHandler(orderCtrl.payOrder));
+router.post('/orders/:id/provision', requireMarketTenant, requireCustomer, limiter, asyncHandler(orderCtrl.provisionOrder));
+router.post('/orders/:id/renew', requireMarketTenant, requireCustomer, limiter, asyncHandler(orderCtrl.renewOrder));
+router.post('/orders/:id/suspend', requireMarketTenant, requireCustomer, limiter, asyncHandler(orderCtrl.suspendOrder));
+router.post('/orders/:id/resume', requireMarketTenant, requireCustomer, limiter, asyncHandler(orderCtrl.resumeOrder));
+router.post('/orders/:id/terminate', requireMarketTenant, requireCustomer, limiter, asyncHandler(orderCtrl.terminateOrder));
+router.get('/orders/:id/provider-status', requireMarketTenant, requireCustomer, limiter, asyncHandler(orderCtrl.orderProviderStatus));
+
+// Gateway webhook — signature verification required for production.
+router.post('/payment-webhook', requireMarketTenant, limiter, asyncHandler(orderCtrl.paymentWebhook));
+
+// Operator: operational admin for the hosting pipeline.
+router.get('/admin/overview', requireMarketTenant, requireOperator, limiter, asyncHandler(orderCtrl.adminOverview));
+router.post('/admin/orders/:id/retry-provisioning', requireMarketTenant, requireOperator, limiter, asyncHandler(orderCtrl.adminRetryProvisioning));
+router.post('/admin/orders/:id/refund', requireMarketTenant, requireOperator, limiter, asyncHandler(orderCtrl.adminRefund));
+router.post('/admin/expiry-sweep', requireMarketTenant, requireOperator, limiter, asyncHandler(orderCtrl.adminExpireSweep));
 
 module.exports = router;
