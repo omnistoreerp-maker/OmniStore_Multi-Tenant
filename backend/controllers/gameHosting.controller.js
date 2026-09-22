@@ -29,7 +29,9 @@
 
 const { success, error } = require('../utils/apiResponse');
 const gameHostingService = require('../services/gameHosting.service');
-const gameHostingProvider = require('./gameHostingProvider');
+// Legacy BLOCKED stub replaced by the provider-agnostic registry façade
+// (same call shape; real status now reflects GAME_HOSTING_PROVIDER).
+const gameHostingProvider = require('../services/gameHosting/provider');
 const gameHostingStateMachine = require('./gameHostingStateMachine');
 const entitlementService = require('../services/gameHostingEntitlement.service');
 const auditService = require('../services/audit.service');
