@@ -29,6 +29,21 @@ function _isOperator(req) {
   return Boolean(req.customer && req.customer.role === 'operator');
 }
 
+// Ownership guard for order actions: a customer may only act on their
+// own orders; operators may act tenant-wide. Foreign orders → 404.
+async function _ownedOrder(req, res) {
+  const order = await orderService.getOrderById({ id: req.params.id, tenantContext: _tenantContext(req) });
+  if (!order) {
+    error(res, 'Order not found', 404);
+    return null;
+  }
+  if (!_isOperator(req) && order.customerId && String(order.customerId) !== String(_customerId(req))) {
+    error(res, 'Order not found', 404);
+    return null;
+  }
+  return order;
+}
+
 // === Quote (storefront shows the price before ordering) ===
 async function quoteOrder(req, res) {
   try {
@@ -138,7 +153,9 @@ async function paymentWebhook(req, res) {
 // === Provisioning ===
 async function provisionOrder(req, res) {
   try {
-    const result = await provisioningService.provisionOrder({ orderId: req.params.id, tenantContext: _tenantContext(req) });
+    const order = await _ownedOrder(req, res);
+    if (!order) return;
+    const result = await provisioningService.provisionOrder({ orderId: order.id, tenantContext: _tenantContext(req) });
     if (result.error) {
       const status = result.error === 'Order not found' ? 404 : (String(result.error).indexOf('must be paid') !== -1 ? 409 : 400);
       return error(res, result.error, status);
@@ -161,7 +178,9 @@ async function provisionOrder(req, res) {
 // === Lifecycle (customer + operator) ===
 async function suspendOrder(req, res) {
   try {
-    const result = await provisioningService.suspendOrder({ orderId: req.params.id, tenantContext: _tenantContext(req), reason: req.body && req.body.reason });
+    const order = await _ownedOrder(req, res);
+    if (!order) return;
+    const result = await provisioningService.suspendOrder({ orderId: order.id, tenantContext: _tenantContext(req), reason: req.body && req.body.reason });
     if (result.error) {
       const status = result.error === 'Order not found' ? 404 : 409;
       return error(res, result.error, status);
@@ -174,7 +193,9 @@ async function suspendOrder(req, res) {
 
 async function resumeOrder(req, res) {
   try {
-    const result = await provisioningService.resumeOrder({ orderId: req.params.id, tenantContext: _tenantContext(req) });
+    const order = await _ownedOrder(req, res);
+    if (!order) return;
+    const result = await provisioningService.resumeOrder({ orderId: order.id, tenantContext: _tenantContext(req) });
     if (result.error) {
       const status = result.error === 'Order not found' ? 404 : 409;
       return error(res, result.error, status);
@@ -187,7 +208,9 @@ async function resumeOrder(req, res) {
 
 async function terminateOrder(req, res) {
   try {
-    const result = await provisioningService.terminateOrder({ orderId: req.params.id, tenantContext: _tenantContext(req), reason: req.body && req.body.reason });
+    const order = await _ownedOrder(req, res);
+    if (!order) return;
+    const result = await provisioningService.terminateOrder({ orderId: order.id, tenantContext: _tenantContext(req), reason: req.body && req.body.reason });
     if (result.error) {
       const status = result.error === 'Order not found' ? 404 : 409;
       return error(res, result.error, status);
@@ -200,7 +223,9 @@ async function terminateOrder(req, res) {
 
 async function orderProviderStatus(req, res) {
   try {
-    const result = await provisioningService.getProviderStatus({ orderId: req.params.id, tenantContext: _tenantContext(req) });
+    const order = await _ownedOrder(req, res);
+    if (!order) return;
+    const result = await provisioningService.getProviderStatus({ orderId: order.id, tenantContext: _tenantContext(req) });
     if (result.error) return error(res, result.error, result.error === 'Order not found' ? 404 : 400);
     return success(res, result, 'Provider status retrieved');
   } catch (err) {
@@ -211,11 +236,8 @@ async function orderProviderStatus(req, res) {
 // === Renewal ===
 async function renewOrder(req, res) {
   try {
-    const order = await orderService.getOrderById({ id: req.params.id, tenantContext: _tenantContext(req) });
-    if (!order) return error(res, 'Order not found', 404);
-    if (order.customerId && String(order.customerId) !== String(_customerId(req)) && !_isOperator(req)) {
-      return error(res, 'Order not found', 404);
-    }
+    const order = await _ownedOrder(req, res);
+    if (!order) return;
     const result = await orderService.renewOrder({ orderId: order.id, tenantContext: _tenantContext(req), billingPeriod: req.body && req.body.billingPeriod });
     if (result.error) return error(res, result.error, 409);
     return success(res, result.order, 'Order renewed');
@@ -246,7 +268,9 @@ async function adminOverview(req, res) {
 
 async function adminRetryProvisioning(req, res) {
   try {
-    const result = await provisioningService.provisionOrder({ orderId: req.params.id, tenantContext: _tenantContext(req) });
+    const order = await _ownedOrder(req, res);
+    if (!order) return;
+    const result = await provisioningService.provisionOrder({ orderId: order.id, tenantContext: _tenantContext(req) });
     if (result.error) {
       const status = result.error === 'Order not found' ? 404 : 409;
       return error(res, result.error, status);
@@ -277,8 +301,10 @@ async function adminExpireSweep(req, res) {
 
 async function adminRefund(req, res) {
   try {
+    const order = await _ownedOrder(req, res);
+    if (!order) return;
     const result = await orderService.applyRefund({
-      orderId: req.params.id,
+      orderId: order.id,
       tenantContext: _tenantContext(req),
       paymentRef: req.body && req.body.paymentRef,
       reason: req.body && req.body.reason

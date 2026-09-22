@@ -15,10 +15,12 @@
 
 const orderService = require('./gameHostingOrder.service');
 const serverService = require('./gameHosting.service');
-const { getActiveProvider } = require('./gameHosting/providerRegistry');
+const providerRegistry = require('./gameHosting/providerRegistry');
 
 async function _provider() {
-  return getActiveProvider();
+  // Indirect resolution (registry module property) so tests and future
+  // plugin loaders can override the active adapter via injection.
+  return providerRegistry.getActiveProvider();
 }
 
 function _tenantContext(t) {
