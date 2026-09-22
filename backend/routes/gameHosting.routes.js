@@ -71,10 +71,37 @@ router.delete('/entitlements/:id', requireMarketTenant, requireOperator, limiter
 // Operator: Audit log
 router.get('/audit-log', requireMarketTenant, requireOperator, limiter, asyncHandler(ctrl.listAuditLog));
 
+// === Orders / billing / provisioning (Game Hosting completion) ===
+//
+// Price integrity: the client only picks planId + billingPeriod; the
+// amount is resolved server-side (gameHostingPricing.service).
+// These mounts came from the Astra completion branch: main already carried
+// the hardened order controller/service but never mounted this API surface,
+// leaving the whole order lifecycle unreachable.
+router.get('/orders/quote', requireMarketTenant, requireCustomer, limiter, asyncHandler(orderCtrl.quoteOrder));
+router.get('/orders', requireMarketTenant, requireCustomer, limiter, asyncHandler(orderCtrl.listMyOrders));
+router.get('/orders/:id', requireMarketTenant, requireCustomer, limiter, asyncHandler(orderCtrl.getMyOrder));
+router.post('/orders', requireMarketTenant, requireCustomer, limiter, asyncHandler(orderCtrl.createOrder));
+router.post('/orders/:id/pay', requireMarketTenant, requireCustomer, limiter, asyncHandler(orderCtrl.payOrder));
+router.post('/orders/:id/provision', requireMarketTenant, requireCustomer, limiter, asyncHandler(orderCtrl.provisionOrder));
+router.post('/orders/:id/renew', requireMarketTenant, requireCustomer, limiter, asyncHandler(orderCtrl.renewOrder));
+router.post('/orders/:id/suspend', requireMarketTenant, requireCustomer, limiter, asyncHandler(orderCtrl.suspendOrder));
+router.post('/orders/:id/resume', requireMarketTenant, requireCustomer, limiter, asyncHandler(orderCtrl.resumeOrder));
+router.post('/orders/:id/terminate', requireMarketTenant, requireCustomer, limiter, asyncHandler(orderCtrl.terminateOrder));
+router.get('/orders/:id/provider-status', requireMarketTenant, requireCustomer, limiter, asyncHandler(orderCtrl.orderProviderStatus));
+
+// Operator: operational admin for the hosting pipeline.
+router.get('/admin/overview', requireMarketTenant, requireOperator, limiter, asyncHandler(orderCtrl.adminOverview));
+router.post('/admin/orders/:id/retry-provisioning', requireMarketTenant, requireOperator, limiter, asyncHandler(orderCtrl.adminRetryProvisioning));
+router.post('/admin/orders/:id/refund', requireMarketTenant, requireOperator, limiter, asyncHandler(orderCtrl.adminRefund));
+router.post('/admin/expiry-sweep', requireMarketTenant, requireOperator, limiter, asyncHandler(orderCtrl.adminExpireSweep));
+
 // Gateway payment webhook — fail-closed HMAC on the RAW body via the shared
 // payments-webhook pattern (x-payments-signature + PAYMENTS_WEBHOOK_SECRET).
 // Mounted without requireCustomer (server-to-server); signature runs first so
 // unsigned/invalid requests never reach payment/order state mutation.
+// Kept from main: this is strictly stronger than the unsigned mount the
+// completion branch proposed.
 router.post(
   '/payment-webhook',
   verifyPaymentsWebhookSignature,
