@@ -249,7 +249,7 @@
     const grid = document.getElementById('mk-featured');
     (prods.products || []).forEach((p) => grid.appendChild(productCard(p)));
 
-    let html = '<section class="mk-hero">' +
+    html = '<section class="mk-hero">' +
       '<div class="mk-hero-content">' +
         '<h1 class="mk-hero-title">' + esc(t('hero_title')) + '</h1>' +
         '<p class="mk-hero-sub">' + esc(t('hero_sub')) + '</p>' +
@@ -279,8 +279,8 @@
     }
     setApp(html);
 
-    const grid = document.getElementById('mk-featured');
-    if (grid) (prods.products || []).forEach((p) => grid.appendChild(productCard(p)));
+    const grid2 = document.getElementById('mk-featured');
+    if (grid2) (prods.products || []).forEach((p) => grid2.appendChild(productCard(p)));
   }
 
   function productCard(p) {
@@ -288,8 +288,6 @@
     a.className = 'mk-card';
     a.href = '#/product/' + encodeURIComponent(p.id);
     const out = (p.stockQty || 0) <= 0;
-    a.innerHTML =
-      '<div class="mk-card-img">📦</div>' +
     const fallbackSrc = 'market/img/placeholders/product.svg';
     const imgHtml = '<img src="' + (p.imageUrl || fallbackSrc) + '" alt="' + esc(t('product_image_alt')) + '" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' + '<div class="mk-card-fallback" style="display:none"><i data-lucide="package"></i></div>';
     a.innerHTML =
@@ -308,16 +306,11 @@
     const cat = params.get('category') || '';
     const q = params.get('q') || '';
     const sort = params.get('sort') || 'name';
-    setApp('<div class="mk-loading">' + esc(t('loading')) + '</div>');
     setApp('<div class="mk-loading">' + esc(t('loading')) + '</div><div class="mk-grid">' + skeletonGrid(6) + '</div>');
     const [cats, prods] = await Promise.all([
       window.MK_API.categories().catch(() => ({ categories: [] })),
       window.MK_API.products({ categoryId: cat, search: q, sortBy: sort === 'price_asc' ? 'price' : sort === 'price_desc' ? 'price' : 'name', sortOrder: sort === 'price_desc' ? 'desc' : 'asc', limit: 100 }).catch(() => ({ products: [] }))
     ]);
-    let html = '<h1 class="mk-page-title">' + esc(t('catalog_title')) + '</h1>';
-    html += '<div class="mk-toolbar">' +
-      '<input class="mk-input" id="mk-search" placeholder="' + esc(t('search_placeholder')) + '" value="' + esc(q) + '">' +
-      '<select class="mk-select" id="mk-sort" style="max-width:220px">' +
     const allProducts = (prods.products || []).slice();
     let html = '<h1 class="mk-page-title">' + esc(t('catalog_title')) + '</h1>';
     html += '<div class="mk-toolbar">' +
@@ -330,7 +323,6 @@
         '<option value="price_asc" ' + (sort === 'price_asc' ? 'selected' : '') + '>' + esc(t('sort_price_asc')) + '</option>' +
         '<option value="price_desc" ' + (sort === 'price_desc' ? 'selected' : '') + '>' + esc(t('sort_price_desc')) + '</option>' +
       '</select>' +
-      '<select class="mk-select" id="mk-cat" style="max-width:200px">' +
       '<select class="mk-select mk-select--cat" id="mk-cat">' +
         '<option value="">' + esc(t('all_categories')) + '</option>' +
         (cats.categories || []).map((c) => '<option value="' + esc(c.id) + '" ' + (c.id === cat ? 'selected' : '') + '>' + esc(c.id) + '</option>').join('') +
@@ -421,19 +413,6 @@
     const p = await window.MK_API.product(id).catch(() => null);
     if (!p) { setApp('<h1 class="mk-page-title">' + esc(t('product_not_found')) + '</h1><p><a href="#/catalog">' + esc(t('back_to_catalog')) + '</a></p>'); return; }
     const out = (p.stockQty || 0) <= 0;
-    let html = '<a href="#/catalog">← ' + esc(t('back_to_catalog')) + '</a>';
-    html += '<div class="mk-row" style="margin-top:16px">';
-    html += '<div class="mk-col"><div class="mk-card-img" style="height:260px">📦</div></div>';
-    html += '<div class="mk-col">';
-    html += '<h1 class="mk-page-title">' + esc(p.name) + '</h1>';
-    html += '<div class="mk-card-price" style="font-size:22px">' + esc(money(p.price, p.currency)) + '</div>';
-    html += '<div class="mk-card-stock ' + (out ? 'out' : '') + '">' + (out ? esc(t('out_of_stock')) : esc(t('in_stock') + ': ' + p.stockQty)) + '</div>';
-    if (p.description) html += '<p>' + esc(p.description) + '</p>';
-    if (!out) {
-      html += '<div class="mk-field" style="max-width:200px"><label>' + esc(t('qty')) + '</label><input class="mk-input mk-qty" id="mk-qty" type="number" min="1" value="1"></div>';
-      html += '<button class="mk-btn" id="mk-add">' + esc(t('add_to_cart')) + '</button>';
-    }
-    html += '</div></div>';
     const fallbackSrc = 'market/img/placeholders/product.svg';
     const imgHtml = '<img src="' + (p.imageUrl || fallbackSrc) + '" alt="' + esc(t('product_image_alt')) + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' + '<div class="mk-card-fallback" style="display:none"><i data-lucide="package"></i></div>';
     let html = breadcrumb([{label: t('nav_home'), href: '#/home'}, {label: t('nav_catalog'), href: '#/catalog'}, {label: p.name}]);
@@ -534,7 +513,6 @@
     if (!items.length) { location.hash = '#/cart'; return; }
     const cfg = await window.MK_API.config().catch(() => null);
     window.MK_CONFIG = cfg;
-    setApp('<div class="mk-loading">' + esc(t('loading')) + '</div>');
     setApp(skeletonCheckoutForm());
     const prods = await window.MK_API.products({ limit: 100 }).catch(() => ({ products: [] }));
     const pById = {};
@@ -556,18 +534,6 @@
       html += banner('success', '<a href="#/account">' + esc(t('or_login')) + '</a>');
     }
     html += '<div class="mk-row"><div class="mk-col">';
-    html += '<div class="mk-field"><label>' + esc(t('name')) + '</label><input class="mk-input" id="ck-name"></div>';
-    html += '<div class="mk-field"><label>' + esc(t('email')) + '</label><input class="mk-input" id="ck-email" type="email"></div>';
-    html += '<div class="mk-field"><label>' + esc(t('phone')) + '</label><input class="mk-input" id="ck-phone"></div>';
-    html += '<div class="mk-field"><label>' + esc(t('shipping_address')) + '</label><input class="mk-input" id="ck-addr"></div>';
-    html += '</div><div class="mk-col">';
-    if (cfg && cfg.shippingZones && cfg.shippingZones.length) {
-      html += '<div class="mk-field"><label>' + esc(t('shipping_zone')) + '</label><select class="mk-select" id="ck-zone">' +
-      storeAuthDestination();
-      location.hash = '#/account';
-      return;
-    }
-    html += '<div class="mk-row"><div class="mk-col">';
     html += '<div class="mk-field"><label for="ck-name">' + esc(t('name')) + '</label><input class="mk-input" id="ck-name" required></div>';
     html += '<div class="mk-field"><label for="ck-email">' + esc(t('email')) + '</label><input class="mk-input" id="ck-email" type="email" required></div>';
     html += '<div class="mk-field"><label for="ck-phone">' + esc(t('phone')) + '</label><input class="mk-input" id="ck-phone"></div>';
@@ -579,15 +545,6 @@
         '</select></div>';
     }
     if (cfg && cfg.paymentMethods && cfg.paymentMethods.length) {
-      html += '<div class="mk-field"><label>' + esc(t('payment_method')) + '</label><select class="mk-select" id="ck-pay">' +
-        cfg.paymentMethods.map((m) => '<option value="' + esc(m.id) + '">' + esc(m.name) + '</option>').join('') +
-        '</select></div>';
-    }
-    html += '<div class="mk-field"><label>' + esc(t('coupon')) + '</label><input class="mk-input" id="ck-coupon"></div>';
-    html += '<div class="mk-summary"><div class="mk-summary-row"><span>' + esc(t('subtotal')) + '</span><span>' + esc(money(subtotal, cfg && cfg.currency)) + '</span></div>';
-    html += '<div class="mk-summary-row"><span>' + esc(t('shipping_fee')) + '</span><span id="ck-ship">' + esc(money(0, cfg && cfg.currency)) + '</span></div>';
-    html += '<div class="mk-summary-row total"><span>' + esc(t('total')) + '</span><span id="ck-total">' + esc(money(subtotal, cfg && cfg.currency)) + '</span></div></div>';
-    html += '<button class="mk-btn block" id="ck-place" style="margin-top:12px">' + esc(t('place_order')) + '</button>';
       html += '<div class="mk-field"><label for="ck-pay">' + esc(t('payment_method')) + '</label><select class="mk-select" id="ck-pay">' +
         cfg.paymentMethods.map((m) => '<option value="' + esc(m.id) + '">' + esc(m.name) + '</option>').join('') +
         '</select></div>';
@@ -611,7 +568,6 @@
     if (zoneSel) zoneSel.addEventListener('change', updateTotals);
     updateTotals();
 
-    document.getElementById('ck-place').addEventListener('click', async () => {
     ['ck-name', 'ck-email', 'ck-phone', 'ck-addr'].forEach((id) => {
       const el = document.getElementById(id);
       if (el) el.addEventListener('input', () => clearFieldError(id));
@@ -646,11 +602,6 @@
         shippingZoneId: zoneSel ? zoneSel.value : undefined,
         paymentMethodId: (document.getElementById('ck-pay') || {}).value,
         couponCode: document.getElementById('ck-coupon').value.trim() || undefined,
-        customerInfo: { name, email, phone: document.getElementById('ck-phone').value.trim() },
-        shippingAddress: document.getElementById('ck-addr').value.trim() || null
-      };
-      if (!name || !email) { msg.innerHTML = banner('error', t('required_field')); return; }
-      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { msg.innerHTML = banner('error', t('invalid_email')); return; }
         customerInfo: { name, email, phone: phone || undefined },
         shippingAddress: addr
       };
@@ -736,58 +687,6 @@
           const r = await window.MK_API.register({ email: document.getElementById('rg-email').value, name: document.getElementById('rg-name').value, phone: document.getElementById('rg-phone').value, password: document.getElementById('rg-pass').value });
           window.MK_API.setToken(r.token);
           render();
-      html += '<div class="mk-field"><label for="lg-email">' + esc(t('email')) + '</label><input class="mk-input" id="lg-email" required></div>';
-      html += '<div class="mk-field"><label for="lg-pass">' + esc(t('password')) + '</label><input class="mk-input" id="lg-pass" type="password" required></div>';
-      html += '<button class="mk-btn" id="lg-btn">' + esc(t('login')) + '</button></div>';
-      html += '<div class="mk-col"><h2>' + esc(t('register_title')) + '</h2><div id="ac-reg-msg"></div>';
-      html += '<div class="mk-field"><label for="rg-name">' + esc(t('name')) + '</label><input class="mk-input" id="rg-name" required></div>';
-      html += '<div class="mk-field"><label for="rg-email">' + esc(t('email')) + '</label><input class="mk-input" id="rg-email" type="email" required></div>';
-      html += '<div class="mk-field"><label for="rg-phone">' + esc(t('phone')) + '</label><input class="mk-input" id="rg-phone"></div>';
-      html += '<div class="mk-field"><label for="rg-pass">' + esc(t('password_req')) + '</label><input class="mk-input" id="rg-pass" type="password" required></div>';
-      html += '<button class="mk-btn" id="rg-btn">' + esc(t('register')) + '</button></div></div>';
-      setApp(html);
-      ['lg-email', 'lg-pass'].forEach((id) => {
-        const el = document.getElementById(id);
-        if (el) el.addEventListener('input', () => clearFieldError(id));
-      });
-      document.getElementById('lg-btn').addEventListener('click', async () => {
-        clearAllFieldErrors('lg-');
-        const msg = document.getElementById('ac-login-msg');
-        msg.innerHTML = '';
-        const email = document.getElementById('lg-email').value.trim();
-        const pass = document.getElementById('lg-pass').value;
-        let valid = true;
-        if (!email) { fieldError('lg-email', t('required_field')); valid = false; }
-        if (!pass) { fieldError('lg-pass', t('required_field')); valid = false; }
-        if (!valid) return;
-        try {
-          const r = await window.MK_API.login({ email, password: pass });
-          window.MK_API.setToken(r.token);
-          const dest = takeAuthDestination();
-          if (dest) { location.hash = dest; } else { render(); }
-        } catch (e) { msg.innerHTML = banner('error', e.message || t('error_generic')); }
-      });
-      ['rg-name', 'rg-email', 'rg-pass'].forEach((id) => {
-        const el = document.getElementById(id);
-        if (el) el.addEventListener('input', () => clearFieldError(id));
-      });
-      document.getElementById('rg-btn').addEventListener('click', async () => {
-        clearAllFieldErrors('rg-');
-        const msg = document.getElementById('ac-reg-msg');
-        msg.innerHTML = '';
-        const name = document.getElementById('rg-name').value.trim();
-        const email = document.getElementById('rg-email').value.trim();
-        const pass = document.getElementById('rg-pass').value;
-        let valid = true;
-        if (!name) { fieldError('rg-name', t('required_field')); valid = false; }
-        if (!email) { fieldError('rg-email', t('required_field')); valid = false; }
-        if (!pass) { fieldError('rg-pass', t('required_field')); valid = false; }
-        if (!valid) return;
-        try {
-          const r = await window.MK_API.register({ email, name, phone: document.getElementById('rg-phone').value.trim(), password: pass });
-          window.MK_API.setToken(r.token);
-          const dest = takeAuthDestination();
-          if (dest) { location.hash = dest; } else { render(); }
         } catch (e) { msg.innerHTML = banner('error', e.message || t('error_generic')); }
       });
       return;
@@ -799,10 +698,6 @@
     html += '<p><button class="mk-btn danger" id="ac-logout">' + esc(t('logout')) + '</button></p>';
     if (me && me.customer) {
       html += '<h2>' + esc(t('profile')) + '</h2><div id="ac-prof-msg"></div>';
-      html += '<div class="mk-field" style="max-width:360px"><label>' + esc(t('name')) + '</label><input class="mk-input" id="pf-name" value="' + esc(me.customer.name) + '"></div>';
-      html += '<div class="mk-field" style="max-width:360px"><label>' + esc(t('phone')) + '</label><input class="mk-input" id="pf-phone" value="' + esc(me.customer.phone) + '"></div>';
-      html += '<button class="mk-btn" id="pf-save">' + esc(t('update_profile')) + '</button> ';
-      html += '<button class="mk-btn secondary" id="pf-chg">' + esc(t('change_password')) + '</button>';
       html += '<div class="mk-field"><label for="pf-name">' + esc(t('name')) + '</label><input class="mk-input" id="pf-name" value="' + esc(me.customer.name) + '"></div>';
       html += '<div class="mk-field"><label for="pf-phone">' + esc(t('phone')) + '</label><input class="mk-input" id="pf-phone" value="' + esc(me.customer.phone) + '"></div>';
       html += '<button class="mk-btn" id="pf-save">' + esc(t('update_profile')) + '</button> ';
@@ -1024,9 +919,7 @@
   async function pageGameHostingMyServers() {
     if (!window.MK_API.isAuthed()) {
       storeAuthDestination();
-      setApp('<h1 class="mk-page-title">' + esc(t('gh_my_servers')) + '</h1>' + ghBanner('error', esc(t('gh_auth_required')) + ' <a href="#/account">' + esc(t('or_login')) + '</a>') + '<p><button class="mk-btn secondary" id="mk-gh-retry">' + esc(t('gh_retry')) + '</button></p>'));
-      const retryBtn = document.getElementById('mk-gh-retry');
-      if (retryBtn) retryBtn.addEventListener('click', () => { location.hash = '#/account'; });
+      setApp('<h1 class="mk-page-title">' + esc(t('gh_my_servers')) + '</h1>' + ghBanner('error', esc(t('gh_auth_required')) + ' <a href="#/account">' + esc(t('or_login')) + '</a>'));
       return;
     }
     setApp('<h1 class="mk-page-title">' + esc(t('gh_my_servers')) + '</h1><p><a class="mk-btn secondary" href="#/game-hosting">' + esc(t('gh_back_to_plans')) + '</a></p><div id="mk-gh-servers">' + skeletonGameGrid(3) + '</div>');
@@ -1155,9 +1048,7 @@
   async function pageGameHostingRequests() {
     if (!window.MK_API.isAuthed()) {
       storeAuthDestination();
-      setApp('<h1 class="mk-page-title">' + esc(t('gh_requests_title')) + '</h1>' + ghBanner('error', esc(t('gh_auth_required')) + ' <a href="#/account">' + esc(t('or_login')) + '</a>') + '<p><button class="mk-btn secondary" id="mk-gh-retry">' + esc(t('gh_retry')) + '</button></p>'));
-      const retryBtn = document.getElementById('mk-gh-retry');
-      if (retryBtn) retryBtn.addEventListener('click', () => { location.hash = '#/account'; });
+      setApp('<h1 class="mk-page-title">' + esc(t('gh_requests_title')) + '</h1>' + ghBanner('error', esc(t('gh_auth_required')) + ' <a href="#/account">' + esc(t('or_login')) + '</a>'));
       return;
     }
     setApp('<h1 class="mk-page-title">' + esc(t('gh_requests_title')) + '</h1><p><a class="mk-btn secondary" href="#/game-hosting">' + esc(t('gh_back_to_plans')) + '</a></p><div id="mk-gh-reqs">' + skeletonGameGrid(3) + '</div>');
@@ -1643,12 +1534,14 @@
     applyI18n();
     try {
     updateActiveNav(path);
-    try {
       if (path === 'game-hosting') {
         if (param === 'my-servers') return pageGameHostingMyServers();
         if (param === 'servers') return pageGameHostingServer(decodeURIComponent(location.hash.split('/')[3] || ''));
         if (param === 'provision' || (typeof param === 'string' && param.startsWith('provision'))) return pageGameHostingProvision();
         if (param === 'requests') return pageGameHostingRequests();
+        if (param === 'orders') return pageGameHostingOrderDetail(decodeURIComponent(location.hash.split('/')[3] || ''));
+        if (param === 'order-new') return pageGameHostingOrderNew();
+        if (param === 'my-orders') return pageGameHostingOrders();
         return pageGameHosting();
       }
       if (path === 'operator') {

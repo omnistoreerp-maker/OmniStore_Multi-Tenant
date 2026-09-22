@@ -64,7 +64,6 @@ window.MK_API = (function () {
     changePassword: (p) => req('POST', '/customers/me/password', p),
     checkout: (p) => req('POST', '/checkout', p),
     track: (token) => req('GET', '/track/' + encodeURIComponent(token)),
-    myOrders: () => req('GET', '/orders')
     myOrders: () => req('GET', '/orders'),
     // Game Hosting
     ghProviderStatus: () => req('GET', '/game-hosting/provider/status'),
@@ -90,7 +89,23 @@ window.MK_API = (function () {
     ghCreateEntitlement: (p) => req('POST', '/game-hosting/entitlements', p),
     ghUpdateEntitlement: (id, p) => req('PUT', '/game-hosting/entitlements/' + encodeURIComponent(id), p),
     ghDeleteEntitlement: (id) => req('DELETE', '/game-hosting/entitlements/' + encodeURIComponent(id)),
-    ghAuditLog: (q) => req('GET', '/game-hosting/audit-log?' + new URLSearchParams(q || {}).toString())
+    ghAuditLog: (q) => req('GET', '/game-hosting/audit-log?' + new URLSearchParams(q || {}).toString()),
+    // Orders / billing / provisioning
+    ghOrderQuote: (planId, period) => req('GET', '/game-hosting/orders/quote?' + new URLSearchParams({ planId: planId || '', billingPeriod: period || '1m' }).toString()),
+    ghOrders: (q) => req('GET', '/game-hosting/orders?' + new URLSearchParams(q || {}).toString()),
+    ghOrder: (id) => req('GET', '/game-hosting/orders/' + encodeURIComponent(id)),
+    ghCreateOrder: (p) => req('POST', '/game-hosting/orders', p),
+    ghPayOrder: (id) => req('POST', '/game-hosting/orders/' + encodeURIComponent(id) + '/pay'),
+    ghProvisionOrder: (id) => req('POST', '/game-hosting/orders/' + encodeURIComponent(id) + '/provision'),
+    ghRenewOrder: (id, p) => req('POST', '/game-hosting/orders/' + encodeURIComponent(id) + '/renew', p),
+    ghSuspendOrder: (id) => req('POST', '/game-hosting/orders/' + encodeURIComponent(id) + '/suspend'),
+    ghResumeOrder: (id) => req('POST', '/game-hosting/orders/' + encodeURIComponent(id) + '/resume'),
+    ghTerminateOrder: (id) => req('POST', '/game-hosting/orders/' + encodeURIComponent(id) + '/terminate'),
+    ghOrderProviderStatus: (id) => req('GET', '/game-hosting/orders/' + encodeURIComponent(id) + '/provider-status'),
+    ghAdminOverview: (q) => req('GET', '/game-hosting/admin/overview?' + new URLSearchParams(q || {}).toString()),
+    ghAdminRetryProvisioning: (id) => req('POST', '/game-hosting/admin/orders/' + encodeURIComponent(id) + '/retry-provisioning'),
+    ghAdminRefund: (id, p) => req('POST', '/game-hosting/admin/orders/' + encodeURIComponent(id) + '/refund', p),
+    ghAdminExpirySweep: () => req('POST', '/game-hosting/admin/expiry-sweep')
   };
 })();
 
