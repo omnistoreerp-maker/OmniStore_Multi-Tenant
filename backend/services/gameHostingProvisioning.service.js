@@ -63,9 +63,15 @@ async function provisionOrder({ orderId, tenantContext } = {}) {
     region: inFlight.region,
     customerId: inFlight.customerId,
     tenantId: inFlight.tenantId
-  });
+  }).catch((err) => ({ ok: false, code: 'PROVIDER_THROW', message: err.message, retryable: true }));
 
-  if (result && result.ok) {
+  // Contract enforcement: ok:true MUST carry a server envelope with an
+  // externalId. A malformed success response is a provider bug — treat it
+  // as a NON-retryable failure (retrying the same call will produce the
+  // same malformed answer; needs operator/provider investigation).
+  const contractBreach = result && result.ok && !(result.server && result.server.externalId);
+
+  if (result && result.ok && !contractBreach) {
     // Success path — single transition, provider info persisted.
     const done = await orderService.transitionOrder({
       orderId: inFlight.id,
@@ -100,14 +106,24 @@ async function provisionOrder({ orderId, tenantContext } = {}) {
   }
 
   // Failure path — persist error + attempts; order → provisioning_failed.
-  const failure = {
-    code: (result && result.code) || 'PROVIDER_ERROR',
-    message: (result && result.message) || 'Provider provisioning failed',
-    retryable: Boolean(result && result.retryable),
-    provider: (result && result.provider) || null,
-    at: new Date().toISOString(),
-    attempt
-  };
+  const failure = contractBreach
+    ? {
+        code: 'PROVIDER_CONTRACT_BREACH',
+        message: 'Provider returned ok:true without a server envelope (missing externalId). Provider adapter violates the contract.',
+        retryable: false,
+        provider: (result && result.provider) || null,
+        raw: result,
+        at: new Date().toISOString(),
+        attempt
+      }
+    : {
+        code: (result && result.code) || 'PROVIDER_ERROR',
+        message: (result && result.message) || 'Provider provisioning failed',
+        retryable: Boolean(result && result.retryable),
+        provider: (result && result.provider) || null,
+        at: new Date().toISOString(),
+        attempt
+      };
   const fail = await orderService.transitionOrder({
     orderId: inFlight.id,
     to: 'provisioning_failed',
