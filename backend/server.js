@@ -198,6 +198,12 @@ app.use('/api/v1/market', marketRoutes);
 // Phase B — Game Hosting. Self-contained module; does not alter Core ERP routes.
 // Provider integration is BLOCKED; lifecycle state machine and ownership are enforced.
 app.use('/api/v1/game-hosting', gameHostingRoutes);
+// Storefront mount: the market API client is hard-wired to BASE=/api/v1/market,
+// so the SAME router is also mounted under the market prefix. Routes are
+// relative; there is no overlap with marketRoutes (market has no
+// /game-hosting/* handlers). Both mounts share the same controllers,
+// tenant middleware and services — one implementation, two paths.
+app.use('/api/v1/market/game-hosting', gameHostingRoutes);
 // Batch 1 — PlayStation Device & Session Foundation. Self-contained module;
 // does not alter Core ERP routes. Provider integration is BLOCKED.
 app.use('/api/v1/playstation', playstationRoutes);
