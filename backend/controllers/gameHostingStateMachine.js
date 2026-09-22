@@ -2,19 +2,28 @@
 
 // gameHostingStateMachine — Server lifecycle state machine.
 //
-// The server lifecycle has six states:
+// The server lifecycle has seven states:
 //
 //   pending → provisioning → running ⇄ stopped
-//                ↓                ↓
-//              error          terminated (terminal)
+//                ↓                ↓        ↓
+//              error          suspended ←— (billing suspension)
+//                                 ↓
+//                             terminated (terminal)
 //
 // Allowed transitions:
 //   pending       → provisioning, terminated
 //   provisioning  → running, error, terminated
-//   running       → stopped, terminated
-//   stopped       → running, terminated
+//   running       → stopped, suspended, terminated
+//   stopped       → running, suspended, terminated
+//   suspended     → running (resume), terminated
 //   error         → provisioning (retry), terminated
 //   terminated    → (terminal, no transitions out)
+//
+// 'suspended' is the BILLING-driven state (failed payment / expiry /
+// admin suspension). It is distinct from 'stopped' (customer choice).
+// The provider-agnostic layer maps server states onto provider
+// operations: provisioning→provision, running/stopped↔resume/suspend
+// via explicit endpoints, suspended→suspend, terminated→terminate.
 //
 // This is a PURE module — no I/O, no storage. The controller calls
 // validateTransition() before any status update, and the service
@@ -22,14 +31,15 @@
 // is the boundary that would execute the actual infrastructure
 // operation in a real integration.
 
-const STATES = Object.freeze(['pending', 'provisioning', 'running', 'stopped', 'terminated', 'error']);
+const STATES = Object.freeze(['pending', 'provisioning', 'running', 'stopped', 'suspended', 'terminated', 'error']);
 const TERMINAL_STATES = Object.freeze(['terminated']);
 
 const ALLOWED_TRANSITIONS = Object.freeze({
   pending: Object.freeze(['provisioning', 'terminated']),
   provisioning: Object.freeze(['running', 'error', 'terminated']),
-  running: Object.freeze(['stopped', 'terminated']),
-  stopped: Object.freeze(['running', 'terminated']),
+  running: Object.freeze(['stopped', 'suspended', 'terminated']),
+  stopped: Object.freeze(['running', 'suspended', 'terminated']),
+  suspended: Object.freeze(['running', 'terminated']),
   error: Object.freeze(['provisioning', 'terminated']),
   terminated: Object.freeze([])
 });
