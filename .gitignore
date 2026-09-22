@@ -36,3 +36,4 @@ backend/data/users.json
 backend/data/gameHostingPlans.json
 backend/data/gameHostingServers.json
 backend/data/marketCustomers.json
+backend/data/gameHostingOrders.json
