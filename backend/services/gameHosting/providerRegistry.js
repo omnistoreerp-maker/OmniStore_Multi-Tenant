@@ -13,7 +13,17 @@
 //
 // The selection is captured at require-time (envOverride lets tests pin
 // a specific adapter). In production the default resolves to
-// 'unavailable' so the platform never fakes real provisioning.
+// 'unavailable' so the platform never fakes real provisioning: unset,
+// 'mock'/'test', and any name without a registered real adapter ALL
+// resolve to the UnavailableProvider in a production process — the mock
+// can never run there, implicitly or explicitly.
+
+const _PROD_BLOCKED_UNSET_NOTE = 'GAME_HOSTING_PROVIDER is not set. Production defaults to ' +
+  '"unavailable": provisioning is blocked until a real provider adapter is configured.';
+
+const _PROD_BLOCKED_MOCK_NOTE = 'Mock provider is not permitted in production. Set ' +
+  'GAME_HOSTING_PROVIDER to a registered real provider, or to "unavailable" ' +
+  'to block provisioning explicitly.';
 
 const { MockProvider } = require('./mockProvider');
 const { UnavailableProvider } = require('./unavailableProvider');
@@ -27,8 +37,19 @@ function registerProvider(name, provider) {
   return true;
 }
 
+function _isProduction() {
+  return (process.env.NODE_ENV || '').trim().toLowerCase() === 'production';
+}
+
 function _resolveName() {
   const raw = (process.env.GAME_HOSTING_PROVIDER || '').trim().toLowerCase();
+  // Production hard gate: the mock is never the implicit default and is
+  // refused even when selected explicitly — paid orders flip to ACTIVE on
+  // provider success, so a deterministic in-memory provider would fulfil
+  // real revenue with simulated infrastructure.
+  if (_isProduction() && (!raw || raw === 'mock' || raw === 'test')) {
+    return { name: 'unavailable', note: raw ? _PROD_BLOCKED_MOCK_NOTE : _PROD_BLOCKED_UNSET_NOTE };
+  }
   if (!raw || raw === 'mock' || raw === 'test') {
     return { name: 'mock', note: null };
   }
@@ -57,6 +78,10 @@ function getActiveProvider(envOverride) {
   let instance;
   if (name === 'unavailable') {
     instance = new UnavailableProvider(resolved.note || undefined);
+  } else if (_isProduction()) {
+    // Production: an unregistered provider name must not fall through to
+    // the mock either — provisioning stays blocked with the registry note.
+    instance = new UnavailableProvider(resolved.note || _PROD_BLOCKED_UNSET_NOTE);
   } else {
     // 'mock' / unknown → deterministic mock, flagged in the envelope so
     // operators can tell simulated infrastructure from real.
