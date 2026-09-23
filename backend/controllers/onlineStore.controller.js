@@ -66,7 +66,10 @@ function createOrder(req, res) {
     success(res, result, 'Order created', 201);
   } catch (err) {
     logger.error('onlineStore.createOrder error:', err.message);
-    error(res, err.message || 'Failed to create order', 400);
+    // Public storefront endpoint: return a generic rejection instead of
+    // leaking internal store state through raw service error messages
+    // (e.g. 'Store not configured for this tenant').
+    error(res, 'Failed to create order: invalid request', 400);
   }
 }
 

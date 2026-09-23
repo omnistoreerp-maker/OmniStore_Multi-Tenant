@@ -31,6 +31,14 @@ module.exports = {
   // API security
   corsOrigins: process.env.CORS_ORIGINS || '',
   rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX, 10) || 1000,
+
+  // Tenant payments gateway webhook (O2). When PAYMENTS_WEBHOOK_SECRET is
+  // configured, POST /api/v1/payments/webhook is only accepted with a valid
+  // hex HMAC-SHA256 signature of the RAW request body in the
+  // x-payments-signature header. When it is NOT configured the webhook is
+  // disabled entirely (403) — an unsigned payment webhook must never be able
+  // to flip a transaction to paid and activate add-ons.
+  paymentsWebhookSecret: process.env.PAYMENTS_WEBHOOK_SECRET || '',
   apiKeyRateLimitMax: parseInt(process.env.API_KEY_RATE_LIMIT_MAX, 10) || 500,
   bodyLimit: process.env.BODY_LIMIT || '10mb',
 
