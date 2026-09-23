@@ -1,0 +1,572 @@
+{
+  "schema_version": "1.0",
+  "project": "OmniStore Platform",
+  "source_of_truth": "GitHub; no remote access performed for this artifact",
+  "Main": {
+    "branch": "main",
+    "sha": "5f5aca80c08bb95449309d43b1c04bd193939e8c",
+    "verification": "USER_SUPPLIED_REFERENCE_NOT_FETCHED",
+    "capabilities": [
+      {
+        "name": "Orders Today",
+        "status": "DONE",
+        "status_basis": "USER_SUPPLIED_CURRENT_STATE",
+        "branch": {
+          "name": "main",
+          "commit": {
+            "sha": "5f5aca80c08bb95449309d43b1c04bd193939e8c",
+            "relationship_to_main": "USER_REPORTED_CURRENT_MAIN",
+            "verification": "USER_SUPPLIED_ONLY",
+            "files": {
+              "references": [
+                {
+                  "reference": "platformOrdersAggregator.service.js",
+                  "kind": "basename",
+                  "verification": "UNKNOWN / NEEDS VERIFICATION"
+                },
+                {
+                  "reference": "platformActivity",
+                  "kind": "component reference, not file path",
+                  "verification": "UNKNOWN / NEEDS VERIFICATION"
+                }
+              ],
+              "complete_inventory": "UNKNOWN / NEEDS VERIFICATION"
+            },
+            "tests": {
+              "references": [],
+              "claims": [
+                {
+                  "reported": "aggregator 16/16",
+                  "verification": "USER_REPORTED_NOT_RERUN",
+                  "raw_evidence": "Evidence not yet collected"
+                },
+                {
+                  "reported": "platformActivity + platformPublic 58/58",
+                  "verification": "USER_REPORTED_NOT_RERUN",
+                  "raw_evidence": "Evidence not yet collected"
+                },
+                {
+                  "reported": "regression/security 132/132",
+                  "verification": "USER_REPORTED_NOT_RERUN",
+                  "raw_evidence": "Evidence not yet collected"
+                },
+                {
+                  "reported": "Production smoke GET /api/v1/platform-public/stats returned ordersToday numeric value 2",
+                  "verification": "USER_REPORTED_NOT_RERUN",
+                  "raw_evidence": "Evidence not yet collected"
+                }
+              ],
+              "raw_evidence": "Evidence not yet collected"
+            },
+            "dependencies": "No additional dependency specified; complete dependency inventory UNKNOWN / NEEDS VERIFICATION",
+            "security_gates": {
+              "status": "Isolation, PII safety and read-only behavior reported verified by requester; raw evidence not attached.",
+              "next_gate": [
+                "Attach existing verification evidence when available; no new production smoke authorized.",
+                "Preserve implementation. Do not propose changes unless a defect is discovered."
+              ]
+            },
+            "missing_pieces": []
+          }
+        },
+        "notes": [
+          "DONE is the supplied current classification, not a test result produced by this control center.",
+          "The value 2 is a reported past smoke result, not a live counter or a constant to implement."
+        ]
+      },
+      {
+        "name": "Gaming / Game Hosting",
+        "status": "PARTIAL",
+        "status_basis": "USER_SUPPLIED_CURRENT_STATE",
+        "branch": {
+          "name": "agent/astra-game-hosting-completion-20260922",
+          "commit": {
+            "sha": "c263a1283e22ebe10580302758124f6709296784",
+            "relationship_to_main": "UNKNOWN / NEEDS VERIFICATION",
+            "verification": "USER_SUPPLIED_ONLY",
+            "files": {
+              "references": [
+                {
+                  "reference": "backend/routes/gameHosting.routes.js",
+                  "kind": "prior supplied report path",
+                  "verification": "UNKNOWN / NEEDS VERIFICATION"
+                },
+                {
+                  "reference": "gameHostingOrder.controller.paymentWebhook",
+                  "kind": "symbol, exact file path unknown",
+                  "verification": "UNKNOWN / NEEDS VERIFICATION"
+                },
+                {
+                  "reference": "gameHostingOrder.service.applyPaymentResult",
+                  "kind": "symbol, exact file path unknown",
+                  "verification": "UNKNOWN / NEEDS VERIFICATION"
+                },
+                {
+                  "reference": "server.js",
+                  "kind": "basename; rawBody hook reported",
+                  "verification": "UNKNOWN / NEEDS VERIFICATION"
+                }
+              ],
+              "complete_inventory": "UNKNOWN / NEEDS VERIFICATION"
+            },
+            "tests": {
+              "references": [
+                {
+                  "reference": "backend/tests/gameHostingHttp.pipeline.test.js",
+                  "kind": "prior report existing-test candidate; current existence UNKNOWN / NEEDS VERIFICATION"
+                },
+                {
+                  "reference": "backend/tests/gameHostingWebhook.security.test.js",
+                  "kind": "proposed alternative in prior report; NOT an existing-file claim"
+                }
+              ],
+              "claims": [
+                {
+                  "reported": "Prior supplied audit reports customer ownership/operator/provisioning guards; no raw test output supplied.",
+                  "verification": "USER_REPORTED_NOT_RERUN",
+                  "raw_evidence": "Evidence not yet collected"
+                },
+                {
+                  "required": [
+                    "unsigned/missing/tampered signature rejected",
+                    "valid raw-body HMAC accepted for authorized tenant/order",
+                    "secret absent fails closed",
+                    "forged paid attempt rejected with no mutation",
+                    "signed idempotency regression",
+                    "foreign tenant/order mutation rejected",
+                    "existing tenantPayments HMAC regression"
+                  ],
+                  "execution_status": "UNKNOWN / NEEDS VERIFICATION",
+                  "raw_evidence": "Evidence not yet collected"
+                }
+              ],
+              "raw_evidence": "Evidence not yet collected"
+            },
+            "dependencies": "Real provider adapter, provider contract and separately approved credentials/integration; do not create credentials here.",
+            "security_gates": {
+              "status": "BLOCKED: separate HMAC remediation remains unverified; middleware alone does not close tenantContext:null lookup. Both public gaming webhook paths were affected in the supplied report.",
+              "next_gate": [
+                "Do not integrate the Gaming branch.",
+                "Collect the separate HMAC remediation result using the existing main verifier/rawBody/PAYMENTS_WEBHOOK_SECRET pattern.",
+                "Require explicit tenant-bound payment mutation evidence in addition to signature verification.",
+                "Track replay limitation and provider gate separately; no provider activation."
+              ]
+            },
+            "missing_pieces": [
+              "No real provider adapter yet.",
+              "Gaming payment-webhook HMAC remediation completion is not verified.",
+              "Explicit tenant-bound payment mutation is not confirmed; prior report passed tenantContext:null.",
+              "Timestamp/nonce replay protection was reported not implemented; paymentRef idempotency is not equivalent."
+            ]
+          }
+        },
+        "notes": [
+          "MockProvider and simulatedGateway payment are non-production.",
+          "Existing branch capabilities are user-reported, not asserted to be on main.",
+          "SAFE_TO_INTEGRATE_AFTER_REMEDIATION remains a conditional report claim, not verified readiness."
+        ]
+      },
+      {
+        "name": "Media / Reels",
+        "status": "MISSING",
+        "status_basis": "USER_SUPPLIED_CURRENT_STATE",
+        "branch": {
+          "name": "UNKNOWN / NEEDS VERIFICATION",
+          "commit": {
+            "sha": "UNKNOWN / NEEDS VERIFICATION",
+            "relationship_to_main": "UNKNOWN / NEEDS VERIFICATION",
+            "verification": "UNKNOWN / NEEDS VERIFICATION",
+            "files": {
+              "references": [],
+              "complete_inventory": "UNKNOWN / NEEDS VERIFICATION"
+            },
+            "tests": {
+              "references": [],
+              "claims": [
+                {
+                  "inventory": "UNKNOWN / NEEDS VERIFICATION",
+                  "raw_evidence": "Evidence not yet collected"
+                }
+              ],
+              "raw_evidence": "Evidence not yet collected"
+            },
+            "dependencies": "Storage/media processing/moderation integration choices UNKNOWN / NEEDS VERIFICATION",
+            "security_gates": {
+              "status": "No operational media module established by supplied current state; security design/coverage UNKNOWN / NEEDS VERIFICATION",
+              "next_gate": [
+                "Define bounded media capability and tenant/moderation/security requirements before any separately authorized implementation."
+              ]
+            },
+            "missing_pieces": [
+              "Complete backend reels/media pipeline",
+              "Upload/feed/moderation/tenant media implementation",
+              "No dedicated implementation branch currently identified"
+            ]
+          }
+        },
+        "notes": [
+          "A catalog stub or earlier TikTok feed prototype is not a complete Media / Reels module."
+        ]
+      },
+      {
+        "name": "Support",
+        "status": "MISSING",
+        "status_basis": "USER_SUPPLIED_CURRENT_STATE",
+        "branch": {
+          "name": "UNKNOWN / NEEDS VERIFICATION",
+          "commit": {
+            "sha": "UNKNOWN / NEEDS VERIFICATION",
+            "relationship_to_main": "UNKNOWN / NEEDS VERIFICATION",
+            "verification": "UNKNOWN / NEEDS VERIFICATION",
+            "files": {
+              "references": [
+                {
+                  "reference": "pricingPlans.supportTier",
+                  "kind": "configuration symbol",
+                  "verification": "UNKNOWN / NEEDS VERIFICATION"
+                },
+                {
+                  "reference": "customerRequest",
+                  "kind": "module reference, not file path",
+                  "verification": "UNKNOWN / NEEDS VERIFICATION"
+                }
+              ],
+              "complete_inventory": "UNKNOWN / NEEDS VERIFICATION"
+            },
+            "tests": {
+              "references": [],
+              "claims": [
+                {
+                  "inventory": "UNKNOWN / NEEDS VERIFICATION",
+                  "raw_evidence": "Evidence not yet collected"
+                }
+              ],
+              "raw_evidence": "Evidence not yet collected"
+            },
+            "dependencies": "External helpdesk/channel dependencies UNKNOWN / NEEDS VERIFICATION",
+            "security_gates": {
+              "status": "Dedicated Support Center authorization, tenant boundaries and coverage UNKNOWN / NEEDS VERIFICATION",
+              "next_gate": [
+                "Define dedicated ticket/helpdesk scope and ownership/authorization requirements; do not relabel customerRequest as completed Support."
+              ]
+            },
+            "missing_pieces": [
+              "Dedicated support/ticket/helpdesk module"
+            ]
+          }
+        },
+        "notes": [
+          "MISSING refers to a dedicated Support Center, not absence of all customer-request functionality."
+        ]
+      },
+      {
+        "name": "Custom Domains",
+        "status": "PARTIAL",
+        "status_basis": "USER_SUPPLIED_CURRENT_STATE",
+        "branch": {
+          "name": "UNKNOWN / NEEDS VERIFICATION",
+          "commit": {
+            "sha": "UNKNOWN / NEEDS VERIFICATION",
+            "relationship_to_main": "UNKNOWN / NEEDS VERIFICATION",
+            "verification": "UNKNOWN / NEEDS VERIFICATION",
+            "files": {
+              "references": [
+                {
+                  "reference": "tenantCustomDomains.service.js",
+                  "kind": "basename",
+                  "verification": "UNKNOWN / NEEDS VERIFICATION"
+                },
+                {
+                  "reference": "backend/data/tenantCustomDomains.json",
+                  "kind": "supplied path; do not read runtime contents",
+                  "verification": "UNKNOWN / NEEDS VERIFICATION"
+                },
+                {
+                  "reference": "middleware/customDomainResolver.js",
+                  "kind": "supplied path; repository-relative prefix unknown",
+                  "verification": "UNKNOWN / NEEDS VERIFICATION"
+                },
+                {
+                  "reference": "server.js",
+                  "kind": "basename",
+                  "verification": "UNKNOWN / NEEDS VERIFICATION"
+                }
+              ],
+              "complete_inventory": "UNKNOWN / NEEDS VERIFICATION"
+            },
+            "tests": {
+              "references": [],
+              "claims": [
+                {
+                  "reported": "Platform admin API tests exist; exact paths, counts and outputs UNKNOWN / NEEDS VERIFICATION",
+                  "verification": "USER_REPORTED_NOT_RERUN",
+                  "raw_evidence": "Evidence not yet collected"
+                }
+              ],
+              "raw_evidence": "Evidence not yet collected"
+            },
+            "dependencies": "DNS, ACME/certificates and edge integration; all operational changes outside scope.",
+            "security_gates": {
+              "status": "Administrative CRUD is reported; resolver/host trust/quota/certificate lifecycle security not verified.",
+              "next_gate": [
+                "Collect existing CRUD/API evidence; establish resolver isolation/host-validation and quota acceptance gates.",
+                "Do not mount resolver, issue certificates, change DNS, Cloudflare or Nginx in this task."
+              ]
+            },
+            "missing_pieces": [
+              "Active host → tenant resolution",
+              "ACME/DNS/SSL issuance",
+              "ssl_status engine",
+              "Plan quota enforcement",
+              "Tenant/admin frontend",
+              "Certificate/edge integration"
+            ]
+          }
+        },
+        "notes": [
+          "CRUD completion does not imply operational custom-domain support.",
+          "Resolver path is recorded exactly as supplied; repository-relative prefix UNKNOWN / NEEDS VERIFICATION"
+        ]
+      },
+      {
+        "name": "Monetag",
+        "status": "BLOCKED",
+        "status_basis": "USER_SUPPLIED_CURRENT_STATE",
+        "branch": {
+          "name": "feature/monetag-integration-boundary",
+          "commit": {
+            "sha": "2a05bb5267ae1c886a505dcaf31e48cd9649fd8e",
+            "relationship_to_main": "UNKNOWN / NEEDS VERIFICATION",
+            "verification": "USER_SUPPLIED_ONLY",
+            "files": {
+              "references": [],
+              "complete_inventory": "UNKNOWN / NEEDS VERIFICATION"
+            },
+            "tests": {
+              "references": [],
+              "claims": [
+                {
+                  "inventory": "UNKNOWN / NEEDS VERIFICATION",
+                  "raw_evidence": "Evidence not yet collected"
+                }
+              ],
+              "raw_evidence": "Evidence not yet collected"
+            },
+            "dependencies": "Monetag provider and separately approved configuration; no credentials may be created.",
+            "security_gates": {
+              "status": "Separate integration boundary; remain disabled. Protected-page, token-origin and privacy evidence UNKNOWN / NEEDS VERIFICATION",
+              "next_gate": [
+                "Preserve separate boundary and disabled state.",
+                "Collect checkpoint evidence only; no advertising configuration change or production insertion."
+              ]
+            },
+            "missing_pieces": [
+              "Activation approval and verified production/privacy/security readiness have not been provided."
+            ]
+          }
+        },
+        "notes": [
+          "Completed boundary checkpoint is not production advertising activation."
+        ]
+      },
+      {
+        "name": "Platform Activity / Visitors Now",
+        "status": "PARTIAL",
+        "status_basis": "PROVISIONAL_TRACKING_STATE_CURRENT_MAIN_NEEDS_VERIFICATION",
+        "branch": {
+          "name": "UNKNOWN / NEEDS VERIFICATION",
+          "commit": {
+            "sha": "UNKNOWN / NEEDS VERIFICATION",
+            "relationship_to_main": "UNKNOWN / NEEDS VERIFICATION",
+            "verification": "UNKNOWN / NEEDS VERIFICATION",
+            "files": {
+              "references": [
+                {
+                  "reference": "platformActivity",
+                  "kind": "component reference, exact paths unknown",
+                  "verification": "UNKNOWN / NEEDS VERIFICATION"
+                }
+              ],
+              "complete_inventory": "UNKNOWN / NEEDS VERIFICATION"
+            },
+            "tests": {
+              "references": [],
+              "claims": [
+                {
+                  "reported": "58/58 platformActivity + platformPublic reported under Orders Today; individual Visitors Now requirements cannot be inferred from that count.",
+                  "verification": "USER_REPORTED_NOT_RERUN",
+                  "raw_evidence": "Evidence not yet collected"
+                }
+              ],
+              "raw_evidence": "Evidence not yet collected"
+            },
+            "dependencies": "Current runtime/storage/deployment dependencies UNKNOWN / NEEDS VERIFICATION",
+            "security_gates": {
+              "status": "Target: no PII, sanitized tracking, bounded memory/session count and heartbeat rate limiting. Current conformance UNKNOWN / NEEDS VERIFICATION",
+              "next_gate": [
+                "Collect current-main evidence for storage mode, TTL, 100,000 cap, heartbeat limiting and no PII in a future authorized verification checkpoint.",
+                "Do not substitute historical 10,000-record candidate or persisted JSON design for the requested target.",
+                "Do not replace implementation based on this metadata."
+              ]
+            },
+            "missing_pieces": [
+              "Conformance to requested sanitized/in-memory tracking UNKNOWN / NEEDS VERIFICATION",
+              "5-minute TTL and maximum 100,000 sessions on current main UNKNOWN / NEEDS VERIFICATION",
+              "Current heartbeat limiter/no-PII/source-of-truth evidence UNKNOWN / NEEDS VERIFICATION"
+            ]
+          }
+        },
+        "notes": [
+          "Expected behavior, not verified current facts: sanitized/in-memory tracking; 5-minute TTL; maximum 100,000 sessions; rate limiting; no PII; platform activity source of truth.",
+          "Older audit described persisted JSON and a 10,000-record candidate. It is not evidence of the current main state.",
+          "Track separately from Orders Today. PARTIAL is a provisional tracking state, not a confirmed defect finding."
+        ]
+      },
+      {
+        "name": "Platform Admin API",
+        "status": "PARTIAL",
+        "status_basis": "PROVISIONAL_TRACKING_STATE_CURRENT_MAIN_NEEDS_VERIFICATION",
+        "branch": {
+          "name": "UNKNOWN / NEEDS VERIFICATION",
+          "commit": {
+            "sha": "UNKNOWN / NEEDS VERIFICATION",
+            "relationship_to_main": "UNKNOWN / NEEDS VERIFICATION",
+            "verification": "UNKNOWN / NEEDS VERIFICATION",
+            "files": {
+              "references": [],
+              "complete_inventory": "UNKNOWN / NEEDS VERIFICATION"
+            },
+            "tests": {
+              "references": [],
+              "claims": [
+                {
+                  "reported": "Platform admin API tests reported present; exact paths/results UNKNOWN / NEEDS VERIFICATION",
+                  "verification": "USER_REPORTED_NOT_RERUN",
+                  "raw_evidence": "Evidence not yet collected"
+                }
+              ],
+              "raw_evidence": "Evidence not yet collected"
+            },
+            "dependencies": "Capability-specific dependencies UNKNOWN / NEEDS VERIFICATION",
+            "security_gates": {
+              "status": "Require platform-admin boundary independent of tenant Owner; current-main route-by-route verification UNKNOWN / NEEDS VERIFICATION",
+              "next_gate": [
+                "Collect existing route/mount/authorization test evidence in a separately authorized read-only checkpoint.",
+                "Do not infer all admin APIs are complete from custom-domain CRUD."
+              ]
+            },
+            "missing_pieces": [
+              "Current API/mount/role-boundary coverage UNKNOWN / NEEDS VERIFICATION"
+            ]
+          }
+        },
+        "notes": [
+          "PARTIAL is a provisional inventory state; UNKNOWN does not establish missing functionality."
+        ]
+      },
+      {
+        "name": "Tenant Payments",
+        "status": "PARTIAL",
+        "status_basis": "PROVISIONAL_TRACKING_STATE_CURRENT_MAIN_NEEDS_VERIFICATION",
+        "branch": {
+          "name": "UNKNOWN / NEEDS VERIFICATION",
+          "commit": {
+            "sha": "UNKNOWN / NEEDS VERIFICATION",
+            "relationship_to_main": "UNKNOWN / NEEDS VERIFICATION",
+            "verification": "UNKNOWN / NEEDS VERIFICATION",
+            "files": {
+              "references": [
+                {
+                  "reference": "verifyPaymentsWebhookSignature",
+                  "kind": "symbol, exact file path unknown",
+                  "verification": "UNKNOWN / NEEDS VERIFICATION"
+                },
+                {
+                  "reference": "server.js",
+                  "kind": "basename; rawBody hook reported",
+                  "verification": "UNKNOWN / NEEDS VERIFICATION"
+                }
+              ],
+              "complete_inventory": "UNKNOWN / NEEDS VERIFICATION"
+            },
+            "tests": {
+              "references": [
+                {
+                  "reference": "backend/tests/tenantPayments.test.js",
+                  "kind": "prior supplied report path; current existence UNKNOWN / NEEDS VERIFICATION"
+                }
+              ],
+              "claims": [
+                {
+                  "reported": "backend/tests/tenantPayments.test.js reported covers main HMAC controls; not executed here.",
+                  "verification": "USER_REPORTED_NOT_RERUN",
+                  "raw_evidence": "Evidence not yet collected"
+                }
+              ],
+              "raw_evidence": "Evidence not yet collected"
+            },
+            "dependencies": "Real gateway/provider availability and production configuration UNKNOWN / NEEDS VERIFICATION",
+            "security_gates": {
+              "status": "HMAC/raw-body/timing-safe/fail-closed pattern reported implemented; not independently verified at current main. Gaming webhook security is tracked separately.",
+              "next_gate": [
+                "Collect existing HMAC positive/negative/fail-closed test outputs tied to current main.",
+                "Preserve main security pattern; do not weaken tests for Gaming reuse.",
+                "Do not provision secrets, execute payments or change gateway settings."
+              ]
+            },
+            "missing_pieces": [
+              "Current-main payment feature coverage and raw HMAC test evidence UNKNOWN / NEEDS VERIFICATION"
+            ]
+          }
+        },
+        "notes": [
+          "PARTIAL is provisional capability tracking, not a claim that main HMAC is defective.",
+          "Gaming simulated payment does not establish production Tenant Payments readiness."
+        ]
+      },
+      {
+        "name": "Student Services",
+        "status": "PARTIAL",
+        "status_basis": "PROVISIONAL_TRACKING_STATE_CURRENT_MAIN_NEEDS_VERIFICATION",
+        "branch": {
+          "name": "UNKNOWN / NEEDS VERIFICATION",
+          "commit": {
+            "sha": "UNKNOWN / NEEDS VERIFICATION",
+            "relationship_to_main": "UNKNOWN / NEEDS VERIFICATION",
+            "verification": "UNKNOWN / NEEDS VERIFICATION",
+            "files": {
+              "references": [],
+              "complete_inventory": "UNKNOWN / NEEDS VERIFICATION"
+            },
+            "tests": {
+              "references": [],
+              "claims": [
+                {
+                  "inventory": "UNKNOWN / NEEDS VERIFICATION",
+                  "raw_evidence": "Evidence not yet collected"
+                }
+              ],
+              "raw_evidence": "Evidence not yet collected"
+            },
+            "dependencies": "Notification/printing integration requirements UNKNOWN / NEEDS VERIFICATION",
+            "security_gates": {
+              "status": "Older audit raised cross-tenant pricing/settings issues; neither persistence nor remediation at current main is verified.",
+              "next_gate": [
+                "Collect current implementation and tenant-isolation evidence without assuming older defects remain or are fixed.",
+                "Keep separate from Orders Today/Gaming; do not use student or CairoTech data."
+              ]
+            },
+            "missing_pieces": [
+              "Current gaps, tenant/branch isolation status and remediation inclusion UNKNOWN / NEEDS VERIFICATION"
+            ]
+          }
+        },
+        "notes": [
+          "PARTIAL is a provisional tracking state; no current vulnerability verdict or completed-fix assertion is made."
+        ]
+      }
+    ]
+  },
+  "unknown_marker": "UNKNOWN / NEEDS VERIFICATION",
+  "runtime_data_policy": "Record supplied path metadata only. No runtime content, secrets, production or CairoTech data."
+}
