@@ -3,6 +3,7 @@
 const storageAdapter = require('../repositories/storageAdapter');
 const usersService = require('./users.service');
 const CompanyService = require('./company.service');
+const ordersAggregator = require('./platformOrdersAggregator.service');
 const logger = require('../utils/logger');
 
 const STORE = 'platformActivity';
@@ -77,11 +78,18 @@ function getStats() {
     logger.warn('platformActivity.service: failed to count companies', err.message);
   }
 
+  let ordersToday = null;
+  try {
+    ordersToday = ordersAggregator.getOrdersToday();
+  } catch (err) {
+    logger.warn('platformActivity.service: failed to count orders today', err.message);
+  }
+
   return {
     visitorsNow,
     registeredUsers,
     activeBusinesses,
-    ordersToday: null
+    ordersToday
   };
 }
 

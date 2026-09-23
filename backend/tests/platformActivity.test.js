@@ -119,7 +119,7 @@ describe('platformActivity HTTP — public heartbeat stays usable and clean', ()
     expect(email.status).toBe(400);
   });
 
-  test('stats stay aggregate-only after heartbeats (no PII, ordersToday honest null)', async () => {
+  test('stats stay aggregate-only after heartbeats (no PII, ordersToday is a number)', async () => {
     await request(server.app)
       .post('/api/v1/platform-public/activity/heartbeat')
       .send({ visitorId: 'v_stats_clean_1' });
@@ -130,7 +130,24 @@ describe('platformActivity HTTP — public heartbeat stays usable and clean', ()
     const raw = JSON.stringify(res.body.data);
     expect(raw).not.toContain('v_stats_clean_1');
     expect(raw).not.toContain('visitorId');
-    expect(res.body.data.ordersToday).toBeNull();
+    expect(typeof res.body.data.ordersToday).toBe('number');
+    expect(res.body.data.ordersToday).toBeGreaterThanOrEqual(0);
+    expect(Number.isInteger(res.body.data.ordersToday)).toBe(true);
+  });
+
+  test('ordersToday stays null when the aggregator read fails', () => {
+    jest.resetModules();
+    process.env.DIGITRONICS_DATA_DIR = dataDir;
+    process.env.JWT_SECRET = 'test-jwt-secret-for-jest-suites';
+    jest.doMock('../services/platformOrdersAggregator.service', () => ({
+      getOrdersToday: () => { throw new Error('sales store unavailable'); }
+    }));
+    const failingService = require('../services/platformActivity.service');
+    const stats = failingService.getStats();
+    expect(stats.ordersToday).toBeNull();
+    expect(typeof stats.visitorsNow).toBe('number');
+    jest.dontMock('../services/platformOrdersAggregator.service');
+    jest.resetModules();
   });
 });
 
