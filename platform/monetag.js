@@ -25,7 +25,11 @@
  */
 (function (global) {
   var MARKER = 'omnistoreMonetagBoundary';
-  var SCRIPT_ATTR = 'data-omnistore-monetag';
+  // A) Boundary/config element (platform.html local module tag) — never an external loader.
+  var CONFIG_ATTR = 'data-omnistore-monetag-boundary';
+  var CONFIG_VALUE = 'config';
+  // B) Actual external Monetag <script> loader (injected only).
+  var EXTERNAL_ATTR = 'data-omnistore-monetag-external';
 
   var defaultConfig = {
     enabled: false,
@@ -68,7 +72,8 @@
       for (var i = 0; i < scripts.length; i++) {
         var s = scripts[i];
         if (!s.getAttribute) continue;
-        if (s.getAttribute(SCRIPT_ATTR) === 'true' ||
+        if (s.getAttribute(CONFIG_ATTR) === CONFIG_VALUE ||
+            s.getAttribute('data-monetag-enabled') != null ||
             (s.getAttribute('src') || '').indexOf('platform/monetag.js') !== -1) {
           var enabledRaw = s.getAttribute('data-monetag-enabled');
           var publisher = s.getAttribute('data-monetag-publisher-id');
@@ -94,11 +99,31 @@
     return true;
   }
 
+  function isBoundaryConfigScript(el) {
+    if (!el || !el.getAttribute) return false;
+    if (el.getAttribute(CONFIG_ATTR) === CONFIG_VALUE) return true;
+    if (el.getAttribute('data-monetag-enabled') != null) return true;
+    var src = el.getAttribute('src') || '';
+    return src.indexOf('platform/monetag.js') !== -1;
+  }
+
+  function isExternalLoaderScript(el) {
+    if (!el || !el.getAttribute) return false;
+    if (isBoundaryConfigScript(el)) return false;
+    return el.getAttribute(EXTERNAL_ATTR) === 'true';
+  }
+
   function hasExistingLoader() {
     try {
       var doc = global.document;
       if (!doc || !doc.querySelectorAll) return false;
-      return doc.querySelectorAll('script[' + SCRIPT_ATTR + '="true"]').length > 0;
+      // Only actual external loaders — boundary/config alone never counts.
+      var nodes = doc.querySelectorAll('script[' + EXTERNAL_ATTR + '="true"]');
+      if (!nodes) return false;
+      for (var i = 0; i < nodes.length; i++) {
+        if (isExternalLoaderScript(nodes[i])) return true;
+      }
+      return false;
     } catch (err) {
       return false;
     }
@@ -114,7 +139,7 @@
       return null;
     }
     var el = doc.createElement('script');
-    el.setAttribute(SCRIPT_ATTR, 'true');
+    el.setAttribute(EXTERNAL_ATTR, 'true');
     el.setAttribute('data-monetag-publisher-id', String(config.publisherId));
     el.async = true;
     el.src = config.scriptUrl;
@@ -131,10 +156,10 @@
         return { ok: false, reason: 'disabled_or_owner_input_required' };
       }
       state.loading = true;
-      injectScript(state.config);
+      var el = injectScript(state.config);
       state.loaded = true;
       state.loading = false;
-      return { ok: true, reason: 'injected' };
+      return { ok: true, reason: el ? 'injected' : 'already_present' };
     } catch (err) {
       state.loading = false;
       state.lastError = err;
@@ -154,17 +179,6 @@
 
   function isLoaded() {
     return state.loaded === true;
-  }
-
-  function resetForTests() {
-    state.loaded = false;
-    state.loading = false;
-    state.lastError = null;
-    state.config = {
-      enabled: defaultConfig.enabled,
-      publisherId: defaultConfig.publisherId,
-      scriptUrl: defaultConfig.scriptUrl
-    };
   }
 
   function configure(partial) {
@@ -192,7 +206,6 @@
     isLoaded: isLoaded,
     getConfig: getConfig,
     configure: configure,
-    resetForTests: resetForTests,
     canActivate: function () { return canActivate(state.config); }
   };
 
