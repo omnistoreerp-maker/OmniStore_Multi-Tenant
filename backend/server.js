@@ -77,7 +77,7 @@ app.use(compression());
 // slow-request performance logging stays on in every environment.
 if (config.env === 'development') app.use(morgan('dev'));
 app.use(requestPerfLogger(config.slowRequestMs));
-app.use(express.json({ limit: config.bodyLimit }));
+app.use(express.json({ limit: config.bodyLimit, verify(req, _res, buf) { req.rawBody = buf; } }));
 app.use(express.urlencoded({ extended: true }));
 app.use(sanitizeBody);
 
@@ -165,6 +165,9 @@ const loyaltyRoutes = require('./routes/loyalty.routes');
 const marketRoutes = require('./routes/market.routes');
 const gameHostingRoutes = require('./routes/gameHosting.routes');
 const playstationRoutes = require('./routes/playstation.routes');
+const tenantPaymentsRoutes = require('./routes/tenantPayments.routes');
+const platformAdminRoutes = require('./routes/platformAdmin.routes');
+const tenantExtensionsRoutes = require('./routes/tenantExtensions.routes');
 const companyContext = require('./middleware/companyContext');
 // Phase 33 — seed the server-authoritative platform admin store from
 // PLATFORM_ADMINS on boot (no-op once the store has entries).
@@ -191,6 +194,12 @@ app.use('/api/v1/customer', customerRequestRoutes);
 app.use('/api/v1/internal', internalChangeCenterRoutes);
 // ERP ↔ Platform Integration Contract — read-only public boundary.
 app.use('/api/v1/platform-integration', platformIntegrationRoutes);
+// Platform Admin API (mounted before optional AUTH_REQUIRED; scope via requirePlatformAdmin).
+app.use('/api/v1/platform/admin', platformAdminRoutes);
+// Tenant Extensions — tenant-scoped add-ons and custom domains.
+app.use('/api/v1/tenant', tenantExtensionsRoutes);
+// Tenant Payments — HMAC-verified gateway webhook (before AUTH_REQUIRED so gateway is not JWT-only).
+app.use('/api/v1/payments', tenantPaymentsRoutes);
 // Phase F — OmniStore Market (customer-facing storefront). Public catalog,
 // customer auth, cart/checkout, and order tracking. Mounted under /api/v1/market.
 // Self-contained module; does not alter Core ERP routes.

@@ -135,13 +135,31 @@ function createOnlineOrder(tenantContext, data) {
 
   if (!customerName) throw new Error('customerName is required');
   if (!customerPhone) throw new Error('customerPhone is required');
-  if (!items.length === 0) throw new Error('items is required');
+  // Validation hardening: the old `!items.length === 0` guard never fired
+  // (always false), so an empty items array produced a zero-total order, and
+  // a null/non-object element crashed the reducer with a TypeError (500).
+  if (!items.length) throw new Error('items must be a non-empty array');
 
-  const subtotal = Math.round(items.reduce((sum, item) => {
-    const qty = Math.max(1, parseInt(item.quantity, 10) || 1);
-    const price = Math.max(0, parseFloat(item.price || 0));
-    return sum + (qty * price);
-  }, 0) * 100) / 100;
+  const sanitizedItems = [];
+  for (const item of items) {
+    if (!item || typeof item !== 'object') throw new Error('each item must be an object');
+    const itemCode = String(item.itemCode || item.id || '').trim();
+    if (!itemCode) throw new Error('each item requires an itemCode');
+    const quantity = Math.max(1, parseInt(item.quantity, 10) || 1);
+    const rawPrice = typeof item.price === 'number' ? item.price : parseFloat(String(item.price).trim(), 10);
+    if (!Number.isFinite(rawPrice) || rawPrice < 0 || !/^[0-9]+(\.[0-9]+)?$/.test(String(item.price).trim())) {
+      throw new Error('item price must be a non-negative number');
+    }
+    const price = rawPrice;
+    sanitizedItems.push({
+      itemCode,
+      title: String(item.title || item.name || 'Item').trim(),
+      quantity,
+      price: Math.round(price * 100) / 100
+    });
+  }
+
+  const subtotal = Math.round(sanitizedItems.reduce((sum, item) => sum + (item.quantity * item.price), 0) * 100) / 100;
 
   const deliveryFee = storeConfig.deliveryFee || 0;
   const totalAmount = Math.round((subtotal + deliveryFee) * 100) / 100;
@@ -160,12 +178,7 @@ function createOnlineOrder(tenantContext, data) {
     customerName,
     customerPhone,
     customerAddress,
-    items: items.map(item => ({
-      itemCode: String(item.itemCode || item.id || '').trim(),
-      title: String(item.title || item.name || 'Item').trim(),
-      quantity: Math.max(1, parseInt(item.quantity, 10) || 1),
-      price: Math.round((parseFloat(item.price || 0) || 0) * 100) / 100
-    })),
+    items: sanitizedItems,
     subtotal,
     deliveryFee,
     totalAmount,

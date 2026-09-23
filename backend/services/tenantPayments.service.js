@@ -13,6 +13,10 @@ function _normalizeStatus(status) {
   return String(status).toLowerCase();
 }
 
+// Statuses a gateway webhook is allowed to set. Anything else is rejected
+// rather than silently persisted.
+const ALLOWED_STATUSES = new Set(['pending', 'paid', 'failed', 'cancelled']);
+
 function _generateTransactionRef(tenantId, addonKey) {
   const ts = Date.now().toString(36).toUpperCase();
   const tenant = String(tenantId || 'TENANT').slice(0, 4).toUpperCase();
@@ -74,13 +78,23 @@ async function updatePaymentStatus({ transactionRef, status, payload = {} }) {
   const ref = String(transactionRef || '').trim();
   if (!ref) return null;
 
+  const nextStatus = _normalizeStatus(status);
+  if (!ALLOWED_STATUSES.has(nextStatus)) {
+    throw new Error(`Invalid payment status: ${nextStatus}`);
+  }
+
   const db = await paymentRepository.readAsync();
   const transactions = Array.isArray(db.tenantPaymentTransactions) ? db.tenantPaymentTransactions : [];
   const record = transactions.find((t) => String(t.transaction_ref || t.transactionRef) === ref);
   if (!record) return null;
 
-  const previousStatus = record.status;
-  record.status = _normalizeStatus(status);
+  const previousStatus = _normalizeStatus(record.status);
+  // 'paid' is terminal: a webhook may never downgrade or replay it.
+  if (previousStatus === 'paid' && nextStatus !== 'paid') {
+    throw new Error('Payment is already paid and cannot change status');
+  }
+
+  record.status = nextStatus;
   if (payload && Object.keys(payload).length > 0) {
     record.payload = Object.assign({}, record.payload || {}, payload);
   }

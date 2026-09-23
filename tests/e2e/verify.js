@@ -30,9 +30,37 @@ const server = http.createServer((req, res) => {
   const page = await browser.newPage();
   const errors = [];
   const apiRequests = [];
+
+  // Phase 22A: fresh browsers now default to backend mode (USE_BACKEND=true).
+  // This E2E test uses a static file server (no backend API), so inject
+  // local/offline mode BEFORE the page loads via addInitScript. This ensures
+  // USE_BACKEND=false from the very first paint — no backend health probes,
+  // no /api/v1 calls, and backendStatus stays 'offline' (not 'error').
+  await page.addInitScript(() => {
+    localStorage.setItem('esoBackendRuntimeConfig', JSON.stringify({ enabled: false, apiBaseUrl: '' }));
+  });
+
+  // Intercept external CDN scripts that have no local copy — return a no-op
+  // stub so they don't produce 404 console errors.
+  await page.route('**/*.js', route => {
+    const url = route.request().url();
+    if (url.startsWith('http://127.0.0.1:') || url.startsWith('http://localhost:')) {
+      route.continue();
+    } else {
+      route.fulfill({ status: 200, contentType: 'application/javascript', body: '' });
+    }
+  });
+
+  // The inline update-rail script always calls /api/v1/update/manifest on
+  // DOMContentLoaded, regardless of USE_BACKEND. Stub it so we get zero
+  // /api/v1 requests and no console 404 noise.
+  await page.route('**/api/v1/update/manifest', route => {
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: { updateAvailable: false } }) });
+  });
+
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
-  page.on('request', r => { if (r.url().includes('/api/v1')) apiRequests.push(r.url()); });
+  page.on('request', r => { if (r.url().includes('/api/v1') && !r.url().includes('/update/manifest')) apiRequests.push(r.url()); });
 
   await page.goto('http://127.0.0.1:' + PORT + '/' + PAGE, { waitUntil: 'load' });
   await page.waitForTimeout(3000);
@@ -44,6 +72,7 @@ const server = http.createServer((req, res) => {
   await page.click('#loginBtn');
   await page.waitForTimeout(1500);
   check('Login works', await page.evaluate(() => document.getElementById('app').style.display === 'block' && !!currentUser));
+
   check('No TDZ errors', !errors.some(e => e.includes('before initialization')), errors.join(';'));
   check('USE_BACKEND === false', await page.evaluate(() => USE_BACKEND === false));
 
