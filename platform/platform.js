@@ -8,13 +8,28 @@
     en: {
       lang: 'en',
       dir: 'ltr',
+      platform_name: 'OmniStore ERP',
+      platform_tagline: 'Multi-Tenant Enterprise Resource Planning',
+      brand_tag: 'Unified Services Platform',
       activity_label: 'Platform Activity',
       activity_hint: 'Live public activity stats are not configured yet.',
       live_label: 'Live',
-      hero_title: 'Everything your business needs, one platform.',
+      hero_badge: 'Unified System',
+      hero_pill: 'Integrated digital and business solutions',
+      hero_title: 'OmniStore ERP',
       hero_desc: 'Explore the OmniStore ecosystem: marketplace, business services, and more.',
       cta: 'Open Application',
-      nav_business: 'Business Management',
+      cta_market: 'Explore Market',
+      cta_business: 'Business Services',
+      nav_home: 'Home',
+      nav_market: 'Market',
+      nav_business: 'Business Solutions',
+      nav_game: 'Game Hosting',
+      nav_app: 'Open Application',
+      nav_market_short: 'Market',
+      nav_business_short: 'Business',
+      nav_game_short: 'Games',
+      nav_app_short: 'App',
       footer_text: 'OmniStore Platform v',
       status_active: 'Active',
       status_coming_soon: 'Coming Soon',
@@ -42,13 +57,28 @@
     ar: {
       lang: 'ar',
       dir: 'rtl',
+      platform_name: 'OmniStore ERP',
+      platform_tagline: 'تخطيط موارد المؤسسات متعدد المستأجرين',
+      brand_tag: 'منصة الخدمات الموحدة',
       activity_label: 'نشاط المنصة',
       activity_hint: 'إحصاءات النشاط العام المباشر غير مُفعّلة بعد.',
       live_label: 'مباشر',
-      hero_title: 'كل ما تحتاجه أعمالك في منصة واحدة.',
+      hero_badge: 'منظومة موحدة',
+      hero_pill: 'حلول رقمية وتجارية متكاملة',
+      hero_title: 'OmniStore ERP',
       hero_desc: 'استكشف نظام OmniStore: السوق، خدمات الأعمال، والمزيد.',
       cta: 'فتح التطبيق',
-      nav_business: 'إدارة الأعمال',
+      cta_market: 'استكشاف السوق',
+      cta_business: 'خدمات الأعمال',
+      nav_home: 'الرئيسية',
+      nav_market: 'السوق',
+      nav_business: 'حلول الأعمال',
+      nav_game: 'استضافة الألعاب',
+      nav_app: 'Open Application',
+      nav_market_short: 'الماركت',
+      nav_business_short: 'الأعمال',
+      nav_game_short: 'الألعاب',
+      nav_app_short: 'التطبيق',
       footer_text: 'منصة OmniStore إصدار',
       status_active: 'متاح',
       status_coming_soon: 'قريباً',
@@ -187,7 +217,7 @@
   function sectionTitle(id) {
     const lang = getLang();
     const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
-    const key = 'section_' + id;
+    const key = 'section_' + String(id).replace(/-/g, '_');
     if (t[key]) return t[key];
     const fallback = TRANSLATIONS.en[key];
     if (fallback) return fallback;
@@ -421,6 +451,14 @@
     }
     bindVisibility();
   }
+
+  // Public hook for analytics / visitor integrations (kept for external callers).
+  window.initOmniVisitors = function initOmniVisitors() {
+    try {
+      startHeartbeat();
+      startStatsRefresh();
+    } catch (_) {}
+  };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', function () {

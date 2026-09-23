@@ -8,27 +8,59 @@
   <link rel="stylesheet" href="platform/platform.css">
 </head>
 <body>
-  <header class="site-header">
-    <div class="container">
-      <div class="header-top">
-        <div>
-          <h1 id="meta-name">OmniStore ERP</h1>
-          <p id="meta-tagline">Multi-Tenant Enterprise Resource Planning</p>
-        </div>
-        <div class="header-actions">
-          <button id="lang-switch" class="lang-btn" type="button">العربية</button>
-        </div>
-      </div>
-      <nav class="platform-nav" aria-label="Platform">
-        <a href="internal.html">Change Center</a>
-        <a href="customer.html">My Requests</a>
-        <a href="index.html">Open Application</a>
-      </nav>
-    </div>
-  </header>
+  <div class="ambient-bg" aria-hidden="true">
+    <div class="ambient-orb ambient-orb-1"></div>
+    <div class="ambient-orb ambient-orb-2"></div>
+    <div class="ambient-orb ambient-orb-3"></div>
+  </div>
 
-  <main class="container">
+  <div class="header-wrap">
+    <header class="glass-header">
+      <a class="brand" href="platform.html" aria-label="OmniStore Platform">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
+        </span>
+        <span class="brand-text">
+          <span class="brand-name">OmniStore<span class="brand-badge">Platform</span></span>
+          <span class="brand-tag" data-i18n="brand_tag">منصة الخدمات الموحدة</span>
+        </span>
+      </a>
+
+      <nav class="glass-nav" aria-label="Platform">
+        <a class="glass-nav-link is-active" href="platform.html" data-i18n="nav_home">الرئيسية</a>
+        <a class="glass-nav-link" href="market.html" data-i18n="nav_market">السوق</a>
+        <a class="glass-nav-link" href="business.html" data-i18n="nav_business">حلول الأعمال</a>
+        <a class="glass-nav-link" href="market.html#/game-hosting" data-i18n="nav_game">استضافة الألعاب</a>
+        <a class="glass-nav-link" href="index.html" data-i18n="nav_app">Open Application</a>
+      </nav>
+
+      <div class="header-actions">
+        <button id="lang-switch" class="lang-btn" type="button">العربية</button>
+      </div>
+    </header>
+  </div>
+
+  <main class="page">
+    <section class="hero" aria-label="Platform Hero">
+      <div class="hero-pill">
+        <span class="hero-pill-badge" data-i18n="hero_badge">منظومة موحدة</span>
+        <span data-i18n="hero_pill">حلول رقمية وتجارية متكاملة</span>
+      </div>
+      <h1 id="meta-name" class="hero-title">OmniStore ERP</h1>
+      <p id="meta-tagline" class="hero-desc">Multi-Tenant Enterprise Resource Planning</p>
+      <p class="hero-sub" data-i18n="hero_desc">Explore the OmniStore ecosystem: marketplace, business services, and more.</p>
+      <div class="hero-actions">
+        <a class="btn-primary" href="index.html" data-i18n="cta">Open Application</a>
+        <a class="btn-secondary" href="market.html" data-i18n="cta_market">استكشاف السوق</a>
+        <a class="btn-secondary" href="business.html" data-i18n="cta_business">خدمات الأعمال</a>
+      </div>
+    </section>
+
     <section id="activity" class="section activity" aria-label="Platform Activity">
+      <div class="section-head">
+        <h2 class="section-title" data-i18n="activity_label">Platform Activity</h2>
+        <span class="section-kicker">Live</span>
+      </div>
       <div class="activity-grid">
         <div class="activity-card">
           <div class="activity-label" data-i18n="visitors_now_label">Visitors Now</div>
@@ -58,11 +90,8 @@
     </section>
 
     <section id="stats" class="section stats" aria-label="Platform Overview"></section>
-
     <section id="features" class="section features" aria-label="Core Modules"></section>
-
     <section id="highlights" class="section highlights" aria-label="Highlights"></section>
-
     <section id="sections" class="section sections" aria-label="Platform Services"></section>
 
     <section id="cta" class="section cta">
@@ -73,6 +102,14 @@
       <p>OmniStore Platform v<span id="meta-version">1.0.0</span></p>
     </section>
   </main>
+
+  <nav class="bottom-nav" aria-label="Quick access">
+    <a class="bottom-nav-link is-active" href="platform.html" data-i18n="nav_home">الرئيسية</a>
+    <a class="bottom-nav-link" href="market.html" data-i18n="nav_market">الماركت</a>
+    <a class="bottom-nav-link" href="business.html" data-i18n="nav_business_short">الأعمال</a>
+    <a class="bottom-nav-link" href="market.html#/game-hosting" data-i18n="nav_game_short">الألعاب</a>
+    <a class="bottom-nav-link" href="index.html" data-i18n="nav_app_short">التطبيق</a>
+  </nav>
 
   <script src="platform/platform.js"></script>
 </body>
