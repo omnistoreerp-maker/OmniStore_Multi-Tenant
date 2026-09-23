@@ -19,8 +19,10 @@ const router = require('express').Router();
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
 const ctrl = require('../controllers/gameHosting.controller');
+const orderCtrl = require('../controllers/gameHostingOrder.controller');
 const asyncHandler = require('../utils/asyncHandler');
 const { requireMarketTenant, requireCustomer, requireOperator } = require('../middleware/marketAuth');
+const { verifyPaymentsWebhookSignature } = require('../middleware/verifyPaymentsWebhookSignature');
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -68,5 +70,17 @@ router.delete('/entitlements/:id', requireMarketTenant, requireOperator, limiter
 
 // Operator: Audit log
 router.get('/audit-log', requireMarketTenant, requireOperator, limiter, asyncHandler(ctrl.listAuditLog));
+
+// Gateway payment webhook — fail-closed HMAC on the RAW body via the shared
+// payments-webhook pattern (x-payments-signature + PAYMENTS_WEBHOOK_SECRET).
+// Mounted without requireCustomer (server-to-server); signature runs first so
+// unsigned/invalid requests never reach payment/order state mutation.
+router.post(
+  '/payment-webhook',
+  verifyPaymentsWebhookSignature,
+  requireMarketTenant,
+  limiter,
+  asyncHandler(orderCtrl.paymentWebhook)
+);
 
 module.exports = router;
