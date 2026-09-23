@@ -75,5 +75,18 @@
   </main>
 
   <script src="platform/platform.js"></script>
+  <!--
+    Monetag integration boundary - PUBLIC Platform Home only.
+    Disabled by default: no third-party script loads until the owner sets
+    data-monetag-enabled="true" AND supplies a real publisher id + official
+    https script URL (OWNER_REQUIRED - values intentionally empty; never invent IDs).
+    Isolated from Visitors Now (platform/platform.js) and from the ERP (index.html).
+  -->
+  <script src="platform/monetag.js"
+          data-omnistore-monetag="true"
+          data-monetag-enabled="false"
+          data-monetag-publisher-id=""
+          data-monetag-script-url=""
+          defer></script>
 </body>
 </html>
