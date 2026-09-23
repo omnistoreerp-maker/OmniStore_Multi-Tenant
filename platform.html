@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="en" dir="ltr">
+<html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="OmniStore Platform Home — real-time activity, business services, and ecosystem overview.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="منصة واحدة موحدة للخدمات الرقمية والتجارية والترفيهية — OmniStore Platform.">
+  <meta name="theme-color" content="#070a12">
   <title data-i18n="platform_name">OmniStore ERP — Platform Home</title>
   <link rel="stylesheet" href="platform/platform.css">
 </head>
@@ -26,7 +27,7 @@
         </span>
       </a>
 
-      <nav class="glass-nav" aria-label="Platform">
+      <nav class="glass-nav" aria-label="التنقل الأساسي">
         <a class="glass-nav-link is-active" href="platform.html" data-i18n="nav_home">الرئيسية</a>
         <a class="glass-nav-link" href="market.html" data-i18n="nav_market">السوق</a>
         <a class="glass-nav-link" href="business.html" data-i18n="nav_business">حلول الأعمال</a>
@@ -35,7 +36,7 @@
       </nav>
 
       <div class="header-actions">
-        <button id="lang-switch" class="lang-btn" type="button">العربية</button>
+        <button id="lang-switch" class="lang-btn" type="button">English</button>
       </div>
     </header>
   </div>
@@ -46,66 +47,114 @@
         <span class="hero-pill-badge" data-i18n="hero_badge">منظومة موحدة</span>
         <span data-i18n="hero_pill">حلول رقمية وتجارية متكاملة</span>
       </div>
-      <h1 id="meta-name" class="hero-title">OmniStore ERP</h1>
-      <p id="meta-tagline" class="hero-desc">Multi-Tenant Enterprise Resource Planning</p>
-      <p class="hero-sub" data-i18n="hero_desc">Explore the OmniStore ecosystem: marketplace, business services, and more.</p>
+      <h1 id="meta-name" class="hero-title"><span class="gradient-text" data-i18n="hero_title_accent">منصة واحدة</span> <span data-i18n="hero_title_rest">للخدمات الرقمية والتجارية والترفيهية</span></h1>
+      <p id="meta-tagline" class="hero-desc">OmniStore ERP — Multi-Tenant Enterprise Resource Planning</p>
+      <p class="hero-sub" data-i18n="hero_desc">بيئة عمل متقدمة تجمع بين الأسواق السحابية، وخدمات الاستضافة التخصصية، وحلول الأعمال الرقمية في بنية موحدة صممت للأداء والسرعة.</p>
       <div class="hero-actions">
-        <a class="btn-primary" href="index.html" data-i18n="cta">Open Application</a>
-        <a class="btn-secondary" href="market.html" data-i18n="cta_market">استكشاف السوق</a>
+        <a class="btn-primary" href="market.html" data-i18n="cta_market">استكشاف السوق</a>
         <a class="btn-secondary" href="business.html" data-i18n="cta_business">خدمات الأعمال</a>
+        <a class="btn-secondary btn-ghost" href="index.html" data-i18n="cta">Open Application</a>
+      </div>
+      <div class="hero-trust" aria-label="Platform highlights">
+        <div class="trust-chip">
+          <span class="trust-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"></path></svg>
+          </span>
+          <span class="trust-text">
+            <strong data-i18n="trust_1_title">تعدد المستأجرين</strong>
+            <small data-i18n="trust_1_sub">عزل كامل لكل شركة</small>
+          </span>
+        </div>
+        <div class="trust-chip">
+          <span class="trust-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path></svg>
+          </span>
+          <span class="trust-text">
+            <strong data-i18n="trust_2_title">مزامنة لحظية</strong>
+            <small data-i18n="trust_2_sub">تتحدث البيانات فورياً</small>
+          </span>
+        </div>
+        <div class="trust-chip">
+          <span class="trust-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+          </span>
+          <span class="trust-text">
+            <strong data-i18n="trust_3_title">صلاحيات دقيقة</strong>
+            <small data-i18n="trust_3_sub">وصول حسب الدور</small>
+          </span>
+        </div>
       </div>
     </section>
 
     <section id="activity" class="section activity" aria-label="Platform Activity">
       <div class="section-head">
-        <h2 class="section-title" data-i18n="activity_label">Platform Activity</h2>
+        <h2 class="section-title" data-i18n="activity_label">نشاط المنصة</h2>
         <span class="section-kicker">Live</span>
       </div>
       <div class="activity-grid">
         <div class="activity-card">
-          <div class="activity-label" data-i18n="visitors_now_label">Visitors Now</div>
+          <div class="activity-label" data-i18n="visitors_now_label">الزوار الآن</div>
           <div class="activity-value" id="activity-visitors-now">--</div>
           <div class="activity-live" id="activity-visitors-live" style="display:none">
             <span class="activity-live-dot" aria-hidden="true"></span>
-            <span data-i18n="live_label">Live</span>
+            <span data-i18n="live_label">مباشر</span>
           </div>
-          <div class="activity-hint" data-i18n="activity_hint">Live public activity stats are not configured yet.</div>
+          <div class="activity-hint" data-i18n="activity_hint">إحصاءات النشاط العام المباشر غير مُفعّلة بعد.</div>
         </div>
         <div class="activity-card">
-          <div class="activity-label" data-i18n="registered_users_label">Registered Users</div>
+          <div class="activity-label" data-i18n="registered_users_label">المستخدمون المسجلون</div>
           <div class="activity-value" id="activity-registered-users">--</div>
-          <div class="activity-hint" data-i18n="registered_users_hint">Accounts on the platform</div>
+          <div class="activity-hint" data-i18n="registered_users_hint">حسابات على المنصة</div>
         </div>
         <div class="activity-card">
-          <div class="activity-label" data-i18n="active_businesses_label">Active Businesses</div>
+          <div class="activity-label" data-i18n="active_businesses_label">الشركات النشطة</div>
           <div class="activity-value" id="activity-active-businesses">--</div>
-          <div class="activity-hint" data-i18n="active_businesses_hint">Companies currently active</div>
+          <div class="activity-hint" data-i18n="active_businesses_hint">الشركات النشطة حالياً</div>
         </div>
         <div class="activity-card">
-          <div class="activity-label" data-i18n="orders_today_label">Orders Today</div>
+          <div class="activity-label" data-i18n="orders_today_label">طلبات اليوم</div>
           <div class="activity-value" id="activity-orders-today">--</div>
-          <div class="activity-hint" data-i18n="orders_today_hint">Sales orders placed today</div>
+          <div class="activity-hint" data-i18n="orders_today_hint">طلبات البيع المسجلة اليوم</div>
         </div>
       </div>
     </section>
 
-    <section id="stats" class="section stats" aria-label="Platform Overview"></section>
-    <section id="features" class="section features" aria-label="Core Modules"></section>
-    <section id="highlights" class="section highlights" aria-label="Highlights"></section>
-    <section id="sections" class="section sections" aria-label="Platform Services"></section>
+    <section id="stats" class="section" aria-label="Platform Overview"></section>
+    <section id="features" class="section" aria-label="Core Modules"></section>
+    <section id="highlights" class="section" aria-label="Highlights"></section>
+    <section id="sections" class="section" aria-label="Platform Services"></section>
 
     <section id="cta" class="section cta">
-      <a class="btn-primary" href="index.html" data-i18n="cta">Open Application</a>
+      <h2 class="cta-title" data-i18n="cta_title">جاهز لبدء رحلتك مع OmniStore؟</h2>
+      <p class="cta-sub" data-i18n="cta_sub">افتح السوق أو استعرض حلول الأعمال خلال ثوانٍ.</p>
+      <div class="cta-actions">
+        <a class="btn-primary" href="market.html" data-i18n="cta_market">استكشاف السوق</a>
+        <a class="btn-secondary" href="business.html" data-i18n="cta_business">خدمات الأعمال</a>
+        <a class="btn-secondary btn-ghost" href="index.html" data-i18n="cta">Open Application</a>
+      </div>
     </section>
 
     <section id="footer" class="section footer">
-      <p>OmniStore Platform v<span id="meta-version">1.0.0</span></p>
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <span class="brand-mark brand-mark-sm" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
+          </span>
+          <span>© 2026 OmniStore Platform — <span data-i18n="footer_rights">جميع الحقوق محفوظة</span> · v<span id="meta-version">1.0.0</span></span>
+        </div>
+        <div class="footer-links">
+          <a href="market.html" data-i18n="nav_market">السوق</a>
+          <a href="business.html" data-i18n="nav_business_short">الأعمال</a>
+          <a href="market.html#/game-hosting" data-i18n="nav_game_short">الألعاب</a>
+          <a href="index.html" data-i18n="nav_app_short">التطبيق</a>
+        </div>
+      </div>
     </section>
   </main>
 
-  <nav class="bottom-nav" aria-label="Quick access">
+  <nav class="bottom-nav" aria-label="شريط الوصول السريع">
     <a class="bottom-nav-link is-active" href="platform.html" data-i18n="nav_home">الرئيسية</a>
-    <a class="bottom-nav-link" href="market.html" data-i18n="nav_market">الماركت</a>
+    <a class="bottom-nav-link" href="market.html" data-i18n="nav_market_short">الماركت</a>
     <a class="bottom-nav-link" href="business.html" data-i18n="nav_business_short">الأعمال</a>
     <a class="bottom-nav-link" href="market.html#/game-hosting" data-i18n="nav_game_short">الألعاب</a>
     <a class="bottom-nav-link" href="index.html" data-i18n="nav_app_short">التطبيق</a>
