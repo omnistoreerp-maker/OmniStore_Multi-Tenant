@@ -150,7 +150,18 @@ function ensureSeeded() {
   try {
     const db = _loadSync();
     const defaultId = config.defaultTenantId || 'default';
-    if (db.configs.some((c) => String(c.tenantId) === String(defaultId))) return;
+    const existing = db.configs.find((c) => String(c.tenantId) === String(defaultId));
+    if (existing) {
+      // Backfill fail-closed visibility onto a pre-M1.1 default config so
+      // the public market catalog is visible without a data-file overwrite.
+      if (!existing.productVisibility || typeof existing.productVisibility !== 'object') {
+        existing.productVisibility = { includeAll: true };
+        existing.updatedAt = new Date().toISOString();
+        repository.write(db);
+        logger.info('Market: backfilled productVisibility for default tenant (' + defaultId + ')');
+      }
+      return;
+    }
     const seeded = {
       tenantId: defaultId,
       enabled: true,
