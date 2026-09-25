@@ -4,8 +4,11 @@
       "tenantId": "default",
       "enabled": true,
       "storeName": "OmniStore Market",
-      "currency": "USD",
-      "locale": "en",
+      "currency": "EGP",
+      "locale": "ar",
+      "productVisibility": {
+        "includeAll": true
+      },
       "shippingZones": [
         {
           "id": "standard",
