@@ -29,8 +29,8 @@ describe('Platform MVP — static surface', () => {
     const html = repoFile('platform.html');
     expect(html).toContain('OmniStore ERP');
     expect(html).toContain('Multi-Tenant Enterprise Resource Planning');
-    expect(html).toContain('Change Center');
-    expect(html).toContain('My Requests');
+    expect(html).not.toContain('internal.html');
+    expect(html).not.toContain('customer.html');
     expect(html).toContain('Open Application');
     expect(html).toContain('platform/platform.js');
     expect(html).not.toContain('id="loginScreen"');
