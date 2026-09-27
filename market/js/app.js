@@ -315,7 +315,7 @@
       window.MK_API.products({
         categoryId: type || cat,
         search: q,
-        brandId: brand || undefined,
+        brandId: brand,
         sortBy: sort === 'price_asc' ? 'price' : sort === 'price_desc' ? 'price' : 'name',
         sortOrder: sort === 'price_desc' ? 'desc' : 'asc',
         includeOutOfStock: 'true',
@@ -1627,7 +1627,7 @@
   }
 
   async function render() {
-    const h = location.hash.replace(/^#\/?/, '');
+    const h = location.hash.replace(/^#\/?/, '').split('?')[0];
     const [path, param] = h.split('/');
     updateCartBadge();
     applyI18n();
