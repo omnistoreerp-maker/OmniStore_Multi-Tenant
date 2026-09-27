@@ -21,6 +21,13 @@
     });
     const btn = document.getElementById('mk-lang-btn');
     if (btn) btn.textContent = _locale === 'ar' ? 'English' : 'العربية';
+    const hdrInput = document.getElementById('mk-hdr-search');
+    if (hdrInput) {
+      hdrInput.placeholder = t('search_placeholder');
+      hdrInput.setAttribute('aria-label', t('search_placeholder'));
+    }
+    const hdrBtn = document.querySelector('.mk-hdr-search-btn');
+    if (hdrBtn) hdrBtn.setAttribute('aria-label', t('search_btn'));
   }
   function renderIcons() {
     if (window.lucide && typeof window.lucide.createIcons === 'function') {
@@ -269,13 +276,37 @@
     renderIcons();
   }
 
+  function brandLabel(b) {
+    if (!b) return '';
+    const m = { hp: 'HP', dell: 'Dell', lenovo: 'Lenovo', sony: 'Sony' };
+    return m[String(b).toLowerCase()] || String(b).toUpperCase();
+  }
+
+  function categoryLabel(c) {
+    if (!c) return '';
+    if (c === 'laptops') return t('type_laptops');
+    if (c === 'gaming') return t('type_gaming');
+    return String(c);
+  }
+
+  function noImageHtml() {
+    return '<div class="mk-noimg" role="img" aria-label="' + esc(t('no_image')) + '">' +
+      '<i data-lucide="image-off" aria-hidden="true"></i>' +
+      '<span>' + esc(t('no_image')) + '</span>' +
+    '</div>';
+  }
+
   function productCard(p) {
     const a = document.createElement('a');
     a.className = 'mk-card mk-card--product';
     a.href = '#/product/' + encodeURIComponent(p.id);
     const out = (p.stockQty || 0) <= 0;
-    const fallbackSrc = 'market/img/placeholders/product.svg';
-    const imgHtml = '<img src="' + (p.imageUrl || fallbackSrc) + '" alt="' + esc(p.name) + '" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' + '<div class="mk-card-fallback" style="display:none"><i data-lucide="package"></i></div>';
+    const imgHtml = p.imageUrl
+      ? '<img src="' + esc(p.imageUrl) + '" alt="' + esc(p.name) + '" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' + '<div class="mk-noimg" style="display:none" role="img" aria-label="' + esc(t('no_image')) + '"><i data-lucide="image-off" aria-hidden="true"></i><span>' + esc(t('no_image')) + '</span></div>'
+      : noImageHtml();
+    const badges = [];
+    if (p.brandId) badges.push('<span class="mk-card-badge">' + esc(brandLabel(p.brandId)) + '</span>');
+    if (p.categoryId) badges.push('<span class="mk-card-badge mk-card-badge--cat">' + esc(categoryLabel(p.categoryId)) + '</span>');
     const specs = [];
     if (p.cpu) specs.push('<div class="mk-spec-row"><span class="mk-spec-label">' + esc(t('spec_cpu')) + '</span><span class="mk-spec-value">' + esc(p.cpu) + '</span></div>');
     if (p.ramRom) specs.push('<div class="mk-spec-row"><span class="mk-spec-label">' + esc(t('spec_ram_rom')) + '</span><span class="mk-spec-value">' + esc(p.ramRom) + '</span></div>');
@@ -283,13 +314,14 @@
     a.innerHTML =
       '<div class="mk-card-img">' + imgHtml + '</div>' +
       '<div class="mk-card-body">' +
-        '<div class="mk-card-name">' + esc(p.name) + '</div>' +
+        (badges.length ? '<div class="mk-card-badges">' + badges.join('') + '</div>' : '') +
+        '<div class="mk-card-name" title="' + esc(p.name) + '">' + esc(p.name) + '</div>' +
         (specs.length ? '<div class="mk-card-specs">' + specs.join('') + '</div>' : '') +
         '<div class="mk-card-price">' + esc(money(p.price, p.currency)) + '</div>' +
         '<div class="mk-card-stock ' + (out ? 'out' : '') + '">' + (out ? esc(t('out_of_stock')) : esc(t('in_stock'))) + '</div>' +
         '<div class="mk-card-actions">' +
-          '<button class="mk-btn mk-btn--ghost mk-view-details" type="button">' + esc(t('view_details')) + '</button>' +
-          (out ? '' : '<input class="mk-input mk-qty mk-qty--sm" type="number" min="1" value="1" data-qty aria-label="' + esc(t('qty')) + '"><button class="mk-btn mk-add-to-cart" type="button" data-id="' + esc(p.id) + '">' + esc(t('add_to_cart')) + '</button>') +
+          '<button class="mk-btn secondary mk-view-details" type="button"><i data-lucide="eye" aria-hidden="true"></i>' + esc(t('view_details')) + '</button>' +
+          (out ? '' : '<input class="mk-input mk-qty mk-qty--sm" type="number" min="1" value="1" data-qty aria-label="' + esc(t('qty')) + '"><button class="mk-btn mk-add-to-cart" type="button" data-id="' + esc(p.id) + '"><i data-lucide="shopping-cart" aria-hidden="true"></i>' + esc(t('add_to_cart')) + '</button>') +
         '</div>' +
       '</div>';
     const viewBtn = a.querySelector('.mk-view-details');
@@ -297,6 +329,13 @@
       e.preventDefault();
       e.stopPropagation();
       location.hash = '#/product/' + encodeURIComponent(p.id);
+    });
+    const addBtn = a.querySelector('.mk-add-to-cart');
+    if (addBtn) addBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const qty = parseInt((a.querySelector('.mk-qty') || {}).value || '1', 10) || 1;
+      window.MK_CART.add(p.id, qty);
     });
     return a;
   }
@@ -336,8 +375,10 @@
       return '#/catalog' + (s ? '?' + s : '');
     };
     let html = '<h1 class="mk-page-title">' + esc(t('catalog_title')) + '</h1>';
+    html += '<div class="mk-filterbar">';
     html += '<div class="mk-toolbar mk-toolbar--filters" role="search">' +
       '<div class="mk-autocomplete" id="mk-search-wrap">' +
+        '<i class="mk-search-icon" data-lucide="search" aria-hidden="true"></i>' +
         '<input class="mk-input" id="mk-search" placeholder="' + esc(t('search_placeholder')) + '" value="' + esc(q) + '" autocomplete="off" aria-autocomplete="list" aria-controls="mk-search-menu" role="combobox" aria-expanded="false" aria-label="' + esc(t('search_placeholder')) + '">' +
         '<div class="mk-autocomplete-menu" id="mk-search-menu" role="listbox"></div>' +
       '</div>' +
@@ -361,30 +402,23 @@
       '<div class="mk-price-range">' +
         '<input class="mk-input mk-input--sm" id="mk-min" type="number" min="0" inputmode="numeric" placeholder="' + esc(t('price_min')) + '" value="' + esc(priceMin) + '" aria-label="' + esc(t('price_min')) + '">' +
         '<input class="mk-input mk-input--sm" id="mk-max" type="number" min="0" inputmode="numeric" placeholder="' + esc(t('price_max')) + '" value="' + esc(priceMax) + '" aria-label="' + esc(t('price_max')) + '">' +
-        '<button class="mk-btn mk-btn--ghost" type="button" id="mk-price-apply">' + esc(t('filter_price')) + '</button>' +
+        '<button class="mk-btn" type="button" id="mk-price-apply">' + esc(t('filter_price')) + '</button>' +
       '</div>' +
-      ((brand || type || cat || priceMin || priceMax) ? '<a class="mk-btn mk-btn--ghost" href="#/catalog">' + esc(t('all_categories')) + '</a>' : '') +
+      ((brand || type || cat || priceMin || priceMax) ? '<a class="mk-btn secondary" href="#/catalog">' + esc(t('all_categories')) + '</a>' : '') +
     '</div>';
+    html += '</div>';
     html += '<div class="mk-catalog-count mk-muted" id="mk-count" aria-live="polite"></div>';
     html += '<div class="mk-grid" id="mk-list"></div>';
     setApp(html);
+    const hdrSearch = document.getElementById('mk-hdr-search');
+    if (hdrSearch) hdrSearch.value = q;
 
     const list = document.getElementById('mk-list');
     if (!allProducts.length) {
       list.innerHTML = emptyState('package', t('no_products'), null, '<a class="mk-btn" href="#/catalog">' + esc(t('empty_browse_catalog')) + '</a>');
     } else {
       allProducts.forEach((p) => {
-        const card = productCard(p);
-        list.appendChild(card);
-        const btn = card.querySelector('.mk-add-to-cart');
-        if (btn) {
-          btn.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            const qty = parseInt(card.querySelector('.mk-qty')?.value || '1', 10) || 1;
-            window.MK_CART.add(p.id, qty);
-          });
-        }
+        list.appendChild(productCard(p));
       });
       renderIcons();
     }
@@ -470,27 +504,42 @@
     const p = await window.MK_API.product(id).catch(() => null);
     if (!p) { setApp('<h1 class="mk-page-title">' + esc(t('product_not_found')) + '</h1><p><a href="#/catalog">' + esc(t('back_to_catalog')) + '</a></p>'); return; }
     const out = (p.stockQty || 0) <= 0;
-    const fallbackSrc = 'market/img/placeholders/product.svg';
-    const imgHtml = '<img src="' + (p.imageUrl || fallbackSrc) + '" alt="' + esc(t('product_image_alt')) + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' + '<div class="mk-card-fallback" style="display:none"><i data-lucide="package"></i></div>';
+    const imgHtml = p.imageUrl
+      ? '<img src="' + esc(p.imageUrl) + '" alt="' + esc(t('product_image_alt')) + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' + '<div class="mk-noimg" style="display:none" role="img" aria-label="' + esc(t('no_image')) + '"><i data-lucide="image-off" aria-hidden="true"></i><span>' + esc(t('no_image')) + '</span></div>'
+      : noImageHtml();
+    const badges = [];
+    if (p.brandId) badges.push('<span class="mk-card-badge">' + esc(brandLabel(p.brandId)) + '</span>');
+    if (p.categoryId) badges.push('<span class="mk-card-badge mk-card-badge--cat">' + esc(categoryLabel(p.categoryId)) + '</span>');
     let html = breadcrumb([{label: t('nav_home'), href: '#/home'}, {label: t('nav_catalog'), href: '#/catalog'}, {label: p.name}]);
-    html += '<div class="mk-row mk-mt-16">';
-    html += '<div class="mk-col"><div class="mk-product-image">' + imgHtml + '</div></div>';
-    html += '<div class="mk-col">';
-    html += '<h1 class="mk-page-title">' + esc(p.name) + '</h1>';
-    html += '<div class="mk-card-price mk-price--lg">' + esc(money(p.price, p.currency)) + '</div>';
-    html += '<div class="mk-card-stock ' + (out ? 'out' : '') + '">' + (out ? esc(t('out_of_stock')) : esc(t('in_stock'))) + '</div>';
-    const detailSpecs = [];
-    if (p.cpu) detailSpecs.push('<div class="mk-spec-row"><span class="mk-spec-label">' + esc(t('spec_cpu')) + '</span><span class="mk-spec-value">' + esc(p.cpu) + '</span></div>');
-    if (p.ramRom) detailSpecs.push('<div class="mk-spec-row"><span class="mk-spec-label">' + esc(t('spec_ram_rom')) + '</span><span class="mk-spec-value">' + esc(p.ramRom) + '</span></div>');
-    if (p.gpu) detailSpecs.push('<div class="mk-spec-row"><span class="mk-spec-label">' + esc(t('spec_gpu')) + '</span><span class="mk-spec-value">' + esc(p.gpu) + '</span></div>');
-    if (detailSpecs.length) html += '<div class="mk-card-specs mk-specs--detail">' + detailSpecs.join('') + '</div>';
-    else if (p.description) html += '<p>' + esc(p.description) + '</p>';
+    html += '<div class="mk-pdp mk-mt-16">';
+    html += '<div class="mk-pdp-media"><div class="mk-product-image">' + imgHtml + '</div></div>';
+    html += '<div class="mk-pdp-info">';
+    if (badges.length) html += '<div class="mk-card-badges">' + badges.join('') + '</div>';
+    html += '<h1 class="mk-pdp-title">' + esc(p.name) + '</h1>';
+    html += '<div class="mk-pdp-price">' + esc(money(p.price, p.currency)) + '</div>';
+    html += '<div class="mk-card-stock mk-pdp-stock ' + (out ? 'out' : '') + '">' + (out ? esc(t('out_of_stock')) : esc(t('in_stock'))) + '</div>';
+    const shortSpecs = [];
+    if (p.cpu) shortSpecs.push('<div class="mk-spec-row"><span class="mk-spec-label">' + esc(t('spec_cpu')) + '</span><span class="mk-spec-value">' + esc(p.cpu) + '</span></div>');
+    if (p.ramRom) shortSpecs.push('<div class="mk-spec-row"><span class="mk-spec-label">' + esc(t('spec_ram_rom')) + '</span><span class="mk-spec-value">' + esc(p.ramRom) + '</span></div>');
+    if (p.gpu) shortSpecs.push('<div class="mk-spec-row"><span class="mk-spec-label">' + esc(t('spec_gpu')) + '</span><span class="mk-spec-value">' + esc(p.gpu) + '</span></div>');
+    if (shortSpecs.length) html += '<div class="mk-card-specs mk-specs--short">' + shortSpecs.join('') + '</div>';
+    else if (p.description) html += '<p class="mk-pdp-desc">' + esc(p.description) + '</p>';
     if (!out) {
-      html += '<div class="mk-field"><label for="mk-qty">' + esc(t('qty')) + '</label><input class="mk-input mk-qty mk-qty--sm" id="mk-qty" type="number" min="1" value="1"></div>';
-      html += '<button class="mk-btn" id="mk-add">' + esc(t('add_to_cart')) + '</button>';
+      html += '<div class="mk-pdp-buy">' +
+        '<div class="mk-field mk-pdp-qty"><label for="mk-qty">' + esc(t('qty')) + '</label><input class="mk-input mk-qty" id="mk-qty" type="number" min="1" value="1"></div>' +
+        '<button class="mk-btn mk-pdp-add" id="mk-add"><i data-lucide="shopping-cart" aria-hidden="true"></i>' + esc(t('add_to_cart')) + '</button>' +
+      '</div>';
     }
     html += '</div></div>';
-    html += '<h2 style="margin-top:24px">' + esc(t('related_products')) + '</h2><div class="mk-grid" id="mk-related"></div>';
+    const tableRows = [];
+    if (p.cpu) tableRows.push('<div class="mk-spec-row"><span class="mk-spec-label">' + esc(t('spec_cpu')) + '</span><span class="mk-spec-value">' + esc(p.cpu) + '</span></div>');
+    if (p.ramRom) tableRows.push('<div class="mk-spec-row"><span class="mk-spec-label">' + esc(t('spec_ram_rom')) + '</span><span class="mk-spec-value">' + esc(p.ramRom) + '</span></div>');
+    if (p.gpu) tableRows.push('<div class="mk-spec-row"><span class="mk-spec-label">' + esc(t('spec_gpu')) + '</span><span class="mk-spec-value">' + esc(p.gpu) + '</span></div>');
+    if (p.sku) tableRows.push('<div class="mk-spec-row"><span class="mk-spec-label">' + esc(t('spec_sku')) + '</span><span class="mk-spec-value">' + esc(p.sku) + '</span></div>');
+    if (p.brandId) tableRows.push('<div class="mk-spec-row"><span class="mk-spec-label">' + esc(t('spec_brand')) + '</span><span class="mk-spec-value">' + esc(brandLabel(p.brandId)) + '</span></div>');
+    if (p.categoryId) tableRows.push('<div class="mk-spec-row"><span class="mk-spec-label">' + esc(t('spec_category')) + '</span><span class="mk-spec-value">' + esc(categoryLabel(p.categoryId)) + '</span></div>');
+    if (tableRows.length) html += '<section class="mk-pdp-specs"><h2>' + esc(t('specs_title')) + '</h2><div class="mk-specs-table mk-specs--detail">' + tableRows.join('') + '</div></section>';
+    html += '<h2>' + esc(t('related_products')) + '</h2><div class="mk-grid" id="mk-related"></div>';
     setApp(html);
     const add = document.getElementById('mk-add');
     if (add) add.addEventListener('click', () => {
@@ -512,6 +561,8 @@
   }
 
   async function pageCart() {
+    const cfg = await window.MK_API.config().catch(() => null);
+    if (cfg) window.MK_CONFIG = cfg;
     await window.MK_CART.reconcile();
     const items = window.MK_CART.items();
     if (!items.length) { setApp('<h1 class="mk-page-title">' + esc(t('cart_title')) + '</h1><div class="mk-empty">' + esc(t('cart_empty')) + '</div>'); return; }
@@ -527,9 +578,6 @@
 
     let html = '<h1 class="mk-page-title">' + esc(t('cart_title')) + '</h1>';
     html += '<div id="mk-cart-items"></div>';
-    html += '<div class="mk-summary" style="max-width:360px;margin-top:16px"><div class="mk-summary-row"><span>' + esc(t('subtotal')) + '</span><span id="mk-sub">-</span></div>';
-    html += '<div class="mk-summary-row total"><span>' + esc(t('total')) + '</span><span id="mk-tot">-</span></div>';
-    html += '<button class="mk-btn block" id="mk-gocheckout" style="margin-top:12px">' + esc(t('checkout')) + '</button></div>';
     html += '<div class="mk-summary mk-summary--checkout"><div class="mk-summary-row"><span>' + esc(t('subtotal')) + '</span><span id="mk-sub">-</span></div>';
     html += '<div class="mk-summary-row total"><span>' + esc(t('total')) + '</span><span id="mk-tot">-</span></div>';
     html += '<button class="mk-btn block" id="mk-gocheckout">' + esc(t('checkout')) + '</button></div>';
@@ -548,15 +596,11 @@
       const stock = a ? a.stockQty : 0;
       const noStock = !a || !a.available;
       row.innerHTML =
-        '<div class="mk-ci-name"><div>' + esc(p.name) + '</div><div class="mk-card-stock ' + (noStock ? 'out' : '') + '">' + (noStock ? esc(t('out_of_stock')) : esc(t('in_stock') + ': ' + stock)) + '</div></div>' +
-        '<input class="mk-input mk-qty" type="number" min="1" max="' + (stock || 1) + '" value="' + i.qty + '" ' + (noStock ? 'disabled' : '') + '>' +
-        '<div>' + esc(money(price * i.qty, p.currency)) + '</div>' +
-        '<button class="mk-btn danger" data-rm="' + esc(p.id) + '">' + esc(t('remove')) + '</button>';
         '<div class="mk-ci-name"><div class="mk-ci-name-text" title="' + esc(p.name) + '">' + esc(p.name) + '</div><div class="mk-card-stock ' + (noStock ? 'out' : '') + '">' + (noStock ? esc(t('out_of_stock')) : esc(t('in_stock') + ': ' + stock)) + '</div></div>' +
         '<div class="mk-cart-item-actions">' +
-          '<input class="mk-input mk-qty" type="number" min="1" max="' + (stock || 1) + '" value="' + i.qty + '" ' + (noStock ? 'disabled' : '') + '>' +
+          '<input class="mk-input mk-qty" type="number" min="1" max="' + (stock || 1) + '" value="' + i.qty + '" ' + (noStock ? 'disabled' : '') + ' aria-label="' + esc(t('qty')) + '">' +
           '<div class="mk-cart-item-price">' + esc(money(price * i.qty, p.currency)) + '</div>' +
-          '<button class="mk-btn danger mk-btn--icon" data-rm="' + esc(p.id) + '" aria-label="' + esc(t('remove')) + '"><i data-lucide="trash-2" style="width:16px;height:16px"></i></button>' +
+          '<button class="mk-btn danger mk-btn--icon" data-rm="' + esc(p.id) + '" aria-label="' + esc(t('remove')) + '"><i data-lucide="trash-2" aria-hidden="true"></i></button>' +
         '</div>';
       wrap.appendChild(row);
       const qtyInput = row.querySelector('.mk-qty');
@@ -566,10 +610,8 @@
     renderIcons();
     document.getElementById('mk-sub').textContent = money(subtotal);
     document.getElementById('mk-tot').textContent = money(subtotal);
-    document.getElementById('mk-gocheckout').addEventListener('click', () => { location.hash = '#/checkout'; });
     const checkoutBtn = document.getElementById('mk-gocheckout');
-    if (checkoutBtn) { checkoutBtn.disabled = false; }
-    if (checkoutBtn) checkoutBtn.addEventListener('click', () => { location.hash = '#/checkout'; });
+    if (checkoutBtn) { checkoutBtn.disabled = false; checkoutBtn.addEventListener('click', () => { location.hash = '#/checkout'; }); }
   }
 
   async function pageCheckout() {
@@ -1687,7 +1729,13 @@
     document.documentElement.dir = _locale === 'ar' ? 'rtl' : 'ltr';
     const langBtn = document.getElementById('mk-lang-btn');
     if (langBtn) langBtn.addEventListener('click', () => setLocale(_locale === 'ar' ? 'en' : 'ar'));
-    window.addEventListener('hashchange', render);
+    const hdrForm = document.getElementById('mk-hdr-search-form');
+    if (hdrForm) hdrForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const hdrInput = document.getElementById('mk-hdr-search');
+      const v = ((hdrInput && hdrInput.value) || '').trim();
+      location.hash = v ? '#/catalog?q=' + encodeURIComponent(v) : '#/catalog';
+    });
     const menuBtn = document.getElementById('mk-menu-btn');
     const mobileNav = document.getElementById('mk-mobile-nav');
     if (menuBtn && mobileNav) {
@@ -1703,6 +1751,8 @@
       });
     }
     updateAuthUI();
+    applyI18n();
+    renderIcons();
     window.addEventListener('hashchange', () => { updateAuthUI(); render(); });
     if (!location.hash) location.hash = '#/home';
     else render();
