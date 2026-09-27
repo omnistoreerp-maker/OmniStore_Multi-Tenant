@@ -266,6 +266,7 @@
 
     const grid = document.getElementById('mk-featured');
     if (grid) (prods.products || []).forEach((p) => grid.appendChild(productCard(p)));
+    renderIcons();
   }
 
   function productCard(p) {
@@ -385,6 +386,7 @@
           });
         }
       });
+      renderIcons();
     }
     const countEl = document.getElementById('mk-count');
     if (countEl) countEl.textContent = String(allProducts.length);
@@ -506,6 +508,7 @@
       return;
     }
     related.forEach((rp) => relGrid.appendChild(productCard(rp)));
+    renderIcons();
   }
 
   async function pageCart() {
@@ -560,6 +563,7 @@
       if (qtyInput && !noStock) qtyInput.addEventListener('change', (e) => { window.MK_CART.setQty(p.id, parseInt(e.target.value, 10) || 1); render(); });
       row.querySelector('[data-rm]').addEventListener('click', () => { window.MK_CART.remove(p.id); render(); });
     });
+    renderIcons();
     document.getElementById('mk-sub').textContent = money(subtotal);
     document.getElementById('mk-tot').textContent = money(subtotal);
     document.getElementById('mk-gocheckout').addEventListener('click', () => { location.hash = '#/checkout'; });
