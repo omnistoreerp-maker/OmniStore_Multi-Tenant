@@ -19951,6 +19951,7 @@ async function renderDashboard() {
   const lowStock = DB.products.filter(p => getProductStock(p.id) <= (p.minStock || 5)).length;
   const treasuryBalance = getTreasurySummary().total;
   const maintPending = DB.maintenance.filter(m => m.status === 'pending').length;
+  const dashboardVersionKey = getDataVersionKey('dashboard');
   const warrantyCounts = getCachedComputation('dashboard:warrantyCounts', dashboardVersionKey, () => (DB.devices || []).reduce((acc, d) => {
     const w = getWarrantySummary(d.warranty_start || d.warrantyStart || d.metadata?.warranty_start, d.warranty_end || d.warrantyEnd || d.metadata?.warranty_end, d.warranty_status || d.warrantyStatus);
     if (w.status === 'active') {
