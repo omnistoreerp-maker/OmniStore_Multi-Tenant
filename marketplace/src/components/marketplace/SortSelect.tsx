@@ -6,8 +6,12 @@ interface Props {
   onChange: (v: SortKey) => void;
 }
 
+/**
+ * Sorting supported by the real API (sortBy=name|price, sortOrder=asc|desc).
+ * "الافتراضي" = backend default order — no invented sort options.
+ */
 const OPTIONS: { value: SortKey; label: string }[] = [
-  { value: "featured", label: "الأكثر شهرة" },
+  { value: "featured", label: "الترتيب الافتراضي" },
   { value: "price-asc", label: "السعر: من الأقل للأعلى" },
   { value: "price-desc", label: "السعر: من الأعلى للأقل" },
   { value: "name-asc", label: "الاسم: أ - ي" },
@@ -21,6 +25,7 @@ export function SortSelect({ value, onChange }: Props) {
       <select
         value={value}
         onChange={(e) => onChange(e.target.value as SortKey)}
+        aria-label="ترتيب حسب"
         className="btn-focus h-11 appearance-none rounded-xl border border-border bg-card ps-9 pe-4 text-sm font-medium text-foreground shadow-sm transition-colors hover:border-primary/30"
       >
         {OPTIONS.map((o) => (

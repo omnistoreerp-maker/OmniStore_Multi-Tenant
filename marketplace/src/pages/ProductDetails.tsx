@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   ChevronRight,
@@ -8,41 +8,80 @@ import {
   HardDrive,
   Monitor,
   Layers,
+  RefreshCw,
+  PackageX,
 } from "lucide-react";
 import { toast } from "sonner";
-import { fetchProduct } from "@/lib/api";
+import { fetchProduct, MarketApiError } from "@/lib/api";
 import type { Product } from "@/types/product";
-import { formatEGP } from "@/lib/format";
-import { ProductImage } from "@/components/marketplace/ProductImage";
+import { formatPrice } from "@/lib/format";
+import { ProductGallery } from "@/components/marketplace/ProductGallery";
 import { cartStore } from "@/stores/cart";
 
+/**
+ * Product details — every block comes from the real
+ * GET /api/v1/market/products/:id payload: gallery, name, brand/category,
+ * API-priced currency-aware amount, real stock availability, specs and
+ * description. No fabricated ratings, reviews, discounts or policies.
+ */
 export default function ProductDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [product, setProduct] = useState<Product | null | undefined>(undefined);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const [qty, setQty] = useState(1);
 
   useEffect(() => {
     let cancelled = false;
     if (!id) return;
-    fetchProduct(id).then((p) => {
-      if (!cancelled) setProduct(p ?? null);
-    });
+    setProduct(undefined);
+    setFetchError(null);
+    fetchProduct(id)
+      .then((p) => {
+        if (!cancelled) setProduct(p ?? null);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setProduct(null);
+        setFetchError(e instanceof MarketApiError ? e.message : "تعذر الاتصال بخدمة المنتجات");
+      });
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, reloadKey]);
+
+  const retry = useCallback(() => setReloadKey((k) => k + 1), []);
+
+  if (fetchError) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-20 text-center" role="alert">
+        <h1 className="text-2xl font-bold">تعذر تحميل المنتج</h1>
+        <p className="mt-2 text-muted-foreground">{fetchError}</p>
+        <button
+          type="button"
+          onClick={retry}
+          className="btn-focus mt-6 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
+        >
+          <RefreshCw className="h-4 w-4" aria-hidden />
+          إعادة المحاولة
+        </button>
+      </div>
+    );
+  }
 
   if (product === undefined) {
     return (
-      <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8" aria-hidden>
         <div className="h-8 w-40 animate-pulse rounded bg-secondary" />
-        <div className="mt-8 grid gap-8 lg:grid-cols-2">
+        <div className="mt-8 grid gap-8 lg:grid-cols-[1.1fr_1fr] lg:gap-12">
           <div className="aspect-square animate-pulse rounded-2xl bg-secondary" />
-          <div className="space-y-3">
+          <div className="space-y-4">
             <div className="h-4 w-24 animate-pulse rounded bg-secondary" />
-            <div className="h-8 w-3/4 animate-pulse rounded bg-secondary" />
-            <div className="h-6 w-40 animate-pulse rounded bg-secondary" />
+            <div className="h-9 w-3/4 animate-pulse rounded bg-secondary" />
+            <div className="h-7 w-40 animate-pulse rounded bg-secondary" />
+            <div className="h-24 w-full animate-pulse rounded-2xl bg-secondary" />
+            <div className="h-12 w-full animate-pulse rounded-xl bg-secondary" />
           </div>
         </div>
       </div>
@@ -52,7 +91,8 @@ export default function ProductDetails() {
   if (product === null) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-20 text-center">
-        <h1 className="text-2xl font-bold">المنتج غير موجود</h1>
+        <PackageX className="mx-auto h-12 w-12 text-muted-foreground/70" aria-hidden />
+        <h1 className="mt-4 text-2xl font-bold">المنتج غير موجود</h1>
         <p className="mt-2 text-muted-foreground">قد يكون المنتج قد أزيل أو أن الرابط غير صحيح.</p>
         <Link
           to="/"
@@ -64,20 +104,28 @@ export default function ProductDetails() {
     );
   }
 
+  const inStock = product.stock > 0;
+
   const specRows: { icon: React.ComponentType<{ className?: string }>; label: string; value?: string }[] = [
     { icon: Cpu, label: "المعالج", value: product.specs.cpu },
-    { icon: MemoryStick, label: "الذاكرة / التخزين", value: product.specs.ram ? `${product.specs.ram} / ${product.specs.storage ?? "—"}` : undefined },
+    {
+      icon: MemoryStick,
+      label: "الذاكرة / التخزين",
+      value: product.specs.ram ? `${product.specs.ram} / ${product.specs.storage ?? "—"}` : undefined,
+    },
     { icon: HardDrive, label: "كارت الشاشة", value: product.specs.gpu },
     { icon: Monitor, label: "الشاشة", value: product.specs.display },
     { icon: Layers, label: "الجيل", value: product.specs.generation },
   ];
 
   const handleAdd = () => {
+    if (!inStock) return;
     cartStore.add(product, qty);
     toast.success("تمت إضافة المنتج إلى السلة", { description: `${product.name} × ${qty}` });
   };
 
   const handleBuy = () => {
+    if (!inStock) return;
     cartStore.add(product, qty);
     navigate("/checkout");
   };
@@ -86,7 +134,9 @@ export default function ProductDetails() {
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
       {/* Breadcrumb */}
       <nav aria-label="مسار التصفح" className="mb-6 flex items-center gap-1 text-sm text-muted-foreground">
-        <Link to="/" className="hover:text-primary">المتجر</Link>
+        <Link to="/" className="hover:text-primary">
+          المتجر
+        </Link>
         <ChevronRight className="h-4 w-4 rotate-180" aria-hidden />
         <span className="tech text-foreground">{product.brand}</span>
         <ChevronRight className="h-4 w-4 rotate-180" aria-hidden />
@@ -94,34 +144,48 @@ export default function ProductDetails() {
       </nav>
 
       <div className="grid gap-8 lg:grid-cols-[1.1fr_1fr] lg:gap-12">
-        {/* Media */}
-        <div className="card-elevated overflow-hidden p-4 sm:p-6">
-          <ProductImage src={product.image} alt={product.name} brand={product.brand} className="aspect-square rounded-2xl" />
+        {/* Media — gallery structure (thumbnails appear only if API sends >1 image) */}
+        <div className="card-elevated p-4 sm:p-6">
+          <ProductGallery images={product.image ? [product.image] : []} alt={product.name} brand={product.brand} />
         </div>
 
         {/* Info */}
         <div className="flex flex-col">
-          <div className="flex items-center gap-2">
-            <span className="tech inline-flex rounded-full bg-secondary px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-primary">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="tech inline-flex rounded-md bg-secondary px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-primary">
               {product.brand}
             </span>
-            {product.category && (
-              <span className="text-xs text-muted-foreground">{product.category}</span>
-            )}
+            {product.category && <span className="text-xs text-muted-foreground">{product.category}</span>}
           </div>
 
           <h1 className="tech mt-3 text-2xl font-extrabold leading-snug text-foreground sm:text-3xl">
             {product.name}
           </h1>
 
-          <div className="mt-5 flex items-baseline gap-3">
-            <span className="text-3xl font-extrabold text-primary sm:text-4xl">
-              {formatEGP(product.price)}
+          {/* Price + real availability */}
+          <div className="mt-5 flex flex-wrap items-baseline gap-x-4 gap-y-2">
+            <span className="whitespace-nowrap text-3xl font-extrabold tabular-nums text-foreground sm:text-4xl">
+              {formatPrice(product.price, product.currency)}
             </span>
-            {product.stock != null && product.stock > 0 && (
-              <span className="text-xs text-muted-foreground">متوفّر</span>
-            )}
+            <span
+              className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${
+                inStock ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200" : "bg-red-50 text-red-700 ring-1 ring-red-200"
+              }`}
+            >
+              {inStock ? "متوفّر" : "غير متوفّر حاليًا"}
+            </span>
           </div>
+
+          {!inStock && (
+            <p className="mt-2 text-sm font-medium text-destructive">
+              هذا المنتج غير متوفّر في المخزون حاليًا — لا يمكن إضافته للسلة.
+            </p>
+          )}
+
+          {/* Description (real API field, shown only when present) */}
+          {product.description && (
+            <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{product.description}</p>
+          )}
 
           {/* Key specs card */}
           <dl className="mt-6 grid grid-cols-1 gap-2 rounded-2xl border border-border bg-card p-4 sm:grid-cols-2">
@@ -165,7 +229,8 @@ export default function ProductDetails() {
             <button
               type="button"
               onClick={handleAdd}
-              className="btn-focus inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-primary/20 bg-secondary px-5 text-sm font-semibold text-primary transition-colors hover:bg-primary/5"
+              disabled={!inStock}
+              className="btn-focus inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-primary/20 bg-secondary px-5 text-sm font-semibold text-primary transition-colors hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-45"
             >
               <ShoppingCart className="h-4 w-4" aria-hidden />
               أضف للسلة
@@ -174,7 +239,8 @@ export default function ProductDetails() {
             <button
               type="button"
               onClick={handleBuy}
-              className="btn-focus inline-flex h-12 flex-1 items-center justify-center rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+              disabled={!inStock}
+              className="btn-focus inline-flex h-12 flex-1 items-center justify-center rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-45"
             >
               اشتري الآن
             </button>
@@ -198,6 +264,8 @@ export default function ProductDetails() {
             {product.specs.gpu && <SpecRow label="كارت الشاشة" value={product.specs.gpu} tech />}
             {product.specs.display && <SpecRow label="الشاشة" value={product.specs.display} tech />}
             {product.specs.generation && <SpecRow label="الجيل" value={product.specs.generation} tech />}
+            {product.sku && <SpecRow label="رمز المنتج (SKU)" value={product.sku} tech />}
+            <SpecRow label="التوفر" value={inStock ? "متوفّر" : "غير متوفّر"} />
           </dl>
         </div>
       </section>
