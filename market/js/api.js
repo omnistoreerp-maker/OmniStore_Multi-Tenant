@@ -38,6 +38,23 @@ window.MK_API = (function () {
     return data ? data.data : null;
   }
 
+  // Game Hosting is mounted at /api/v1/game-hosting (not under /market).
+  const GH_BASE = '/api/v1/game-hosting';
+  async function ghReq(method, path, body) {
+    const opts = { method, headers: headers(true) };
+    if (body !== undefined) opts.body = JSON.stringify(body);
+    const res = await fetch(GH_BASE + path, opts);
+    let data = null;
+    try { data = await res.json(); } catch (_) {}
+    if (!res.ok) {
+      const msg = (data && data.message) || 'Request failed';
+      const err = new Error(msg);
+      err.status = res.status;
+      throw err;
+    }
+    return data ? data.data : null;
+  }
+
   return {
     setToken,
     getToken: token,
@@ -64,33 +81,32 @@ window.MK_API = (function () {
     changePassword: (p) => req('POST', '/customers/me/password', p),
     checkout: (p) => req('POST', '/checkout', p),
     track: (token) => req('GET', '/track/' + encodeURIComponent(token)),
-    myOrders: () => req('GET', '/orders')
     myOrders: () => req('GET', '/orders'),
     // Game Hosting
-    ghProviderStatus: () => req('GET', '/game-hosting/provider/status'),
-    ghPlans: (q) => req('GET', '/game-hosting/plans?' + new URLSearchParams(q || {}).toString()),
-    ghPlan: (id) => req('GET', '/game-hosting/plans/' + encodeURIComponent(id)),
-    ghCreatePlan: (p) => req('POST', '/game-hosting/plans', p),
-    ghUpdatePlan: (id, p) => req('PUT', '/game-hosting/plans/' + encodeURIComponent(id), p),
-    ghArchivePlan: (id) => req('PUT', '/game-hosting/plans/' + encodeURIComponent(id), { status: 'archived' }),
-    ghDeletePlan: (id) => req('DELETE', '/game-hosting/plans/' + encodeURIComponent(id)),
-    ghServers: (q) => req('GET', '/game-hosting/servers?' + new URLSearchParams(q || {}).toString()),
-    ghServer: (id) => req('GET', '/game-hosting/servers/' + encodeURIComponent(id)),
-    ghCreateServer: (p) => req('POST', '/game-hosting/servers', p),
-    ghUpdateServer: (id, p) => req('PUT', '/game-hosting/servers/' + encodeURIComponent(id), p),
-    ghDeleteServer: (id) => req('DELETE', '/game-hosting/servers/' + encodeURIComponent(id)),
-    ghStartServer: (id) => req('POST', '/game-hosting/servers/' + encodeURIComponent(id) + '/start'),
-    ghStopServer: (id) => req('POST', '/game-hosting/servers/' + encodeURIComponent(id) + '/stop'),
-    ghTerminateServer: (id) => req('POST', '/game-hosting/servers/' + encodeURIComponent(id) + '/terminate'),
-    ghProvisioningRequests: (q) => req('GET', '/game-hosting/provisioning-requests?' + new URLSearchParams(q || {}).toString()),
-    ghCreateProvisioningRequest: (p) => req('POST', '/game-hosting/provisioning-requests', p),
-    ghApproveProvisioningRequest: (id) => req('POST', '/game-hosting/provisioning-requests/' + encodeURIComponent(id) + '/approve'),
-    ghRejectProvisioningRequest: (id) => req('POST', '/game-hosting/provisioning-requests/' + encodeURIComponent(id) + '/reject'),
-    ghEntitlements: (q) => req('GET', '/game-hosting/entitlements?' + new URLSearchParams(q || {}).toString()),
-    ghCreateEntitlement: (p) => req('POST', '/game-hosting/entitlements', p),
-    ghUpdateEntitlement: (id, p) => req('PUT', '/game-hosting/entitlements/' + encodeURIComponent(id), p),
-    ghDeleteEntitlement: (id) => req('DELETE', '/game-hosting/entitlements/' + encodeURIComponent(id)),
-    ghAuditLog: (q) => req('GET', '/game-hosting/audit-log?' + new URLSearchParams(q || {}).toString())
+    ghProviderStatus: () => ghReq('GET', '/provider/status'),
+    ghPlans: (q) => ghReq('GET', '/plans?' + new URLSearchParams(q || {}).toString()),
+    ghPlan: (id) => ghReq('GET', '/plans/' + encodeURIComponent(id)),
+    ghCreatePlan: (p) => ghReq('POST', '/plans', p),
+    ghUpdatePlan: (id, p) => ghReq('PUT', '/plans/' + encodeURIComponent(id), p),
+    ghArchivePlan: (id) => ghReq('PUT', '/plans/' + encodeURIComponent(id), { status: 'archived' }),
+    ghDeletePlan: (id) => ghReq('DELETE', '/plans/' + encodeURIComponent(id)),
+    ghServers: (q) => ghReq('GET', '/servers?' + new URLSearchParams(q || {}).toString()),
+    ghServer: (id) => ghReq('GET', '/servers/' + encodeURIComponent(id)),
+    ghCreateServer: (p) => ghReq('POST', '/servers', p),
+    ghUpdateServer: (id, p) => ghReq('PUT', '/servers/' + encodeURIComponent(id), p),
+    ghDeleteServer: (id) => ghReq('DELETE', '/servers/' + encodeURIComponent(id)),
+    ghStartServer: (id) => ghReq('POST', '/servers/' + encodeURIComponent(id) + '/start'),
+    ghStopServer: (id) => ghReq('POST', '/servers/' + encodeURIComponent(id) + '/stop'),
+    ghTerminateServer: (id) => ghReq('POST', '/servers/' + encodeURIComponent(id) + '/terminate'),
+    ghProvisioningRequests: (q) => ghReq('GET', '/provisioning-requests?' + new URLSearchParams(q || {}).toString()),
+    ghCreateProvisioningRequest: (p) => ghReq('POST', '/provisioning-requests', p),
+    ghApproveProvisioningRequest: (id) => ghReq('POST', '/provisioning-requests/' + encodeURIComponent(id) + '/approve'),
+    ghRejectProvisioningRequest: (id) => ghReq('POST', '/provisioning-requests/' + encodeURIComponent(id) + '/reject'),
+    ghEntitlements: (q) => ghReq('GET', '/entitlements?' + new URLSearchParams(q || {}).toString()),
+    ghCreateEntitlement: (p) => ghReq('POST', '/entitlements', p),
+    ghUpdateEntitlement: (id, p) => ghReq('PUT', '/entitlements/' + encodeURIComponent(id), p),
+    ghDeleteEntitlement: (id) => ghReq('DELETE', '/entitlements/' + encodeURIComponent(id)),
+    ghAuditLog: (q) => ghReq('GET', '/audit-log?' + new URLSearchParams(q || {}).toString())
   };
 })();
 

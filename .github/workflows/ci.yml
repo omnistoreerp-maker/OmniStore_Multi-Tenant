@@ -28,7 +28,11 @@ jobs:
       - name: Syntax check (node --check)
         run: |
           node --check server.js
-          find config controllers middleware models routes services utils scripts -name '*.js' -exec node --check {} +
+          dirs=""
+          for d in config controllers middleware models routes services utils scripts; do
+            if [ -d "$d" ]; then dirs="$dirs $d"; fi
+          done
+          find $dirs -name '*.js' -exec node --check {} +
 
       - name: Unit tests (fail on failure)
         run: npm test

@@ -14,7 +14,10 @@ function _project(product, cfg) {
     stockQty: Number(product.stockQty) || 0,
     imageUrl: product.imageUrl || null,
     description: product.description || null,
-    unit: product.unit || null
+    unit: product.unit || null,
+    cpu: product.cpu != null ? String(product.cpu) : null,
+    ramRom: product.ramRom != null ? String(product.ramRom) : null,
+    gpu: product.gpu != null ? String(product.gpu) : null
   };
 }
 
@@ -55,15 +58,26 @@ async function listProducts(tenantId, query = {}) {
     products = products.filter((p) =>
       (p.name || '').toLowerCase().includes(q) ||
       String(p.sku || '').toLowerCase().includes(q) ||
-      String(p.barcode || '').toLowerCase().includes(q)
+      String(p.barcode || '').toLowerCase().includes(q) ||
+      String(p.cpu || '').toLowerCase().includes(q) ||
+      String(p.ramRom || '').toLowerCase().includes(q) ||
+      String(p.gpu || '').toLowerCase().includes(q) ||
+      String(p.description || '').toLowerCase().includes(q)
     );
   }
 
   const sortBy = query.sortBy || 'name';
   const order = query.sortOrder === 'desc' ? -1 : 1;
   products.sort((a, b) => {
-    let va = a[sortBy];
-    let vb = b[sortBy];
+    let va;
+    let vb;
+    if (sortBy === 'price') {
+      va = marketConfigService.priceFor(a, cfg);
+      vb = marketConfigService.priceFor(b, cfg);
+    } else {
+      va = a[sortBy];
+      vb = b[sortBy];
+    }
     if (sortBy === 'price' || sortBy === 'stockQty') {
       va = Number(va) || 0;
       vb = Number(vb) || 0;

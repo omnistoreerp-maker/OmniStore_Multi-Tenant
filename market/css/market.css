@@ -643,4 +643,50 @@ h3 { font-size: 16px; font-weight: 700; margin: 16px 0 8px; }
   .mk-product-image { height: 220px; }
 }
 
+/* Digitronics catalog: specs, filters, RTL, responsive */
+.mk-card--product .mk-card-img { height: 200px; }
+.mk-card-specs { display: flex; flex-direction: column; gap: 4px; padding-top: 6px; border-top: 1px dashed var(--mk-border, #e5e7eb); }
+.mk-card-specs .mk-spec-row { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; line-height: 1.4; }
+.mk-card-specs .mk-spec-label { color: var(--mk-muted); font-weight: 600; flex: 0 0 auto; }
+.mk-card-specs .mk-spec-value { color: var(--mk-text, #111827); text-align: end; word-break: break-word; }
+.mk-specs--detail { margin: 12px 0; padding-top: 0; border-top: none; }
+.mk-specs--detail .mk-spec-row { font-size: 14px; padding: 6px 0; border-bottom: 1px solid var(--mk-border, #e5e7eb); }
+.mk-card-actions { flex-wrap: wrap; }
+.mk-view-details { flex: 1 1 auto; }
+.mk-toolbar--filters { gap: 10px; }
+.mk-toolbar--filters .mk-autocomplete { flex: 1 1 240px; min-width: 180px; }
+.mk-toolbar--filters .mk-input { max-width: none; width: 100%; }
+.mk-select--sm { max-width: 180px; min-width: 130px; }
+.mk-price-range { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.mk-price-range .mk-input--sm { width: 96px; max-width: 110px; }
+.mk-catalog-count { font-size: 13px; margin-bottom: 10px; }
+.mk-muted { color: var(--mk-muted); }
+[dir="rtl"] .mk-price-range { flex-direction: row; }
+[dir="rtl"] .mk-autocomplete-menu { text-align: start; }
+
+@media (max-width: 430px) {
+  .mk-toolbar--filters .mk-autocomplete { flex: 1 1 100%; }
+  .mk-select--sm { max-width: none; width: 100%; }
+  .mk-price-range { width: 100%; }
+  .mk-price-range .mk-input--sm { flex: 1 1 40%; max-width: none; width: auto; }
+  .mk-price-range .mk-btn { flex: 1 1 100%; }
+}
+
+@media (min-width: 769px) {
+  .mk-grid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+  .mk-card-specs .mk-spec-row { font-size: 12.5px; }
+}
+
+@media (max-width: 375px) {
+  .mk-card-body { padding: 10px; }
+  .mk-card-name { font-size: 13px; }
+  .mk-card-actions .mk-qty--sm { width: 52px; }
+}
+
+@media (max-width: 320px) {
+  .mk-container { padding: 0 8px; }
+  .mk-grid { grid-template-columns: 1fr; }
+  .mk-price-range .mk-input--sm { min-width: 0; }
+}
+
 

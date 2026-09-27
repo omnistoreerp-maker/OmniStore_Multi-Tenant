@@ -1,6 +1,6 @@
 (function () {
-  let _locale = 'en';
-  try { _locale = localStorage.getItem('mk_locale') || 'en'; } catch (_) {}
+  let _locale = 'ar';
+  try { _locale = localStorage.getItem('mk_locale') || 'ar'; } catch (_) {}
 
   function locale() { return _locale; }
   function t(key) {
@@ -234,21 +234,6 @@
       window.MK_API.categories().catch(() => ({ categories: [] })),
       window.MK_API.products({ limit: 8 }).catch(() => ({ products: [] }))
     ]);
-    let html = '<h1 class="mk-page-title">' + esc(t('home_title')) + '</h1>';
-    html += '<p class="mk-muted">' + esc(t('home_sub')) + '</p>';
-    html += '<p><a class="mk-btn" href="#/catalog">' + esc(t('shop_now')) + '</a></p>';
-    if (cats.categories && cats.categories.length) {
-      html += '<h2>' + esc(t('categories')) + '</h2><div class="mk-grid">';
-      cats.categories.forEach((c) => {
-        html += '<a class="mk-card" href="#/catalog?category=' + esc(c.id) + '"><div class="mk-card-body"><div class="mk-card-name">' + esc(c.id) + '</div><div class="mk-card-stock">' + esc(c.count) + '</div></div></a>';
-      });
-      html += '</div>';
-    }
-    html += '<h2>' + esc(t('featured')) + '</h2><div class="mk-grid" id="mk-featured"></div>';
-    setApp(html);
-    const grid = document.getElementById('mk-featured');
-    (prods.products || []).forEach((p) => grid.appendChild(productCard(p)));
-
     let html = '<section class="mk-hero">' +
       '<div class="mk-hero-content">' +
         '<h1 class="mk-hero-title">' + esc(t('hero_title')) + '</h1>' +
@@ -285,21 +270,33 @@
 
   function productCard(p) {
     const a = document.createElement('a');
-    a.className = 'mk-card';
+    a.className = 'mk-card mk-card--product';
     a.href = '#/product/' + encodeURIComponent(p.id);
     const out = (p.stockQty || 0) <= 0;
-    a.innerHTML =
-      '<div class="mk-card-img">📦</div>' +
     const fallbackSrc = 'market/img/placeholders/product.svg';
-    const imgHtml = '<img src="' + (p.imageUrl || fallbackSrc) + '" alt="' + esc(t('product_image_alt')) + '" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' + '<div class="mk-card-fallback" style="display:none"><i data-lucide="package"></i></div>';
+    const imgHtml = '<img src="' + (p.imageUrl || fallbackSrc) + '" alt="' + esc(p.name) + '" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' + '<div class="mk-card-fallback" style="display:none"><i data-lucide="package"></i></div>';
+    const specs = [];
+    if (p.cpu) specs.push('<div class="mk-spec-row"><span class="mk-spec-label">' + esc(t('spec_cpu')) + '</span><span class="mk-spec-value">' + esc(p.cpu) + '</span></div>');
+    if (p.ramRom) specs.push('<div class="mk-spec-row"><span class="mk-spec-label">' + esc(t('spec_ram_rom')) + '</span><span class="mk-spec-value">' + esc(p.ramRom) + '</span></div>');
+    if (p.gpu) specs.push('<div class="mk-spec-row"><span class="mk-spec-label">' + esc(t('spec_gpu')) + '</span><span class="mk-spec-value">' + esc(p.gpu) + '</span></div>');
     a.innerHTML =
       '<div class="mk-card-img">' + imgHtml + '</div>' +
       '<div class="mk-card-body">' +
         '<div class="mk-card-name">' + esc(p.name) + '</div>' +
+        (specs.length ? '<div class="mk-card-specs">' + specs.join('') + '</div>' : '') +
         '<div class="mk-card-price">' + esc(money(p.price, p.currency)) + '</div>' +
         '<div class="mk-card-stock ' + (out ? 'out' : '') + '">' + (out ? esc(t('out_of_stock')) : esc(t('in_stock'))) + '</div>' +
-        (out ? '' : '<div class="mk-card-actions"><input class="mk-input mk-qty mk-qty--sm" type="number" min="1" value="1" data-qty>' + '<button class="mk-btn block mk-add-to-cart" data-id="' + esc(p.id) + '">' + esc(t('add_to_cart')) + '</button></div>') +
+        '<div class="mk-card-actions">' +
+          '<button class="mk-btn mk-btn--ghost mk-view-details" type="button">' + esc(t('view_details')) + '</button>' +
+          (out ? '' : '<input class="mk-input mk-qty mk-qty--sm" type="number" min="1" value="1" data-qty aria-label="' + esc(t('qty')) + '"><button class="mk-btn mk-add-to-cart" type="button" data-id="' + esc(p.id) + '">' + esc(t('add_to_cart')) + '</button>') +
+        '</div>' +
       '</div>';
+    const viewBtn = a.querySelector('.mk-view-details');
+    if (viewBtn) viewBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      location.hash = '#/product/' + encodeURIComponent(p.id);
+    });
     return a;
   }
 
@@ -308,52 +305,89 @@
     const cat = params.get('category') || '';
     const q = params.get('q') || '';
     const sort = params.get('sort') || 'name';
-    setApp('<div class="mk-loading">' + esc(t('loading')) + '</div>');
+    const brand = params.get('brand') || '';
+    const type = params.get('type') || '';
+    const priceMin = params.get('min') || '';
+    const priceMax = params.get('max') || '';
     setApp('<div class="mk-loading">' + esc(t('loading')) + '</div><div class="mk-grid">' + skeletonGrid(6) + '</div>');
     const [cats, prods] = await Promise.all([
       window.MK_API.categories().catch(() => ({ categories: [] })),
-      window.MK_API.products({ categoryId: cat, search: q, sortBy: sort === 'price_asc' ? 'price' : sort === 'price_desc' ? 'price' : 'name', sortOrder: sort === 'price_desc' ? 'desc' : 'asc', limit: 100 }).catch(() => ({ products: [] }))
+      window.MK_API.products({
+        categoryId: type || cat,
+        search: q,
+        brandId: brand || undefined,
+        sortBy: sort === 'price_asc' ? 'price' : sort === 'price_desc' ? 'price' : 'name',
+        sortOrder: sort === 'price_desc' ? 'desc' : 'asc',
+        includeOutOfStock: 'true',
+        limit: 100
+      }).catch(() => ({ products: [] }))
     ]);
+    let allProducts = (prods.products || []).slice();
+    const minN = priceMin !== '' ? Number(priceMin) : null;
+    const maxN = priceMax !== '' ? Number(priceMax) : null;
+    if (minN != null && !Number.isNaN(minN)) allProducts = allProducts.filter((p) => Number(p.price) >= minN);
+    if (maxN != null && !Number.isNaN(maxN)) allProducts = allProducts.filter((p) => Number(p.price) <= maxN);
+    const catalogUrl = (over) => {
+      const u = new URLSearchParams();
+      const next = Object.assign({ q, sort, category: cat, brand, type, min: priceMin, max: priceMax }, over || {});
+      Object.keys(next).forEach((k) => { if (next[k]) u.set(k, next[k]); });
+      const s = u.toString();
+      return '#/catalog' + (s ? '?' + s : '');
+    };
     let html = '<h1 class="mk-page-title">' + esc(t('catalog_title')) + '</h1>';
-    html += '<div class="mk-toolbar">' +
-      '<input class="mk-input" id="mk-search" placeholder="' + esc(t('search_placeholder')) + '" value="' + esc(q) + '">' +
-      '<select class="mk-select" id="mk-sort" style="max-width:220px">' +
-    const allProducts = (prods.products || []).slice();
-    let html = '<h1 class="mk-page-title">' + esc(t('catalog_title')) + '</h1>';
-    html += '<div class="mk-toolbar">' +
+    html += '<div class="mk-toolbar mk-toolbar--filters" role="search">' +
       '<div class="mk-autocomplete" id="mk-search-wrap">' +
-        '<input class="mk-input" id="mk-search" placeholder="' + esc(t('search_placeholder')) + '" value="' + esc(q) + '" autocomplete="off" aria-autocomplete="list" aria-controls="mk-search-menu" role="combobox" aria-expanded="false">' +
+        '<input class="mk-input" id="mk-search" placeholder="' + esc(t('search_placeholder')) + '" value="' + esc(q) + '" autocomplete="off" aria-autocomplete="list" aria-controls="mk-search-menu" role="combobox" aria-expanded="false" aria-label="' + esc(t('search_placeholder')) + '">' +
         '<div class="mk-autocomplete-menu" id="mk-search-menu" role="listbox"></div>' +
       '</div>' +
-      '<select class="mk-select mk-select--sm" id="mk-sort">' +
-        '<option value="name">' + esc(t('sort_name')) + '</option>' +
+      '<select class="mk-select mk-select--sm" id="mk-type" aria-label="' + esc(t('filter_type')) + '">' +
+        '<option value="">' + esc(t('filter_type')) + '</option>' +
+        '<option value="laptops" ' + ((type === 'laptops' || cat === 'laptops') ? 'selected' : '') + '>' + esc(t('type_laptops')) + '</option>' +
+        '<option value="gaming" ' + ((type === 'gaming' || cat === 'gaming') ? 'selected' : '') + '>' + esc(t('type_gaming')) + '</option>' +
+      '</select>' +
+      '<select class="mk-select mk-select--sm" id="mk-brand" aria-label="' + esc(t('filter_brand')) + '">' +
+        '<option value="">' + esc(t('all_brands')) + '</option>' +
+        '<option value="hp" ' + (brand === 'hp' ? 'selected' : '') + '>HP</option>' +
+        '<option value="lenovo" ' + (brand === 'lenovo' ? 'selected' : '') + '>Lenovo</option>' +
+        '<option value="dell" ' + (brand === 'dell' ? 'selected' : '') + '>Dell</option>' +
+        '<option value="sony" ' + (brand === 'sony' ? 'selected' : '') + '>Sony</option>' +
+      '</select>' +
+      '<select class="mk-select mk-select--sm" id="mk-sort" aria-label="' + esc(t('sort')) + '">' +
+        '<option value="name" ' + (sort === 'name' ? 'selected' : '') + '>' + esc(t('sort_name')) + '</option>' +
         '<option value="price_asc" ' + (sort === 'price_asc' ? 'selected' : '') + '>' + esc(t('sort_price_asc')) + '</option>' +
         '<option value="price_desc" ' + (sort === 'price_desc' ? 'selected' : '') + '>' + esc(t('sort_price_desc')) + '</option>' +
       '</select>' +
-      '<select class="mk-select" id="mk-cat" style="max-width:200px">' +
-      '<select class="mk-select mk-select--cat" id="mk-cat">' +
-        '<option value="">' + esc(t('all_categories')) + '</option>' +
-        (cats.categories || []).map((c) => '<option value="' + esc(c.id) + '" ' + (c.id === cat ? 'selected' : '') + '>' + esc(c.id) + '</option>').join('') +
-      '</select>' +
+      '<div class="mk-price-range">' +
+        '<input class="mk-input mk-input--sm" id="mk-min" type="number" min="0" inputmode="numeric" placeholder="' + esc(t('price_min')) + '" value="' + esc(priceMin) + '" aria-label="' + esc(t('price_min')) + '">' +
+        '<input class="mk-input mk-input--sm" id="mk-max" type="number" min="0" inputmode="numeric" placeholder="' + esc(t('price_max')) + '" value="' + esc(priceMax) + '" aria-label="' + esc(t('price_max')) + '">' +
+        '<button class="mk-btn mk-btn--ghost" type="button" id="mk-price-apply">' + esc(t('filter_price')) + '</button>' +
+      '</div>' +
+      ((brand || type || cat || priceMin || priceMax) ? '<a class="mk-btn mk-btn--ghost" href="#/catalog">' + esc(t('all_categories')) + '</a>' : '') +
     '</div>';
+    html += '<div class="mk-catalog-count mk-muted" id="mk-count" aria-live="polite"></div>';
     html += '<div class="mk-grid" id="mk-list"></div>';
     setApp(html);
 
     const list = document.getElementById('mk-list');
-    (prods.products || []).forEach((p) => list.appendChild(productCard(p)));
-    (prods.products || []).forEach((p) => {
-      const card = productCard(p);
-      list.appendChild(card);
-      const btn = card.querySelector('.mk-add-to-cart');
-      if (btn) {
-        btn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const qty = parseInt(card.querySelector('.mk-qty')?.value || '1', 10) || 1;
-          window.MK_CART.add(p.id, qty);
-        });
-      }
-    });
+    if (!allProducts.length) {
+      list.innerHTML = emptyState('package', t('no_products'), null, '<a class="mk-btn" href="#/catalog">' + esc(t('empty_browse_catalog')) + '</a>');
+    } else {
+      allProducts.forEach((p) => {
+        const card = productCard(p);
+        list.appendChild(card);
+        const btn = card.querySelector('.mk-add-to-cart');
+        if (btn) {
+          btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const qty = parseInt(card.querySelector('.mk-qty')?.value || '1', 10) || 1;
+            window.MK_CART.add(p.id, qty);
+          });
+        }
+      });
+    }
+    const countEl = document.getElementById('mk-count');
+    if (countEl) countEl.textContent = String(allProducts.length);
 
     const searchInput = document.getElementById('mk-search');
     const menu = document.getElementById('mk-search-menu');
@@ -400,15 +434,28 @@
       });
     }
 
-    document.getElementById('mk-search').addEventListener('input', debounce(() => {
-      const v = document.getElementById('mk-search').value;
-      location.hash = '#/catalog?q=' + encodeURIComponent(v) + '&sort=' + sort + (cat ? '&category=' + encodeURIComponent(cat) : '');
+    searchInput.addEventListener('input', debounce(() => {
+      location.hash = catalogUrl({ q: searchInput.value, min: '', max: '' });
     }, 400));
     document.getElementById('mk-sort').addEventListener('change', (e) => {
-      location.hash = '#/catalog?q=' + encodeURIComponent(q) + '&sort=' + e.target.value + (cat ? '&category=' + encodeURIComponent(cat) : '');
+      location.hash = catalogUrl({ sort: e.target.value });
     });
-    document.getElementById('mk-cat').addEventListener('change', (e) => {
-      location.hash = '#/catalog?q=' + encodeURIComponent(q) + '&sort=' + sort + (e.target.value ? '&category=' + encodeURIComponent(e.target.value) : '');
+    document.getElementById('mk-type').addEventListener('change', (e) => {
+      location.hash = catalogUrl({ type: e.target.value, category: '' });
+    });
+    document.getElementById('mk-brand').addEventListener('change', (e) => {
+      location.hash = catalogUrl({ brand: e.target.value });
+    });
+    const applyPrice = () => {
+      location.hash = catalogUrl({
+        min: document.getElementById('mk-min').value.trim(),
+        max: document.getElementById('mk-max').value.trim()
+      });
+    };
+    document.getElementById('mk-price-apply').addEventListener('click', applyPrice);
+    ['mk-min', 'mk-max'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener('keydown', (e) => { if (e.key === 'Enter') applyPrice(); });
     });
 
     document.addEventListener('click', (e) => {
@@ -421,19 +468,6 @@
     const p = await window.MK_API.product(id).catch(() => null);
     if (!p) { setApp('<h1 class="mk-page-title">' + esc(t('product_not_found')) + '</h1><p><a href="#/catalog">' + esc(t('back_to_catalog')) + '</a></p>'); return; }
     const out = (p.stockQty || 0) <= 0;
-    let html = '<a href="#/catalog">← ' + esc(t('back_to_catalog')) + '</a>';
-    html += '<div class="mk-row" style="margin-top:16px">';
-    html += '<div class="mk-col"><div class="mk-card-img" style="height:260px">📦</div></div>';
-    html += '<div class="mk-col">';
-    html += '<h1 class="mk-page-title">' + esc(p.name) + '</h1>';
-    html += '<div class="mk-card-price" style="font-size:22px">' + esc(money(p.price, p.currency)) + '</div>';
-    html += '<div class="mk-card-stock ' + (out ? 'out' : '') + '">' + (out ? esc(t('out_of_stock')) : esc(t('in_stock') + ': ' + p.stockQty)) + '</div>';
-    if (p.description) html += '<p>' + esc(p.description) + '</p>';
-    if (!out) {
-      html += '<div class="mk-field" style="max-width:200px"><label>' + esc(t('qty')) + '</label><input class="mk-input mk-qty" id="mk-qty" type="number" min="1" value="1"></div>';
-      html += '<button class="mk-btn" id="mk-add">' + esc(t('add_to_cart')) + '</button>';
-    }
-    html += '</div></div>';
     const fallbackSrc = 'market/img/placeholders/product.svg';
     const imgHtml = '<img src="' + (p.imageUrl || fallbackSrc) + '" alt="' + esc(t('product_image_alt')) + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">' + '<div class="mk-card-fallback" style="display:none"><i data-lucide="package"></i></div>';
     let html = breadcrumb([{label: t('nav_home'), href: '#/home'}, {label: t('nav_catalog'), href: '#/catalog'}, {label: p.name}]);
@@ -442,8 +476,13 @@
     html += '<div class="mk-col">';
     html += '<h1 class="mk-page-title">' + esc(p.name) + '</h1>';
     html += '<div class="mk-card-price mk-price--lg">' + esc(money(p.price, p.currency)) + '</div>';
-    html += '<div class="mk-card-stock ' + (out ? 'out' : '') + '">' + (out ? esc(t('out_of_stock')) : esc(t('in_stock') + ': ' + p.stockQty)) + '</div>';
-    if (p.description) html += '<p>' + esc(p.description) + '</p>';
+    html += '<div class="mk-card-stock ' + (out ? 'out' : '') + '">' + (out ? esc(t('out_of_stock')) : esc(t('in_stock'))) + '</div>';
+    const detailSpecs = [];
+    if (p.cpu) detailSpecs.push('<div class="mk-spec-row"><span class="mk-spec-label">' + esc(t('spec_cpu')) + '</span><span class="mk-spec-value">' + esc(p.cpu) + '</span></div>');
+    if (p.ramRom) detailSpecs.push('<div class="mk-spec-row"><span class="mk-spec-label">' + esc(t('spec_ram_rom')) + '</span><span class="mk-spec-value">' + esc(p.ramRom) + '</span></div>');
+    if (p.gpu) detailSpecs.push('<div class="mk-spec-row"><span class="mk-spec-label">' + esc(t('spec_gpu')) + '</span><span class="mk-spec-value">' + esc(p.gpu) + '</span></div>');
+    if (detailSpecs.length) html += '<div class="mk-card-specs mk-specs--detail">' + detailSpecs.join('') + '</div>';
+    else if (p.description) html += '<p>' + esc(p.description) + '</p>';
     if (!out) {
       html += '<div class="mk-field"><label for="mk-qty">' + esc(t('qty')) + '</label><input class="mk-input mk-qty mk-qty--sm" id="mk-qty" type="number" min="1" value="1"></div>';
       html += '<button class="mk-btn" id="mk-add">' + esc(t('add_to_cart')) + '</button>';
@@ -551,22 +590,12 @@
     });
 
     const authed = window.MK_API.isAuthed();
-    let html = '<h1 class="mk-page-title">' + esc(t('checkout_title')) + '</h1>';
     if (!authed) {
-      html += banner('success', '<a href="#/account">' + esc(t('or_login')) + '</a>');
-    }
-    html += '<div class="mk-row"><div class="mk-col">';
-    html += '<div class="mk-field"><label>' + esc(t('name')) + '</label><input class="mk-input" id="ck-name"></div>';
-    html += '<div class="mk-field"><label>' + esc(t('email')) + '</label><input class="mk-input" id="ck-email" type="email"></div>';
-    html += '<div class="mk-field"><label>' + esc(t('phone')) + '</label><input class="mk-input" id="ck-phone"></div>';
-    html += '<div class="mk-field"><label>' + esc(t('shipping_address')) + '</label><input class="mk-input" id="ck-addr"></div>';
-    html += '</div><div class="mk-col">';
-    if (cfg && cfg.shippingZones && cfg.shippingZones.length) {
-      html += '<div class="mk-field"><label>' + esc(t('shipping_zone')) + '</label><select class="mk-select" id="ck-zone">' +
       storeAuthDestination();
       location.hash = '#/account';
       return;
     }
+    let html = '<h1 class="mk-page-title">' + esc(t('checkout_title')) + '</h1>';
     html += '<div class="mk-row"><div class="mk-col">';
     html += '<div class="mk-field"><label for="ck-name">' + esc(t('name')) + '</label><input class="mk-input" id="ck-name" required></div>';
     html += '<div class="mk-field"><label for="ck-email">' + esc(t('email')) + '</label><input class="mk-input" id="ck-email" type="email" required></div>';
@@ -579,15 +608,6 @@
         '</select></div>';
     }
     if (cfg && cfg.paymentMethods && cfg.paymentMethods.length) {
-      html += '<div class="mk-field"><label>' + esc(t('payment_method')) + '</label><select class="mk-select" id="ck-pay">' +
-        cfg.paymentMethods.map((m) => '<option value="' + esc(m.id) + '">' + esc(m.name) + '</option>').join('') +
-        '</select></div>';
-    }
-    html += '<div class="mk-field"><label>' + esc(t('coupon')) + '</label><input class="mk-input" id="ck-coupon"></div>';
-    html += '<div class="mk-summary"><div class="mk-summary-row"><span>' + esc(t('subtotal')) + '</span><span>' + esc(money(subtotal, cfg && cfg.currency)) + '</span></div>';
-    html += '<div class="mk-summary-row"><span>' + esc(t('shipping_fee')) + '</span><span id="ck-ship">' + esc(money(0, cfg && cfg.currency)) + '</span></div>';
-    html += '<div class="mk-summary-row total"><span>' + esc(t('total')) + '</span><span id="ck-total">' + esc(money(subtotal, cfg && cfg.currency)) + '</span></div></div>';
-    html += '<button class="mk-btn block" id="ck-place" style="margin-top:12px">' + esc(t('place_order')) + '</button>';
       html += '<div class="mk-field"><label for="ck-pay">' + esc(t('payment_method')) + '</label><select class="mk-select" id="ck-pay">' +
         cfg.paymentMethods.map((m) => '<option value="' + esc(m.id) + '">' + esc(m.name) + '</option>').join('') +
         '</select></div>';
@@ -611,7 +631,6 @@
     if (zoneSel) zoneSel.addEventListener('change', updateTotals);
     updateTotals();
 
-    document.getElementById('ck-place').addEventListener('click', async () => {
     ['ck-name', 'ck-email', 'ck-phone', 'ck-addr'].forEach((id) => {
       const el = document.getElementById(id);
       if (el) el.addEventListener('input', () => clearFieldError(id));
@@ -644,13 +663,8 @@
       const payload = {
         items: lines.map((l) => ({ productId: l.productId, qty: l.qty })),
         shippingZoneId: zoneSel ? zoneSel.value : undefined,
-        paymentMethodId: (document.getElementById('ck-pay') || {}).value,
+        paymentMethodId: pay || undefined,
         couponCode: document.getElementById('ck-coupon').value.trim() || undefined,
-        customerInfo: { name, email, phone: document.getElementById('ck-phone').value.trim() },
-        shippingAddress: document.getElementById('ck-addr').value.trim() || null
-      };
-      if (!name || !email) { msg.innerHTML = banner('error', t('required_field')); return; }
-      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { msg.innerHTML = banner('error', t('invalid_email')); return; }
         customerInfo: { name, email, phone: phone || undefined },
         shippingAddress: addr
       };
@@ -720,30 +734,6 @@
       html += '<div class="mk-field"><label>' + esc(t('email')) + '</label><input class="mk-input" id="rg-email" type="email"></div>';
       html += '<div class="mk-field"><label>' + esc(t('phone')) + '</label><input class="mk-input" id="rg-phone"></div>';
       html += '<div class="mk-field"><label>' + esc(t('password_req')) + '</label><input class="mk-input" id="rg-pass" type="password"></div>';
-      html += '<button class="mk-btn" id="rg-btn">' + esc(t('register')) + '</button></div></div>';
-      setApp(html);
-      document.getElementById('lg-btn').addEventListener('click', async () => {
-        const msg = document.getElementById('ac-login-msg');
-        try {
-          const r = await window.MK_API.login({ email: document.getElementById('lg-email').value, password: document.getElementById('lg-pass').value });
-          window.MK_API.setToken(r.token);
-          render();
-        } catch (e) { msg.innerHTML = banner('error', e.message || t('error_generic')); }
-      });
-      document.getElementById('rg-btn').addEventListener('click', async () => {
-        const msg = document.getElementById('ac-reg-msg');
-        try {
-          const r = await window.MK_API.register({ email: document.getElementById('rg-email').value, name: document.getElementById('rg-name').value, phone: document.getElementById('rg-phone').value, password: document.getElementById('rg-pass').value });
-          window.MK_API.setToken(r.token);
-          render();
-      html += '<div class="mk-field"><label for="lg-email">' + esc(t('email')) + '</label><input class="mk-input" id="lg-email" required></div>';
-      html += '<div class="mk-field"><label for="lg-pass">' + esc(t('password')) + '</label><input class="mk-input" id="lg-pass" type="password" required></div>';
-      html += '<button class="mk-btn" id="lg-btn">' + esc(t('login')) + '</button></div>';
-      html += '<div class="mk-col"><h2>' + esc(t('register_title')) + '</h2><div id="ac-reg-msg"></div>';
-      html += '<div class="mk-field"><label for="rg-name">' + esc(t('name')) + '</label><input class="mk-input" id="rg-name" required></div>';
-      html += '<div class="mk-field"><label for="rg-email">' + esc(t('email')) + '</label><input class="mk-input" id="rg-email" type="email" required></div>';
-      html += '<div class="mk-field"><label for="rg-phone">' + esc(t('phone')) + '</label><input class="mk-input" id="rg-phone"></div>';
-      html += '<div class="mk-field"><label for="rg-pass">' + esc(t('password_req')) + '</label><input class="mk-input" id="rg-pass" type="password" required></div>';
       html += '<button class="mk-btn" id="rg-btn">' + esc(t('register')) + '</button></div></div>';
       setApp(html);
       ['lg-email', 'lg-pass'].forEach((id) => {
@@ -1024,7 +1014,7 @@
   async function pageGameHostingMyServers() {
     if (!window.MK_API.isAuthed()) {
       storeAuthDestination();
-      setApp('<h1 class="mk-page-title">' + esc(t('gh_my_servers')) + '</h1>' + ghBanner('error', esc(t('gh_auth_required')) + ' <a href="#/account">' + esc(t('or_login')) + '</a>') + '<p><button class="mk-btn secondary" id="mk-gh-retry">' + esc(t('gh_retry')) + '</button></p>'));
+      setApp('<h1 class="mk-page-title">' + esc(t('gh_my_servers')) + '</h1>' + ghBanner('error', esc(t('gh_auth_required')) + ' <a href="#/account">' + esc(t('or_login')) + '</a>') + '<p><button class="mk-btn secondary" id="mk-gh-retry">' + esc(t('gh_retry')) + '</button></p>');
       const retryBtn = document.getElementById('mk-gh-retry');
       if (retryBtn) retryBtn.addEventListener('click', () => { location.hash = '#/account'; });
       return;
@@ -1155,7 +1145,7 @@
   async function pageGameHostingRequests() {
     if (!window.MK_API.isAuthed()) {
       storeAuthDestination();
-      setApp('<h1 class="mk-page-title">' + esc(t('gh_requests_title')) + '</h1>' + ghBanner('error', esc(t('gh_auth_required')) + ' <a href="#/account">' + esc(t('or_login')) + '</a>') + '<p><button class="mk-btn secondary" id="mk-gh-retry">' + esc(t('gh_retry')) + '</button></p>'));
+      setApp('<h1 class="mk-page-title">' + esc(t('gh_requests_title')) + '</h1>' + ghBanner('error', esc(t('gh_auth_required')) + ' <a href="#/account">' + esc(t('or_login')) + '</a>') + '<p><button class="mk-btn secondary" id="mk-gh-retry">' + esc(t('gh_retry')) + '</button></p>');
       const retryBtn = document.getElementById('mk-gh-retry');
       if (retryBtn) retryBtn.addEventListener('click', () => { location.hash = '#/account'; });
       return;
@@ -1641,7 +1631,6 @@
     const [path, param] = h.split('/');
     updateCartBadge();
     applyI18n();
-    try {
     updateActiveNav(path);
     try {
       if (path === 'game-hosting') {
