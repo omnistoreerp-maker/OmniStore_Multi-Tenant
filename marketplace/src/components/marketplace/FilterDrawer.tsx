@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { X } from "lucide-react";
+import { X, SlidersHorizontal } from "lucide-react";
 import { FilterPanel, type FilterState } from "./FilterPanel";
 import type { Product } from "@/types/product";
 import type { CategoryCount } from "@/lib/api";
@@ -15,6 +15,7 @@ interface Props {
   resultCount: number;
 }
 
+/** Mobile filter drawer (button → slide-in panel from the end side, RTL-safe). */
 export function FilterDrawer({ open, onClose, products, categories, state, onChange, bounds, resultCount }: Props) {
   useEffect(() => {
     if (!open) return;
@@ -34,9 +35,7 @@ export function FilterDrawer({ open, onClose, products, categories, state, onCha
     >
       <div
         onClick={onClose}
-        className={`absolute inset-0 bg-primary/40 transition-opacity duration-300 ${
-          open ? "opacity-100" : "opacity-0"
-        }`}
+        className={`absolute inset-0 bg-primary/40 transition-opacity duration-300 ${open ? "opacity-100" : "opacity-0"}`}
       />
       <aside
         role="dialog"
@@ -47,7 +46,10 @@ export function FilterDrawer({ open, onClose, products, categories, state, onCha
         }`}
       >
         <div className="flex items-center justify-between border-b border-border px-4 py-4">
-          <h2 className="text-base font-bold text-foreground">التصفية</h2>
+          <h2 className="flex items-center gap-2 text-base font-bold text-foreground">
+            <SlidersHorizontal className="h-4 w-4 text-primary" aria-hidden />
+            التصفية
+          </h2>
           <button
             type="button"
             onClick={onClose}
@@ -58,13 +60,7 @@ export function FilterDrawer({ open, onClose, products, categories, state, onCha
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-4">
-          <FilterPanel
-            products={products}
-            categories={categories}
-            state={state}
-            onChange={onChange}
-            bounds={bounds}
-          />
+          <FilterPanel products={products} categories={categories} state={state} onChange={onChange} bounds={bounds} />
         </div>
         <div className="border-t border-border bg-card p-4">
           <button

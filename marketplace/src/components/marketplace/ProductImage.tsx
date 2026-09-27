@@ -6,20 +6,24 @@ interface Props {
   alt: string;
   brand?: string;
   className?: string;
+  /** Fixed-ratio image container (prevents layout shift / distortion). */
+  ratio?: string;
 }
 
 /**
  * Real product image if the catalog provides one, otherwise a tasteful
  * neutral SVG placeholder — never a fabricated "product photograph".
+ * object-contain keeps the original proportions (no stretching/cropping).
  */
-export function ProductImage({ src, alt, brand, className }: Props) {
+export function ProductImage({ src, alt, brand, className, ratio = "aspect-[4/3]" }: Props) {
   const [failed, setFailed] = useState(false);
   const showImage = src && !failed;
 
   return (
     <div
       className={cn(
-        "relative w-full aspect-[4/3] overflow-hidden rounded-xl bg-gradient-to-br from-secondary via-background to-secondary/60",
+        "relative w-full overflow-hidden bg-gradient-to-br from-secondary via-background to-secondary/60",
+        ratio,
         className
       )}
     >
@@ -57,9 +61,7 @@ function Placeholder({ brand }: { brand?: string }) {
         <line x1="52" y1="70" x2="68" y2="70" strokeLinecap="round" />
       </svg>
       {brand && (
-        <span className="tech text-[11px] font-semibold tracking-wider text-primary/50 uppercase">
-          {brand}
-        </span>
+        <span className="tech text-[11px] font-semibold uppercase tracking-wider text-primary/50">{brand}</span>
       )}
     </div>
   );

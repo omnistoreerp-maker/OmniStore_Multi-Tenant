@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { HashRouter, Route, Routes } from "react-router-dom";
 import { Toaster } from "sonner";
+import { MarketUIProvider } from "@/stores/marketUI";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { CartDrawer } from "@/components/cart/CartDrawer";
@@ -22,34 +23,36 @@ export default function App() {
 
   return (
     <HashRouter>
-      <div className="flex min-h-screen flex-col bg-background">
-        <Header onOpenCart={() => setCartOpen(true)} />
-        <main className="flex-1">
-          <Routes>
-            <Route path="/" element={<Marketplace />} />
-            <Route path="/product/:id" element={<ProductDetails />} />
-            <Route path="/checkout" element={<Checkout />} />
-            <Route path="/account" element={<Account />} />
-            <Route path="/track" element={<Track />} />
-            <Route path="/track/:token" element={<Track />} />
-            <Route path="/orders" element={<Orders />} />
-            <Route path="/confirmation" element={<Confirmation />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </main>
-        <Footer />
-        <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
-        <Toaster
-          position="top-center"
-          dir="rtl"
-          toastOptions={{
-            style: {
-              fontFamily: "Cairo, Inter, system-ui, sans-serif",
-              borderRadius: "0.85rem",
-            },
-          }}
-        />
-      </div>
+      <MarketUIProvider>
+        <div className="flex min-h-screen flex-col bg-background">
+          <Header onOpenCart={() => setCartOpen(true)} />
+          <main className="flex-1">
+            <Routes>
+              <Route path="/" element={<Marketplace />} />
+              <Route path="/product/:id" element={<ProductDetails />} />
+              <Route path="/checkout" element={<Checkout />} />
+              <Route path="/account" element={<Account />} />
+              <Route path="/track" element={<Track />} />
+              <Route path="/track/:token" element={<Track />} />
+              <Route path="/orders" element={<Orders />} />
+              <Route path="/confirmation" element={<Confirmation />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </main>
+          <Footer />
+          <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
+          <Toaster
+            position="top-center"
+            dir="rtl"
+            toastOptions={{
+              style: {
+                fontFamily: "Cairo, Inter, system-ui, sans-serif",
+                borderRadius: "0.85rem",
+              },
+            }}
+          />
+        </div>
+      </MarketUIProvider>
     </HashRouter>
   );
 }
