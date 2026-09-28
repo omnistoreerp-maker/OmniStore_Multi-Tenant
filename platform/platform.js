@@ -34,6 +34,7 @@
       nav_business_short: 'Business',
       nav_game_short: 'Games',
       nav_app_short: 'App',
+      nav_soon: 'Soon',
       footer_text: 'OmniStore Platform v',
       footer_rights: 'All rights reserved',
       trust_1_title: 'Multi-tenant',
@@ -55,6 +56,7 @@
       section_student_services: 'Student Services',
       section_game_hosting: 'Game Hosting',
       section_media_reels: 'Media / Reels',
+      section_support: 'Support',
       visitors_now_label: 'Visitors Now',
       registered_users_label: 'Registered Users',
       registered_users_hint: 'Accounts on the platform',
@@ -94,6 +96,7 @@
       nav_business_short: 'الأعمال',
       nav_game_short: 'الألعاب',
       nav_app_short: 'التطبيق',
+      nav_soon: 'قريباً',
       footer_text: 'منصة OmniStore إصدار',
       footer_rights: 'جميع الحقوق محفوظة',
       trust_1_title: 'تعدد المستأجرين',
@@ -115,6 +118,7 @@
       section_student_services: 'خدمات الطلاب',
       section_game_hosting: 'استضافة الألعاب',
       section_media_reels: 'الوسائط / الريلز',
+      section_support: 'الدعم الفني',
       visitors_now_label: 'الزوار الآن',
       registered_users_label: 'المستخدمون المسجلون',
       registered_users_hint: 'حسابات على المنصة',
@@ -152,6 +156,7 @@
     if (n.includes('server') || n.includes('cloud') || n.includes('host')) return 'server';
     if (n.includes('chart') || n.includes('graph') || n.includes('analytics') || n.includes('stats')) return 'chart';
     if (n.includes('shield') || n.includes('lock') || n.includes('secure') || n.includes('rbac')) return 'shield';
+    if (n.includes('support') || n.includes('help') || n.includes('headset') || n.includes('life') || n.includes('ring')) return 'shield';
     if (n.includes('bolt') || n.includes('zap') || n.includes('fast') || n.includes('speed')) return 'bolt';
     if (n.includes('sync') || n.includes('refresh') || n.includes('link') || n.includes('realtime')) return 'sync';
     if (n.includes('user') || n.includes('people') || n.includes('team') || n.includes('account')) return 'users';
@@ -235,6 +240,55 @@
 
   let lastCatalog = null;
   let lastSections = [];
+
+  // Public section lockdown policy (platform catalog/UI state).
+  // Only the sections below may render as active; everything else — including
+  // any section the backend/API may return with a different status — is forced
+  // to an honest non-active "Coming Soon" state with no destination URL.
+  const SECTION_LOCK_POLICY = {
+    active: {
+      'marketplace': '/marketplace/',
+      'business-services': '/business.html'
+    },
+    lockedIds: ['student-services', 'game-hosting', 'media-reels', 'support']
+  };
+
+  // Fallback catalog shown when the API returns no sections at all.
+  const DEFAULT_SECTIONS = [
+    { id: 'marketplace', title: 'Marketplace', description: 'Visitor-facing marketplace for products and services.', status: 'active', url: '/marketplace/', icon: 'fa-store' },
+    { id: 'business-services', title: 'Business Management Services', description: 'Existing company access and new company onboarding.', status: 'active', url: '/business.html', icon: 'fa-building' },
+    { id: 'student-services', title: 'Student Services', description: 'Student services and printing — coming soon.', status: 'coming-soon', url: null, icon: 'fa-graduation-cap' },
+    { id: 'game-hosting', title: 'Game Hosting', description: 'Host and manage game sessions — coming soon.', status: 'coming-soon', url: null, icon: 'fa-gamepad' },
+    { id: 'media-reels', title: 'Media / Reels', description: 'Media content and reels sharing — coming soon.', status: 'coming-soon', url: null, icon: 'fa-film' },
+    { id: 'support', title: 'Support', description: 'Customer support center — coming soon.', status: 'coming-soon', url: null, icon: 'fa-life-ring' }
+  ];
+
+  function applySectionPolicy(list) {
+    const base = Array.isArray(list) ? list.slice() : [];
+    const seen = {};
+    base.forEach(function (s) { if (s && s.id) seen[s.id] = true; });
+    // Guarantee every locked section is visible as an honest Coming Soon,
+    // even when the API omits it entirely.
+    SECTION_LOCK_POLICY.lockedIds.forEach(function (id) {
+      if (!seen[id]) {
+        const def = DEFAULT_SECTIONS.find(function (d) { return d.id === id; });
+        if (def) base.push(Object.assign({}, def));
+      }
+    });
+    return base.map(function (s) {
+      if (!s || !s.id) return s;
+      const out = Object.assign({}, s);
+      const allowedUrl = SECTION_LOCK_POLICY.active[out.id];
+      if (allowedUrl) {
+        out.status = 'active';
+        out.url = allowedUrl;
+      } else {
+        out.status = 'coming-soon';
+        out.url = null;
+      }
+      return out;
+    });
+  }
 
   function renderStats(stats) {
     const root = document.getElementById('stats');
@@ -511,7 +565,9 @@
       ]);
 
       lastCatalog = catalog;
-      lastSections = (sections && sections.sections) || [];
+      let rawSections = (sections && sections.sections) || [];
+      if (!rawSections.length) rawSections = DEFAULT_SECTIONS;
+      lastSections = applySectionPolicy(rawSections);
 
       if (catalog.meta) {
         const nameEl = document.getElementById('meta-name');

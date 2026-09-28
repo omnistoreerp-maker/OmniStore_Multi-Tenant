@@ -888,6 +888,42 @@ a { color: inherit; text-decoration: none; }
 [dir="rtl"] .footer-inner { direction: rtl; }
 [dir="rtl"] .trust-chip { direction: rtl; }
 
+/* Section lockdown — locked nav entries render as honest non-links. */
+.glass-nav-link.is-soon,
+.bottom-nav-link.is-soon,
+.footer-links .footer-link.is-soon {
+  opacity: 0.72;
+  cursor: default;
+}
+.glass-nav-link.is-soon:hover {
+  color: #cbd5e1;
+  background: transparent;
+}
+.bottom-nav-link.is-soon:hover {
+  color: #94a3b8;
+  background: transparent;
+}
+.footer-links .footer-link.is-soon {
+  color: var(--muted);
+  font-size: 13px;
+}
+.nav-soon {
+  display: inline-block;
+  margin-inline-start: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: #fdba74;
+  background: rgba(249, 115, 22, 0.15);
+  border: 1px solid rgba(249, 115, 22, 0.35);
+}
+.bottom-nav-link .nav-soon {
+  margin: 2px 0 0;
+  margin-inline-start: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
