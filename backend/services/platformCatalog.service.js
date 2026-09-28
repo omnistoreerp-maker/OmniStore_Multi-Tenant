@@ -70,18 +70,21 @@ function _defaultDoc() {
         icon: 'fa-building'
       },
       {
+        // Documented activation exception: Students is the only section that
+        // has graduated from the platform lockdown policy. Gaming / Media /
+        // Support stay Coming Soon until their own activation cycles.
         id: 'student-services',
-        title: 'Student Services',
-        description: 'Student-facing services and accounts.',
-        status: 'coming-soon',
-        url: null,
+        title: 'Student Services & Printing',
+        description: 'Print shop orders, cost calculator, and student monthly passes.',
+        status: 'active',
+        url: '/student.html',
         icon: 'fa-graduation-cap'
       },
       {
         id: 'game-hosting',
         title: 'Game Hosting',
         description: 'Host and manage game sessions and catalogs.',
-        status: 'under-construction',
+        status: 'coming-soon',
         url: null,
         icon: 'fa-gamepad'
       },
@@ -94,12 +97,12 @@ function _defaultDoc() {
         icon: 'fa-film'
       },
       {
-        id: 'student-services',
-        title: 'Student Services & Printing',
-        description: 'Print shop orders, cost calculator, and student monthly passes.',
-        status: 'active',
-        url: '/student.html',
-        icon: 'fa-graduation-cap'
+        id: 'support',
+        title: 'Support',
+        description: 'Customer support center — coming soon.',
+        status: 'coming-soon',
+        url: null,
+        icon: 'fa-life-ring'
       }
     ]
   };
@@ -108,6 +111,14 @@ function _defaultDoc() {
 function getCatalog() {
   const store = _readStore();
   if (!store) return _defaultDoc();
+  // The persisted platform document predates the sections field, so a stored
+  // doc without sections would make /sections and /catalog report an empty
+  // catalog. Fall back to the documented default catalog for that field only:
+  // the stored document stays authoritative for everything else and is never
+  // rewritten here.
+  if (!Array.isArray(store.sections) || store.sections.length === 0) {
+    return Object.assign({}, store, { sections: _defaultDoc().sections });
+  }
   return store;
 }
 
