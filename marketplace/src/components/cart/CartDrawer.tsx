@@ -1,8 +1,10 @@
-import { useEffect } from "react";
-import { X, Minus, Plus, Trash2, ShoppingBag } from "lucide-react";
+import { useRef, useState } from "react";
+import { X, Minus, Plus, Trash2, ShoppingBag, AlertTriangle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cartStore, useCart, useCartTotal } from "@/stores/cart";
 import { formatEGP } from "@/lib/format";
+import { useDrawerA11y } from "@/lib/useDrawerA11y";
+import type { Product } from "@/types/product";
 
 interface Props {
   open: boolean;
@@ -12,20 +14,12 @@ interface Props {
 export function CartDrawer({ open, onClose }: Props) {
   const items = useCart();
   const total = useCartTotal();
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-    };
-  }, [open, onClose]);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const asideRef = useRef<HTMLElement>(null);
+  useDrawerA11y(open, onClose, rootRef, asideRef);
 
   return (
-    <div className={`fixed inset-0 z-50 ${open ? "" : "pointer-events-none"}`} aria-hidden={!open}>
+    <div ref={rootRef} className={`fixed inset-0 z-50 ${open ? "" : "pointer-events-none"}`} aria-hidden={!open}>
       <div
         onClick={onClose}
         className={`absolute inset-0 bg-primary/40 transition-opacity duration-300 ${
@@ -33,6 +27,8 @@ export function CartDrawer({ open, onClose }: Props) {
         }`}
       />
       <aside
+        ref={asideRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label="سلة المشتريات"
@@ -55,7 +51,22 @@ export function CartDrawer({ open, onClose }: Props) {
           </button>
         </header>
 
-        {items.length === 0 ? (
+        {items.length === 0 && cartStore.resolveFailed() ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center" role="alert">
+            <div className="grid h-16 w-16 place-items-center rounded-full bg-destructive/10 text-destructive">
+              <AlertTriangle className="h-7 w-7" aria-hidden />
+            </div>
+            <p className="text-base font-semibold text-foreground">تعذر تحميل محتويات السلة</p>
+            <p className="text-sm text-muted-foreground">تحقق من اتصالك بالإنترنت ثم أعد المحاولة.</p>
+            <button
+              type="button"
+              onClick={() => void cartStore.load()}
+              className="btn-focus mt-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
+            >
+              إعادة المحاولة
+            </button>
+          </div>
+        ) : items.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 text-center">
             <div className="grid h-16 w-16 place-items-center rounded-full bg-secondary text-primary">
               <ShoppingBag className="h-7 w-7" aria-hidden />
@@ -77,9 +88,7 @@ export function CartDrawer({ open, onClose }: Props) {
             <ul className="flex-1 divide-y divide-border overflow-y-auto">
               {items.map((item) => (
                 <li key={item.product.id} className="flex gap-3 p-4">
-                  <div className="grid h-20 w-20 shrink-0 place-items-center rounded-lg bg-secondary text-primary/50">
-                    <span className="tech text-[10px] font-bold uppercase">{item.product.brand}</span>
-                  </div>
+                  <CartLineMedia product={item.product} />
                   <div className="flex flex-1 flex-col gap-1">
                     <p className="tech text-sm font-semibold text-foreground line-clamp-2">
                       {item.product.name}
@@ -94,7 +103,7 @@ export function CartDrawer({ open, onClose }: Props) {
                           type="button"
                           aria-label="تقليل الكمية"
                           onClick={() => cartStore.setQuantity(item.product.id, item.quantity - 1)}
-                          className="btn-focus grid h-9 w-9 place-items-center text-foreground hover:bg-secondary"
+                          className="btn-focus grid h-10 w-10 place-items-center text-foreground hover:bg-secondary"
                         >
                           <Minus className="h-4 w-4" />
                         </button>
@@ -104,8 +113,9 @@ export function CartDrawer({ open, onClose }: Props) {
                         <button
                           type="button"
                           aria-label="زيادة الكمية"
+                          disabled={item.product.stock != null && item.quantity >= item.product.stock}
                           onClick={() => cartStore.setQuantity(item.product.id, item.quantity + 1)}
-                          className="btn-focus grid h-9 w-9 place-items-center text-foreground hover:bg-secondary"
+                          className="btn-focus grid h-10 w-10 place-items-center text-foreground hover:bg-secondary disabled:cursor-not-allowed disabled:text-muted-foreground/50 disabled:hover:bg-transparent"
                         >
                           <Plus className="h-4 w-4" />
                         </button>
@@ -119,7 +129,7 @@ export function CartDrawer({ open, onClose }: Props) {
                     type="button"
                     onClick={() => cartStore.remove(item.product.id)}
                     aria-label={`إزالة ${item.product.name}`}
-                    className="btn-focus h-9 w-9 shrink-0 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                    className="btn-focus h-10 w-10 shrink-0 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                   >
                     <Trash2 className="mx-auto h-4 w-4" />
                   </button>
@@ -150,6 +160,26 @@ export function CartDrawer({ open, onClose }: Props) {
           </>
         )}
       </aside>
+    </div>
+  );
+}
+
+/** Cart line media — live product image, brand fallback on error/absent. */
+function CartLineMedia({ product }: { product: Product }) {
+  const [failed, setFailed] = useState(false);
+  if (product.image && !failed) {
+    return (
+      <img
+        src={product.image}
+        alt={product.name}
+        onError={() => setFailed(true)}
+        className="h-20 w-20 shrink-0 rounded-lg border border-border bg-background object-contain p-1"
+      />
+    );
+  }
+  return (
+    <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-lg bg-secondary text-primary/50">
+      <span className="tech text-[10px] font-bold uppercase">{product.brand}</span>
     </div>
   );
 }

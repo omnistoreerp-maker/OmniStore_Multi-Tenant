@@ -32,3 +32,27 @@ export function formatPrice(value: number, currency?: string): string {
   });
   return `${nf.format(value)} ${cur}`;
 }
+
+/**
+ * Arabic labels for the REAL V1 order/payment states from
+ * backend marketOrderStateMachine: order = received|cancelled,
+ * payment = pending|cancelled. Unknown values pass through verbatim —
+ * never invent a state.
+ */
+const ORDER_STATUS_AR: Record<string, string> = {
+  received: "تم الاستلام",
+  cancelled: "ملغي",
+};
+
+const PAYMENT_STATUS_AR: Record<string, string> = {
+  pending: "بانتظار الدفع",
+  cancelled: "ملغي",
+};
+
+export function formatOrderStatus(status: string): string {
+  return ORDER_STATUS_AR[status] ?? status;
+}
+
+export function formatPaymentStatus(paymentStatus: string): string {
+  return PAYMENT_STATUS_AR[paymentStatus] ?? paymentStatus;
+}
