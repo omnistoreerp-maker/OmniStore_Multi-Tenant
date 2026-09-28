@@ -72,8 +72,8 @@ echo "TIMESTAMP=$(date -Is)"
 echo ""
 
 # Configuration
-RELEASE_SHA256="e78438f53b0b1034e08b00286b5ae9e1328f335fd1e68732dfee4f65fc551c2e"
-MANIFEST_SHA256="a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a"
+RELEASE_SHA256="d2fb2aa6106e1bf39989c52b0dbb6deadc5209d13ed1d3ae9b1ab68f384ddfa8"
+MANIFEST_SHA256="d2fb2aa6106e1bf39989c52b0dbb6deadc5209d13ed1d3ae9b1ab68f384ddfa8"
 PRODUCTION_PATH="/home/omnistore/OmniStore_Multi-Tenant"
 BACKUP_BASE="/home/omnistore/backups"
 ARTIFACT_PATH="/tmp/RELEASE_ARTIFACT.zip"
@@ -90,9 +90,9 @@ DEPLOY_FILES=(
     "business.html"
 )
 
-OPTIONAL_DEPLOY_FILES=(
-    "backend/data/updateManifest.json"
-)
+# Owner decision 2026-09-28: backend/data/updateManifest.json = EXCLUDE_FROM_DEPLOY.
+# Never copy it and never delete/replace any production copy of it.
+OPTIONAL_DEPLOY_FILES=()
 
 LEGACY_PATHS=(
     "services"
@@ -328,7 +328,7 @@ for file in "${DEPLOY_FILES[@]}"; do
     fi
 done
 
-for file in "${OPTIONAL_DEPLOY_FILES[@]}"; do
+for file in ${OPTIONAL_DEPLOY_FILES[@]+"${OPTIONAL_DEPLOY_FILES[@]}"}; do
     if [ -f "$STAGE_DIR/$file" ]; then
         if [ ! -s "$STAGE_DIR/$file" ]; then
             log "  WARNING: Optional artifact file is empty: $file"
