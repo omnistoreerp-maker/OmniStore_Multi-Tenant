@@ -204,6 +204,53 @@ async function main() {
     record('INFO', 'tabs open after the journey (OnClick armed: ' + (onclickTraffic ? 'yes' : 'no') + ')',
       context.pages().map((p) => { try { return p.url(); } catch (_) { return '?'; } }).join(' | '));
 
+    // ---------- C. responsive: marketplace content stays primary ----------
+    // The marketplace content — header, search, categories, product cards — is
+    // the page. At every supported viewport the content must be visible, must
+    // not overflow horizontally, and nothing may cover most of the screen.
+    // This harness never clicks, requests or interacts with any ad; the overlay
+    // probe is purely a passive geometry read.
+    const VIEWPORTS = [[320, 'AD_LAYOUT_320'], [375, 'AD_LAYOUT_375'], [390, 'AD_LAYOUT_390'], [430, 'AD_LAYOUT_430'], [1440, 'AD_LAYOUT_DESKTOP']];
+    for (const [width, label] of VIEWPORTS) {
+      const vp = await context.newPage();
+      await vp.setViewportSize({ width, height: Math.max(640, Math.round(width * 2.1)) });
+      await vp.goto(marketplace, { waitUntil: 'domcontentloaded' }).catch(() => {});
+      await vp.waitForTimeout(400);
+      const geo = await vp.evaluate(() => {
+        const doc = document.documentElement;
+        const vpArea = innerWidth * innerHeight;
+        let cover = 0;
+        document.querySelectorAll('body *').forEach((e) => {
+          const cs = getComputedStyle(e);
+          if (cs.position !== 'fixed' && cs.position !== 'absolute') return;
+          if (parseInt(cs.zIndex || '0', 10) <= 1000) return;
+          // Closed drawers/backdrops (off-canvas or opacity-0) are part of the
+          // app itself and must not count as a cover; only an overlay that is
+          // both opaque and actually intersecting the viewport does.
+          if (parseFloat(cs.opacity) < 0.5 || cs.visibility === 'hidden' || cs.pointerEvents === 'none') return;
+          const r = e.getBoundingClientRect();
+          const ix = Math.max(0, Math.min(r.right, innerWidth) - Math.max(r.left, 0));
+          const iy = Math.max(0, Math.min(r.bottom, innerHeight) - Math.max(r.top, 0));
+          if ((ix * iy) / vpArea >= 0.5 && ix * iy > cover) cover = ix * iy;
+        });
+        return {
+          text: document.body ? document.body.innerText.trim().length : 0,
+          overflow: doc.scrollWidth - doc.clientWidth,
+          coverRatio: cover / Math.max(1, vpArea)
+        };
+      }).catch(() => ({ text: 0, overflow: 9999, coverRatio: 1 }));
+      const ok = geo.text > 40 && geo.overflow <= 2 && geo.coverRatio < 0.8;
+      if (geo.text > 40) {
+        check(label + ': marketplace content visible, no overflow, no full-screen cover', ok,
+          'text=' + geo.text + ' overflowPx=' + geo.overflow + ' cover=' + Math.round(geo.coverRatio * 100) + '%');
+      } else if (BASE_ARG) {
+        check(label + ': marketplace content visible', false, 'no visible content (text=' + geo.text + ')');
+      } else {
+        inconclusive(label + ': NOT evaluated — local checkout has no built marketplace bundle', '');
+      }
+      await vp.close();
+    }
+
     // ---------- return journey ----------
     if (onMarketplace) {
       await journey.goto(marketplace, { waitUntil: 'domcontentloaded' });
