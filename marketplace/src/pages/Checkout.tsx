@@ -3,7 +3,7 @@ import { Link, Navigate, useNavigate } from "react-router-dom";
 import { Loader2, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { cartStore, useCart, useCartRefs, useCartTotal } from "@/stores/cart";
-import { isAuthed, marketApi, MarketApiError, type MarketConfig } from "@/lib/api";
+import { isAuthed, marketApi, MarketApiError, setToken, type MarketConfig } from "@/lib/api";
 import { formatEGP } from "@/lib/format";
 import { setLastOrder } from "@/lib/lastOrder";
 
@@ -18,7 +18,7 @@ type Errors = Record<string, string>;
 
 export default function Checkout() {
   const navigate = useNavigate();
-  const authed = isAuthed();
+  const [authed, setAuthed] = useState(isAuthed());
   const items = useCart();
   const cartRefs = useCartRefs();
   const subtotal = useCartTotal();
@@ -34,8 +34,26 @@ export default function Checkout() {
   const [coupon, setCoupon] = useState("");
   const [errors, setErrors] = useState<Errors>({});
   const [banner, setBanner] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [missing, setMissing] = useState(false);
+
+  // Validate the stored session once so a stale/revoked token cannot silently
+  // produce an anonymous order (backend /checkout uses optionalCustomer).
+  // Only a definitive 401 signs the user out — network failures keep the session.
+  useEffect(() => {
+    if (!authed) return;
+    let cancelled = false;
+    marketApi.me().catch((e) => {
+      if (!cancelled && e instanceof MarketApiError && e.status === 401) {
+        setToken(null);
+        setAuthed(false);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [authed]);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,12 +109,15 @@ export default function Checkout() {
     if (cfg && cfg.shippingZones.length && !zoneId) e.zone = "اختر منطقة الشحن";
     if (cfg && cfg.paymentMethods.length && !payId) e.pay = "اختر طريقة الدفع";
     setErrors(e);
+    const first = Object.keys(e)[0];
+    if (first) document.getElementsByName(first)[0]?.focus();
     return Object.keys(e).length === 0;
   };
 
   const handleSubmit = async (ev: React.FormEvent) => {
     ev.preventDefault();
     setBanner(null);
+    setNotice(null);
     if (!cartRefs.length) {
       setMissing(true);
       return;
@@ -105,10 +126,20 @@ export default function Checkout() {
     setSubmitting(true);
     try {
       // Server-validated stock before creating the order.
+      const before = cartRefs.length;
       const changed = await cartStore.reconcile();
       if (changed && cartStore.refs().length === 0) {
         setSubmitting(false);
         setMissing(true);
+        return;
+      }
+      if (changed && cartStore.refs().length > 0) {
+        // Partial reconciliation dropped unavailable/over-limit lines — never
+        // place the order silently; let the user review the updated summary.
+        setSubmitting(false);
+        setNotice(
+          `تمت إزالة ${before - cartStore.refs().length} منتج لم يعد متاحًا من مراجعة المخزون. راجع ملخص الطلب ثم أعد التأكيد.`
+        );
         return;
       }
       const res = await marketApi.checkout({
@@ -161,6 +192,11 @@ export default function Checkout() {
       {cfgError && (
         <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive" role="alert">
           {cfgError}
+        </div>
+      )}
+      {notice && (
+        <div className="mt-4 rounded-xl border border-amber-300/50 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800" role="alert">
+          {notice}
         </div>
       )}
       {banner && (
@@ -269,12 +305,17 @@ function Field(props: {
         id={name}
         onChange={(e) => onChange(e.target.value)}
         aria-invalid={!!error}
+        aria-describedby={error ? `${name}-error` : undefined}
         {...rest}
         className={`btn-focus h-11 w-full rounded-lg border bg-background px-3 text-sm text-foreground shadow-sm transition-colors hover:border-primary/30 focus-visible:border-primary/50 ${
           error ? "border-destructive" : "border-border"
         }`}
       />
-      {error && <span className="mt-1 block text-xs font-medium text-destructive">{error}</span>}
+      {error && (
+        <span id={`${name}-error`} className="mt-1 block text-xs font-medium text-destructive">
+          {error}
+        </span>
+      )}
     </label>
   );
 }
@@ -303,6 +344,7 @@ function SelectField(props: {
         value={props.value}
         disabled={props.disabled}
         aria-invalid={!!error}
+        aria-describedby={error ? `${name}-error` : undefined}
         className={`btn-focus h-11 w-full rounded-lg border bg-background px-3 text-sm text-foreground shadow-sm transition-colors hover:border-primary/30 focus-visible:border-primary/50 ${
           error ? "border-destructive" : "border-border"
         }`}
@@ -314,7 +356,11 @@ function SelectField(props: {
           </option>
         ))}
       </select>
-      {error && <span className="mt-1 block text-xs font-medium text-destructive">{error}</span>}
+      {error && (
+        <span id={`${name}-error`} className="mt-1 block text-xs font-medium text-destructive">
+          {error}
+        </span>
+      )}
     </label>
   );
 }

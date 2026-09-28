@@ -83,7 +83,7 @@ export function FilterPanel({ products, categories = [], state, onChange, bounds
                   name="mk-category"
                   checked={state.categories.length === 0}
                   onChange={() => onChange({ ...state, categories: [] })}
-                  className="h-4 w-4 rounded border-border text-primary focus:ring-ring"
+                  className="h-4 w-4 rounded border-border text-primary focus:ring-2 focus:ring-ring focus:ring-offset-1"
                 />
                 <span className="font-medium text-foreground">الكل</span>
               </span>
@@ -103,7 +103,7 @@ export function FilterPanel({ products, categories = [], state, onChange, bounds
                       name="mk-category"
                       checked={checked}
                       onChange={() => toggleCategory(c.id)}
-                      className="h-4 w-4 rounded border-border text-primary focus:ring-ring"
+                      className="h-4 w-4 rounded border-border text-primary focus:ring-2 focus:ring-ring focus:ring-offset-1"
                     />
                     <span className="font-medium text-foreground">{categoryLabel(c.id)}</span>
                   </span>
@@ -138,7 +138,7 @@ export function FilterPanel({ products, categories = [], state, onChange, bounds
                     type="checkbox"
                     checked={checked}
                     onChange={() => toggleBrand(brand)}
-                    className="h-4 w-4 rounded border-border text-primary focus:ring-ring"
+                    className="h-4 w-4 rounded border-border text-primary focus:ring-2 focus:ring-ring focus:ring-offset-1"
                   />
                   <span className="tech font-medium text-foreground">{brand}</span>
                 </span>

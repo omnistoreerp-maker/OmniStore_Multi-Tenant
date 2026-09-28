@@ -2,14 +2,14 @@ import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { PackageSearch } from "lucide-react";
 import { isAuthed, marketApi, MarketApiError, setToken, type Order } from "@/lib/api";
-import { formatEGP } from "@/lib/format";
+import { formatEGP, formatOrderStatus, formatPaymentStatus } from "@/lib/format";
 
 /**
  * Customer orders — GET /api/v1/market/orders (requireCustomer).
  * Mirrors the order list block of market/js/app.js pageAccount.
  */
 export default function Orders() {
-  const authed = isAuthed();
+  const [authed, setAuthed] = useState(isAuthed());
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,6 +25,10 @@ export default function Orders() {
         if (cancelled) return;
         if (e instanceof MarketApiError && e.status === 401) {
           setToken(null);
+          // Reactive state — without this the page stays in a loading
+          // skeleton forever (isAuthed() is not reactive).
+          setOrders([]);
+          setAuthed(false);
           return;
         }
         setError(e instanceof Error ? e.message : "تعذر تحميل الطلبات");
@@ -78,8 +82,8 @@ export default function Orders() {
                   <p className="text-xs text-muted-foreground">{new Date(o.createdAt).toLocaleString("ar-EG")}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold text-primary">{o.status}</span>
-                  <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold text-muted-foreground">{o.paymentStatus}</span>
+                  <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold text-primary">{formatOrderStatus(o.status)}</span>
+                  <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold text-muted-foreground">{formatPaymentStatus(o.paymentStatus)}</span>
                 </div>
               </div>
 
@@ -98,7 +102,7 @@ export default function Orders() {
               <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                 <div className="text-sm text-muted-foreground">
                   الإجمالي: <span className="text-base font-extrabold text-primary">{formatEGP(o.total ?? 0)}</span>
-                  {o.shippingAddress ? <span className="mr-3">— {o.shippingAddress}</span> : null}
+                  {o.shippingAddress ? <span className="me-3">— {o.shippingAddress}</span> : null}
                 </div>
                 {o.trackingToken && (
                   <Link
