@@ -41,6 +41,9 @@ const FAKE_MARKERS = [
 const MONETAG_META = '<meta name="monetag" content="e1700efedc78f54b923023e572faa053">';
 const MONETAG_META_VALUE = 'e1700efedc78f54b923023e572faa053';
 
+const MONETAG_TAG = '<script src="https://quge5.com/88/tag.min.js" data-zone="288239" async data-cfasync="false"></script>';
+const PROHIBITED_ZONES = ['11857331', '11912374'];
+
 const LOCKED_IDS = ['student-services', 'game-hosting', 'media-reels', 'support'];
 
 let passed = 0;
@@ -245,6 +248,66 @@ check('ERP index.html does not load the ad boundary', () => {
   assert.ok(!INDEX_HTML.includes('platform/monetag.js'));
 });
 
+check('official Monetag Multitag present exactly once inside platform.html <head>', () => {
+  assert.strictEqual(count(PLATFORM_HTML, MONETAG_TAG), 1, 'official tag must appear exactly once');
+  assert.strictEqual(count(PLATFORM_HTML, 'quge5.com'), 1, 'quge5.com must appear exactly once');
+  assert.strictEqual(count(PLATFORM_HTML, 'tag.min.js'), 1, 'tag.min.js must appear exactly once');
+  const head = PLATFORM_HTML.match(/<head>[\s\S]*?<\/head>/);
+  assert.ok(head && head[0].includes(MONETAG_TAG), 'tag must sit inside <head> for immediate load');
+  assert.ok(PLATFORM_HTML.indexOf(MONETAG_TAG) < PLATFORM_HTML.indexOf('</head>'));
+});
+
+check('multitag attributes exact: zone 288239, quge5 origin, async non-blocking load', () => {
+  assert.ok(MONETAG_TAG.includes('src="https://quge5.com/88/tag.min.js"'), 'official src URL mismatch');
+  assert.ok(MONETAG_TAG.includes('data-zone="288239"'), 'data-zone must be 288239');
+  assert.ok(/\sasync\s/.test(MONETAG_TAG), 'async attribute required (non-blocking)');
+  assert.ok(MONETAG_TAG.includes('data-cfasync="false"'), 'data-cfasync required');
+  const zones = PLATFORM_HTML.match(/data-zone="[^"]*"/g) || [];
+  assert.deepStrictEqual(zones, ['data-zone="288239"'], 'exactly one data-zone, value 288239');
+  assert.ok(!MONETAG_TAG.includes('onclick') && !MONETAG_TAG.includes('DOMContentLoaded'),
+    'no interaction/delay gating on the official tag');
+});
+
+check('no prohibited Monetag zones or fake/extra external scripts on shipped surfaces', () => {
+  const surfaces = PLATFORM_HTML + '\n' + INDEX_HTML + '\n' + MONETAG_SRC + '\n' + PLATFORM_JS + '\n' + BUSINESS_HTML;
+  for (const zone of PROHIBITED_ZONES) {
+    assert.ok(!surfaces.includes(zone), 'prohibited zone present: ' + zone);
+  }
+  const external = PLATFORM_HTML.match(/<script[^>]+src="https?:\/\/[^"]+"/g) || [];
+  assert.strictEqual(external.length, 1, 'platform.html must carry exactly one external https script');
+  assert.ok(external[0].includes('https://quge5.com/88/tag.min.js'), 'external script must be the official tag');
+  for (const marker of FAKE_MARKERS) {
+    assert.ok(!surfaces.includes(marker), 'fake marker present: ' + marker);
+  }
+});
+
+check('CSP narrowly allows the official Monetag chain only (no wildcard, policy preserved)', () => {
+  const serverJs = read('backend/server.js');
+  assert.ok(serverJs.includes('contentSecurityPolicy'), 'helmet CSP removed');
+  assert.ok(serverJs.includes('helmet('), 'helmet middleware removed');
+  const scriptLine = (serverJs.match(/scriptSrc: \[[^\]]*\]/) || [])[0];
+  assert.ok(scriptLine, 'scriptSrc directive missing');
+  assert.ok(scriptLine.includes("'https://quge5.com'"), 'official tag origin missing from script-src');
+  assert.ok(scriptLine.includes("'https://auqot.com'"), 'observed Multitag child origin missing');
+  assert.ok(scriptLine.includes("'https://ekhay.com'"), 'observed Multitag child origin missing');
+  assert.ok(scriptLine.includes("'https://b3mny.com'"), 'observed Multitag child origin missing');
+  assert.ok(!scriptLine.includes('*'), 'wildcard forbidden in script-src');
+  assert.strictEqual((scriptLine.match(/https:\/\//g) || []).length, 6, 'unexpected extra origin in script-src');
+  const connectLine = (serverJs.match(/connectSrc: \[[^\]]*\]/) || [])[0];
+  assert.ok(connectLine, 'connectSrc directive missing');
+  assert.ok(connectLine.includes("'https://6opo.com'"), 'observed Multitag beacon origin missing from connect-src');
+  assert.ok(connectLine.includes("'https://auqot.com'"), 'observed Multitag beacon origin missing from connect-src');
+  assert.ok(connectLine.includes("'https://my.rtmark.net'"), 'observed Multitag beacon origin missing from connect-src');
+  assert.ok(connectLine.includes("'https://jmosl.com'"), 'observed Multitag beacon origin missing from connect-src');
+  assert.ok(connectLine.includes("'https://094kk.com'"), 'observed Multitag beacon origin missing from connect-src');
+  assert.ok(!connectLine.includes('*'), 'wildcard forbidden in connect-src');
+  assert.strictEqual((connectLine.match(/https:\/\//g) || []).length, 7, 'unexpected extra origin in connect-src');
+  assert.ok(serverJs.includes('frameSrc: ["\'none\'"]'), 'frame-src policy changed');
+  assert.ok(serverJs.includes('objectSrc: ["\'none\'"]'), 'object-src policy changed');
+  assert.ok(serverJs.includes('imgSrc: ["\'self\'", \'data:\']'), 'img-src policy changed');
+  assert.ok(serverJs.includes('styleSrc: ["\'self\'", "\'unsafe-inline\'", \'https://fonts.googleapis.com\']'), 'style-src policy changed');
+});
+
 check('monetag boundary stays isolated from core machinery (source tokens)', () => {
   const forbidden = ['visitorsNow', 'activity/heartbeat', 'platformActivity', 'auth/login', 'requireAuth', 'payments/webhook'];
   for (const token of forbidden) {
@@ -267,6 +330,10 @@ check('working-tree diff touches only intended platform files', () => {
     'platform/platform.js',
     'platform/platform.css',
     'business.html',
+    // Official Multitag integration: minimal CSP change + focused tests.
+    'backend/server.js',
+    'backend/tests/monetag.boundary.test.js',
+    'platform/tests/section-lockdown.test.cjs',
     // Pre-existing local WIP from earlier candidate work — carried across
     // branches, deliberately never staged by this change set:
     'backend/data/platformPublic.json',
