@@ -919,6 +919,72 @@
     return '<span class="mk-badge ' + cls + '">' + esc(label) + '</span>';
   }
 
+  // ---------- Game Hosting orders (storefront checkout pipeline) ----------
+
+  // Flash message that survives the render() triggered after a successful
+  // order action (a re-render would otherwise wipe an inline banner).
+  let _ghFlash = null;
+
+  function ghOrderStatusLabel(s) {
+    const map = {
+      pending: t('gh_order_status_pending'),
+      paid: t('gh_order_status_paid'),
+      provisioning: t('gh_order_status_provisioning'),
+      active: t('gh_order_status_active'),
+      suspended: t('gh_order_status_suspended'),
+      terminated: t('gh_order_status_terminated'),
+      cancelled: t('gh_order_status_cancelled'),
+      expired: t('gh_order_status_expired'),
+      provisioning_failed: t('gh_order_status_provisioning_failed')
+    };
+    const label = (map[s] || t('gh_unknown_status')) + ' (' + esc(s) + ')';
+    const cls = s === 'active' || s === 'paid' ? 'success'
+      : s === 'provisioning_failed' || s === 'cancelled' || s === 'expired' || s === 'terminated' ? 'error'
+        : s === 'pending' || s === 'provisioning' ? 'warning'
+          : s === 'suspended' ? 'danger' : 'neutral';
+    return '<span class="mk-badge ' + cls + '">' + esc(label) + '</span>';
+  }
+
+  function ghPaymentStatusLabel(s) {
+    const map = {
+      pending: t('gh_payment_status_pending'),
+      paid: t('gh_payment_status_paid'),
+      failed: t('gh_payment_status_failed'),
+      refunded: t('gh_payment_status_refunded')
+    };
+    const cls = s === 'paid' ? 'success' : s === 'failed' ? 'error' : s === 'refunded' ? 'neutral' : 'warning';
+    return '<span class="mk-badge ' + cls + '">' + esc(map[s] || t('gh_unknown_status')) + '</span>';
+  }
+
+  function ghBillingLabel(period) {
+    const map = {
+      '1m': t('gh_billing_1m'),
+      '3m': t('gh_billing_3m'),
+      '6m': t('gh_billing_6m'),
+      '12m': t('gh_billing_12m')
+    };
+    return map[period] || period || '-';
+  }
+
+  // Honest provider state: while no real provider is configured the storefront
+  // must never imply that infrastructure provisioning will actually run.
+  function ghFailClosedBanner(provider) {
+    if (provider && provider.status === 'BLOCKED') {
+      return ghBanner('error', esc(t('gh_provider_blocked')));
+    }
+    return '';
+  }
+
+  function ghNewIdempotencyKey(marker) {
+    return marker + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  }
+
+  function ghPeriodOptions(selected) {
+    return ['1m', '3m', '6m', '12m'].map((p) =>
+      '<option value="' + p + '"' + (p === selected ? ' selected' : '') + '>' + esc(ghBillingLabel(p)) + '</option>'
+    ).join('');
+  }
+
   async function pageGameHosting() {
     setApp('<div class="mk-loading">' + esc(t('loading')) + '</div><h1 class="mk-page-title">' + esc(t('gh_hero_title')) + '</h1><p class="mk-page-sub">' + esc(t('gh_hero_sub')) + '</p><h2>' + esc(t('gh_plans')) + '</h2><div id="mk-gh-plans">' + skeletonGameGrid(4) + '</div>');
     let provider = null;
@@ -928,6 +994,7 @@
 
     let html = '<h1 class="mk-page-title">' + esc(t('gh_hero_title')) + '</h1>';
     html += '<p class="mk-page-sub">' + esc(t('gh_hero_sub')) + '</p>';
+    html += '<p><a class="mk-btn secondary" href="#/game-hosting/orders">' + esc(t('gh_my_orders')) + '</a> <a class="mk-btn secondary" href="#/game-hosting/my-servers">' + esc(t('gh_my_servers')) + '</a></p>';
     if (provider && provider.status === 'BLOCKED') {
       html += ghBanner('error', esc(t('gh_provider_blocked')));
     }
@@ -944,7 +1011,7 @@
             '<div class="mk-card-stock">' + esc(t('gh_game_title')) + ': ' + esc(p.gameTitle) + '</div>' +
             '<div class="mk-card-stock">' + esc(t('gh_max_players')) + ': ' + esc(p.maxPlayers) + '</div>' +
             (p.region ? '<div class="mk-card-stock">' + esc(t('gh_region')) + ': ' + esc(p.region) + '</div>' : '') +
-            '<a class="mk-btn" href="#/game-hosting/provision?planId=' + encodeURIComponent(p.id) + '">' + esc(t('gh_provision')) + '</a>' +
+            '<a class="mk-btn" href="#/game-hosting/order?planId=' + encodeURIComponent(p.id) + '">' + esc(t('gh_order_now')) + '</a>' +
           '</div>' +
         '</div>';
       });
@@ -1177,6 +1244,248 @@
       html += '</div>';
     }
     setApp(html);
+  }
+
+  // ---------- Game Hosting order pages ----------
+
+  async function pageGameHostingOrder() {
+    if (!window.MK_API.isAuthed()) {
+      storeAuthDestination();
+      location.hash = '#/account';
+      return;
+    }
+    const params = new URLSearchParams(location.hash.split('?')[1] || '');
+    const planId = params.get('planId') || '';
+    if (!planId) { location.hash = '#/game-hosting'; return; }
+
+    setApp('<div class="mk-loading">' + esc(t('loading')) + '</div>');
+    let plan = null;
+    try { plan = await window.MK_API.ghPlan(planId).catch(() => null); } catch (_) {}
+    if (!plan) {
+      setApp('<h1 class="mk-page-title">' + esc(t('product_not_found')) + '</h1><p><a href="#/game-hosting">' + esc(t('gh_back_to_plans')) + '</a></p>');
+      return;
+    }
+    let provider = null;
+    try { provider = await window.MK_API.ghProviderStatus().catch(() => null); } catch (_) {}
+    let quote = null;
+    try { quote = await window.MK_API.ghQuote(planId, '1m').catch(() => null); } catch (_) {}
+
+    let html = breadcrumb([{label: t('gh_title'), href: '#/game-hosting'}, {label: plan.name}]);
+    html += '<h1 class="mk-page-title">' + esc(t('gh_order_title')) + '</h1>';
+    html += ghFailClosedBanner(provider);
+    html += '<div class="mk-order-card">';
+    html += '<div class="mk-summary-title">' + esc(t('gh_order_summary_title')) + '</div>';
+    html += '<div class="mk-summary-row"><span>' + esc(t('gh_plan_name')) + '</span><span>' + esc(plan.name) + '</span></div>';
+    html += '<div class="mk-summary-row"><span>' + esc(t('gh_game_title')) + '</span><span>' + esc(plan.gameTitle) + '</span></div>';
+    html += '<div class="mk-summary-row"><span>' + esc(t('gh_monthly_price')) + '</span><span id="gh-quote-monthly">' + esc(money(plan.pricePerMonth)) + '</span></div>';
+    html += '<div class="mk-summary-row"><span>' + esc(t('gh_months')) + '</span><span id="gh-quote-months">-</span></div>';
+    html += '<div class="mk-summary-row"><span>' + esc(t('gh_discount')) + '</span><span id="gh-quote-discount">-</span></div>';
+    html += '<div class="mk-summary-row"><span>' + esc(t('gh_total')) + '</span><span id="gh-quote-total">-</span></div>';
+    html += '</div>';
+    html += '<div class="mk-row"><div class="mk-col">';
+    html += '<div class="mk-field"><label for="gh-order-name">' + esc(t('gh_provision_server_name')) + '</label><input class="mk-input" id="gh-order-name" required></div>';
+    html += '<div class="mk-field"><label for="gh-order-region">' + esc(t('gh_region')) + '</label><input class="mk-input" id="gh-order-region" value="' + esc(plan.region || '') + '"></div>';
+    html += '<div class="mk-field"><label for="gh-order-period">' + esc(t('gh_billing_period_label')) + '</label><select class="mk-select" id="gh-order-period">' + ghPeriodOptions('1m') + '</select></div>';
+    html += '<button class="mk-btn" id="gh-order-submit">' + esc(t('gh_order_submit')) + '</button>';
+    html += '<div id="gh-order-msg"></div>';
+    html += '</div></div>';
+    html += '<p><a href="#/game-hosting">' + esc(t('gh_back_to_plans')) + '</a></p>';
+    setApp(html);
+
+    // The server owns every price: the summary is always rendered from the
+    // quote endpoint, never from client-side arithmetic.
+    const paintQuote = (q) => {
+      const monthsEl = document.getElementById('gh-quote-months');
+      const discEl = document.getElementById('gh-quote-discount');
+      const totalEl = document.getElementById('gh-quote-total');
+      const monthlyEl = document.getElementById('gh-quote-monthly');
+      if (!monthsEl || !discEl || !totalEl) return;
+      if (!q) {
+        monthsEl.textContent = '-';
+        discEl.textContent = '-';
+        totalEl.textContent = esc(t('gh_quote_failed'));
+        return;
+      }
+      // Every amount on the page uses the quote's own currency (the order
+      // ledger currency), so the summary can never mix currencies.
+      if (monthlyEl && typeof q.monthlyPrice === 'number') monthlyEl.textContent = money(q.monthlyPrice, q.currency);
+      monthsEl.textContent = String(q.months);
+      const off = typeof q.discountMultiplier === 'number' ? Math.round((1 - q.discountMultiplier) * 100) : 0;
+      discEl.textContent = off > 0 ? '-' + off + '%' : '-';
+      totalEl.textContent = money(q.total, q.currency);
+    };
+    paintQuote(quote);
+
+    const periodSel = document.getElementById('gh-order-period');
+    periodSel.addEventListener('change', async () => {
+      const q = await window.MK_API.ghQuote(planId, periodSel.value).catch(() => null);
+      paintQuote(q);
+    });
+
+    const btn = document.getElementById('gh-order-submit');
+    const msg = document.getElementById('gh-order-msg');
+    const nameInput = document.getElementById('gh-order-name');
+    nameInput.addEventListener('input', () => clearFieldError('gh-order-name'));
+    // One idempotency key per page mount: a retried submit cannot create
+    // a duplicate order, while a new order starts from a fresh mount.
+    const idempotencyKey = ghNewIdempotencyKey('ghorder');
+    btn.addEventListener('click', async () => {
+      clearAllFieldErrors('gh-');
+      msg.innerHTML = '';
+      const serverName = nameInput.value.trim();
+      if (!serverName) { fieldError('gh-order-name', t('gh_required_field')); return; }
+      btn.disabled = true; btn.textContent = t('please_wait');
+      try {
+        const order = await window.MK_API.ghCreateOrder({
+          planId: plan.id,
+          serverName,
+          region: document.getElementById('gh-order-region').value.trim(),
+          billingPeriod: periodSel.value,
+          idempotencyKey
+        });
+        if (order && order.id) {
+          location.hash = '#/game-hosting/orders/' + encodeURIComponent(order.id);
+          return;
+        }
+        msg.innerHTML = ghBanner('error', esc(t('gh_order_failed')));
+      } catch (e) {
+        msg.innerHTML = ghBanner('error', esc(ghLocalizedError(e) || t('gh_order_failed')));
+      }
+      btn.disabled = false; btn.textContent = t('gh_order_submit');
+    });
+  }
+
+  async function pageGameHostingOrders() {
+    if (!window.MK_API.isAuthed()) {
+      storeAuthDestination();
+      location.hash = '#/account';
+      return;
+    }
+    setApp('<h1 class="mk-page-title">' + esc(t('gh_orders_title')) + '</h1><div id="mk-gh-orders">' + skeletonGameGrid(3) + '</div>');
+    let orders = [];
+    try { const r = await window.MK_API.ghMyOrders(); orders = (r && r.orders) || []; } catch (_) {}
+    let provider = null;
+    try { provider = await window.MK_API.ghProviderStatus().catch(() => null); } catch (_) {}
+
+    let html = '<h1 class="mk-page-title">' + esc(t('gh_orders_title')) + '</h1>';
+    html += '<p><a class="mk-btn secondary" href="#/game-hosting">' + esc(t('gh_back_to_plans')) + '</a> <a class="mk-btn secondary" href="#/game-hosting/my-servers">' + esc(t('gh_my_servers')) + '</a></p>';
+    html += ghFailClosedBanner(provider);
+    if (!orders.length) {
+      html += '<div class="mk-empty"><div class="mk-empty-title">' + esc(t('gh_orders_empty_title')) + '</div><div class="mk-empty-sub">' + esc(t('gh_orders_empty_sub')) + '</div><a class="mk-btn" href="#/game-hosting">' + esc(t('gh_orders_empty_cta')) + '</a></div>';
+    } else {
+      html += '<div class="mk-grid">';
+      orders.forEach((o) => {
+        html += '<div class="mk-card">' +
+          '<div class="mk-card-body">' +
+            '<div class="mk-card-name">' + esc(o.planName || o.planId) + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('gh_server_name')) + ': ' + esc(o.serverName || '-') + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('gh_order_status')) + ': ' + ghOrderStatusLabel(o.status) + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('gh_payment_status')) + ': ' + ghPaymentStatusLabel(o.paymentStatus) + '</div>' +
+            '<div class="mk-card-price">' + esc(money(o.amount, o.currency)) + ' <small>/ ' + esc(ghBillingLabel(o.billingPeriod)) + '</small></div>' +
+            '<a class="mk-btn" href="#/game-hosting/orders/' + encodeURIComponent(o.id) + '">' + esc(t('gh_order_detail_title')) + '</a>' +
+          '</div>' +
+        '</div>';
+      });
+      html += '</div>';
+    }
+    setApp(html);
+  }
+
+  async function pageGameHostingOrderDetail(id) {
+    if (!window.MK_API.isAuthed()) {
+      storeAuthDestination();
+      location.hash = '#/account';
+      return;
+    }
+    setApp('<div class="mk-loading">' + esc(t('loading')) + '</div>');
+    let order = null;
+    try { order = await window.MK_API.ghOrder(id).catch(() => null); } catch (_) {}
+    if (!order) {
+      setApp('<h1 class="mk-page-title">' + esc(t('gh_order_detail_title')) + '</h1><div class="mk-empty">' + esc(t('gh_order_not_found')) + '</div><p><a href="#/game-hosting/orders">' + esc(t('gh_back_to_orders')) + '</a></p>');
+      return;
+    }
+    let provider = null;
+    try { provider = await window.MK_API.ghProviderStatus().catch(() => null); } catch (_) {}
+
+    let html = breadcrumb([{label: t('gh_title'), href: '#/game-hosting'}, {label: t('gh_my_orders'), href: '#/game-hosting/orders'}, {label: (order.planName || order.planId)}]);
+    html += '<h1 class="mk-page-title">' + esc(t('gh_order_detail_title')) + '</h1>';
+    if (['pending', 'paid', 'provisioning', 'provisioning_failed'].indexOf(order.status) !== -1) {
+      html += ghFailClosedBanner(provider);
+    }
+    if (_ghFlash) {
+      html += ghBanner(_ghFlash.type, esc(_ghFlash.msg));
+      _ghFlash = null;
+    }
+    html += '<div class="mk-order-card">';
+    html += '<div class="mk-summary-title">' + esc(t('gh_order_summary_title')) + '</div>';
+    html += '<div class="mk-summary-row"><span>' + esc(t('gh_plan_name')) + '</span><span>' + esc(order.planName || order.planId) + '</span></div>';
+    html += '<div class="mk-summary-row"><span>' + esc(t('gh_server_name')) + '</span><span>' + esc(order.serverName || '-') + '</span></div>';
+    html += '<div class="mk-summary-row"><span>' + esc(t('gh_region')) + '</span><span>' + esc(order.region || '-') + '</span></div>';
+    html += '<div class="mk-summary-row"><span>' + esc(t('gh_billing_period_label')) + '</span><span>' + esc(ghBillingLabel(order.billingPeriod)) + '</span></div>';
+    html += '<div class="mk-summary-row"><span>' + esc(t('gh_total')) + '</span><span>' + esc(money(order.amount, order.currency)) + '</span></div>';
+    html += '<div class="mk-summary-row"><span>' + esc(t('gh_order_status')) + '</span><span>' + ghOrderStatusLabel(order.status) + '</span></div>';
+    html += '<div class="mk-summary-row"><span>' + esc(t('gh_payment_status')) + '</span><span>' + ghPaymentStatusLabel(order.paymentStatus) + '</span></div>';
+    if (order.periodEndsAt) {
+      html += '<div class="mk-summary-row"><span>' + esc(t('gh_period_end')) + '</span><span>' + esc(new Date(order.periodEndsAt).toLocaleString()) + '</span></div>';
+    }
+    html += '</div>';
+    html += '<div class="mk-summary" style="margin-top:12px"><div class="mk-summary-row"><span>' + esc(t('gh_actions')) + '</span><span id="gh-order-actions"></span></div></div>';
+    html += '<div id="gh-order-msg" style="margin-top:12px"></div>';
+    html += '<p><a href="#/game-hosting/orders">' + esc(t('gh_back_to_orders')) + '</a></p>';
+    setApp(html);
+
+    // Actions follow the server-side order state machine; anything not
+    // permitted by the current status is simply not offered.
+    const actions = document.getElementById('gh-order-actions');
+    const msgEl = document.getElementById('gh-order-msg');
+    const specs = [];
+    if (order.status === 'pending') {
+      specs.push({ id: 'gh-order-pay', label: t('gh_pay_now'), ok: 'gh_pay_success', danger: false, run: () => window.MK_API.ghPayOrder(order.id) });
+    }
+    if (order.status === 'paid' || order.status === 'provisioning_failed') {
+      specs.push({ id: 'gh-order-provision', label: t('gh_provision_now'), ok: 'gh_provision_success', danger: false, run: () => window.MK_API.ghProvisionOrder(order.id) });
+    }
+    if (order.status === 'active' || order.status === 'suspended') {
+      specs.push({ id: 'gh-order-renew', label: t('gh_renew'), ok: 'gh_renew_success', danger: false, run: () => window.MK_API.ghRenewOrder(order.id, { billingPeriod: order.billingPeriod }) });
+    }
+    if (order.status === 'active') {
+      specs.push({ id: 'gh-order-suspend', label: t('gh_suspend'), ok: 'gh_suspend_success', danger: false, run: () => window.MK_API.ghSuspendOrder(order.id, {}) });
+    }
+    if (order.status === 'suspended') {
+      specs.push({ id: 'gh-order-resume', label: t('gh_resume'), ok: 'gh_resume_success', danger: false, run: () => window.MK_API.ghResumeOrder(order.id) });
+    }
+    if (['pending', 'paid', 'provisioning', 'provisioning_failed', 'active', 'suspended'].indexOf(order.status) !== -1) {
+      specs.push({ id: 'gh-order-terminate', label: t('gh_terminate_order'), ok: 'gh_terminate_success', danger: true, confirmKey: 'gh_confirm_terminate', run: () => window.MK_API.ghTerminateOrder(order.id, {}) });
+    }
+    actions.innerHTML = specs.map((s) => '<button class="mk-btn' + (s.danger ? ' danger' : '') + '" id="' + s.id + '">' + esc(s.label) + '</button>').join(' ');
+
+    specs.forEach((s) => {
+      const el = document.getElementById(s.id);
+      if (!el) return;
+      el.addEventListener('click', async () => {
+        msgEl.innerHTML = '';
+        if (s.confirmKey && !await confirmDialog(t(s.confirmKey))) return;
+        el.disabled = true;
+        try {
+          await s.run();
+          _ghFlash = { type: 'success', msg: t(s.ok) };
+          render();
+        } catch (e) {
+          // Re-render so the page shows the state the server actually landed on
+          // (e.g. provisioning_failed after a blocked provision) instead of the
+          // pre-action state, and carry the reason through the flash slot.
+          let detail = ghLocalizedError(e) || t('gh_order_action_failed');
+          // Fail-closed transparency: when no real provider is configured the
+          // failure is an infrastructure-policy state, not a transient error.
+          if (provider && provider.status === 'BLOCKED') {
+            detail += ' ' + t('gh_provision_blocked');
+          }
+          _ghFlash = { type: 'error', msg: detail };
+          render();
+          el.disabled = false;
+        }
+      });
+    });
   }
 
   // Operator pages (requires operator role)
@@ -1623,6 +1932,104 @@
     setApp(html);
   }
 
+  async function pageOperatorOrders() {
+    if (!window.MK_API.isOperator()) {
+      setApp('<h1 class="mk-page-title">' + esc(t('op_orders_title')) + '</h1>' + opBanner('error', esc(t('gh_auth_required'))));
+      return;
+    }
+    setApp('<h1 class="mk-page-title">' + esc(t('op_orders_title')) + '</h1><p><a class="mk-btn secondary" href="#/operator">' + esc(t('op_back_to_dashboard')) + '</a></p><div id="mk-op-orders">' + skeletonGameGrid(3) + '</div>');
+    let data = null;
+    try { data = await window.MK_API.ghAdminOverview().catch(() => null); } catch (_) {}
+    const provider = (data && data.provider) || null;
+    const orders = (data && data.orders) || [];
+
+    let html = '<h1 class="mk-page-title">' + esc(t('op_orders_title')) + '</h1>';
+    html += '<p><a class="mk-btn secondary" href="#/operator">' + esc(t('op_back_to_dashboard')) + '</a></p>';
+    html += ghFailClosedBanner(provider);
+    // Provider seam — the operator needs to see what the infrastructure will do.
+    html += '<div class="mk-summary"><div class="mk-summary-row"><span>' + esc(t('gh_provider_status_title')) + '</span><span>' + esc(provider ? provider.status : '-') + '</span></div>';
+    html += '<div class="mk-summary-row"><span>' + esc(t('op_orders_total')) + '</span><span>' + esc(String((data && data.total) || 0)) + '</span></div>';
+    const counts = (data && data.counts) || {};
+    html += '<div class="mk-summary-row"><span>' + esc(t('op_orders_counts')) + '</span><span>' + esc(Object.keys(counts).map((k) => k + ': ' + counts[k]).join(' · ') || '-') + '</span></div>';
+    html += '</div>';
+    html += '<div style="margin-top:12px"><button class="mk-btn secondary" id="op-gh-sweep">' + esc(t('op_expiry_sweep')) + '</button> <span id="op-gh-sweep-msg"></span></div>';
+    html += '<div id="op-gh-orders-msg" style="margin-top:12px"></div>';
+
+    if (!orders.length) {
+      html += '<div class="mk-empty"><div class="mk-empty-title">' + esc(t('op_orders_empty')) + '</div></div>';
+    } else {
+      html += '<div class="mk-grid" style="margin-top:16px">';
+      orders.forEach((o) => {
+        const canRetry = ['paid', 'provisioning_failed'].indexOf(o.status) !== -1;
+        const canRefund = o.paymentStatus === 'paid';
+        html += '<div class="mk-card">' +
+          '<div class="mk-card-body">' +
+            '<div class="mk-card-name">' + esc(o.planName || o.planId) + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('gh_server_name')) + ': ' + esc(o.serverName || '-') + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('gh_order_status')) + ': ' + ghOrderStatusLabel(o.status) + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('gh_payment_status')) + ': ' + ghPaymentStatusLabel(o.paymentStatus) + '</div>' +
+            '<div class="mk-card-price">' + esc(money(o.amount, o.currency)) + '</div>' +
+            (canRetry ? '<button class="mk-btn" id="op-gh-retry-' + esc(o.id) + '">' + esc(t('op_order_retry')) + '</button> ' : '') +
+            (canRefund ? '<button class="mk-btn secondary" id="op-gh-refund-' + esc(o.id) + '">' + esc(t('op_order_refund')) + '</button>' : '') +
+          '</div>' +
+        '</div>';
+      });
+      html += '</div>';
+    }
+    setApp(html);
+
+    const msgEl = document.getElementById('op-gh-orders-msg');
+    const sweepBtn = document.getElementById('op-gh-sweep');
+    sweepBtn.addEventListener('click', async () => {
+      msgEl.innerHTML = '';
+      const out = document.getElementById('op-gh-sweep-msg');
+      sweepBtn.disabled = true;
+      try {
+        const res = await window.MK_API.ghAdminExpireSweep();
+        out.textContent = t('op_expiry_sweep_done') + (res && res.expired ? ' (' + res.expired + ')' : '');
+      } catch (e) {
+        out.textContent = ghLocalizedError(e) || t('gh_order_action_failed');
+      }
+      sweepBtn.disabled = false;
+    });
+
+    orders.forEach((o) => {
+      const retry = document.getElementById('op-gh-retry-' + o.id);
+      if (retry) {
+        retry.addEventListener('click', async () => {
+          msgEl.innerHTML = '';
+          retry.disabled = true;
+          try {
+            await window.MK_API.ghAdminRetryProvisioning(o.id);
+            _ghFlash = { type: 'success', msg: t('op_order_retry_done') };
+            render();
+          } catch (e) {
+            let out = ghBanner('error', esc(ghLocalizedError(e) || t('gh_order_action_failed')));
+            if (provider && provider.status === 'BLOCKED') out += ghBanner('error', esc(t('op_order_retry_blocked')));
+            msgEl.innerHTML = out;
+            retry.disabled = false;
+          }
+        });
+      }
+      const refund = document.getElementById('op-gh-refund-' + o.id);
+      if (refund) {
+        refund.addEventListener('click', async () => {
+          msgEl.innerHTML = '';
+          if (!await confirmDialog(t('op_order_refund') + '?')) return;
+          refund.disabled = true;
+          try {
+            await window.MK_API.ghAdminRefund(o.id, { reason: t('op_order_refund_reason') });
+            _ghFlash = { type: 'success', msg: t('op_order_refund_done') };
+            render();
+          } catch (e) {
+            msgEl.innerHTML = ghBanner('error', esc(ghLocalizedError(e) || t('gh_order_action_failed')));
+            refund.disabled = false;
+          }
+        });
+      }
+    });
+  }
+
   // ---------- Router ----------
 
   function debounce(fn, ms) {
@@ -1640,6 +2047,12 @@
       if (path === 'game-hosting') {
         if (param === 'my-servers') return pageGameHostingMyServers();
         if (param === 'servers') return pageGameHostingServer(decodeURIComponent(location.hash.split('/')[3] || ''));
+        if (param === 'orders') {
+          const orderId = decodeURIComponent(location.hash.split('?')[0].split('/')[3] || '');
+          if (orderId) return pageGameHostingOrderDetail(orderId);
+          return pageGameHostingOrders();
+        }
+        if (param === 'order') return pageGameHostingOrder();
         if (param === 'provision' || (typeof param === 'string' && param.startsWith('provision'))) return pageGameHostingProvision();
         if (param === 'requests') return pageGameHostingRequests();
         return pageGameHosting();
@@ -1648,6 +2061,7 @@
         if (param === 'plans') return pageOperatorPlans();
         if (param === 'servers') return pageOperatorServers();
         if (param === 'queue') return pageOperatorQueue();
+        if (param === 'orders') return pageOperatorOrders();
         if (param === 'entitlements') return pageOperatorEntitlements();
         if (param === 'audit') return pageOperatorAudit();
         return pageGameHosting();
@@ -1672,7 +2086,7 @@
       'cart': ['a[href="#/cart"]', '#mk-bottom-nav a[href="#/cart"]'],
       'track': ['a[href="#/track"]', '#mk-bottom-nav a[href="#/track"]'],
       'account': ['a[href="#/account"]', '#mk-bottom-nav a[href="#/account"]'],
-      'game-hosting': ['a[href="#/game-hosting"]', '#mk-bottom-nav a[href="#/game-hosting"]', 'a[href="#/game-hosting/my-servers"]', '#mk-bottom-nav a[href="#/game-hosting/my-servers"]', 'a[href="#/game-hosting/requests"]', '#mk-bottom-nav a[href="#/game-hosting/requests"]'],
+      'game-hosting': ['a[href="#/game-hosting"]', '#mk-bottom-nav a[href="#/game-hosting"]', 'a[href="#/game-hosting/my-servers"]', '#mk-bottom-nav a[href="#/game-hosting/my-servers"]', 'a[href="#/game-hosting/requests"]', '#mk-bottom-nav a[href="#/game-hosting/requests"]', 'a[href="#/game-hosting/orders"]', '#mk-bottom-nav a[href="#/game-hosting/orders"]'],
       'operator': ['#mk-op-nav a[href="#/operator"]', '#mk-mobile-op-nav a[href="#/operator"]']
     };
     const selectors = selectorMap[path] || [];
@@ -1713,12 +2127,16 @@
     const isAuthed = window.MK_API.isAuthed();
     const ghReqLink = document.getElementById('mk-gh-requests-link');
     const mobileGhReqLink = document.getElementById('mk-mobile-gh-requests-link');
+    const ghOrdersLink = document.getElementById('mk-gh-orders-link');
+    const mobileGhOrdersLink = document.getElementById('mk-mobile-gh-orders-link');
     const opNavLink = document.getElementById('mk-op-nav-link');
     const mobileOpNavLink = document.getElementById('mk-mobile-op-nav-link');
     const opNav = document.getElementById('mk-op-nav');
     const mobileOpNav = document.getElementById('mk-mobile-op-nav');
     if (ghReqLink) ghReqLink.style.display = isAuthed ? '' : 'none';
     if (mobileGhReqLink) mobileGhReqLink.style.display = isAuthed ? '' : 'none';
+    if (ghOrdersLink) ghOrdersLink.style.display = isAuthed ? '' : 'none';
+    if (mobileGhOrdersLink) mobileGhOrdersLink.style.display = isAuthed ? '' : 'none';
     if (opNavLink) opNavLink.style.display = isOp ? '' : 'none';
     if (mobileOpNavLink) mobileOpNavLink.style.display = isOp ? '' : 'none';
     if (opNav) opNav.style.display = isOp ? '' : 'none';
