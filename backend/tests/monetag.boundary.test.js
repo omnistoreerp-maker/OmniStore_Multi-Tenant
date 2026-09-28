@@ -29,13 +29,15 @@ const MONETAG_SRC = repoFile('platform/monetag.js');
 const PLATFORM_JS = repoFile('platform/platform.js');
 
 const FAKE_MARKERS = [
-  'e1700efedc78f54b923023e572faa053',
   'monetag.com/script',
   'cdn.monetag.com',
   'widget.monetag.com',
   'YOUR_MONETAG',
   'MONETAG_ID'
 ];
+
+const MONETAG_META = '<meta name="monetag" content="e1700efedc78f54b923023e572faa053">';
+const MONETAG_META_VALUE = 'e1700efedc78f54b923023e572faa053';
 
 function makeExternalLoaderScript(src) {
   const attrs = {
@@ -173,6 +175,18 @@ describe('Monetag boundary — shipped HTML surfaces', () => {
     }
     expect(PLATFORM_HTML).not.toMatch(/<script[^>]+src=["']https?:\/\/[^"']*monetag/i);
     expect(INDEX_HTML).not.toMatch(/monetag/i);
+  });
+
+  test('official owner-provided verification meta present exactly once inside platform.html <head>', () => {
+    const occurrences = PLATFORM_HTML.match(/e1700efedc78f54b923023e572faa053/g) || [];
+    expect(occurrences.length).toBe(1);
+    expect(PLATFORM_HTML).toContain(MONETAG_META);
+    const head = PLATFORM_HTML.match(/<head>[\s\S]*?<\/head>/);
+    expect(head).not.toBeNull();
+    expect(head[0]).toContain(MONETAG_META);
+    expect(INDEX_HTML).not.toContain(MONETAG_META_VALUE);
+    expect(MONETAG_SRC).not.toContain(MONETAG_META_VALUE);
+    expect(PLATFORM_JS).not.toContain(MONETAG_META_VALUE);
   });
 
   test('ERP index.html does not load Monetag (private/auth surface)', () => {

@@ -31,13 +31,15 @@ const INDEX_HTML = read('index.html');
 const MARKETPLACE_INDEX = read('marketplace/index.html');
 
 const FAKE_MARKERS = [
-  'e1700efedc78f54b923023e572faa053',
   'monetag.com/script',
   'cdn.monetag.com',
   'widget.monetag.com',
   'YOUR_MONETAG',
   'MONETAG_ID'
 ];
+
+const MONETAG_META = '<meta name="monetag" content="e1700efedc78f54b923023e572faa053">';
+const MONETAG_META_VALUE = 'e1700efedc78f54b923023e572faa053';
 
 const LOCKED_IDS = ['student-services', 'game-hosting', 'media-reels', 'support'];
 
@@ -226,6 +228,16 @@ check('no fabricated Monetag identifier on any shipped surface', () => {
   for (const marker of FAKE_MARKERS) {
     assert.ok(!surfaces.includes(marker), 'fake marker present: ' + marker);
   }
+});
+
+check('official Monetag verification meta present once inside platform.html <head>', () => {
+  assert.strictEqual(count(PLATFORM_HTML, MONETAG_META_VALUE), 1, 'verification value must appear exactly once');
+  assert.ok(PLATFORM_HTML.includes(MONETAG_META), 'exact official meta tag missing');
+  const head = PLATFORM_HTML.match(/<head>[\s\S]*?<\/head>/);
+  assert.ok(head && head[0].includes(MONETAG_META), 'meta tag must sit inside <head>');
+  assert.strictEqual(count(INDEX_HTML, MONETAG_META_VALUE), 0, 'index.html must not duplicate the meta');
+  assert.strictEqual(count(MONETAG_SRC, MONETAG_META_VALUE), 0, 'boundary source must not carry the meta');
+  assert.strictEqual(count(BUSINESS_HTML, MONETAG_META_VALUE), 0, 'business.html must not duplicate the meta');
 });
 
 check('ERP index.html does not load the ad boundary', () => {
