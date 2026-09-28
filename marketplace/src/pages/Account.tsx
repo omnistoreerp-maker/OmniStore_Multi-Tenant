@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { LogOut, PackageSearch, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { MarketApiError, isAuthed, marketApi, setToken, type Customer, type Order } from "@/lib/api";
-import { formatEGP } from "@/lib/format";
+import { formatEGP, formatOrderStatus } from "@/lib/format";
 
 /**
  * Customer account — port of market/js/app.js pageAccount:
@@ -303,7 +303,7 @@ export default function Account() {
                   <p className="text-xs text-muted-foreground">{new Date(o.createdAt).toLocaleString("ar-EG")}</p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold text-primary">{o.status}</span>
+                  <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold text-primary">{formatOrderStatus(o.status)}</span>
                   <span className="text-sm font-bold text-primary">{formatEGP(o.total ?? 0)}</span>
                 </div>
               </li>

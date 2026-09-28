@@ -1,6 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { X, SlidersHorizontal } from "lucide-react";
 import { FilterPanel, type FilterState } from "./FilterPanel";
+import { useDrawerA11y } from "@/lib/useDrawerA11y";
 import type { Product } from "@/types/product";
 import type { CategoryCount } from "@/lib/api";
 
@@ -19,30 +20,7 @@ interface Props {
 export function FilterDrawer({ open, onClose, products, categories, state, onChange, bounds, resultCount }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
   const asideRef = useRef<HTMLElement>(null);
-  const prevFocus = useRef<HTMLElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-    };
-  }, [open, onClose]);
-
-  // Closed: inert (hidden from a1y tree + tab order). Open: focus in, restore after.
-  useEffect(() => {
-    rootRef.current?.toggleAttribute("inert", !open);
-    if (open) {
-      prevFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-      asideRef.current?.focus();
-    } else if (prevFocus.current) {
-      prevFocus.current.focus();
-      prevFocus.current = null;
-    }
-  }, [open]);
+  useDrawerA11y(open, onClose, rootRef, asideRef);
 
   return (
     <div

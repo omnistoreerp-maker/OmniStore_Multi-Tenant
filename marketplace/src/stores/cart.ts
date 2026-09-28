@@ -76,6 +76,11 @@ let resolveSeq = 0;
 // True when the last catalog join failed — lets the cart UI show an error
 // instead of a false "empty cart".
 let resolveError = false;
+// Freshness window: cart mutations (add/qty/remove) keep `resolved` in sync
+// locally, so back-to-back interactions must not each refetch the catalog.
+// Callers that need canonical data (reconcile, retry) pass force=true.
+const RESOLVE_FRESH_MS = 2500;
+let lastSuccessAt = 0;
 
 function emitResolved(): void {
   resolveListeners.forEach((l) => l());
@@ -86,15 +91,19 @@ function emitResolved(): void {
  * from the API (never from localStorage). Refs pointing to products that
  * disappeared from the catalog are hidden (and pruned like market.html does).
  */
-async function loadResolved(): Promise<ResolvedCartItem[]> {
+async function loadResolved(force = false): Promise<ResolvedCartItem[]> {
   const current = refs;
   if (current.length === 0) {
     if (resolved.length || resolveError) {
       resolved = [];
       resolveError = false;
+      lastSuccessAt = 0;
       emitResolved();
     }
     return resolved;
+  }
+  if (!force && !resolveError && lastSuccessAt !== 0 && Date.now() - lastSuccessAt < RESOLVE_FRESH_MS) {
+    return resolved; // fresh — mutations already synced quantities locally
   }
   const seq = ++resolveSeq;
   try {
@@ -110,13 +119,18 @@ async function loadResolved(): Promise<ResolvedCartItem[]> {
         pruned.push(r);
       }
     });
-    if (pruned.length !== current.length) {
+    // Prune only when the response covered the whole catalog (total ≤ fetched)
+    // — otherwise a ref missing from page 1 may simply be beyond the limit and
+    // must never be silently deleted from the customer's cart.
+    const fullCatalog = (page.total ?? page.products.length) <= page.products.length;
+    if (pruned.length !== current.length && fullCatalog) {
       refs = pruned;
       persist(refs);
       emitRefs();
     }
     resolved = next;
     resolveError = false;
+    lastSuccessAt = Date.now();
     emitResolved();
   } catch (_) {
     // API unreachable — keep last known resolution; do not invent data.
@@ -160,10 +174,27 @@ export const cartStore = {
       next = [...refs, { productId, qty: cap != null ? Math.min(target, cap) : target }];
     }
     setRefs(next);
+    // Local upsert: the caller already holds catalog-fresh product data, so
+    // the drawer reflects the add instantly (refresh happens when the window
+    // expires or on the next forced load).
+    if (typeof product !== "string") {
+      const targetQty = next.find((r) => r.productId === productId)?.qty ?? 1;
+      const idx = resolved.findIndex((x) => x.product.id === productId);
+      if (idx === -1) {
+        resolved = [...resolved, { product, quantity: targetQty }];
+      } else if (resolved[idx].quantity !== targetQty) {
+        resolved = resolved.map((x) => (x.product.id === productId ? { ...x, quantity: targetQty } : x));
+      }
+      emitResolved();
+    }
     void loadResolved();
   },
   remove(productId: string): void {
     setRefs(refs.filter((r) => r.productId !== productId));
+    if (resolved.some((x) => x.product.id === productId)) {
+      resolved = resolved.filter((x) => x.product.id !== productId);
+      emitResolved();
+    }
     void loadResolved();
   },
   setQuantity(productId: string, qty: number): void {
@@ -174,6 +205,11 @@ export const cartStore = {
     const cap = stockCap(productId);
     const target = cap != null ? Math.min(qty, cap) : qty;
     setRefs(refs.map((r) => (r.productId === productId ? { ...r, qty: Math.max(1, target) } : r)));
+    const nextQty = refs.find((r) => r.productId === productId)?.qty;
+    if (nextQty != null && resolved.some((x) => x.product.id === productId)) {
+      resolved = resolved.map((x) => (x.product.id === productId ? { ...x, quantity: nextQty } : x));
+      emitResolved();
+    }
     void loadResolved();
   },
   clear(): void {
@@ -186,7 +222,7 @@ export const cartStore = {
   count: (): number => refs.reduce((n, r) => n + (r.qty || 0), 0),
   items: (): ResolvedCartItem[] => resolved,
   resolveFailed: (): boolean => resolveError,
-  load: loadResolved,
+  load: () => loadResolved(true),
   /**
    * Validates the cart against GET /availability (same rule as
    * market/js/store.js): drop rows the server marks unavailable or whose
@@ -210,10 +246,10 @@ export const cartStore = {
     });
     if (JSON.stringify(next) !== before) {
       setRefs(next);
-      await loadResolved();
+      await loadResolved(true);
       return true;
     }
-    await loadResolved();
+    await loadResolved(true);
     return false;
   },
 };

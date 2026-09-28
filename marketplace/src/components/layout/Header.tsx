@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Loader2, PackageSearch, Search as SearchIcon, ShoppingCart, Store, User } from "lucide-react";
+import { Loader2, Menu, Search as SearchIcon, ShoppingCart, Store, User } from "lucide-react";
 import { useCartCount } from "@/stores/cart";
 import { useMarketUI } from "@/stores/marketUI";
 import { formatCount } from "@/lib/format";
 import { categoryLabel } from "@/lib/mapper";
+import { MobileNav } from "./MobileNav";
 
 interface Props {
   onOpenCart: () => void;
@@ -23,6 +25,7 @@ export function Header({ onOpenCart }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
   const onHome = location.pathname === "/";
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const handleSearch = (v: string) => {
     ui.setQuery(v);
@@ -35,6 +38,7 @@ export function Header({ onOpenCart }: Props) {
   };
 
   return (
+    <>
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/95 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-3 sm:h-16 sm:gap-3 sm:px-6 lg:px-8">
         {/* Logo */}
@@ -53,14 +57,17 @@ export function Header({ onOpenCart }: Props) {
           <HeaderSearch value={ui.query} onChange={handleSearch} loading={ui.fetching} />
         </div>
 
-        {/* Orders — icon on mobile (nav is md+) */}
-        <Link
-          to="/orders"
-          aria-label="طلباتي"
+        {/* Menu — mobile drawer holds shop/orders/platform (nav is md+) */}
+        <button
+          type="button"
+          onClick={() => setMenuOpen(true)}
+          aria-label="القائمة"
+          aria-expanded={menuOpen}
+          aria-controls="mobile-nav-menu"
           className="btn-focus grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-card text-foreground shadow-sm transition-colors hover:border-primary/30 hover:text-primary md:hidden"
         >
-          <PackageSearch className="h-5 w-5" aria-hidden />
-        </Link>
+          <Menu className="h-5 w-5" aria-hidden />
+        </button>
 
         {/* Account — icon on mobile, text link on md+ (nav) */}
         <Link
@@ -151,6 +158,12 @@ export function Header({ onOpenCart }: Props) {
         </div>
       )}
     </header>
+    {/* Outside the header: its backdrop-filter would otherwise become the
+        containing block for the fixed-position drawer. */}
+    <div id="mobile-nav-menu">
+      <MobileNav open={menuOpen} onClose={() => setMenuOpen(false)} />
+    </div>
+    </>
   );
 }
 

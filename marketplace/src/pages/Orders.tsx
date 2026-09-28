@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { PackageSearch } from "lucide-react";
 import { isAuthed, marketApi, MarketApiError, setToken, type Order } from "@/lib/api";
-import { formatEGP } from "@/lib/format";
+import { formatEGP, formatOrderStatus, formatPaymentStatus } from "@/lib/format";
 
 /**
  * Customer orders — GET /api/v1/market/orders (requireCustomer).
@@ -82,8 +82,8 @@ export default function Orders() {
                   <p className="text-xs text-muted-foreground">{new Date(o.createdAt).toLocaleString("ar-EG")}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold text-primary">{o.status}</span>
-                  <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold text-muted-foreground">{o.paymentStatus}</span>
+                  <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold text-primary">{formatOrderStatus(o.status)}</span>
+                  <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-semibold text-muted-foreground">{formatPaymentStatus(o.paymentStatus)}</span>
                 </div>
               </div>
 

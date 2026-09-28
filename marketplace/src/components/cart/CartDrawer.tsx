@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { X, Minus, Plus, Trash2, ShoppingBag, AlertTriangle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cartStore, useCart, useCartTotal } from "@/stores/cart";
 import { formatEGP } from "@/lib/format";
+import { useDrawerA11y } from "@/lib/useDrawerA11y";
 import type { Product } from "@/types/product";
 
 interface Props {
@@ -15,31 +16,7 @@ export function CartDrawer({ open, onClose }: Props) {
   const total = useCartTotal();
   const rootRef = useRef<HTMLDivElement>(null);
   const asideRef = useRef<HTMLElement>(null);
-  const prevFocus = useRef<HTMLElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", onKey);
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = "";
-    };
-  }, [open, onClose]);
-
-  // Closed drawer: inert (removes it from a11y tree + tab order) — aria-hidden
-  // alone leaves focusable content inside. Open: move focus in, restore on close.
-  useEffect(() => {
-    rootRef.current?.toggleAttribute("inert", !open);
-    if (open) {
-      prevFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-      asideRef.current?.focus();
-    } else if (prevFocus.current) {
-      prevFocus.current.focus();
-      prevFocus.current = null;
-    }
-  }, [open]);
+  useDrawerA11y(open, onClose, rootRef, asideRef);
 
   return (
     <div ref={rootRef} className={`fixed inset-0 z-50 ${open ? "" : "pointer-events-none"}`} aria-hidden={!open}>
@@ -126,7 +103,7 @@ export function CartDrawer({ open, onClose }: Props) {
                           type="button"
                           aria-label="تقليل الكمية"
                           onClick={() => cartStore.setQuantity(item.product.id, item.quantity - 1)}
-                          className="btn-focus grid h-9 w-9 place-items-center text-foreground hover:bg-secondary"
+                          className="btn-focus grid h-10 w-10 place-items-center text-foreground hover:bg-secondary"
                         >
                           <Minus className="h-4 w-4" />
                         </button>
@@ -138,7 +115,7 @@ export function CartDrawer({ open, onClose }: Props) {
                           aria-label="زيادة الكمية"
                           disabled={item.product.stock != null && item.quantity >= item.product.stock}
                           onClick={() => cartStore.setQuantity(item.product.id, item.quantity + 1)}
-                          className="btn-focus grid h-9 w-9 place-items-center text-foreground hover:bg-secondary disabled:cursor-not-allowed disabled:text-muted-foreground/50 disabled:hover:bg-transparent"
+                          className="btn-focus grid h-10 w-10 place-items-center text-foreground hover:bg-secondary disabled:cursor-not-allowed disabled:text-muted-foreground/50 disabled:hover:bg-transparent"
                         >
                           <Plus className="h-4 w-4" />
                         </button>
@@ -152,7 +129,7 @@ export function CartDrawer({ open, onClose }: Props) {
                     type="button"
                     onClick={() => cartStore.remove(item.product.id)}
                     aria-label={`إزالة ${item.product.name}`}
-                    className="btn-focus h-9 w-9 shrink-0 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                    className="btn-focus h-10 w-10 shrink-0 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                   >
                     <Trash2 className="mx-auto h-4 w-4" />
                   </button>
