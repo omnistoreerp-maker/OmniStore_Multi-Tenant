@@ -85,11 +85,16 @@ describe('GET /api/v1/platform-public — Students activation regression', () =>
     const res = await request(server).get('/api/v1/platform-public/sections');
     const sections = res.body.data.sections;
     const byId = Object.fromEntries(sections.map((s) => [s.id, s]));
-    for (const locked of ['game-hosting', 'media-reels', 'support']) {
+    for (const locked of ['media-reels', 'support']) {
       expect(byId[locked]).toBeTruthy();
       expect(byId[locked].status).toBe('coming-soon');
       expect(byId[locked].url).toBeNull();
     }
+    // Game Hosting graduated to active in the Device 2 activation cycle.
+    const game = byId['game-hosting'];
+    expect(game).toBeTruthy();
+    expect(game.status).toBe('active');
+    expect(game.url).toBe('/index.html');
   });
 
   test('sections keeps the previously active sections active', async () => {

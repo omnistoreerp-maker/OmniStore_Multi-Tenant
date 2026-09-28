@@ -80,12 +80,12 @@ function _defaultDoc() {
         url: '/student.html',
         icon: 'fa-graduation-cap'
       },
-      {
+{
         id: 'game-hosting',
         title: 'Game Hosting',
         description: 'Host and manage game sessions and catalogs.',
-        status: 'coming-soon',
-        url: null,
+        status: 'active',
+        url: '/index.html',
         icon: 'fa-gamepad'
       },
       {
