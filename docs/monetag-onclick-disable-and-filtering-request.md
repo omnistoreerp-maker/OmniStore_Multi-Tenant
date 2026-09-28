@@ -11,6 +11,39 @@
 | Domain | `omnistoreerp.com` |
 | Multitag Zone | `288239` — `https://quge5.com/88/tag.min.js` with `data-zone="288239"` |
 
+## Ready-to-send email
+
+```text
+To: support@monetag.com
+Subject: Site 3500466 (omnistoreerp.com) — disable OnClick for Multitag zone 288239 + content filtering request
+
+Hello Monetag team,
+
+Two requests for our site omnistoreerp.com (Site ID 3500466):
+
+1) Disable the OnClick / Popunder format for our Multitag zone 288239 (or issue a
+   replacement Multitag zone without OnClick). The format intercepts the first click
+   on every page load and replaces the current tab's navigation, breaking our
+   visitors' path to our Marketplace. Evidence (captured 2026-09-28 UTC, no ad
+   interaction):
+     - arm/registration: https://6opo.com/wrr?z=11912374&...&js_build=iclick-v1.1915.0
+     - redirect chain:   https://o-set.com/?wm=11912374&t=onclick
+                         https://ay267.com/afu.php?zoneid=11912374&...&sf=1
+     - landing observed: https://nennne.cc/ , https://en.a8king.com/posts/28b10005.htm
+   Note: zone 11912374 is on our own prohibited list — this was never an accepted state.
+
+2) Content filtering for all zones of Site 3500466 (zone 288239 and its runtime
+   sub-zones 11912374, 11912375, 11912376, 11912377): please exclude pornographic /
+   adult / erotic content and gambling / betting / casino / sports-betting campaigns.
+   Additional creative asset observed loading from the ad stack: aichouphaugn.com
+   (/www/images/501f62e89e86c4bc6dbe2f2c07aa06c9.png).
+
+We understand CPM may decrease with filtering — please confirm the expected impact
+and whether OnClick can be disabled per-format on zone 288239.
+
+Thank you.
+```
+
 ---
 
 ## Request 1 — Disable the OnClick / Popunder format for zone 288239
@@ -86,6 +119,8 @@ is done by Monetag support upon request, by zone IDs + campaign identifiers/link
 | Entry chain | `6opo.com/wrr?z=11912374` → `o-set.com/?wm=11912374&t=onclick` → `ay267.com/?z=11912374` / `ay267.com/afu.php?zoneid=11912374` |
 | Destination URL (1) | `https://nennne.cc/` |
 | Destination URL (2) | `https://en.a8king.com/posts/28b10005.htm` — page self-describes as a disguised "Video Zone" with a click-to-continue gate |
+| Creative asset (no interaction) | `https://aichouphaugn.com/www/images/501f62e89e86c4bc6dbe2f2c07aa06c9.png` (load failed; observed ~2026-09-28T15:00Z during passive page-load monitoring) |
+| OnClick re-verification | 2026-09-28T15:00Z — `6opo.com/wrr?z=11912374 … js_build=iclick-v1.1915.0 → 200` observed on a fresh page load with **zero clicks**: the OnClick format is still armed |
 | Campaign ID | **Not identifiable without ad interaction** — not captured, by design (no clicks on ads, no synthetic traffic) |
 | Screenshots | Captured locally by the publisher during the reproduction session |
 
