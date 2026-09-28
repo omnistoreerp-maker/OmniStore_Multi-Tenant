@@ -134,7 +134,8 @@ We understand CPM rates may decrease as a result of filtering; please confirm th
 ## What the publisher (us) will do after Monetag's change
 
 - Re-run the navigation contract harness: `npm run test:e2e:nav -- --base https://omnistoreerp.com`
-  (expected: all checks PASS / resolved).
+  (expected: navigation checks PASS; the ad-engine checks stay inconclusive-by-design until
+  Monetag's written confirmation arrives — `AD_ENGINE_ENABLED=false` keeps the gate closed).
 - Re-verify in a normal browser session that the first click on the Platform Home reaches
   `/marketplace/` instead of the ad chain.
 - Confirm Monetag's meta/tag/zone presence is unchanged in the process (it is not touched by us).

@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Loader2, Search as SearchIcon, ShoppingCart, Store, User } from "lucide-react";
+import { Loader2, PackageSearch, Search as SearchIcon, ShoppingCart, Store, User } from "lucide-react";
 import { useCartCount } from "@/stores/cart";
 import { useMarketUI } from "@/stores/marketUI";
 import { formatCount } from "@/lib/format";
@@ -53,6 +53,15 @@ export function Header({ onOpenCart }: Props) {
           <HeaderSearch value={ui.query} onChange={handleSearch} loading={ui.fetching} />
         </div>
 
+        {/* Orders — icon on mobile (nav is md+) */}
+        <Link
+          to="/orders"
+          aria-label="طلباتي"
+          className="btn-focus grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-card text-foreground shadow-sm transition-colors hover:border-primary/30 hover:text-primary md:hidden"
+        >
+          <PackageSearch className="h-5 w-5" aria-hidden />
+        </Link>
+
         {/* Account — icon on mobile, text link on md+ (nav) */}
         <Link
           to="/account"
@@ -74,7 +83,7 @@ export function Header({ onOpenCart }: Props) {
             حسابي
           </Link>
           <a
-            href="https://omnistoreerp.com"
+            href="/"
             className="btn-focus rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
           >
             OmniStore ERP
@@ -161,7 +170,9 @@ function HeaderSearch({ value, onChange, loading }: { value: string; onChange: (
         onChange={(e) => onChange(e.target.value)}
         placeholder="ابحث عن جهاز، ماركة، أو موديل..."
         aria-label="بحث في المتجر"
-        className="btn-focus h-10 w-full rounded-xl border border-border bg-card ps-4 pe-10 text-[14px] text-foreground shadow-sm transition-colors placeholder:text-muted-foreground hover:border-primary/30 focus-visible:border-primary/50 sm:h-11 sm:text-[15px]"
+        className={`btn-focus h-10 w-full rounded-xl border border-border bg-card pe-10 text-[14px] text-foreground shadow-sm transition-colors placeholder:text-muted-foreground hover:border-primary/30 focus-visible:border-primary/50 sm:h-11 sm:text-[15px] ${
+          value ? "ps-9" : "ps-4"
+        }`}
       />
       {value && (
         <button

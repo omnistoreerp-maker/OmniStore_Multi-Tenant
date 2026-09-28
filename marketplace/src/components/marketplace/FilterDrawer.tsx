@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { X, SlidersHorizontal } from "lucide-react";
 import { FilterPanel, type FilterState } from "./FilterPanel";
 import type { Product } from "@/types/product";
@@ -17,6 +17,10 @@ interface Props {
 
 /** Mobile filter drawer (button → slide-in panel from the end side, RTL-safe). */
 export function FilterDrawer({ open, onClose, products, categories, state, onChange, bounds, resultCount }: Props) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const asideRef = useRef<HTMLElement>(null);
+  const prevFocus = useRef<HTMLElement | null>(null);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -28,8 +32,21 @@ export function FilterDrawer({ open, onClose, products, categories, state, onCha
     };
   }, [open, onClose]);
 
+  // Closed: inert (hidden from a1y tree + tab order). Open: focus in, restore after.
+  useEffect(() => {
+    rootRef.current?.toggleAttribute("inert", !open);
+    if (open) {
+      prevFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      asideRef.current?.focus();
+    } else if (prevFocus.current) {
+      prevFocus.current.focus();
+      prevFocus.current = null;
+    }
+  }, [open]);
+
   return (
     <div
+      ref={rootRef}
       className={`fixed inset-0 z-50 lg:hidden ${open ? "" : "pointer-events-none"}`}
       aria-hidden={!open}
     >
@@ -38,6 +55,8 @@ export function FilterDrawer({ open, onClose, products, categories, state, onCha
         className={`absolute inset-0 bg-primary/40 transition-opacity duration-300 ${open ? "opacity-100" : "opacity-0"}`}
       />
       <aside
+        ref={asideRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label="تصفية النتائج"

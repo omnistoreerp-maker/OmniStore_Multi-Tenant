@@ -9,7 +9,7 @@ import { formatEGP } from "@/lib/format";
  * Mirrors the order list block of market/js/app.js pageAccount.
  */
 export default function Orders() {
-  const authed = isAuthed();
+  const [authed, setAuthed] = useState(isAuthed());
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,6 +25,10 @@ export default function Orders() {
         if (cancelled) return;
         if (e instanceof MarketApiError && e.status === 401) {
           setToken(null);
+          // Reactive state — without this the page stays in a loading
+          // skeleton forever (isAuthed() is not reactive).
+          setOrders([]);
+          setAuthed(false);
           return;
         }
         setError(e instanceof Error ? e.message : "تعذر تحميل الطلبات");
@@ -98,7 +102,7 @@ export default function Orders() {
               <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                 <div className="text-sm text-muted-foreground">
                   الإجمالي: <span className="text-base font-extrabold text-primary">{formatEGP(o.total ?? 0)}</span>
-                  {o.shippingAddress ? <span className="mr-3">— {o.shippingAddress}</span> : null}
+                  {o.shippingAddress ? <span className="me-3">— {o.shippingAddress}</span> : null}
                 </div>
                 {o.trackingToken && (
                   <Link

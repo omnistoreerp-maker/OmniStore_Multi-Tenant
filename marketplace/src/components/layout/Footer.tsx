@@ -36,7 +36,15 @@ export function Footer() {
           <p className="text-xs text-muted-foreground">
             © {new Date().getFullYear()} OmniStore Marketplace. جميع الحقوق محفوظة.
           </p>
-          <p className="tech text-[11px] text-muted-foreground">v1.0 · Premium UI</p>
+          <div className="flex items-center gap-4">
+            <a
+              href="/"
+              className="btn-focus rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground"
+            >
+              العودة إلى OmniStore ERP
+            </a>
+            <p className="tech text-[11px] text-muted-foreground">v1.0 · Premium UI</p>
+          </div>
         </div>
       </div>
     </footer>

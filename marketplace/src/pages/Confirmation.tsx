@@ -23,7 +23,7 @@ export default function Confirmation() {
       <h1 className="mt-4 text-2xl font-extrabold text-foreground">تم استلام طلبك</h1>
       <p className="mt-1 text-sm text-muted-foreground">احتفظ برمز التتبع لمتابعة حالة الطلب.</p>
 
-      <div className="card-elevated mt-6 space-y-3 p-5 text-right sm:p-6">
+      <div className="card-elevated mt-6 space-y-3 p-5 text-end sm:p-6">
         <Row label="رقم الطلب" value={order.orderCode} mono />
         {order.trackingToken && <Row label="رمز التتبع" value={order.trackingToken} mono />}
         <Row label="الإجمالي" value={formatEGP(order.total ?? 0)} />

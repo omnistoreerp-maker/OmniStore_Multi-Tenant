@@ -36,7 +36,8 @@ export default function Account() {
 
   // account view
   const [customer, setCustomer] = useState<Customer | null>(null);
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<Order[] | null>(null);
+  const [ordersErr, setOrdersErr] = useState<string | null>(null);
   const [pName, setPName] = useState("");
   const [pPhone, setPPhone] = useState("");
   const [pwCurrent, setPwCurrent] = useState("");
@@ -44,6 +45,8 @@ export default function Account() {
   const [pwOpen, setPwOpen] = useState(false);
   const [profileMsg, setProfileMsg] = useState<string | null>(null);
   const [pwMsg, setPwMsg] = useState<string | null>(null);
+  const [profBusy, setProfBusy] = useState(false);
+  const [pwBusy, setPwBusy] = useState(false);
 
   useEffect(() => {
     if (!authed) return;
@@ -60,13 +63,17 @@ export default function Account() {
         if (e instanceof MarketApiError && e.status === 401) {
           setToken(null);
           setAuthed(false);
+          return;
         }
       }
       try {
         const list = await marketApi.orders();
         if (!cancelled) setOrders(list);
-      } catch (_) {
-        /* orders require auth — handled above */
+      } catch (e) {
+        if (cancelled) return;
+        // A failed order list must not masquerade as "no orders".
+        setOrders([]);
+        setOrdersErr(e instanceof Error ? e.message : "تعذر تحميل الطلبات");
       }
     })();
     return () => {
@@ -134,18 +141,22 @@ export default function Account() {
     setToken(null);
     setAuthed(false);
     setCustomer(null);
-    setOrders([]);
+    setOrders(null);
+    setOrdersErr(null);
     toast.success("تم تسجيل الخروج");
   };
 
   const saveProfile = async () => {
     setProfileMsg(null);
+    setProfBusy(true);
     try {
       const c = await marketApi.updateProfile({ name: pName, phone: pPhone });
       setCustomer(c);
       setProfileMsg("تم الحفظ");
     } catch (err) {
       setProfileMsg(err instanceof Error ? err.message : "تعذر الحفظ");
+    } finally {
+      setProfBusy(false);
     }
   };
 
@@ -155,6 +166,7 @@ export default function Account() {
       setPwMsg("أدخل كلمة المرور الحالية والجديدة");
       return;
     }
+    setPwBusy(true);
     try {
       const r = await marketApi.changePassword({ currentPassword: pwCurrent, newPassword: pwNew });
       setToken(r.token);
@@ -164,6 +176,8 @@ export default function Account() {
       setPwMsg("تم تغيير كلمة المرور");
     } catch (err) {
       setPwMsg(err instanceof Error ? err.message : "تعذر تغيير كلمة المرور");
+    } finally {
+      setPwBusy(false);
     }
   };
 
@@ -227,8 +241,8 @@ export default function Account() {
             <Field label="رقم الهاتف" name="pf-phone" type="tel" autoComplete="tel" value={pPhone} onChange={setPPhone} />
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <button type="button" onClick={saveProfile} className="btn-focus inline-flex h-11 items-center rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
-              حفظ
+            <button type="button" onClick={saveProfile} disabled={profBusy} className="btn-focus inline-flex h-11 items-center rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-70">
+              {profBusy ? "جارٍ الحفظ..." : "حفظ"}
             </button>
             <button type="button" onClick={() => setPwOpen((v) => !v)} className="btn-focus inline-flex h-11 items-center rounded-xl border border-border bg-card px-5 text-sm font-semibold text-foreground hover:border-primary/30">
               تغيير كلمة المرور
@@ -241,8 +255,8 @@ export default function Account() {
               <Field label="كلمة المرور الحالية" name="pf-cur" type="password" autoComplete="current-password" value={pwCurrent} onChange={setPwCurrent} />
               <Field label="كلمة المرور الجديدة" name="pf-new" type="password" autoComplete="new-password" value={pwNew} onChange={setPwNew} />
               <div className="flex gap-3">
-                <button type="button" onClick={changePassword} className="btn-focus inline-flex h-11 items-center rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
-                  حفظ
+                <button type="button" onClick={changePassword} disabled={pwBusy} className="btn-focus inline-flex h-11 items-center rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-70">
+                  {pwBusy ? "جارٍ التغيير..." : "حفظ"}
                 </button>
               </div>
               {pwMsg && <p className="text-sm font-medium text-primary" role="status">{pwMsg}</p>}
@@ -261,14 +275,26 @@ export default function Account() {
             عرض الكل
           </Link>
         </div>
-        {orders.length === 0 ? (
+        {ordersErr && (
+          <div className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive" role="alert">
+            {ordersErr}
+          </div>
+        )}
+        {orders === null && !ordersErr && (
+          <div className="mt-3 space-y-3">
+            <div className="card-elevated h-16 animate-pulse bg-secondary/60" />
+            <div className="card-elevated h-16 animate-pulse bg-secondary/60" />
+          </div>
+        )}
+        {orders && orders.length === 0 && !ordersErr && (
           <div className="card-elevated mt-3 p-8 text-center">
             <p className="font-semibold text-foreground">لا توجد طلبات بعد</p>
             <Link to="/" className="btn-focus mt-4 inline-flex rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
               تصفح المنتجات
             </Link>
           </div>
-        ) : (
+        )}
+        {orders && orders.length > 0 && (
           <ul className="mt-3 space-y-3">
             {orders.slice(0, 5).map((o) => (
               <li key={o.id || o.orderCode} className="card-elevated flex flex-wrap items-center justify-between gap-3 p-4">
@@ -311,12 +337,17 @@ function Field(props: {
         id={name}
         onChange={(e) => onChange(e.target.value)}
         aria-invalid={!!error}
+        aria-describedby={error ? `${name}-error` : undefined}
         {...rest}
         className={`btn-focus h-11 w-full rounded-lg border bg-background px-3 text-sm text-foreground shadow-sm transition-colors hover:border-primary/30 focus-visible:border-primary/50 ${
           error ? "border-destructive" : "border-border"
         }`}
       />
-      {error && <span className="mt-1 block text-xs font-medium text-destructive">{error}</span>}
+      {error && (
+        <span id={`${name}-error`} className="mt-1 block text-xs font-medium text-destructive">
+          {error}
+        </span>
+      )}
     </label>
   );
 }

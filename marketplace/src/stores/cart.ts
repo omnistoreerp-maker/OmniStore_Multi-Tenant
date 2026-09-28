@@ -73,6 +73,9 @@ function getRefsSnapshot(): CartRef[] {
 let resolved: ResolvedCartItem[] = [];
 const resolveListeners = new Set<() => void>();
 let resolveSeq = 0;
+// True when the last catalog join failed — lets the cart UI show an error
+// instead of a false "empty cart".
+let resolveError = false;
 
 function emitResolved(): void {
   resolveListeners.forEach((l) => l());
@@ -86,8 +89,9 @@ function emitResolved(): void {
 async function loadResolved(): Promise<ResolvedCartItem[]> {
   const current = refs;
   if (current.length === 0) {
-    if (resolved.length) {
+    if (resolved.length || resolveError) {
       resolved = [];
+      resolveError = false;
       emitResolved();
     }
     return resolved;
@@ -112,9 +116,12 @@ async function loadResolved(): Promise<ResolvedCartItem[]> {
       emitRefs();
     }
     resolved = next;
+    resolveError = false;
     emitResolved();
   } catch (_) {
     // API unreachable — keep last known resolution; do not invent data.
+    resolveError = true;
+    emitResolved();
   }
   return resolved;
 }
@@ -124,6 +131,12 @@ if (refs.length) void loadResolved();
 
 /* -------------------------------- public -------------------------------- */
 
+function stockCap(productId: string): number | null {
+  const entry = resolved.find((x) => x.product.id === productId);
+  const stock = entry?.product.stock;
+  return typeof stock === "number" && stock > 0 ? stock : null;
+}
+
 export const cartStore = {
   subscribeRefs,
   subscribeResolved(cb: () => void): () => void {
@@ -132,14 +145,19 @@ export const cartStore = {
   },
   add(product: Product | string, qty = 1): void {
     const productId = typeof product === "string" ? product : product.id;
+    const cap = stockCap(productId);
     const existing = refs.find((r) => r.productId === productId);
     let next: CartRef[];
     if (existing) {
-      next = refs.map((r) =>
-        r.productId === productId ? { ...r, qty: Math.max(1, r.qty + (qty || 1)) } : r
-      );
+      next = refs.map((r) => {
+        if (r.productId !== productId) return r;
+        let target = Math.max(1, r.qty + (qty || 1));
+        if (cap != null) target = Math.min(target, cap);
+        return { ...r, qty: target };
+      });
     } else {
-      next = [...refs, { productId, qty: Math.max(1, qty || 1) }];
+      const target = Math.max(1, qty || 1);
+      next = [...refs, { productId, qty: cap != null ? Math.min(target, cap) : target }];
     }
     setRefs(next);
     void loadResolved();
@@ -153,17 +171,21 @@ export const cartStore = {
       cartStore.remove(productId);
       return;
     }
-    setRefs(refs.map((r) => (r.productId === productId ? { ...r, qty: Math.max(1, qty) } : r)));
+    const cap = stockCap(productId);
+    const target = cap != null ? Math.min(qty, cap) : qty;
+    setRefs(refs.map((r) => (r.productId === productId ? { ...r, qty: Math.max(1, target) } : r)));
     void loadResolved();
   },
   clear(): void {
     setRefs([]);
     resolved = [];
+    resolveError = false;
     emitResolved();
   },
   refs: (): CartRef[] => refs.slice(),
   count: (): number => refs.reduce((n, r) => n + (r.qty || 0), 0),
   items: (): ResolvedCartItem[] => resolved,
+  resolveFailed: (): boolean => resolveError,
   load: loadResolved,
   /**
    * Validates the cart against GET /availability (same rule as
