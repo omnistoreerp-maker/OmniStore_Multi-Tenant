@@ -13,25 +13,43 @@
  *  - no click automation, no fake campaigns, no hardcoded creatives, no
  *    simulated revenue, no CSS tricks against the ad content.
  *
- * ENGINE GATE — a deliberate build-time constant, not a runtime heuristic:
- *   The Multitag engine (zone 288239) may not enter the Marketplace page while
- *   its OnClick/Popunder format can hijack same-tab navigation. As of
- *   2026-09-28 that change is UNCONFIRMED (the iclick registration is still
- *   observed on fresh loads), so the engine stays out and the slot renders its
- *   reserved box only. Flip AD_ENGINE_ENABLED to true in the same commit that
- *   records MONETAG_CHANGE=CONFIRMED — nothing else changes.
+ * ENGINE GATE + SINGLE CONFIGURATION POINT — build-time constants, not
+ * runtime heuristics:
+ *   AD_ENGINE_ENABLED is deliberately false: the engine stays out of the
+ *   Marketplace page until MONETAG_CHANGE=CONFIRMED (the platform Multitag's
+ *   OnClick/Popunder format can still hijack same-tab navigation as of
+ *   2026-09-28) AND a safe, OnClick-free inline zone is supplied.
+ *   The Marketplace ad source is configured in exactly ONE place — the
+ *   MONETAG_MARKETPLACE_ZONE constant below. To activate: paste the
+ *   owner-approved Monetag inline zone there and flip AD_ENGINE_ENABLED to
+ *   true in the same commit that records MONETAG_CHANGE=CONFIRMED.
  */
 import { useEffect, useRef } from "react";
 
 const AD_ENGINE_ENABLED = false;
+
+/**
+ * MONETAG_MARKETPLACE_ZONE — THE single configuration point for the
+ * Marketplace ad source. "OWNER_INPUT_REQUIRED" is a deliberate placeholder,
+ * never a real zone id: replace it here — and only here — with the
+ * owner-approved, safe (OnClick/Popunder-free) Monetag inline/multitag zone
+ * once Monetag delivers it. Prohibited legacy zones and foreign service
+ * workers must never be entered here.
+ */
+const MONETAG_MARKETPLACE_ZONE = "OWNER_INPUT_REQUIRED";
 const MULTITAG_SRC = "https://quge5.com/88/tag.min.js";
-const MULTITAG_ZONE = "288239";
+
+function isConfiguredZone(zone: string): boolean {
+  const v = zone.trim();
+  if (!v) return false;
+  return !/^(owner_input_required|owner_required|placeholder|your[_-]|change[_-]me|xxx+|todo)$/i.test(v);
+}
 
 function mountAdEngine(root: HTMLElement) {
   const script = document.createElement("script");
   script.src = MULTITAG_SRC;
   script.async = true;
-  script.setAttribute("data-zone", MULTITAG_ZONE);
+  script.setAttribute("data-zone", MONETAG_MARKETPLACE_ZONE);
   script.setAttribute("data-cfasync", "false");
   root.appendChild(script);
 }
@@ -40,7 +58,11 @@ export function AdSlot() {
   const adRootRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (AD_ENGINE_ENABLED && adRootRef.current) {
+    if (
+      AD_ENGINE_ENABLED &&
+      isConfiguredZone(MONETAG_MARKETPLACE_ZONE) &&
+      adRootRef.current
+    ) {
       mountAdEngine(adRootRef.current);
     }
   }, []);
