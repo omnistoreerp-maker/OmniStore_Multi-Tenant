@@ -2,7 +2,7 @@
 
 const logger = require('../utils/logger');
 
-const TIKTOK_USERNAME = 'YOUR_TIKTOK_USERNAME_HERE';
+const TIKTOK_USERNAME = String(process.env.TIKTOK_USERNAME || 'YOUR_TIKTOK_USERNAME_HERE');
 const CACHE_TTL_MS = 60 * 60 * 1000;
 const MAX_EMBEDS = 6;
 const PROFILE_URL = 'https://www.tiktok.com/@' + encodeURIComponent(TIKTOK_USERNAME);
@@ -16,8 +16,8 @@ async function _fetchJson(url, opts) {
   const text = await res.text();
   let data = null;
   try { data = JSON.parse(text); } catch (_) {}
-  if (!res.ok) return { ok: false, status: res.status, data };
-  return { ok: true, status: res.status, data };
+  if (!res.ok) return { ok: false, status: res.status, data, rawText: text };
+  return { ok: true, status: res.status, data, rawText: text };
 }
 
 function _extractVideoUrls(html) {
@@ -51,8 +51,8 @@ async function _scrapeProfile() {
   const result = await _fetchJson(PROFILE_URL, {
     headers: { Accept: 'text/html,application/xhtml+xml' }
   });
-  if (!result.ok || !result.data) return [];
-  const html = String(result.data);
+  if (!result.ok) return [];
+  const html = String(result.rawText != null ? result.rawText : (result.data == null ? '' : result.data));
   const urls = _extractVideoUrls(html);
   if (!urls.length) return [];
   const embeds = [];
