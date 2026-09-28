@@ -1,4 +1,5 @@
 import { Shield, Truck, Headphones, CreditCard } from "lucide-react";
+import { AdSlot } from "@/components/marketplace/AdSlot";
 
 const TRUST = [
   { icon: Truck, title: "توصيل سريع", desc: "شحن لجميع المحافظات" },
@@ -11,7 +12,10 @@ export function Footer() {
   return (
     <footer className="mt-16 border-t border-border bg-card/60">
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <ul className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        {/* Inline ad slot — our outer container only; see AdSlot contract. */}
+        <AdSlot />
+
+        <ul className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4">
           {TRUST.map(({ icon: Icon, title, desc }) => (
             <li
               key={title}
@@ -28,7 +32,7 @@ export function Footer() {
           ))}
         </ul>
 
-        <div className="mt-8 flex flex-col items-center justify-between gap-3 border-t border-border pt-6 sm:flex-row">
+        <div className="mt-6 flex flex-col items-center justify-between gap-3 border-t border-border pt-6 sm:flex-row">
           <p className="text-xs text-muted-foreground">
             © {new Date().getFullYear()} OmniStore Marketplace. جميع الحقوق محفوظة.
           </p>
