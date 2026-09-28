@@ -62,6 +62,12 @@
     .pricing-note { text-align: center; font-size: 12px; color: var(--muted); margin-top: 12px; }
     @media (max-width: 880px) { .biz-grid { grid-template-columns: 1fr; } .pricing-grid { grid-template-columns: 1fr; } }
 
+    /* Section lockdown — student services are honest Coming Soon (not clickable). */
+    .pricing-card--soon { opacity: 0.85; }
+    .pricing-card--soon:hover { transform: none; box-shadow: var(--shadow); }
+    .soon-badge { display: inline-block; align-self: flex-start; margin-bottom: 8px; padding: 3px 10px; border-radius: 999px; background: rgba(249, 115, 22, 0.15); color: #c2410c; font-size: 12px; font-weight: 800; border: 1px solid rgba(249, 115, 22, 0.3); }
+    .pricing-card--soon button:disabled { opacity: 0.55; cursor: not-allowed; }
+
     /* TikTok Reels / Shorts Feed */
     .tiktok-feed { display: flex; gap: 14px; overflow-x: auto; padding: 10px 4px 14px; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
     .tiktok-feed__card {
@@ -188,18 +194,20 @@
         <p class="pricing-sub">Print shop orders, cost calculator, and student monthly passes.</p>
       </div>
       <div class="pricing-grid">
-        <article class="pricing-card" style="cursor:pointer" onclick="window.location.href='student.html'">
+        <article class="pricing-card pricing-card--soon" aria-disabled="true">
+          <span class="soon-badge">Coming Soon</span>
           <h3>Print Shop</h3>
           <p class="plan-tagline">Calculate multi-page printing costs and submit orders online.</p>
           <div class="plan-action" style="margin-top:auto">
-            <button class="btn-primary" style="width:100%" type="button">Open Print Shop →</button>
+            <button class="btn-primary" style="width:100%" type="button" disabled>Open Print Shop →</button>
           </div>
         </article>
-        <article class="pricing-card" style="cursor:pointer" onclick="window.location.href='student.html'">
+        <article class="pricing-card pricing-card--soon" aria-disabled="true">
+          <span class="soon-badge">Coming Soon</span>
           <h3>Student Passes</h3>
           <p class="plan-tagline">Track monthly and weekly student passes with amounts and status.</p>
           <div class="plan-action" style="margin-top:auto">
-            <button class="btn-primary" style="width:100%" type="button">Manage Passes →</button>
+            <button class="btn-primary" style="width:100%" type="button" disabled>Manage Passes →</button>
           </div>
         </article>
       </div>
