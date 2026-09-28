@@ -2267,6 +2267,7 @@ document.addEventListener('DOMContentLoaded', function() {
   <div class="nav-dropdown" id="dropdown-entertainment" data-nav-scope="tenant">
     <div class="nav-dropdown-header">🎮 خدمات إضافية</div>
     <div class="nav-dropdown-item" data-page="playstation"><span class="icon">🎮</span> PlayStation</div>
+    <div class="nav-dropdown-item" data-page="game-hosting"><span class="icon">🌐</span> Game Hosting</div>
     <div class="nav-dropdown-item" data-page="car-rental"><span class="icon">🚗</span> تأجير السيارات</div>
   </div>
 
@@ -5868,6 +5869,12 @@ document.addEventListener('DOMContentLoaded', function() {
     <div class="page" id="page-car-rental">
       <div class="page-header"><div><div class="page-title">🚗 تأجير السيارات</div><div style="font-size:.78rem;color:var(--text2)">وحدة قادمة — مكان مؤقت في القائمة فقط</div></div></div>
       <div class="alert alert-info" style="margin:16px 0;font-size:.85rem">🚧 هذه الوحدة ضمن خارطة طريق OmniStore وستتوفر في إصدار لاحق. متاحة حالياً كمكان مؤقت فقط.</div>
+    </div>
+    <div class="page" id="page-game-hosting">
+      <div class="page-header"><div><div class="page-title">🌐 Game Hosting</div><div style="font-size:.78rem;color:var(--text2)">Game Hosting customer experience</div></div></div>
+      <div id="gameHostingRoot" style="margin:16px 0">
+        <div id="ghView"></div>
+      </div>
     </div>
 
     <!-- ENTERPRISE DOCUMENT CENTER -->
@@ -11876,6 +11883,48 @@ const backendApi = {
     reverse: (payload) => USE_BACKEND ? backendApi._fetch('POST', '/loyalty/reverse', payload) : null,
     awardBirthdayBonus: (customerId) => USE_BACKEND ? backendApi._fetch('POST', '/loyalty/birthday-bonus', { customerId }) : null
   },
+  // Game Hosting (Device-2 Batch 1) — customer-facing plans/provisioning/servers.
+  // Tenant and customer ownership are enforced server-side; the frontend never
+  // supplies tenantId/customerId as authorization.
+  gameHosting: {
+    provider: {
+      status: () => USE_BACKEND ? backendApi._fetch('GET', '/game-hosting/provider/status') : null
+    },
+    plans: {
+      list: (query) => USE_BACKEND ? backendApi._fetch('GET', '/game-hosting/plans' + (query ? '?' + new URLSearchParams(query).toString() : '')) : null,
+      getById: (id) => USE_BACKEND ? backendApi._fetch('GET', '/game-hosting/plans/' + encodeURIComponent(id)) : null,
+      create: (data) => USE_BACKEND ? backendApi._fetch('POST', '/game-hosting/plans', data) : null,
+      update: (id, data) => USE_BACKEND ? backendApi._fetch('PUT', '/game-hosting/plans/' + encodeURIComponent(id), data) : null,
+      delete: (id) => USE_BACKEND ? backendApi._fetch('DELETE', '/game-hosting/plans/' + encodeURIComponent(id)) : null
+    },
+    servers: {
+      list: (query) => USE_BACKEND ? backendApi._fetch('GET', '/game-hosting/servers' + (query ? '?' + new URLSearchParams(query).toString() : '')) : null,
+      getById: (id) => USE_BACKEND ? backendApi._fetch('GET', '/game-hosting/servers/' + encodeURIComponent(id)) : null,
+      create: (data) => USE_BACKEND ? backendApi._fetch('POST', '/game-hosting/servers', data) : null,
+      update: (id, data) => USE_BACKEND ? backendApi._fetch('PUT', '/game-hosting/servers/' + encodeURIComponent(id), data) : null,
+      delete: (id) => USE_BACKEND ? backendApi._fetch('DELETE', '/game-hosting/servers/' + encodeURIComponent(id)) : null,
+      start: (id) => USE_BACKEND ? backendApi._fetch('POST', '/game-hosting/servers/' + encodeURIComponent(id) + '/start') : null,
+      stop: (id) => USE_BACKEND ? backendApi._fetch('POST', '/game-hosting/servers/' + encodeURIComponent(id) + '/stop') : null,
+      terminate: (id) => USE_BACKEND ? backendApi._fetch('POST', '/game-hosting/servers/' + encodeURIComponent(id) + '/terminate') : null
+    },
+    provisioningRequests: {
+      list: (query) => USE_BACKEND ? backendApi._fetch('GET', '/game-hosting/provisioning-requests' + (query ? '?' + new URLSearchParams(query).toString() : '')) : null,
+      getById: (id) => USE_BACKEND ? backendApi._fetch('GET', '/game-hosting/provisioning-requests/' + encodeURIComponent(id)) : null,
+      create: (data) => USE_BACKEND ? backendApi._fetch('POST', '/game-hosting/provisioning-requests', data) : null,
+      approve: (id) => USE_BACKEND ? backendApi._fetch('POST', '/game-hosting/provisioning-requests/' + encodeURIComponent(id) + '/approve') : null,
+      reject: (id) => USE_BACKEND ? backendApi._fetch('POST', '/game-hosting/provisioning-requests/' + encodeURIComponent(id) + '/reject') : null
+    },
+    entitlements: {
+      list: () => USE_BACKEND ? backendApi._fetch('GET', '/game-hosting/entitlements') : null,
+      create: (data) => USE_BACKEND ? backendApi._fetch('POST', '/game-hosting/entitlements', data) : null,
+      update: (id, data) => USE_BACKEND ? backendApi._fetch('PUT', '/game-hosting/entitlements/' + encodeURIComponent(id), data) : null,
+      delete: (id) => USE_BACKEND ? backendApi._fetch('DELETE', '/game-hosting/entitlements/' + encodeURIComponent(id)) : null
+    },
+    auditLog: {
+      list: () => USE_BACKEND ? backendApi._fetch('GET', '/game-hosting/audit-log') : null
+    }
+  }
+};
 };
 // ===== Backend Op Queue: retrying delete/update ops (bug 3.2) =====
 const BACKEND_OP_QUEUE_KEY = 'digitronics_backend_op_queue_v1';
@@ -16046,6 +16095,7 @@ function canAccessPage(page) {
   if (page === 'command-center') return can('all') || _effectiveRole() === 'Manager';
   if (page === 'live-sync') return !!currentUser;
   if (page === 'pwa') return !!currentUser;
+  if (page === 'game-hosting') return !!currentUser;
   if (can('all')) return true;
   if (page === 'backup') return can('manageSettings') || can('backupExport') || can('backupRestore');
   if (page === 'employees' || page === 'hr') return can('manageEmployees') || can('viewOwnAttendance');
@@ -43534,8 +43584,262 @@ setInterval(() => {
     document.addEventListener('visibilitychange', function(){ if (!document.hidden) check(); });
   });
 })();
+
+// ===================== GAME HOSTING — BATCH 2 =====================
+// Customer-facing Game Hosting module. Server-side authorization remains
+// authoritative. The frontend never trusts client-supplied tenantId/customerId.
+(function ghModule() {
+  'use strict';
+  var state = { view: 'plans', plans: [], servers: [], requests: [], selectedPlan: null, selectedServer: null, loading: false, error: null, lifecycleLoading: null };
+
+  function t(key) {
+    var ar = { plans: 'الخطط', myServers: 'سيرفراتي', provision: 'طلب توفير', serverDetails: 'تفاصيل السيرفر', loading: 'جاري التحميل...', empty: 'لا توجد بيانات', error: 'حدث خطأ', unauthorized: 'يجب تسجيل الدخول', blocked: 'الخدمة متوقفة مؤقتاً', price: 'السعر', players: 'اللاعبين', region: 'المنطقة', status: 'الحالة', actions: 'إجراءات', back: 'رجوع', submit: 'إرسال', cancel: 'إلغاء', plan: 'الخطة', serverName: 'اسم السيرفر', noActiveEntitlement: 'لا توجد صلاحية نشطة', requestId: 'رقم الطلب', createdAt: 'تاريخ الإنشاء' };
+    var en = { plans: 'Plans', myServers: 'My Servers', provision: 'Provision', serverDetails: 'Server Details', loading: 'Loading...', empty: 'No data', error: 'Error', unauthorized: 'Unauthorized', blocked: 'Service temporarily unavailable', price: 'Price', players: 'Players', region: 'Region', status: 'Status', actions: 'Actions', back: 'Back', submit: 'Submit', cancel: 'Cancel', plan: 'Plan', serverName: 'Server Name', noActiveEntitlement: 'No active entitlement', requestId: 'Request ID', createdAt: 'Created' };
+    return (typeof getLocale === 'function' && getLocale() === 'en') ? (en[key] || key) : (ar[key] || key);
+  }
+
+  function setState(patch) { Object.assign(state, patch); }
+
+  function el(id) { return document.getElementById(id); }
+
+  function showView(name) {
+    state.view = name;
+    state.error = null;
+    if (name === 'plans' && !state.plans.length) loadPlans();
+    else if (name === 'my-servers' && !state.servers.length) loadMyServers();
+    renderGameHostingPage();
+  }
+
+  function card(html) { return '<div class="card" style="margin:10px 0;padding:14px">' + html + '</div>'; }
+
+  function badge(status) {
+    var color = status === 'active' ? 'green' : status === 'approved' ? 'green' : status === 'pending' ? 'yellow' : status === 'rejected' ? 'red' : status === 'cancelled' ? 'red' : status === 'blocked' ? 'red' : status === 'provisioning' ? 'yellow' : status === 'running' ? 'green' : status === 'stopped' ? 'blue' : status === 'terminated' ? 'red' : status === 'error' ? 'red' : 'blue';
+    return '<span class="badge badge-' + color + '">' + escapeHtml(status) + '</span>';
+  }
+
+  function lifecycleActionsFor(status) {
+    if (!status) return [];
+    var s = String(status).toLowerCase();
+    if (s === 'terminated') return [];
+    var actions = [];
+    if (s === 'pending' || s === 'stopped') actions.push('start');
+    if (s === 'running') actions.push('stop');
+    actions.push('terminate');
+    return actions;
+  }
+
+  async function loadPlans() {
+    setState({ loading: true, error: null });
+    renderGameHostingPage();
+    try {
+      var res = await backendApi.gameHosting.plans.list();
+      if (!res || !res.ok) throw new Error(res && res.body && res.body.message ? res.body.message : 'Failed to load plans');
+      setState({ plans: res.body.data || [], loading: false });
+    } catch (err) {
+      setState({ error: err.message || 'Failed to load plans', loading: false });
+    }
+    renderGameHostingPage();
+  }
+
+  async function loadMyServers() {
+    setState({ loading: true, error: null });
+    renderGameHostingPage();
+    try {
+      var res = await backendApi.gameHosting.servers.list();
+      if (!res || !res.ok) throw new Error(res && res.body && res.body.message ? res.body.message : 'Failed to load servers');
+      setState({ servers: res.body.data || [], loading: false });
+    } catch (err) {
+      setState({ error: err.message || 'Failed to load servers', loading: false });
+    }
+    renderGameHostingPage();
+  }
+
+  async function submitProvision(planId) {
+    if (ghModuleSubmitting) return;
+    ghModuleSubmitting = true;
+    var regionInput = el('ghRegion');
+    var serverNameInput = el('ghServerName');
+    var region = regionInput ? regionInput.value.trim() : '';
+    var serverName = serverNameInput ? serverNameInput.value.trim() : '';
+    if (!region) { showToast('يرجى اختيار المنطقة', 'error'); ghModuleSubmitting = false; return; }
+    if (!serverName) { showToast('يرجى إدخال اسم السيرفر', 'error'); ghModuleSubmitting = false; return; }
+    setState({ loading: true, error: null });
+    renderGameHostingPage();
+    try {
+      var res = await backendApi.gameHosting.provisioningRequests.create({ planId: planId, region: region, serverName: serverName });
+      if (!res || !res.ok) throw new Error(res && res.body && res.body.message ? res.body.message : 'Provisioning failed');
+      showToast('تم إرسال طلب التوفير بنجاح', 'success');
+      showView('my-servers');
+      await loadMyServers();
+    } catch (err) {
+      setState({ error: err.message || 'Provisioning failed', loading: false });
+      renderGameHostingPage();
+    }
+    ghModuleSubmitting = false;
+  }
+  var ghModuleSubmitting = false;
+
+  async function loadServerDetail(serverId) {
+    setState({ loading: true, error: null, selectedServer: null });
+    renderGameHostingPage();
+    try {
+      var res = await backendApi.gameHosting.servers.getById(serverId);
+      if (!res || !res.ok) throw new Error(res && res.body && res.body.message ? res.body.message : 'Failed to load server');
+      setState({ selectedServer: res.body.data || null, loading: false });
+    } catch (err) {
+      setState({ error: err.message || 'Failed to load server', loading: false });
+    }
+    renderGameHostingPage();
+  }
+
+  async function lifecycleAction(serverId, action, targetStatus, confirmMessage) {
+    if (state.lifecycleLoading) return;
+    if (confirmMessage && !confirm(confirmMessage)) return;
+    setState({ lifecycleLoading: action, error: null });
+    renderGameHostingPage();
+    try {
+      var res;
+      if (action === 'start') res = await backendApi.gameHosting.servers.start(serverId);
+      else if (action === 'stop') res = await backendApi.gameHosting.servers.stop(serverId);
+      else if (action === 'terminate') res = await backendApi.gameHosting.servers.terminate(serverId);
+      if (!res || !res.ok) {
+        var msg = res && res.body && res.body.message ? res.body.message : ('Failed to ' + action);
+        if (res && res.status === 404) msg = 'Server not found or not owned';
+        else if (res && res.status === 401) msg = 'Unauthorized';
+        else if (res && res.status === 403) msg = 'Forbidden';
+        throw new Error(msg);
+      }
+      showToast((action === 'terminate' ? 'Termination' : action.charAt(0).toUpperCase() + action.slice(1)) + ' requested', 'success');
+      await loadServerDetail(serverId);
+    } catch (err) {
+      setState({ error: err.message || ('Failed to ' + action), lifecycleLoading: null });
+      renderGameHostingPage();
+    }
+  }
+
+  function renderGameHostingPage() {
+    var root = el('gameHostingRoot');
+    if (!root) return;
+    if (!USE_BACKEND) { root.innerHTML = '<div class="alert alert-info">Game Hosting requires backend mode.</div>'; return; }
+
+    var html = '<div class="card" style="padding:10px;margin-bottom:12px">';
+    html += '<button class="btn btn-sm ' + (state.view === 'plans' ? 'btn-accent' : 'btn-outline') + '" onclick="showView(\'plans\')">📋 ' + t('plans') + '</button>';
+    html += '<button class="btn btn-sm ' + (state.view === 'my-servers' ? 'btn-accent' : 'btn-outline') + '" onclick="showView(\'my-servers\')">🖥 ' + t('myServers') + '</button>';
+    html += '</div>';
+
+    if (state.loading) { root.innerHTML = html + '<div class="alert alert-info">' + t('loading') + '</div>'; return; }
+    if (state.error) { root.innerHTML = html + '<div class="alert alert-error">' + escapeHtml(state.error) + '</div>'; return; }
+
+    if (state.view === 'plans') renderPlansView(root, html);
+    else if (state.view === 'provision') renderProvisionView(root, html);
+    else if (state.view === 'my-servers') renderMyServersView(root, html);
+    else if (state.view === 'server-details') renderServerDetailsView(root, html);
+    else root.innerHTML = html + '<div class="alert alert-info">' + t('empty') + '</div>';
+  }
+
+  function renderPlansView(root, toolbar) {
+    var plans = state.plans || [];
+    var html = toolbar;
+    if (!plans.length) { root.innerHTML = html + '<div class="empty-state">' + t('empty') + '</div>'; return; }
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">';
+    plans.forEach(function(plan) {
+      html += '<div class="card" style="padding:12px">';
+      html += '<div style="font-weight:700;font-size:.95rem">' + escapeHtml(plan.name || plan.gameTitle || 'Plan') + '</div>';
+      html += '<div style="font-size:.82rem;color:var(--text2)">' + escapeHtml(plan.gameTitle || '') + '</div>';
+      html += '<div style="margin-top:8px;font-size:.85rem">' + t('price') + ': <strong>' + escapeHtml(String(plan.pricePerMonth != null ? plan.pricePerMonth : '-')) + '</strong></div>';
+      html += '<div style="font-size:.85rem">' + t('players') + ': ' + escapeHtml(String(plan.maxPlayers != null ? plan.maxPlayers : '-')) + '</div>';
+      html += '<div style="margin-top:8px">' + badge(plan.status) + '</div>';
+      html += '<button class="btn btn-accent btn-sm" style="margin-top:10px;width:100%" onclick="state.selectedPlan=' + escapeHtml(plan.id) + ';showView(\'provision\')">' + t('provision') + '</button>';
+      html += '</div>';
+    });
+    html += '</div>';
+    root.innerHTML = html;
+  }
+
+  function renderProvisionView(root, toolbar) {
+    var plan = (state.plans || []).find(function(p) { return p.id === state.selectedPlan; }) || null;
+    if (!plan) { showView('plans'); return; }
+    var html = toolbar;
+    html += '<div class="card" style="padding:14px;max-width:520px">';
+    html += '<div style="font-weight:700;font-size:1rem;margin-bottom:8px">' + escapeHtml(plan.name || plan.gameTitle || 'Plan') + '</div>';
+    html += '<div style="font-size:.85rem;color:var(--text2);margin-bottom:12px">' + t('plan') + ': ' + escapeHtml(plan.id) + '</div>';
+    html += '<label style="display:block;font-size:.82rem;margin-bottom:6px">' + t('serverName') + '</label>';
+    html += '<input id="ghServerName" class="search-input" style="width:100%;margin-bottom:10px" placeholder="' + t('serverName') + '">';
+    html += '<label style="display:block;font-size:.82rem;margin-bottom:6px">' + t('region') + '</label>';
+    html += '<select id="ghRegion" class="search-input" style="width:100%;margin-bottom:14px"><option value="eu-west">eu-west</option><option value="us-east">us-east</option><option value="me-south">me-south</option></select>';
+    html += '<button id="ghProvisionBtn" class="btn btn-accent" style="width:100%" onclick="submitProvision(\'' + escapeHtml(plan.id) + '\')">' + t('submit') + '</button>';
+    html += '<button class="btn btn-outline btn-sm" style="width:100%;margin-top:8px" onclick="showView(\'plans\')">' + t('back') + '</button>';
+    html += '</div>';
+    root.innerHTML = html;
+  }
+
+  function renderMyServersView(root, toolbar) {
+    var servers = state.servers || [];
+    var html = toolbar;
+    if (!servers.length) { root.innerHTML = html + '<div class="empty-state">' + t('empty') + '</div>'; return; }
+    html += '<div class="table-actions"><button class="btn btn-outline btn-sm" onclick="loadMyServers()">🔄 Refresh</button></div>';
+    html += '<div style="overflow:auto">';
+    html += '<table style="width:100%;border-collapse:collapse;font-size:.85rem">';
+    html += '<thead><tr><th style="text-align:right">' + t('serverName') + '</th><th>' + t('status') + '</th><th>' + t('region') + '</th><th>' + t('actions') + '</th></tr></thead>';
+    html += '<tbody>';
+    servers.forEach(function(srv) {
+      html += '<tr style="border-bottom:1px solid var(--border)">';
+      html += '<td style="padding:8px 4px">' + escapeHtml(srv.serverName || srv.id) + '</td>';
+      html += '<td style="padding:8px 4px">' + badge(srv.status) + '</td>';
+      html += '<td style="padding:8px 4px">' + escapeHtml(srv.region || '-') + '</td>';
+      html += '<td style="padding:8px 4px"><button class="btn btn-sm btn-outline" onclick="loadServerDetail(\'' + escapeHtml(srv.id) + '\');showView(\'server-details\')">📋</button></td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+    root.innerHTML = html;
+  }
+
+  function renderServerDetailsView(root, toolbar) {
+    var srv = state.selectedServer;
+    if (!srv) { showView('my-servers'); return; }
+    var html = toolbar;
+    html += '<div class="card" style="padding:14px;max-width:640px">';
+    html += '<div style="font-weight:700;font-size:1rem;margin-bottom:8px">' + escapeHtml(srv.serverName || srv.id) + '</div>';
+    html += '<div style="font-size:.85rem;color:var(--text2);margin-bottom:10px">' + t('serverName') + ': ' + escapeHtml(srv.serverName || '-') + '</div>';
+    html += '<div style="font-size:.85rem;color:var(--text2);margin-bottom:10px">' + t('region') + ': ' + escapeHtml(srv.region || '-') + '</div>';
+    html += '<div style="font-size:.85rem;color:var(--text2);margin-bottom:10px">' + t('status') + ': ' + badge(srv.status) + '</div>';
+    html += '<div style="font-size:.82rem;color:var(--text2);margin-bottom:10px">' + t('plan') + ': ' + escapeHtml(srv.planId || '-') + '</div>';
+    if (srv.provider && srv.provider.status === 'BLOCKED') {
+      html += '<div class="alert alert-warning" style="margin:10px 0;font-size:.82rem">⚠️ ' + t('blocked') + '</div>';
+    }
+    var actions = lifecycleActionsFor(srv.status);
+    if (actions.length) {
+      html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">';
+      actions.forEach(function(action) {
+        if (state.lifecycleLoading === action) {
+          html += '<button class="btn btn-sm btn-outline" disabled>' + t('loading') + '</button>';
+        } else if (action === 'terminate') {
+          html += '<button class="btn btn-sm btn-danger" onclick="lifecycleAction(\'' + escapeHtml(srv.id) + '\',\'terminate\',\'terminated\',\'تأكيد إنهاء السيرفر؟ هذا الإجراء لا يمكن التراجع عنه.\')">🗑 ' + t('cancel') + ' / Terminate</button>';
+        } else if (action === 'start') {
+          html += '<button class="btn btn-sm btn-green" onclick="lifecycleAction(\'' + escapeHtml(srv.id) + '\',\'start\',\'provisioning\')">▶ Start</button>';
+        } else if (action === 'stop') {
+          html += '<button class="btn btn-sm btn-outline" onclick="lifecycleAction(\'' + escapeHtml(srv.id) + '\',\'stop\',\'stopped\')">⏹ Stop</button>';
+        }
+      });
+      html += '</div>';
+    }
+    html += '<button class="btn btn-outline btn-sm" style="margin-top:12px;width:100%" onclick="showView(\'my-servers\')">' + t('back') + '</button>';
+    html += '</div>';
+    root.innerHTML = html;
+  }
+
+  window.showView = showView;
+  window.loadMyServers = loadMyServers;
+  window.loadServerDetail = loadServerDetail;
+  window.submitProvision = submitProvision;
+  window.lifecycleAction = lifecycleAction;
+  window.state = state;
+})();
+
+function renderGameHostingPage() {
+  if (typeof showView === 'function') showView('plans');
+}
 </script>
 </body>
 </html>
-
 
