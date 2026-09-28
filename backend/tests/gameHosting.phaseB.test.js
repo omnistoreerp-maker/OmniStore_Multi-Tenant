@@ -12,6 +12,14 @@
 //   - Provider status endpoint
 //   - Unauthenticated requests are rejected
 
+// Integration note: this suite pins the provider to 'unavailable' because it
+// asserts the *blocked* provider contract (provider.status === 'BLOCKED').
+// After the game-hosting completion branch wired the controller to the
+// provider-agnostic registry, the implicit default in a test process became
+// the mock adapter ('MOCK'); production/unavailable still reports 'BLOCKED'.
+// Pinning the selector keeps the pre-state these assertions were written for.
+process.env.GAME_HOSTING_PROVIDER = 'unavailable';
+
 const fs = require('fs');
 const path = require('path');
 const request = require('supertest');
@@ -276,7 +284,11 @@ describe('Phase B — Server lifecycle (state machine)', () => {
       .set('Authorization', 'Bearer ' + tokenA)
       .send({});
     expect(res.statusCode).toBe(200);
-    expect(res.body.data.provider.status).toBe('BLOCKED');
+    // Lifecycle responses carry the *operation* result (OK/ERROR), while the
+    // blocked/READY/MOCK provider contract is reported by the status endpoint.
+    // With the provider pinned to 'unavailable' the operation fails closed.
+    expect(res.body.data.provider.status).toBe('ERROR');
+    expect(res.body.data.provider.code).toBe('NOT_CONFIGURED');
     expect(res.body.data.server.status).toBe('provisioning');
   });
 

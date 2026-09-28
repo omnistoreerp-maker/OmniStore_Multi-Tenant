@@ -8,7 +8,14 @@
 //   - tenant resolution stays server-authoritative
 //   - storefront flow end-to-end: register → plan → order → pay → provision
 
+// Integration note: the game-hosting payment webhook is fail-closed behind the
+// shared HMAC guard (verifyPaymentsWebhookSignature) that main enforces, so this
+// suite configures a webhook secret before the app module graph loads and signs
+// the RAW body the same way a real gateway would.
+process.env.PAYMENTS_WEBHOOK_SECRET = 'gh-webhook-test-secret';
+
 const fs = require('fs');
+const crypto = require('crypto');
 const request = require('supertest');
 const { makeTempDataDir, seed } = require('./helpers/testData');
 const { startServer, TEST_JWT_SECRET } = require('./helpers/testServer');
@@ -38,6 +45,22 @@ afterAll(() => {
 });
 
 const H = { 'X-Tenant-Id': 'default' };
+
+// HMAC over the exact bytes put on the wire (never a re-serialization).
+function signRaw(raw) {
+  return crypto.createHmac('sha256', process.env.PAYMENTS_WEBHOOK_SECRET).update(Buffer.from(raw, 'utf8')).digest('hex');
+}
+
+function postWebhook(payload, options) {
+  const opts = options || {};
+  const raw = JSON.stringify(payload);
+  let req = request(app)
+    .post('/api/v1/game-hosting/payment-webhook')
+    .set(H)
+    .set('Content-Type', 'application/json');
+  if (opts.signed !== false) req = req.set('x-payments-signature', signRaw(raw));
+  return req.send(raw);
+}
 
 async function customerToken(email, role) {
   const reg = await marketAuthService.register({ tenantId: 'default', email, name: 'C ' + email, password: 'Passw0rd!123' });
@@ -187,19 +210,19 @@ describe('game hosting HTTP — authorization and IDOR', () => {
       .set(H).set('Authorization', 'Bearer ' + stranger.token)
       .send({ planId: plan.id, serverName: 'wh-srv' });
     const id = o.body.data.id;
-    const w1 = await request(app).post('/api/v1/game-hosting/payment-webhook').set(H)
-      .send({ orderId: id, paymentRef: 'WH-1', status: 'paid', amount: o.body.data.amount });
+    // Unsigned callbacks never reach order/payment state.
+    const unsigned = await postWebhook({ orderId: id, paymentRef: 'WH-0', status: 'paid', amount: o.body.data.amount }, { signed: false });
+    expect(unsigned.status).toBe(401);
+    const w1 = await postWebhook({ orderId: id, paymentRef: 'WH-1', status: 'paid', amount: o.body.data.amount });
     expect(w1.status).toBe(200);
-    const w2 = await request(app).post('/api/v1/game-hosting/payment-webhook').set(H)
-      .send({ orderId: id, paymentRef: 'WH-1', status: 'paid', amount: o.body.data.amount });
+    const w2 = await postWebhook({ orderId: id, paymentRef: 'WH-1', status: 'paid', amount: o.body.data.amount });
     expect(w2.status).toBe(200);
     expect(w2.body.data.alreadyProcessed).toBe(true);
     // tampered amount rejected
     const o2 = await request(app).post('/api/v1/game-hosting/orders')
       .set(H).set('Authorization', 'Bearer ' + stranger.token)
       .send({ planId: plan.id, serverName: 'wh-srv-2' });
-    const w3 = await request(app).post('/api/v1/game-hosting/payment-webhook').set(H)
-      .send({ orderId: o2.body.data.id, paymentRef: 'WH-BAD', status: 'paid', amount: 0.01 });
+    const w3 = await postWebhook({ orderId: o2.body.data.id, paymentRef: 'WH-BAD', status: 'paid', amount: 0.01 });
     expect(w3.status).toBe(400);
   });
 });

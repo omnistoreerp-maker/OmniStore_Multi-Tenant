@@ -12,6 +12,11 @@
 //   - Server list ownership filtering
 //   - BLOCKED provider transparency
 
+// Integration note: pins the provider to 'unavailable' so the blocked-provider
+// transparency assertions below match their documented pre-state (see the same
+// note in gameHosting.phaseB.test.js).
+process.env.GAME_HOSTING_PROVIDER = 'unavailable';
+
 const fs = require('fs');
 const path = require('path');
 const request = require('supertest');
