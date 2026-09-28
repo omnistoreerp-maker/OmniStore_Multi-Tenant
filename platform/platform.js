@@ -28,10 +28,12 @@
       nav_home: 'Home',
       nav_market: 'Market',
       nav_business: 'Business Solutions',
+      nav_students: 'Student Services',
       nav_game: 'Game Hosting',
       nav_app: 'Open Application',
       nav_market_short: 'Market',
       nav_business_short: 'Business',
+      nav_students_short: 'Students',
       nav_game_short: 'Games',
       nav_app_short: 'App',
       nav_soon: 'Soon',
@@ -90,10 +92,12 @@
       nav_home: 'الرئيسية',
       nav_market: 'السوق',
       nav_business: 'حلول الأعمال',
+      nav_students: 'خدمات الطلاب',
       nav_game: 'استضافة الألعاب',
       nav_app: 'Open Application',
       nav_market_short: 'الماركت',
       nav_business_short: 'الأعمال',
+      nav_students_short: 'الطلاب',
       nav_game_short: 'الألعاب',
       nav_app_short: 'التطبيق',
       nav_soon: 'قريباً',
@@ -245,19 +249,22 @@
   // Only the sections below may render as active; everything else — including
   // any section the backend/API may return with a different status — is forced
   // to an honest non-active "Coming Soon" state with no destination URL.
+  // Students is the single documented exception: the Student Services &
+  // Printing backend and UI are live and tenant-scoped, so it renders active.
   const SECTION_LOCK_POLICY = {
     active: {
       'marketplace': '/marketplace/',
-      'business-services': '/business.html'
+      'business-services': '/business.html',
+      'student-services': '/student.html'
     },
-    lockedIds: ['student-services', 'game-hosting', 'media-reels', 'support']
+    lockedIds: ['game-hosting', 'media-reels', 'support']
   };
 
   // Fallback catalog shown when the API returns no sections at all.
   const DEFAULT_SECTIONS = [
     { id: 'marketplace', title: 'Marketplace', description: 'Visitor-facing marketplace for products and services.', status: 'active', url: '/marketplace/', icon: 'fa-store' },
     { id: 'business-services', title: 'Business Management Services', description: 'Existing company access and new company onboarding.', status: 'active', url: '/business.html', icon: 'fa-building' },
-    { id: 'student-services', title: 'Student Services', description: 'Student services and printing — coming soon.', status: 'coming-soon', url: null, icon: 'fa-graduation-cap' },
+    { id: 'student-services', title: 'Student Services & Printing', description: 'Print shop orders, cost calculator, and student monthly passes.', status: 'active', url: '/student.html', icon: 'fa-graduation-cap' },
     { id: 'game-hosting', title: 'Game Hosting', description: 'Host and manage game sessions — coming soon.', status: 'coming-soon', url: null, icon: 'fa-gamepad' },
     { id: 'media-reels', title: 'Media / Reels', description: 'Media content and reels sharing — coming soon.', status: 'coming-soon', url: null, icon: 'fa-film' },
     { id: 'support', title: 'Support', description: 'Customer support center — coming soon.', status: 'coming-soon', url: null, icon: 'fa-life-ring' }

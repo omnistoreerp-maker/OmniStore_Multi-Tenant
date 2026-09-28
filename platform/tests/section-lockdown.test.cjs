@@ -3,15 +3,17 @@
 // Platform section lockdown + Monetag boundary static regression checks.
 //
 // Verifies, without any server or browser:
-//   1. Students / Gaming / Media-Reels / Support are locked as Coming Soon
-//      across the platform home UI and the business page entry points.
-//   2. Business + Marketplace remain the only active sections, with
+//   1. Students is the single DOCUMENTED ACTIVE EXCEPTION: the live,
+//      tenant-scoped Student Services & Printing backend and UI graduate it
+//      to active in the platform catalog/UI and in the business entry points.
+//   2. Gaming / Media-Reels / Support stay locked as Coming Soon everywhere.
+//   3. Business + Marketplace + Students are the active sections, with
 //      Marketplace pointing at the active public route /marketplace/.
-//   3. Visitors Now / platform stats machinery in platform/platform.js is
+//   4. Visitors Now / platform stats machinery in platform/platform.js is
 //      preserved (markers required by the Monetag isolation contract).
-//   4. The reused Monetag boundary stays disabled with empty owner fields and
+//   5. The reused Monetag boundary stays disabled with empty owner fields and
 //      no fabricated publisher ID / script URL anywhere in shipped surfaces.
-//   5. Diff scope: only intended platform files are modified in the working
+//   6. Diff scope: only intended platform files are modified in the working
 //      tree (Marketplace, legacy market, backend/data and .env untouched).
 
 const fs = require('fs');
@@ -29,6 +31,7 @@ const BUSINESS_HTML = read('business.html');
 const MONETAG_SRC = read('platform/monetag.js');
 const INDEX_HTML = read('index.html');
 const MARKETPLACE_INDEX = read('marketplace/index.html');
+const STUDENT_HTML = read('student.html');
 
 const FAKE_MARKERS = [
   'monetag.com/script',
@@ -44,7 +47,14 @@ const MONETAG_META_VALUE = 'e1700efedc78f54b923023e572faa053';
 const MONETAG_TAG = '<script src="https://quge5.com/88/tag.min.js" data-zone="288239" async data-cfasync="false"></script>';
 const PROHIBITED_ZONES = ['11857331', '11912374'];
 
-const LOCKED_IDS = ['student-services', 'game-hosting', 'media-reels', 'support'];
+// Students is the single documented activation exception: it is active and
+// routes to the shipped /student.html. Everything else stays locked.
+const LOCKED_IDS = ['game-hosting', 'media-reels', 'support'];
+const ACTIVE_ROUTES = {
+  'marketplace': '/marketplace/',
+  'business-services': '/business.html',
+  'student-services': '/student.html'
+};
 
 let passed = 0;
 let failed = 0;
@@ -88,8 +98,22 @@ check('platform.html locks gaming nav in all three spots (top/footer/bottom)', (
   assert.ok(count(PLATFORM_HTML, 'nav-soon') >= 3, 'honest "coming soon" nav badges missing');
 });
 
-check('platform.html does not advertise student.html', () => {
-  assert.strictEqual(count(PLATFORM_HTML, 'student.html'), 0);
+check('platform.html advertises student.html from all three nav spots', () => {
+  assert.strictEqual(count(PLATFORM_HTML, 'href="student.html"'), 3,
+    'expected exactly 3 student links (top/footer/bottom), got ' + count(PLATFORM_HTML, 'href="student.html"'));
+  assert.strictEqual(count(PLATFORM_HTML, 'class="glass-nav-link" href="student.html"'), 1, 'top nav student link missing');
+  assert.strictEqual(count(PLATFORM_HTML, '<a href="student.html" data-i18n="nav_students_short">'), 1, 'footer student link missing');
+  assert.strictEqual(count(PLATFORM_HTML, 'class="bottom-nav-link" href="student.html"'), 1, 'bottom nav student link missing');
+});
+
+check('platform.html student links are active links, never locked or soon-badged', () => {
+  const links = PLATFORM_HTML.match(/<a[^>]*href="student\.html"[^>]*>/g) || [];
+  assert.strictEqual(links.length, 3, 'expected 3 student anchors');
+  for (const link of links) {
+    assert.ok(!link.includes('is-soon'), 'student link must not carry the soon lock: ' + link);
+    assert.ok(!link.includes('aria-disabled'), 'student link must not be disabled: ' + link);
+    assert.ok(link.includes('data-i18n="nav_students'), 'student link must stay translatable: ' + link);
+  }
 });
 
 check('platform.html keeps sections container and visitor counter markers', () => {
@@ -117,17 +141,22 @@ check('platform.html loads boundary only after core platform script', () => {
 // ---------------------------------------------------------------------------
 // 2. business.html — student entry points locked, finished features intact
 // ---------------------------------------------------------------------------
-check('business.html no longer navigates to student.html', () => {
-  assert.strictEqual(count(BUSINESS_HTML, 'student.html'), 0);
-  assert.strictEqual(count(BUSINESS_HTML, "window.location.href='student.html'"), 0);
+check('business.html student entry points navigate to the live student.html', () => {
+  assert.ok(count(BUSINESS_HTML, 'student.html') >= 4, 'student entry points missing');
+  assert.strictEqual(count(BUSINESS_HTML, "window.location.href='student.html'"), 4,
+    'both student cards and both CTAs must open student.html');
 });
 
-check('business.html student cards are honest Coming Soon (badge + aria + disabled)', () => {
-  assert.strictEqual(count(BUSINESS_HTML, 'class="pricing-card pricing-card--soon"'), 2);
-  assert.strictEqual(count(BUSINESS_HTML, 'class="soon-badge"'), 2);
-  assert.ok(count(BUSINESS_HTML, 'aria-disabled="true"') >= 2);
-  assert.ok(count(BUSINESS_HTML, 'type="button" disabled') >= 2);
-  assert.ok(BUSINESS_HTML.includes('Coming Soon'), 'Coming Soon label missing');
+check('business.html student cards are active, no longer Coming Soon', () => {
+  const start = BUSINESS_HTML.indexOf('id="student-h"');
+  const end = BUSINESS_HTML.indexOf('<!-- TIKTOK REELS');
+  assert.ok(start > -1 && end > start, 'student section could not be isolated');
+  const section = BUSINESS_HTML.slice(start, end);
+  assert.strictEqual(count(section, 'pricing-card--soon'), 0, 'student card still locked');
+  assert.strictEqual(count(section, 'soon-badge'), 0, 'student card still badged Coming Soon');
+  assert.strictEqual(count(section, 'aria-disabled'), 0, 'student card still disabled');
+  assert.strictEqual(count(section, 'type="button" disabled'), 0, 'student CTA still disabled');
+  assert.strictEqual(count(section, 'type="button"'), 2, 'both student CTAs must stay real buttons');
 });
 
 check('business.html keeps student section heading (not deleted)', () => {
@@ -148,17 +177,23 @@ check('platform.js defines lockdown policy, defaults and applier', () => {
   assert.ok(PLATFORM_JS.includes('function applySectionPolicy'), 'policy applier missing');
 });
 
-check('platform.js active allowlist = marketplace + business only', () => {
-  assert.ok(PLATFORM_JS.includes("'marketplace': '/marketplace/'"), 'marketplace active route wrong');
-  assert.ok(PLATFORM_JS.includes("'business-services': '/business.html'"), 'business active route wrong');
+check('platform.js active allowlist = marketplace + business + students only', () => {
+  for (const [id, url] of Object.entries(ACTIVE_ROUTES)) {
+    assert.ok(PLATFORM_JS.includes("'" + id + "': '" + url + "'"), 'active route wrong for ' + id);
+  }
+  const block = PLATFORM_JS.match(/active:\s*\{[\s\S]*?\}/);
+  assert.ok(block, 'active allowlist block missing');
+  assert.strictEqual((block[0].match(/':\s*'/g) || []).length, 3, 'exactly three sections may stay active');
 });
 
-check('platform.js locks students/gaming/media/support ids', () => {
+check('platform.js locks gaming/media/support ids and releases student-services', () => {
   const m = PLATFORM_JS.match(/lockedIds:\s*\[([^\]]*)\]/);
   assert.ok(m, 'lockedIds array missing');
   for (const id of LOCKED_IDS) {
     assert.ok(m[1].includes("'" + id + "'"), 'id not locked: ' + id);
   }
+  assert.ok(!m[1].includes('student-services'), 'students must no longer be a locked id');
+  assert.strictEqual((m[1].match(/'/g) || []).length / 2, LOCKED_IDS.length, 'unexpected id count in lockedIds');
 });
 
 check('platform.js wires policy into init with empty-API fallback', () => {
@@ -180,8 +215,15 @@ check('platform.js fallback catalog exposes support as coming-soon', () => {
   assert.ok(m[0].includes('url: null'));
 });
 
+check('platform.js fallback catalog exposes students as the one active exception', () => {
+  const m = PLATFORM_JS.match(/id:\s*'student-services'[^}]+\}/);
+  assert.ok(m, 'student-services entry missing from DEFAULT_SECTIONS');
+  assert.ok(m[0].includes("status: 'active'"), 'student fallback must be active');
+  assert.ok(m[0].includes("url: '/student.html'"), 'student fallback must open /student.html');
+});
+
 check('platform.js locked fallback entries have null urls', () => {
-  for (const id of ['student-services', 'game-hosting', 'media-reels']) {
+  for (const id of LOCKED_IDS) {
     const m = PLATFORM_JS.match(new RegExp("id:\\s*'" + id + "'[^}]+\\}"));
     assert.ok(m, 'fallback entry missing: ' + id);
     assert.ok(m[0].includes('url: null'), id + ' must not expose a url');
@@ -189,9 +231,11 @@ check('platform.js locked fallback entries have null urls', () => {
   }
 });
 
-check('platform.js has i18n labels for nav badge and support section (en+ar)', () => {
+check('platform.js has i18n labels for nav badge, students and support (en+ar)', () => {
   assert.ok(count(PLATFORM_JS, 'nav_soon') >= 2, 'nav_soon i18n missing');
   assert.ok(count(PLATFORM_JS, 'section_support') >= 2, 'section_support i18n missing');
+  assert.ok(count(PLATFORM_JS, 'nav_students') >= 2, 'nav_students i18n missing');
+  assert.ok(count(PLATFORM_JS, 'nav_students_short') >= 2, 'nav_students_short i18n missing');
 });
 
 check('platform.js preserves Visitors Now / heartbeat / stats machinery', () => {
@@ -322,7 +366,30 @@ check('active marketplace route exists as a real public page', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 5. Diff scope — only intended platform files modified in working tree
+// 5. student.html — the live, tenant-scoped Students UI
+// ---------------------------------------------------------------------------
+check('student.html is the shipped RTL Students UI wired to the tenant API', () => {
+  assert.ok(fs.existsSync(path.join(ROOT, 'student.html')), 'student.html missing');
+  assert.ok(STUDENT_HTML.includes("'/api/v1/tenant/student-services'"), 'student.html must call the live tenant API');
+  assert.ok(/<html[^>]+dir="rtl"/.test(STUDENT_HTML), 'student.html must stay RTL');
+  assert.ok(STUDENT_HTML.includes("localStorage.getItem('access_token')"), 'student.html must use the real tenant token');
+});
+
+check('student.html ships no mock/static business data', () => {
+  for (const marker of ['MOCK_', 'DUMMY_', 'sampleData', 'fakeOrder', 'hardcodedProducts']) {
+    assert.ok(!STUDENT_HTML.includes(marker), 'mock marker present in student.html: ' + marker);
+  }
+});
+
+check('backend catalog default advertises the same student route as the UI', () => {
+  const svc = read('backend/services/platformCatalog.service.js');
+  assert.ok(svc.includes("id: 'student-services'"), 'catalog default student entry missing');
+  assert.ok(svc.includes("status: 'active'"), 'catalog default student entry must be active');
+  assert.ok(svc.includes("url: '/student.html'"), 'catalog default student url mismatch');
+});
+
+// ---------------------------------------------------------------------------
+// 6. Diff scope — only intended platform files modified in working tree
 // ---------------------------------------------------------------------------
 check('working-tree diff touches only intended platform files', () => {
   const allowedModified = new Set([
@@ -338,10 +405,13 @@ check('working-tree diff touches only intended platform files', () => {
     // branches, deliberately never staged by this change set:
     'backend/data/platformPublic.json',
     'backend/services/platformCatalog.service.js',
-    'backend/tests/platformPublic.test.js'
+    'backend/tests/platformPublic.test.js',
+    // Students activation cycle: catalog/sections discovery assertions.
+    'backend/tests/platformSections.students.test.js'
   ]);
   const allowedUntracked = new Set([
     'platform/tests/section-lockdown.test.cjs',
+    'backend/tests/platformSections.students.test.js',
     'CANDIDATE_HANDOFF_20260920.md',
     'docs/REAL_REPOSITORY_RECONCILIATION.md',
     'docs/TEABLE_AGENT_RECONCILIATION.md'
@@ -357,17 +427,18 @@ check('working-tree diff touches only intended platform files', () => {
   }
 });
 
-check('Marketplace, legacy market and protected data show no working-tree diff', () => {
+check('Marketplace, legacy market, sw.js, .env and backend/data show no working-tree diff', () => {
   const git = (args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' }).stdout;
-  const diffs = [
-    git(['diff', '--name-only', 'HEAD', '--', 'marketplace', 'market.html', 'market', 'backend/data/.env']),
-    git(['diff', '--name-only', 'HEAD', '--', 'backend/data/platformPublic.json'])
-  ].join('\n');
-  // backend/data/platformPublic.json is pre-existing local WIP and must never
-  // be staged by this change set (checked again at commit time by the diff
-  // scope report); marketplace/legacy market must show zero diff.
-  const forbidden = diffs.split('\n').filter((f) => f && !f.startsWith('backend/data/platformPublic.json'));
-  assert.deepStrictEqual(forbidden, [], 'forbidden diffs: ' + forbidden.join(', '));
+  const protectedPaths = ['marketplace', 'market.html', 'market', 'sw.js', '.env', 'backend/data'];
+  const dirty = git(['diff', '--name-only', 'HEAD', '--', ...protectedPaths])
+    .split('\n')
+    .map((f) => f.trim())
+    .filter(Boolean)
+    // backend/data/platformPublic.json is pre-existing local WIP and must never
+    // be staged by this change set (re-checked at commit time by the diff scope
+    // report); every other protected path must stay byte-identical.
+    .filter((f) => f !== 'backend/data/platformPublic.json');
+  assert.deepStrictEqual(dirty, [], 'forbidden diffs: ' + dirty.join(', '));
 });
 
 console.log('\nsection-lockdown.test.cjs: ' + passed + ' passed, ' + failed + ' failed');
