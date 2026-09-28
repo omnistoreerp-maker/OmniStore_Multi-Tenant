@@ -70,10 +70,12 @@ export default function Marketplace() {
   }, [pending]);
 
   // Header category chip → apply as server-side category filter (once).
+  // undefined = no pending request (idle) → ignore; null = explicit "الكل"
+  // clear request → must clear the category filter; string = select category.
   useEffect(() => {
-    if (ui.pendingCategory === null) return;
+    if (ui.pendingCategory === undefined) return;
     setFilters((prev) => ({ ...prev, categories: ui.pendingCategory ? [ui.pendingCategory] : [] }));
-    ui.requestCategory(null);
+    ui.requestCategory(undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ui.pendingCategory]);
 

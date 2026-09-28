@@ -8,6 +8,8 @@ import type { CategoryCount } from "@/lib/api";
  * - categories: mirrored from Marketplace's real GET /categories fetch so the
  *   header can offer category access WITHOUT any extra API call.
  * - pendingCategory: header chip → Marketplace applies it as server-side filter.
+ *   Sentinel semantics: undefined = no pending request (idle), string = select
+ *   that category, null = EXPLICIT clear request (the "الكل" chip).
  * - fetching: Marketplace progress state → header progress bar.
  */
 interface MarketUIState {
@@ -15,8 +17,8 @@ interface MarketUIState {
   setQuery: (v: string) => void;
   categories: CategoryCount[];
   setCategories: (c: CategoryCount[]) => void;
-  pendingCategory: string | null;
-  requestCategory: (id: string | null) => void;
+  pendingCategory: string | null | undefined;
+  requestCategory: (id: string | null | undefined) => void;
   activeCategory: string | null;
   setActiveCategory: (id: string | null) => void;
   fetching: boolean;
@@ -28,7 +30,7 @@ const MarketUICtx = createContext<MarketUIState | null>(null);
 export function MarketUIProvider({ children }: { children: ReactNode }) {
   const [query, setQuery] = useState("");
   const [categories, setCategories] = useState<CategoryCount[]>([]);
-  const [pendingCategory, setPendingCategory] = useState<string | null>(null);
+  const [pendingCategory, setPendingCategory] = useState<string | null | undefined>(undefined);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [fetching, setFetching] = useState(false);
 
