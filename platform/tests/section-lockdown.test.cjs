@@ -3,8 +3,9 @@
 // Platform section lockdown + Monetag boundary static regression checks.
 //
 // Verifies, without any server or browser:
-//   1. Active sections (marketplace, business, students, game-hosting and the
-//      new Media / Reels feed) expose their real shipped routes.
+//   1. Active sections (marketplace, business, students and the
+//      new Media / Reels feed) expose their real shipped routes;
+//      Game Hosting and Support stay locked (coming-soon, url null).
 //   2. Support stays locked as Coming Soon everywhere; Media-Reels ships
 //      active with the reels feed player /media-reels.html.
 //   3. Business + Marketplace + Students are active, with Marketplace
@@ -48,14 +49,14 @@ const MONETAG_TAG = '<script src="https://quge5.com/88/tag.min.js" data-zone="28
 const PROHIBITED_ZONES = ['11857331', '11912374'];
 
 // Students graduated to active in the Students activation cycle;
-// game-hosting graduated in the Device 2 activation cycle; Media / Reels
-// ships active with the public reels feed. Only support stays locked.
-const LOCKED_IDS = ['support'];
+// Media / Reels ships active with the public reels feed.
+// Game Hosting is re-locked per the owner correction cycle:
+// coming-soon with url:null, and it stays inside lockedIds.
+const LOCKED_IDS = ['game-hosting', 'support'];
 const ACTIVE_ROUTES = {
   'marketplace': '/marketplace/',
   'business-services': '/business.html',
   'student-services': '/student.html',
-  'game-hosting': '/index.html',
   'media-reels': '/media-reels.html'
 };
 
@@ -190,7 +191,7 @@ check('platform.js active allowlist matches the shipped active sections', () => 
     'exactly ' + Object.keys(ACTIVE_ROUTES).length + ' sections may stay active');
 });
 
-check('platform.js locks the support id and releases graduated sections', () => {
+check('platform.js locks game-hosting + support ids and keeps graduated sections released', () => {
   const m = PLATFORM_JS.match(/lockedIds:\s*\[([^\]]*)\]/);
   assert.ok(m, 'lockedIds array missing');
   for (const id of LOCKED_IDS) {
@@ -205,7 +206,7 @@ check('platform.js wires policy into init with empty-API fallback', () => {
   assert.ok(PLATFORM_JS.includes('if (!rawSections.length) rawSections = DEFAULT_SECTIONS;'), 'fallback missing');
 });
 
-check('platform.js policy appends missing locked ids (support always visible)', () => {
+check('platform.js policy appends missing locked ids (support + game-hosting always visible)', () => {
   const fn = PLATFORM_JS.match(/function applySectionPolicy[\s\S]*?\n  \}/);
   assert.ok(fn, 'applySectionPolicy not found');
   assert.ok(fn[0].includes('SECTION_LOCK_POLICY.lockedIds.forEach'), 'locked-id append loop missing');

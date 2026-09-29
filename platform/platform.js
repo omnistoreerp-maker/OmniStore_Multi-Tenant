@@ -258,10 +258,9 @@
       'marketplace': '/marketplace/',
       'business-services': '/business.html',
       'student-services': '/student.html',
-      'game-hosting': '/index.html',
       'media-reels': '/media-reels.html'
     },
-    lockedIds: ['support']
+    lockedIds: ['game-hosting', 'support']
   };
 
   // Fallback catalog shown when the API returns no sections at all.
@@ -269,7 +268,7 @@
     { id: 'marketplace', title: 'Marketplace', description: 'Visitor-facing marketplace for products and services.', status: 'active', url: '/marketplace/', icon: 'fa-store' },
     { id: 'business-services', title: 'Business Management Services', description: 'Existing company access and new company onboarding.', status: 'active', url: '/business.html', icon: 'fa-building' },
     { id: 'student-services', title: 'Student Services & Printing', description: 'Print shop orders, cost calculator, and student monthly passes.', status: 'active', url: '/student.html', icon: 'fa-graduation-cap' },
-    { id: 'game-hosting', title: 'Game Hosting', description: 'Host and manage game sessions and catalogs.', status: 'active', url: '/index.html', icon: 'fa-gamepad' },
+    { id: 'game-hosting', title: 'Game Hosting', description: 'Host and manage game sessions and catalogs.', status: 'coming-soon', url: null, icon: 'fa-gamepad' },
     { id: 'media-reels', title: 'Media / Reels', description: 'Media content and reels sharing.', status: 'active', url: '/media-reels.html', icon: 'fa-film' },
     { id: 'support', title: 'Support', description: 'Customer support center — coming soon.', status: 'coming-soon', url: null, icon: 'fa-life-ring' }
   ];

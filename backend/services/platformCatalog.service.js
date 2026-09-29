@@ -84,8 +84,8 @@ function _defaultDoc() {
         id: 'game-hosting',
         title: 'Game Hosting',
         description: 'Host and manage game sessions and catalogs.',
-        status: 'active',
-        url: '/index.html',
+        status: 'coming-soon',
+        url: null,
         icon: 'fa-gamepad'
       },
       {
