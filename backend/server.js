@@ -172,6 +172,7 @@ const companyRoutes = require('./routes/company.routes');
 const updateRoutes = require('./routes/update.routes');
 const platformRoutes = require('./routes/platform.routes');
 const platformPublicRoutes = require('./routes/platformPublic.routes');
+const reelsRoutes = require('./routes/reels.routes');
 const companyProfileRoutes = require('./routes/companyProfile.routes');
 const customerRequestRoutes = require('./routes/customerRequest.routes');
 const internalChangeCenterRoutes = require('./routes/internalChangeCenter.routes');
@@ -206,6 +207,10 @@ app.use('/api/v1/platform', platformRoutes);
 app.use('/api/v1/tenant/onboarding', tenantOnboardingRoutes);
 // Public platform homepage — read-only catalog, no auth required.
 app.use('/api/v1/platform-public', platformPublicRoutes);
+// Reels feed lives in its own router so platformPublic.routes.js stays
+// untouched (visitor-counter boundary). Mounted after the public platform
+// router: non-/reels paths fall through exactly as before.
+app.use('/api/v1/platform-public/reels', reelsRoutes);
 // Public company profile — read-only profile data, no auth required.
 app.use('/api/v1/companies-public', companyProfileRoutes);
 // Customer Change & Resolution Foundation — authenticated, company-scoped.

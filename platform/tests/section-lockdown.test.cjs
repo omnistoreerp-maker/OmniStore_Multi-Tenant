@@ -3,12 +3,12 @@
 // Platform section lockdown + Monetag boundary static regression checks.
 //
 // Verifies, without any server or browser:
-//   1. Students is the single DOCUMENTED ACTIVE EXCEPTION: the live,
-//      tenant-scoped Student Services & Printing backend and UI graduate it
-//      to active in the platform catalog/UI and in the business entry points.
-//   2. Gaming / Media-Reels / Support stay locked as Coming Soon everywhere.
-//   3. Business + Marketplace + Students are the active sections, with
-//      Marketplace pointing at the active public route /marketplace/.
+//   1. Active sections (marketplace, business, students, game-hosting and the
+//      new Media / Reels feed) expose their real shipped routes.
+//   2. Support stays locked as Coming Soon everywhere; Media-Reels ships
+//      active with the reels feed player /media-reels.html.
+//   3. Business + Marketplace + Students are active, with Marketplace
+//      pointing at the active public route /marketplace/.
 //   4. Visitors Now / platform stats machinery in platform/platform.js is
 //      preserved (markers required by the Monetag isolation contract).
 //   5. The reused Monetag boundary stays disabled with empty owner fields and
@@ -47,13 +47,16 @@ const MONETAG_META_VALUE = 'e1700efedc78f54b923023e572faa053';
 const MONETAG_TAG = '<script src="https://quge5.com/88/tag.min.js" data-zone="288239" async data-cfasync="false"></script>';
 const PROHIBITED_ZONES = ['11857331', '11912374'];
 
-// Students is the single documented activation exception: it is active and
-// routes to the shipped /student.html. Everything else stays locked.
-const LOCKED_IDS = ['game-hosting', 'media-reels', 'support'];
+// Students graduated to active in the Students activation cycle;
+// game-hosting graduated in the Device 2 activation cycle; Media / Reels
+// ships active with the public reels feed. Only support stays locked.
+const LOCKED_IDS = ['support'];
 const ACTIVE_ROUTES = {
   'marketplace': '/marketplace/',
   'business-services': '/business.html',
-  'student-services': '/student.html'
+  'student-services': '/student.html',
+  'game-hosting': '/index.html',
+  'media-reels': '/media-reels.html'
 };
 
 let passed = 0;
@@ -177,16 +180,17 @@ check('platform.js defines lockdown policy, defaults and applier', () => {
   assert.ok(PLATFORM_JS.includes('function applySectionPolicy'), 'policy applier missing');
 });
 
-check('platform.js active allowlist = marketplace + business + students only', () => {
+check('platform.js active allowlist matches the shipped active sections', () => {
   for (const [id, url] of Object.entries(ACTIVE_ROUTES)) {
     assert.ok(PLATFORM_JS.includes("'" + id + "': '" + url + "'"), 'active route wrong for ' + id);
   }
   const block = PLATFORM_JS.match(/active:\s*\{[\s\S]*?\}/);
   assert.ok(block, 'active allowlist block missing');
-  assert.strictEqual((block[0].match(/':\s*'/g) || []).length, 3, 'exactly three sections may stay active');
+  assert.strictEqual((block[0].match(/':\s*'/g) || []).length, Object.keys(ACTIVE_ROUTES).length,
+    'exactly ' + Object.keys(ACTIVE_ROUTES).length + ' sections may stay active');
 });
 
-check('platform.js locks gaming/media/support ids and releases student-services', () => {
+check('platform.js locks the support id and releases graduated sections', () => {
   const m = PLATFORM_JS.match(/lockedIds:\s*\[([^\]]*)\]/);
   assert.ok(m, 'lockedIds array missing');
   for (const id of LOCKED_IDS) {
@@ -229,6 +233,13 @@ check('platform.js locked fallback entries have null urls', () => {
     assert.ok(m[0].includes('url: null'), id + ' must not expose a url');
     assert.ok(m[0].includes("status: 'coming-soon'"), id + ' must be coming-soon');
   }
+});
+
+check('platform.js fallback catalog exposes media-reels as the active reels feed', () => {
+  const m = PLATFORM_JS.match(/id:\s*'media-reels'[^}]+\}/);
+  assert.ok(m, 'media-reels entry missing from DEFAULT_SECTIONS');
+  assert.ok(m[0].includes("status: 'active'"), 'media fallback must be active');
+  assert.ok(m[0].includes("url: '/media-reels.html'"), 'media fallback must open /media-reels.html');
 });
 
 check('platform.js has i18n labels for nav badge, students and support (en+ar)', () => {
@@ -407,14 +418,22 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/services/platformCatalog.service.js',
     'backend/tests/platformPublic.test.js',
     // Students activation cycle: catalog/sections discovery assertions.
-    'backend/tests/platformSections.students.test.js'
+    'backend/tests/platformSections.students.test.js',
+    // Media / Reels clean port: runtime media storage stays untracked.
+    '.gitignore'
   ]);
   const allowedUntracked = new Set([
     'platform/tests/section-lockdown.test.cjs',
     'backend/tests/platformSections.students.test.js',
     'CANDIDATE_HANDOFF_20260920.md',
     'docs/REAL_REPOSITORY_RECONCILIATION.md',
-    'docs/TEABLE_AGENT_RECONCILIATION.md'
+    'docs/TEABLE_AGENT_RECONCILIATION.md',
+    // Media / Reels clean port: new feed surface files.
+    'media-reels.html',
+    'backend/routes/reels.routes.js',
+    'backend/controllers/reels.controller.js',
+    'backend/services/reels.service.js',
+    'backend/tests/reelsPublic.test.js'
   ]);
   const git = (args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' }).stdout.split('\n').map((s) => s.trim()).filter(Boolean);
   const modified = git(['diff', '--name-only', 'HEAD']);

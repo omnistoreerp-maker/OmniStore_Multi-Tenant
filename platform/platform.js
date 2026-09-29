@@ -251,14 +251,17 @@
   // to an honest non-active "Coming Soon" state with no destination URL.
   // Students is the single documented exception: the Student Services &
   // Printing backend and UI are live and tenant-scoped, so it renders active.
+  // Media / Reels is active as well: the public reels feed ships with this
+  // release and opens the shipped /media-reels.html player.
   const SECTION_LOCK_POLICY = {
     active: {
       'marketplace': '/marketplace/',
       'business-services': '/business.html',
       'student-services': '/student.html',
-      'game-hosting': '/index.html'
+      'game-hosting': '/index.html',
+      'media-reels': '/media-reels.html'
     },
-    lockedIds: ['media-reels', 'support']
+    lockedIds: ['support']
   };
 
   // Fallback catalog shown when the API returns no sections at all.
@@ -267,7 +270,7 @@
     { id: 'business-services', title: 'Business Management Services', description: 'Existing company access and new company onboarding.', status: 'active', url: '/business.html', icon: 'fa-building' },
     { id: 'student-services', title: 'Student Services & Printing', description: 'Print shop orders, cost calculator, and student monthly passes.', status: 'active', url: '/student.html', icon: 'fa-graduation-cap' },
     { id: 'game-hosting', title: 'Game Hosting', description: 'Host and manage game sessions and catalogs.', status: 'active', url: '/index.html', icon: 'fa-gamepad' },
-    { id: 'media-reels', title: 'Media / Reels', description: 'Media content and reels sharing — coming soon.', status: 'coming-soon', url: null, icon: 'fa-film' },
+    { id: 'media-reels', title: 'Media / Reels', description: 'Media content and reels sharing.', status: 'active', url: '/media-reels.html', icon: 'fa-film' },
     { id: 'support', title: 'Support', description: 'Customer support center — coming soon.', status: 'coming-soon', url: null, icon: 'fa-life-ring' }
   ];
 

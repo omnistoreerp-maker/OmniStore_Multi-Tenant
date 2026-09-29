@@ -37,3 +37,5 @@ backend/data/gameHostingPlans.json
 backend/data/gameHostingServers.json
 backend/data/marketCustomers.json
 backend/data/gameHostingOrders.json
+backend/data/reels-*.json
+backend/data/reel-media/
