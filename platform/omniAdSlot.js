@@ -59,7 +59,7 @@
   function isPlaceholderZone(zone) {
     var v = normalize(zone);
     if (!v) return true;
-    return /^(owner_input_required|owner_required|placeholder|your[_-]|change[_-]me|xxx+|todo)$/i.test(v);
+    return /^(owner_input_required|owner_required|placeholder|your[_-].*|change[_-]me.*|xxx+|todo)$/i.test(v);
   }
 
   function isProhibitedZone(zone) {

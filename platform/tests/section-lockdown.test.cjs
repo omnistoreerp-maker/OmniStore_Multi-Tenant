@@ -382,6 +382,15 @@ check('nav harness pins the new contract (no tag, gated slot, section links)', (
   assert.ok(NAV_HARNESS.includes("AD_ENGINE_GATE=DISABLED"), 'harness missing gate check');
 });
 
+check('OmniAdSlot behaviour suite pins gate, blocklist and inline mounting', () => {
+  const adSuite = read('platform/tests/omniAdSlot.test.cjs');
+  assert.ok(adSuite.includes('DEFAULT: disabled'), 'suite missing disabled-default check');
+  assert.ok(adSuite.includes('PROHIBITED ZONES'), 'suite missing prohibited-zone check');
+  assert.ok(adSuite.includes('SAFE CONFIG'), 'suite missing safe-config check');
+  assert.ok(adSuite.includes('INSECURE URLS'), 'suite missing insecure-url check');
+  assert.ok(adSuite.includes('root.appendChild'), 'suite must assert mounting inside the slot root');
+});
+
 check('hub harness pins responsive + in-flow slot + zero ad requests', () => {
   const HUB_HARNESS = read('tests/e2e/verify-platform-hub.js');
   assert.ok(HUB_HARNESS.includes('HUB_320'), 'harness missing 320 viewport');
@@ -410,6 +419,8 @@ check('working-tree diff touches only intended files', () => {
     'backend/tests/platformSections.students.test.js',
     'backend/tests/platformPublic.test.js',
     'platform/tests/section-lockdown.test.cjs',
+    'platform/tests/omniAdSlot.test.cjs',
+    'platform/omniAdSlot.js',
     'tests/e2e/verify-platform-nav.js',
     'tests/e2e/verify-platform-hub.js',
     'marketplace/src/components/layout/Footer.tsx',
@@ -423,6 +434,7 @@ check('working-tree diff touches only intended files', () => {
   ]);
   const allowedUntracked = new Set([
     'platform/omniAdSlot.js',
+    'platform/tests/omniAdSlot.test.cjs',
     'marketplace/src/components/marketplace/OmniAdSlot.tsx',
     'tests/e2e/verify-platform-hub.js'
   ]);

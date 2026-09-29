@@ -152,6 +152,33 @@ network requests until the owner supplies a safe, approved inline zone + officia
 If Monetag confirms OnClick disabled + filtering enabled and issues a dedicated inline zone,
 that zone can be entered in the single configuration point and the gate flipped in one commit.
 
+### CSP: what changed and what it now allows
+
+`backend/server.js` (helmet) no longer lists any ad-network origin:
+
+| Directive | Before | After |
+|---|---|---|
+| `script-src` | `'self'`, `'unsafe-inline'`, cdnjs, jsdelivr, `quge5.com`, `auqot.com`, `ekhay.com`, `b3mny.com` (6 https origins) | `'self'`, `'unsafe-inline'`, cdnjs, jsdelivr (**2**) |
+| `connect-src` | `'self'`, `api.github.com`, `cdn.jsdelivr.net`, `6opo.com`, `auqot.com`, `my.rtmark.net`, `jmosl.com`, `094kk.com` (7 https origins) | `'self'`, `api.github.com`, `cdn.jsdelivr.net` (**2**) |
+| `frame-src` / `object-src` | `'none'` | `'none'` (unchanged) |
+| `style-src` / `img-src` / `font-src` | app + Google Fonts | unchanged |
+
+Consequence: even if something tried to inject an ad script today, the browser would block it —
+the CSP itself is now part of the safety gate. When (and only when) the owner approves a safe
+inline zone with an official script origin, that exact origin is added back to `script-src` in the
+same commit as the gate flip, and the `platform/tests/section-lockdown.test.cjs` +
+`backend/tests/monetag.boundary.test.js` expectations are updated with it.
+
+### Verification commands (expected result)
+
+```bash
+node platform/tests/section-lockdown.test.cjs          # 33 passed, 0 failed
+node platform/tests/omniAdSlot.test.cjs                # gate/blocklist/slot behaviour, 0 failed
+cd backend && npx jest tests/monetag.boundary.test.js  # Monetag boundary suite, all pass
+PLAYWRIGHT_CHANNEL=msedge node tests/e2e/verify-platform-nav.js   # 0 FAIL, ad traffic: no
+PLAYWRIGHT_CHANNEL=msedge node tests/e2e/verify-platform-hub.js   # overflow=0, position=static, 0 ad requests
+```
+
 ## Explicitly out of scope for the codebase
 
 No click-shields, no JavaScript click interception, no CSS forced resizing of ad containers, no fake ads
