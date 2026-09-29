@@ -21,7 +21,14 @@ function startServer(dataDir, extraEnv) {
     if (extraEnv && extraEnv[key] !== undefined) process.env[key] = extraEnv[key];
     else delete process.env[key];
   }
-  const app = require('../../server.js');
+  let app;
+  try { app = require('../../server.js'); }
+  catch (e) {
+    // The repo root in this checkout has no server.js; resolve the real
+    // backend server unambiguously so platform-public routes (incl. /reels)
+    // and the correct data dir are used.
+    app = require('../server.js');
+  }
   return { app, dataDir: dir };
 }
 

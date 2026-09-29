@@ -3,6 +3,7 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/platformPublic.controller');
 const tiktokCtrl = require('../controllers/tiktokFeed.controller');
+const reelsCtrl = require('../controllers/reels.controller');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
 const { error: errorResponse } = require('../utils/apiResponse');
@@ -49,6 +50,8 @@ router.get('/highlights', ctrl.getHighlights);
 router.get('/sections', ctrl.getSections);
 router.get('/pricing', ctrl.getPricing);
 router.get('/social-feed/tiktok', tiktokCtrl.getTikTokFeed);
+router.get('/reels', reelsCtrl.getReels);
+router.get('/reels/:id', reelsCtrl.getReelById);
 
 router.post('/', ctrl.notFound);
 router.put('/', ctrl.notFound);
@@ -74,6 +77,11 @@ router.post('/highlights', ctrl.notFound);
 router.put('/highlights', ctrl.notFound);
 router.patch('/highlights', ctrl.notFound);
 router.delete('/highlights', ctrl.notFound);
+
+router.post('/reels', ctrl.notFound);
+router.put('/reels', ctrl.notFound);
+router.patch('/reels', ctrl.notFound);
+router.delete('/reels', ctrl.notFound);
 
 router.post('/sections', ctrl.notFound);
 router.put('/sections', ctrl.notFound);

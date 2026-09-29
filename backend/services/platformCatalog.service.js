@@ -88,9 +88,9 @@ function _defaultDoc() {
       {
         id: 'media-reels',
         title: 'Media / Reels',
-        description: 'Media content and reels sharing.',
-        status: 'coming-soon',
-        url: null,
+        description: 'Public reels feed and short-form video content.',
+        status: 'active',
+        url: '/media-reels.html',
         icon: 'fa-film'
       },
       {

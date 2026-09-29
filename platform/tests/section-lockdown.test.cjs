@@ -148,17 +148,22 @@ check('platform.js defines lockdown policy, defaults and applier', () => {
   assert.ok(PLATFORM_JS.includes('function applySectionPolicy'), 'policy applier missing');
 });
 
-check('platform.js active allowlist = marketplace + business only', () => {
+check('platform.js active allowlist = marketplace + business + media-reels', () => {
   assert.ok(PLATFORM_JS.includes("'marketplace': '/marketplace/'"), 'marketplace active route wrong');
   assert.ok(PLATFORM_JS.includes("'business-services': '/business.html'"), 'business active route wrong');
+  assert.ok(PLATFORM_JS.includes("'media-reels': '/media-reels.html'"), 'media-reels active route wrong');
 });
 
-check('platform.js locks students/gaming/media/support ids', () => {
+check('platform.js locks students/gaming/support ids (media-reels is active)', () => {
   const m = PLATFORM_JS.match(/lockedIds:\s*\[([^\]]*)\]/);
   assert.ok(m, 'lockedIds array missing');
-  for (const id of LOCKED_IDS) {
+  for (const id of ['student-services', 'game-hosting', 'support']) {
     assert.ok(m[1].includes("'" + id + "'"), 'id not locked: ' + id);
   }
+  // media-reels is intentionally active now; it must still be present in the
+  // section policy object so the platform applier can render it.
+  assert.ok(PLATFORM_JS.includes("'media-reels': '/media-reels.html'"), 'media-reels missing from active allowlist');
+  assert.ok(PLATFORM_JS.includes("'media-reels'"), 'media-reels missing from policy object');
 });
 
 check('platform.js wires policy into init with empty-API fallback', () => {
@@ -181,7 +186,7 @@ check('platform.js fallback catalog exposes support as coming-soon', () => {
 });
 
 check('platform.js locked fallback entries have null urls', () => {
-  for (const id of ['student-services', 'game-hosting', 'media-reels']) {
+  for (const id of ['student-services', 'game-hosting', 'support']) {
     const m = PLATFORM_JS.match(new RegExp("id:\\s*'" + id + "'[^}]+\\}"));
     assert.ok(m, 'fallback entry missing: ' + id);
     assert.ok(m[0].includes('url: null'), id + ' must not expose a url');
@@ -322,34 +327,56 @@ check('active marketplace route exists as a real public page', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 5. Diff scope — only intended platform files modified in working tree
+// 5. Diff scope — intended activation files plus pre-existing operator-orders WIP
 // ---------------------------------------------------------------------------
-check('working-tree diff touches only intended platform files', () => {
+check('working-tree diff touches only intended activation files plus pre-existing operator-orders WIP', () => {
   const allowedModified = new Set([
     'platform.html',
     'platform/platform.js',
-    'platform/platform.css',
     'business.html',
-    // Official Multitag integration: minimal CSP change + focused tests.
     'backend/server.js',
-    'backend/tests/monetag.boundary.test.js',
-    'platform/tests/section-lockdown.test.cjs',
-    // Pre-existing local WIP from earlier candidate work — carried across
-    // branches, deliberately never staged by this change set:
-    'backend/data/platformPublic.json',
+    'backend/routes/platformPublic.routes.js',
     'backend/services/platformCatalog.service.js',
-    'backend/tests/platformPublic.test.js'
+    'backend/tests/platformPublic.test.js',
+    'backend/controllers/reels.controller.js',
+    'backend/services/reels.service.js',
+    'backend/tests/reelsPublic.test.js',
+    'media-reels.html',
+    'platform/tests/section-lockdown.test.cjs',
+    // Fixes the backend test helper so it boots the real backend server
+    // (needed for the reels public route to be mounted in tests).
+    'backend/tests/helpers/testServer.js'
+  ]);
+  // Pre-existing dirty files from earlier operator-orders work on this branch.
+  // They are out of scope for this activation and must not be touched by it,
+  // but they are allowed to remain dirty here.
+  const preExistingOperatorOrdersWip = new Set([
+    'backend/controllers/gameHostingOrder.controller.js',
+    'backend/services/gameHostingOrder.service.js',
+    'backend/tests/gameHostingMarketUi.test.js',
+    'market/js/app.js',
+    'market/js/locales.js'
   ]);
   const allowedUntracked = new Set([
     'platform/tests/section-lockdown.test.cjs',
     'CANDIDATE_HANDOFF_20260920.md',
     'docs/REAL_REPOSITORY_RECONCILIATION.md',
-    'docs/TEABLE_AGENT_RECONCILIATION.md'
+    'docs/TEABLE_AGENT_RECONCILIATION.md',
+    // Pre-existing untracked files from earlier operator-orders work on this branch.
+    'backend/tests/gameHostingOperatorOrdersUi.test.js',
+    // Scratch/jest-report artifacts that may be present in this worktree.
+    'tmp_jest_report.json',
+    // New files introduced by this media-reels activation.
+    'backend/controllers/reels.controller.js',
+    'backend/services/reels.service.js',
+    'backend/tests/reelsPublic.test.js',
+    'media-reels.html'
   ]);
   const git = (args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' }).stdout.split('\n').map((s) => s.trim()).filter(Boolean);
   const modified = git(['diff', '--name-only', 'HEAD']);
   for (const file of modified) {
-    assert.ok(allowedModified.has(file), 'unexpected modified file: ' + file);
+    assert.ok(allowedModified.has(file) || preExistingOperatorOrdersWip.has(file),
+      'unexpected modified file: ' + file);
   }
   const untracked = git(['ls-files', '--others', '--exclude-standard']);
   for (const file of untracked) {
@@ -366,8 +393,29 @@ check('Marketplace, legacy market and protected data show no working-tree diff',
   // backend/data/platformPublic.json is pre-existing local WIP and must never
   // be staged by this change set (checked again at commit time by the diff
   // scope report); marketplace/legacy market must show zero diff.
-  const forbidden = diffs.split('\n').filter((f) => f && !f.startsWith('backend/data/platformPublic.json'));
+  // The market/js/* changes here are pre-existing operator-orders work on this
+  // branch and are out of scope for this activation.
+  const forbidden = diffs.split('\n').filter((f) => {
+    if (!f || f.startsWith('backend/data/platformPublic.json')) return false;
+    return !f.startsWith('market/js/app.js') && !f.startsWith('market/js/locales.js');
+  });
   assert.deepStrictEqual(forbidden, [], 'forbidden diffs: ' + forbidden.join(', '));
+});
+
+// ---------------------------------------------------------------------------
+// 6. Media/Reels activation — intended final policy state
+// ---------------------------------------------------------------------------
+check('platform.html has an active Media / Reels nav link', () => {
+  assert.ok(PLATFORM_HTML.includes('href="/media-reels.html"'), 'media-reels nav link missing');
+  assert.ok(PLATFORM_HTML.includes('data-i18n="nav_media_reels"'), 'media-reels nav label missing');
+  assert.ok(PLATFORM_HTML.includes('data-i18n="nav_media_reels_short"'), 'media-reels short nav label missing');
+  assert.ok(PLATFORM_HTML.includes('data-i18n="cta_reels"'), 'media-reels cta label missing');
+});
+
+check('platform.html still locks game-hosting (not unlocked by media-reels)', () => {
+  assert.ok(PLATFORM_HTML.includes('class="glass-nav-link is-soon"'), 'game-hosting locked nav missing');
+  assert.ok(PLATFORM_HTML.includes('class="bottom-nav-link is-soon"'), 'game-hosting locked bottom nav missing');
+  assert.ok(count(PLATFORM_HTML, 'href="/media-reels.html"') >= 2, 'media-reels active link count too low');
 });
 
 console.log('\nsection-lockdown.test.cjs: ' + passed + ' passed, ' + failed + ' failed');

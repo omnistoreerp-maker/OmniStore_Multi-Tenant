@@ -29,12 +29,15 @@
       nav_market: 'Market',
       nav_business: 'Business Solutions',
       nav_game: 'Game Hosting',
+      nav_media_reels: 'Media / Reels',
       nav_app: 'Open Application',
       nav_market_short: 'Market',
       nav_business_short: 'Business',
+      nav_media_reels_short: 'Reels',
       nav_game_short: 'Games',
       nav_app_short: 'App',
       nav_soon: 'Soon',
+      cta_reels: 'Media / Reels',
       footer_text: 'OmniStore Platform v',
       footer_rights: 'All rights reserved',
       trust_1_title: 'Multi-tenant',
@@ -91,12 +94,15 @@
       nav_market: 'السوق',
       nav_business: 'حلول الأعمال',
       nav_game: 'استضافة الألعاب',
+      nav_media_reels: 'الوسائط / الريلز',
       nav_app: 'Open Application',
       nav_market_short: 'الماركت',
       nav_business_short: 'الأعمال',
+      nav_media_reels_short: 'الريلز',
       nav_game_short: 'الألعاب',
       nav_app_short: 'التطبيق',
       nav_soon: 'قريباً',
+      cta_reels: 'الوسائط / الريلز',
       footer_text: 'منصة OmniStore إصدار',
       footer_rights: 'جميع الحقوق محفوظة',
       trust_1_title: 'تعدد المستأجرين',
@@ -248,9 +254,10 @@
   const SECTION_LOCK_POLICY = {
     active: {
       'marketplace': '/marketplace/',
-      'business-services': '/business.html'
+      'business-services': '/business.html',
+      'media-reels': '/media-reels.html'
     },
-    lockedIds: ['student-services', 'game-hosting', 'media-reels', 'support']
+    lockedIds: ['student-services', 'game-hosting', 'support']
   };
 
   // Fallback catalog shown when the API returns no sections at all.
@@ -259,7 +266,7 @@
     { id: 'business-services', title: 'Business Management Services', description: 'Existing company access and new company onboarding.', status: 'active', url: '/business.html', icon: 'fa-building' },
     { id: 'student-services', title: 'Student Services', description: 'Student services and printing — coming soon.', status: 'coming-soon', url: null, icon: 'fa-graduation-cap' },
     { id: 'game-hosting', title: 'Game Hosting', description: 'Host and manage game sessions — coming soon.', status: 'coming-soon', url: null, icon: 'fa-gamepad' },
-    { id: 'media-reels', title: 'Media / Reels', description: 'Media content and reels sharing — coming soon.', status: 'coming-soon', url: null, icon: 'fa-film' },
+    { id: 'media-reels', title: 'Media / Reels', description: 'Public reels feed and short-form video content.', status: 'active', url: '/media-reels.html', icon: 'fa-film' },
     { id: 'support', title: 'Support', description: 'Customer support center — coming soon.', status: 'coming-soon', url: null, icon: 'fa-life-ring' }
   ];
 

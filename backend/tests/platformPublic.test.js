@@ -47,7 +47,7 @@ function seedPublic(dir) {
       { id: 'business-services', title: 'Business Management Services', description: 'Existing company access and new company onboarding.', status: 'active', url: '/business.html', icon: 'fa-building' },
       { id: 'student-services', title: 'Student Services', description: 'Student-facing services.', status: 'coming-soon', url: null, icon: 'fa-graduation-cap' },
       { id: 'game-hosting', title: 'Game Hosting', description: 'Host and manage game sessions.', status: 'under-construction', url: null, icon: 'fa-gamepad' },
-      { id: 'media-reels', title: 'Media / Reels', description: 'Media content and reels sharing.', status: 'coming-soon', url: null, icon: 'fa-film' }
+      { id: 'media-reels', title: 'Media / Reels', description: 'Public reels feed and short-form video content.', status: 'active', url: '/media-reels.html', icon: 'fa-film' }
     ]
   });
 }

@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#070a12">
+<meta name="description" content="Omnistore Media / Reels — public short-form video feed.">
+<title data-i18n="page_title">OmniStore Media / Reels</title>
+<style>
+  :root{
+    --bg:#070a12; --surface:#0f1420; --surface2:#151c2b; --surface3:#1d2738;
+    --border:#2a3548; --accent:#5b8def; --accent2:#7aa2ff; --green:#3dd68c; --red:#fb6f7a;
+    --text:#eef2fb; --text2:#aeb9cc; --muted:#73829c; --glow:0 0 24px rgba(91,138,239,.18);
+    --safe-bottom:env(safe-area-inset-bottom,0px);
+    --safe-top:env(safe-area-inset-top,0px);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{width:100%;max-width:100%;overflow:hidden;}
+  body{
+    font-family:'Cairo',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    background:var(--bg);color:var(--text);
+    overscroll-behavior:none;
+    -webkit-font-smoothing:antialiased;
+  }
+  img,video,svg{max-width:100%;display:block;}
+  button{font-family:inherit;}
+
+  .app{position:fixed;inset:0;display:flex;flex-direction:column;}
+
+  /* Top bar */
+  .topbar{
+    position:absolute;top:0;left:0;right:0;z-index:20;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:12px 14px;
+    background:linear-gradient(180deg,rgba(7,10,18,.92),rgba(7,10,18,.55));
+    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--border);
+  }
+  .topbar-brand{display:flex;align-items:center;gap:10px;color:var(--text);}
+  .topbar-brand .mark{width:22px;height:22px;color:var(--accent2);}
+  .topbar-title{font-size:0.95rem;font-weight:700;}
+  .topbar-actions{display:flex;align-items:center;gap:8px;}
+
+  .icon-btn{
+    width:38px;height:38px;border-radius:11px;border:1px solid var(--border);
+    background:var(--surface);color:var(--text2);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;
+    transition:transform .15s,background .2s;
+  }
+  .icon-btn:active{transform:scale(.95);}
+  .icon-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+
+  /* Feed */
+  .feed{
+    flex:1;overflow-y:auto;overflow-x:hidden;
+    -webkit-overflow-scrolling:touch;
+    scroll-behavior:smooth;
+  }
+  .feed-inner{
+    position:relative;width:100%;
+  }
+
+  .reel{
+    position:relative;
+    width:100%;
+    height:100vh;
+    height:100dvh;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+    background:#000;
+    scroll-snap-align:start;
+    scroll-snap-stop:mandatory;
+  }
+  .reel-video{
+    position:absolute;inset:0;
+    width:100%;height:100%;
+    object-fit:contain;
+    background:#000;
+    pointer-events:none;
+  }
+  .reel-video.paused{opacity:.98;}
+  .reel-overlay{
+    position:absolute;inset:0;
+    background:linear-gradient(180deg,rgba(0,0,0,.18) 0%,rgba(0,0,0,.02) 35%,rgba(0,0,0,.35) 80%,rgba(0,0,0,.7) 100%);
+    pointer-events:none;
+  }
+  .reel-spacer{height:100vh;height:100dvh;}
+  .reel-meta{
+    position:absolute;left:0;right:0;bottom:0;
+    padding:16px 14px 22px;
+    background:linear-gradient(180deg,transparent,rgba(7,10,18,.92));
+    pointer-events:auto;
+  }
+  .reel-meta-inner{
+    max-width:100%;
+    background:rgba(15,20,32,.78);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:10px 12px;
+    backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  }
+  .reel-creator{
+    display:flex;align-items:center;gap:10px;
+    margin-bottom:8px;
+  }
+  .creator-avatar{
+    width:34px;height:34px;border-radius:50%;
+    background:var(--surface3);color:var(--accent2);
+    display:flex;align-items:center;justify-content:center;
+    font-weight:700;font-size:0.95rem;
+    border:1px solid var(--border);
+  }
+  .creator-name{font-weight:700;font-size:0.9rem;}
+  .creator-handle{color:var(--muted);font-size:0.78rem;}
+  .reel-caption{
+    font-size:0.9rem;line-height:1.5;color:var(--text);
+    margin-bottom:6px;
+  }
+  .hashtags{
+    display:flex;flex-wrap:wrap;gap:6px;
+    font-size:0.78rem;color:var(--accent2);
+  }
+  .hashtag{
+    background:var(--surface3);border:1px solid var(--border);
+    padding:2px 8px;border-radius:999px;
+    color:var(--accent2);font-weight:600;
+  }
+  .reel-source{
+    margin-top:8px;font-size:0.72rem;color:var(--muted);
+    display:flex;align-items:center;gap:6px;
+  }
+
+  /* Action rail */
+  .action-rail{
+    position:absolute;left:10px;right:10px;bottom:96px;
+    display:flex;flex-direction:column;align-items:center;gap:14px;
+    pointer-events:none;
+  }
+  .action-rail .action-rail-inner{
+    display:flex;flex-direction:column;align-items:center;gap:14px;
+    pointer-events:auto;
+  }
+  .action-row{
+    display:flex;align-items:center;gap:22px;
+  }
+  .action-btn{
+    display:flex;flex-direction:column;align-items:center;gap:4px;
+    color:var(--text);cursor:pointer;
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:12px;padding:8px 10px;
+    min-width:54px;
+    transition:transform .15s,background .2s;
+  }
+  .action-btn:active{transform:scale(.94);}
+  .action-btn.disabled{
+    opacity:.4;pointer-events:none;filter:grayscale(.4);
+  }
+  .action-btn .icon{width:24px;height:24px;}
+  .action-btn .label{
+    font-size:0.7rem;color:var(--text2);font-weight:600;
+  }
+  .action-btn.liked{color:var(--red);border-color:var(--red);}
+  .action-btn.liked .icon{color:var(--red);}
+
+  /* Controls bottom */
+  .controls{
+    position:absolute;left:0;right:0;bottom:0;
+    padding:10px 14px 14px;
+    background:linear-gradient(0deg,rgba(7,10,18,.92),rgba(7,10,18,.2));
+    pointer-events:none;
+  }
+  .controls-inner{
+    display:flex;align-items:center;justify-content:space-between;
+    pointer-events:auto;
+  }
+  .ctrl-btn{
+    width:38px;height:38px;border-radius:50%;
+    background:rgba(255,255,255,.08);border:1px solid var(--border);
+    color:var(--text);cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    transition:transform .15s,background .2s;
+  }
+  .ctrl-btn:active{transform:scale(.9);}
+  .ctrl-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .progress-track{
+    flex:1;height:4px;background:rgba(255,255,255,.12);border-radius:999px;overflow:hidden;margin:0 12px;
+  }
+  .progress-fill{
+    height:100%;background:var(--accent2);width:0%;
+    transition:width .1s linear;
+  }
+
+  /* Loading / empty / error */
+  .state-wrap{
+    position:absolute;inset:0;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:24px;text-align:center;color:var(--text2);
+    background:var(--bg);
+  }
+  .state-icon{width:54px;height:54px;color:var(--accent2);margin-bottom:14px;}
+  .state-title{font-size:1.1rem;font-weight:700;margin-bottom:8px;color:var(--text);}
+  .state-sub{font-size:0.9rem;max-width:320px;line-height:1.6;}
+  .state-btn{
+    margin-top:16px;background:var(--accent);color:#fff;border:none;
+    padding:10px 16px;border-radius:11px;font-weight:700;cursor:pointer;
+  }
+  .hidden{display:none!important;}
+
+  .reel-enter{animation:reelIn .25s ease-out both;}
+  @keyframes reelIn{from{opacity:.5;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+  .coming-soon-badge{
+    font-size:0.66rem;color:var(--muted);
+    border:1px dashed var(--border);border-radius:999px;
+    padding:1px 8px;background:var(--surface);
+  }
+</style>
+</head>
+<body>
+  <div class="app" id="app">
+
+    <header class="topbar">
+      <div class="topbar-brand">
+        <svg class="mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/>
+          <path d="M7 3v18"/>
+          <path d="M17 3v18"/>
+        </svg>
+        <span class="topbar-title" data-i18n="page_title">Media / Reels</span>
+      </div>
+      <div class="topbar-actions">
+        <button class="icon-btn" id="shareBtn" type="button" data-i18n="action_share">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+            <polyline points="16 6 12 2 8 6"/>
+            <line x1="12" y1="2" x2="12" y2="15"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="feed" id="feed">
+      <div class="state-wrap" id="loadingState">
+        <svg class="state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
+        </svg>
+        <div class="state-title" data-i18n="state_loading">جاري التحميل</div>
+        <div class="state-sub" data-i18n="state_loading_sub">جارٍ تحميل الريلز …</div>
+      </div>
+
+      <div class="state-wrap hidden" id="errorState">
+        <svg class="state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <div class="state-title" data-i18n="state_error">عذراً</div>
+        <div class="state-sub" id="errorSub" data-i18n="state_error_sub">تعذر تحميل الريلز الآن.</div>
+        <button class="state-btn" id="retryBtn" type="button" data-i18n="action_retry">إعادة المحاولة</button>
+      </div>
+
+      <div class="state-wrap hidden" id="emptyState">
+        <svg class="state-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2v3m0 14v3M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h3m14 0h3M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/>
+        </svg>
+        <div class="state-title" data-i18n="state_empty">لا توجد ريالات حتى الآن</div>
+        <div class="state-sub" data-i18n="state_empty_sub">ال 피드 العامة فارغة حالياً. ستظهر الريلز هنا عند إضافتها.</div>
+      </div>
+
+      <div class="feed-inner hidden" id="feedInner"></div>
+    </div>
+
+    <div class="controls hidden" id="controls">
+      <div class="controls-inner">
+        <button class="ctrl-btn" id="muteBtn" type="button" aria-label="mute">
+          <svg id="muteIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 5L6 9H2v6h4l5 4V5z"/>
+            <line x1="23" y1="9" x2="17" y2="15"/>
+            <line x1="17" y1="9" x2="23" y2="15"/>
+          </svg>
+        </button>
+        <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+        <button class="ctrl-btn" id="loopBtn" type="button" aria-label="loop">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="1 4 1 10 7 10"/>
+            <path d="M3.51 15a9 9 0 1 0 .49-3.5"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  'use strict';
+
+  var API = '/api/v1/platform-public/reels';
+  var feed = document.getElementById('feed');
+  var feedInner = document.getElementById('feedInner');
+  var loadingState = document.getElementById('loadingState');
+  var errorState = document.getElementById('errorState');
+  var emptyState = document.getElementById('emptyState');
+  var errorSub = document.getElementById('errorSub');
+  var retryBtn = document.getElementById('retryBtn');
+  var controls = document.getElementById('controls');
+  var muteBtn = document.getElementById('muteBtn');
+  var muteIcon = document.getElementById('muteIcon');
+  var progressFill = document.getElementById('progressFill');
+  var loopBtn = document.getElementById('loopBtn');
+  var shareBtn = document.getElementById('shareBtn');
+
+  var reels = [];
+  var currentIndex = -1;
+  var muted = false;
+  var looping = true;
+  var videoPool = [];
+  var MAX_POOL = 3;
+
+  /* ---------- i18n (inline, Arabic-first) ---------- */
+  var I18N = {
+    ar: {
+      page_title: 'الوسائط / الريلز',
+      state_loading: 'جاري التحميل',
+      state_loading_sub: 'جارٍ تحميل الريلز …',
+      state_error: 'عذراً',
+      state_error_sub: 'تعذر تحميل الريلز الآن.',
+      action_retry: 'إعادة المحاولة',
+      state_empty: 'لا توجد ريالات حتى الآن',
+      state_empty_sub: 'ال피드 العامة فارغة حالياً. ستظهر الريلز هنا عند إضافتها.',
+      action_share: 'مشاركة',
+      share_copied: 'تم نسخ الرابط',
+      action_like: 'إعجاب',
+      action_comment: 'تعليقات',
+      action_save: 'حفظ',
+      action_follow: 'متابعة',
+      coming_soon: 'قريباً',
+      source_platform: 'Omnistore',
+      muted: 'كتمان',
+      unmuted: 'صوت',
+      loop_on: 'تكرار',
+      loop_off: 'بدون تكرار',
+      meta_caption: 'العنوان',
+      meta_hashtags: 'هاشتاقات',
+      meta_source: 'المصدر',
+      meta_date: 'التاريخ',
+      video_unavailable: 'الفيديو غير متوفر حالياً'
+    },
+    en: {
+      page_title: 'Media / Reels',
+      state_loading: 'Loading',
+      state_loading_sub: 'Loading reels…',
+      state_error: 'Oops',
+      state_error_sub: 'Could not load reels right now.',
+      action_retry: 'Try again',
+      state_empty: 'No reels yet',
+      state_empty_sub: 'The public feed is empty for now. Reels will appear here once added.',
+      action_share: 'Share',
+      share_copied: 'Link copied',
+      action_like: 'Like',
+      action_comment: 'Comments',
+      action_save: 'Save',
+      action_follow: 'Follow',
+      coming_soon: 'Coming soon',
+      source_platform: 'Omnistore',
+      muted: 'Muted',
+      unmuted: 'Sound on',
+      loop_on: 'Loop',
+      loop_off: 'No loop',
+      meta_caption: 'Caption',
+      meta_hashtags: 'Hashtags',
+      meta_source: 'Source',
+      meta_date: 'Date',
+      video_unavailable: 'Video unavailable'
+    }
+  };
+
+  function t(key){
+    var lang = 'ar';
+    try { var saved = localStorage.getItem('omnistore_reels_lang'); if (saved === 'ar' || saved === 'en') lang = saved; } catch(e){}
+    return (I18N[lang] && I18N[lang][key]) ? I18N[lang][key] : (I18N.en[key] || key);
+  }
+
+  function setLang(lang){
+    try { localStorage.setItem('omnistore_reels_lang', lang); } catch(e){}
+    document.documentElement.setAttribute('lang', lang);
+    document.documentElement.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
+    rerenderDynamic();
+  }
+
+  function escapeHtml(s){
+    if (s == null) return '';
+    return String(s).replace(/[&<>"']/g, function(c){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]);
+    });
+  }
+
+  function formatDate(iso){
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    var lang = 'ar';
+    try { var saved = localStorage.getItem('omnistore_reels_lang'); if (saved === 'ar' || saved === 'en') lang = saved; } catch(e){}
+    try {
+      return d.toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', {
+        year:'numeric', month:'short', day:'numeric'
+      });
+    } catch(e){
+      return d.toISOString().slice(0, 10);
+    }
+  }
+
+  /* ---------- API ---------- */
+  function showLoading(){
+    loadingState.classList.remove('hidden');
+    errorState.classList.add('hidden');
+    emptyState.classList.add('hidden');
+    feedInner.classList.add('hidden');
+    controls.classList.add('hidden');
+  }
+  function showError(msg){
+    loadingState.classList.add('hidden');
+    errorState.classList.remove('hidden');
+    emptyState.classList.add('hidden');
+    feedInner.classList.add('hidden');
+    controls.classList.add('hidden');
+    errorSub.textContent = msg || t('state_error_sub');
+  }
+  function showEmpty(){
+    loadingState.classList.add('hidden');
+    errorState.classList.add('hidden');
+    emptyState.classList.remove('hidden');
+    feedInner.classList.add('hidden');
+    controls.classList.add('hidden');
+  }
+  function showFeed(){
+    loadingState.classList.add('hidden');
+    errorState.classList.add('hidden');
+    emptyState.classList.add('hidden');
+    feedInner.classList.remove('hidden');
+    controls.classList.remove('hidden');
+  }
+
+  function loadReels(){
+    showLoading();
+    fetch(API, { method:'GET', headers:{ 'Accept':'application/json' } })
+      .then(function(res){ if (!res.ok) throw new Error('status ' + res.status); return res.json(); })
+      .then(function(body){
+        if (!body || !body.success) throw new Error('invalid response');
+        var data = body.data || {};
+        var list = Array.isArray(data.reels) ? data.reels : [];
+        reels = list.slice();
+        if (reels.length === 0){
+          showEmpty();
+          return;
+        }
+        buildFeed();
+        showFeed();
+        // pick initial current item based on scroll
+        updateCurrentIndex();
+      })
+      .catch(function(err){
+        console.error('media-reels feed error:', err);
+        showError(err && err.message ? err.message : t('state_error_sub'));
+      });
+  }
+
+  /* ---------- feed build ---------- */
+  function buildFeed(){
+    feedInner.innerHTML = '';
+    // Build visible cards. We render offscreen spacer + reel pairs.
+    for (var i = 0; i < reels.length; i++){
+      var topSpacer = document.createElement('div');
+      topSpacer.className = 'reel-spacer';
+
+      var reelEl = document.createElement('div');
+      reelEl.className = 'reel reel-enter';
+      reelEl.dataset.index = String(i);
+      reelEl.innerHTML = renderReel(reels[i], i);
+
+      var videoWrap = reelEl.querySelector('.reel-video-wrap');
+      var video = document.createElement('video');
+      video.className = 'reel-video';
+      video.setAttribute('playsinline', '');
+      video.setAttribute('webkit-playsinline', '');
+      video.setAttribute('muted', muted ? 'muted' : '');
+      video.setAttribute('loop', looping ? 'loop' : '');
+      video.setAttribute('preload', 'metadata');
+      video.src = reels[i].mediaUrl || '';
+      video.dataset.index = String(i);
+      if (videoWrap) videoWrap.appendChild(video);
+
+      feedInner.appendChild(topSpacer);
+      feedInner.appendChild(reelEl);
+    }
+
+    // IntersectionObserver for current-item detection
+    var io = new IntersectionObserver(function(entries){
+      for (var e = 0; e < entries.length; e++){
+        var entry = entries[e];
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.5){
+          var idx = parseInt(entry.target.dataset.index, 10);
+          if (!isNaN(idx) && idx !== currentIndex){
+            currentIndex = idx;
+            onCurrentReelChanged(idx);
+          }
+        }
+      }
+    }, { threshold:[0.5, 0.75, 1], root: feed });
+
+    var reelsEls = feedInner.querySelectorAll('.reel');
+    for (var r = 0; r < reelsEls.length; r++){
+      io.observe(reelsEls[r]);
+    }
+
+    bindReelActions();
+  }
+
+  function renderReel(reel, idx){
+    var caption = escapeHtml(reel.caption || '');
+    var creator = escapeHtml(reel.creator || '');
+    var hashtags = Array.isArray(reel.hashtags) ? reel.hashtags : [];
+    var date = formatDate(reel.createdAt);
+    var sourceLabel = t('source_platform');
+
+    var hashtagHtml = '';
+    if (hashtags.length){
+      hashtagHtml = '<div class="hashtags">' + hashtags.map(function(h){
+        return '<span class="hashtag">' + escapeHtml(h) + '</span>';
+      }).join('') + '</div>';
+    }
+
+    var html =
+      '<div class="reel-overlay"></div>' +
+      '<div class="reel-video-wrap"></div>' +
+      '<div class="reel-meta">' +
+        '<div class="reel-meta-inner reel-enter">' +
+          '<div class="reel-creator">' +
+            '<div class="creator-avatar" aria-hidden="true">' + (creator ? creator.slice(0,2).toUpperCase() : '?') + '</div>' +
+            '<div>' +
+              '<div class="creator-name">' + creator + '</div>' +
+              '<div class="creator-handle">@' + (reel.handle || '') + '</div>' +
+            '</div>' +
+          '</div>' +
+          (caption ? '<div class="reel-caption">' + caption + '</div>' : '') +
+          (hashtagHtml ? hashtagHtml : '') +
+          '<div class="reel-source">' +
+            '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>' +
+            '<span>' + escapeHtml(sourceLabel) + '</span>' +
+            (date ? '<span style="opacity:.7">·</span><span style="opacity:.7">' + escapeHtml(date) + '</span>' : '') +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="action-rail">' +
+        '<div class="action-rail-inner">' +
+          '<div class="action-row">' +
+            '<button class="action-btn disabled" type="button" data-action="like" aria-label="' + t('action_like') + '">' +
+              '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06a5.5 5.5 0 0 0 7.78 0L12 21.23l7.78-7.78a5.5 5.5 0 0 0 0-7.78z"/></svg>' +
+              '<span class="label">' + t('action_like') + '</span>' +
+            '</button>' +
+            '<button class="action-btn disabled" type="button" data-action="comment" aria-label="' + t('action_comment') + '">' +
+              '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>' +
+              '<span class="label">' + t('action_comment') + '</span>' +
+            '</button>' +
+            '<button class="action-btn disabled" type="button" data-action="save" aria-label="' + t('action_save') + '">' +
+              '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>' +
+              '<span class="label">' + t('action_save') + '</span>' +
+            '</button>' +
+            '<button class="action-btn disabled" type="button" data-action="follow" aria-label="' + t('action_follow') + '">' +
+              '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>' +
+              '<span class="label">' + t('action_follow') + '</span>' +
+            '</button>' +
+          '</div>' +
+          '<div class="coming-soon-badge">' + t('coming_soon') + '</div>' +
+        '</div>' +
+      '</div>';
+
+    return html;
+  }
+
+  function bindReelActions(){
+    var items = feedInner.querySelectorAll('.action-btn[data-action]');
+    for (var i = 0; i < items.length; i++){
+      items[i].addEventListener('click', function(e){
+        e.preventDefault();
+        // disabled global actions: no backend yet. Keep honest coming-soon.
+        var action = this.getAttribute('data-action');
+        if (action === 'like'){
+          this.classList.toggle('liked');
+          var label = this.querySelector('.label');
+          if (label){
+            if (this.classList.contains('liked')){
+              label.textContent = t('action_like') + ' ✓';
+            } else {
+              label.textContent = t('action_like');
+            }
+          }
+        }
+        // For other actions, brief haptic-like feedback only.
+        this.style.transform = 'scale(.92)';
+        setTimeout(function(el){ el.style.transform = ''; }, 120, this);
+      });
+    }
+  }
+
+  /* ---------- current reel handling ---------- */
+  var currentVideo = null;
+  var rafId = null;
+
+  function onCurrentReelChanged(idx){
+    if (idx === currentIndex && currentVideo) return;
+    currentIndex = idx;
+    try{
+      pauseAllVideos();
+      var reelEl = feedInner.querySelector('.reel[data-index="' + idx + '"]');
+      if (!reelEl){
+        currentVideo = null;
+        controls.classList.add('hidden');
+        return;
+      }
+      var video = getVideoForReel(idx, reelEl);
+      if (!video || !video.src){
+        currentVideo = null;
+        controls.classList.add('hidden');
+        return;
+      }
+      currentVideo = video;
+      controls.classList.remove('hidden');
+      video.play().then(function(){
+        // autoplay allowed
+      }).catch(function(){
+        // autoplay blocked — keep paused, user can tap
+        video.pause();
+      });
+      updateMuteIcon();
+      updateProgressUI();
+    }catch(e){
+      currentVideo = null;
+      controls.classList.add('hidden');
+    }
+  }
+
+  function getVideoForReel(idx, reelEl){
+    var existing = reelEl.querySelector('video');
+    if (existing) return existing;
+    var wrap = reelEl.querySelector('.reel-video-wrap');
+    if (!wrap) return null;
+    var video = document.createElement('video');
+    video.className = 'reel-video';
+    video.setAttribute('playsinline','');
+    video.setAttribute('webkit-playsinline','');
+    video.setAttribute('muted', muted ? 'muted' : '');
+    video.setAttribute('loop', looping && currentVideo ? 'loop' : '');
+    video.setAttribute('preload','metadata');
+    video.src = reels[idx].mediaUrl || '';
+    video.dataset.index = String(idx);
+    wrap.appendChild(video);
+    video.addEventListener('canplay', function(){
+      if (video === currentVideo) resumeCurrentVideo();
+    });
+    video.addEventListener('pause', function(){
+      if (video === currentVideo) updateProgressUI();
+    });
+    video.addEventListener('timeupdate', function(){
+      if (video === currentVideo) updateProgressUI();
+    });
+    video.addEventListener('ended', function(){
+      if (video === currentVideo && looping){
+        video.currentTime = 0;
+        video.play().catch(function(){});
+      }
+    });
+    return video;
+  }
+
+  function pauseAllVideos(){
+    var videos = feedInner.querySelectorAll('video');
+    for (var i = 0; i < videos.length; i++){
+      if (videos[i] !== currentVideo) videos[i].pause();
+    }
+    if (currentVideo && currentVideo.pause) currentVideo.pause();
+  }
+
+  function resumeCurrentVideo(){
+    if (!currentVideo) return;
+    try{ currentVideo.play(); }catch(e){ currentVideo.pause(); }
+  }
+
+  function updateMuteIcon(){
+    if (!muteIcon) return;
+    if (muted){
+      muteIcon.innerHTML =
+        '<path d="M11 5L6 9H2v6h4l5 4V5z"/>' +
+        '<line x1="23" y1="9" x2="17" y2="15"/>' +
+        '<line x1="17" y1="9" x2="23" y2="15"/>';
+    }else{
+      muteIcon.innerHTML =
+        '<path d="M11 5L6 9H2v6h4l5 4V5z"/>' +
+        '<path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>';
+    }
+  }
+
+  function updateProgressUI(){
+    if (!currentVideo || !progressFill) return;
+    var pct = 0;
+    try{
+      if (currentVideo.duration && isFinite(currentVideo.duration) && currentVideo.duration > 0){
+        pct = (currentVideo.currentTime / currentVideo.duration) * 100;
+      }
+    }catch(e){ pct = 0; }
+    progressFill.style.width = Math.min(100, Math.max(0, pct)) + '%';
+  }
+
+  /* ---------- controls ---------- */
+  muteBtn.addEventListener('click', function(){
+    muted = !muted;
+    updateMuteIcon();
+    applyAudioState();
+  });
+  loopBtn.addEventListener('click', function(){
+    looping = !looping;
+    loopBtn.classList.toggle('active', looping);
+    applyLoopState();
+  });
+  shareBtn.addEventListener('click', shareCurrentReel);
+  retryBtn.addEventListener('click', loadReels);
+
+  function applyAudioState(){
+    var videos = feedInner.querySelectorAll('video');
+    for (var i = 0; i < videos.length; i++){
+      videos[i].muted = muted;
+    }
+    if (currentVideo){
+      try{
+        if (muted){
+          currentVideo.pause();
+        }else{
+          currentVideo.play().catch(function(){});
+        }
+      }catch(e){}
+    }
+  }
+
+  function applyLoopState(){
+    var videos = feedInner.querySelectorAll('video');
+    for (var i = 0; i < videos.length; i++){
+      videos[i].loop = looping;
+    }
+  }
+
+  function shareCurrentReel(){
+    if (currentIndex < 0 || currentIndex >= reels.length) return;
+    var reel = reels[currentIndex];
+    var url = location.origin + location.pathname + '#reel/' + encodeURIComponent(reel.id);
+    if (navigator.share){
+      navigator.share({ title: t('page_title'), text: reel.caption || t('page_title'), url: url })
+        .catch(function(){});
+    }else{
+      if (navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(url).then(function(){
+          flashShareText(t('share_copied'));
+        }).catch(function(){ flashShareText(t('action_share')); });
+      }else{
+        flashShareText(t('action_share'));
+      }
+    }
+  }
+
+  function flashShareText(msg){
+    var orig = shareBtn.getAttribute('aria-label');
+    shareBtn.setAttribute('aria-label', msg);
+    setTimeout(function(){ shareBtn.setAttribute('aria-label', orig || t('action_share')); }, 1400);
+  }
+
+  function updateCurrentIndex(){
+    var reelEls = feedInner.querySelectorAll('.reel');
+    for (var i = 0; i < reelEls.length; i++){
+      var rect = reelEls[i].getBoundingClientRect();
+      if (rect.top <= 0 && rect.bottom > window.innerHeight * 0.4){
+        if (i !== currentIndex){
+          currentIndex = i;
+          onCurrentReelChanged(i);
+        }
+        break;
+      }
+    }
+  }
+
+  window.addEventListener('resize', function(){
+    updateCurrentIndex();
+  });
+
+  /* ---------- hash deep-link to a reel ---------- */
+  function applyHash(){
+    var h = location.hash;
+    if (!h) return;
+    var m = h.match(/^#reel\/([^\/]+)$/);
+    if (!m) return;
+    var id = decodeURIComponent(m[1]);
+    var idx = reels.findIndex(function(r){ return r && r.id === id; });
+    if (idx < 0) return;
+    if (!feedInner.classList.contains('hidden')){
+      scrollToReel(idx);
+    }else{
+      // wait until feed built
+      var wait = setInterval(function(){
+        if (feedInner.classList.contains('hidden')) return;
+        clearInterval(wait);
+        scrollToReel(idx);
+      }, 100);
+    }
+  }
+  function scrollToReel(idx){
+    var reelEls = feedInner.querySelectorAll('.reel');
+    if (reelEls[idx]) reelEls[idx].scrollIntoView({ behavior:'smooth', block:'start' });
+  }
+  window.addEventListener('hashchange', applyHash);
+
+  /* ---------- init ---------- */
+  function init(){
+    try {
+      var saved = localStorage.getItem('omnistore_reels_lang');
+      if (saved === 'ar' || saved === 'en'){
+        document.documentElement.setAttribute('lang', saved);
+        document.documentElement.setAttribute('dir', saved === 'ar' ? 'rtl' : 'ltr');
+      }
+    }catch(e){}
+    loadReels();
+  }
+
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', init);
+  }else{
+    init();
+  }
+})();
+</script>
+</body>
+</html>
