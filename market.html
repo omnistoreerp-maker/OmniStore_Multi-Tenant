@@ -8,6 +8,13 @@
   <link rel="stylesheet" href="market/css/market.css" />
   <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <style>
+    /* OmniAdSlot — inline page-flow slot only; never fixed/absolute/overlay. */
+    .omni-ad-slot { margin: 24px auto 0; max-width: 768px; padding: 0 16px; box-sizing: border-box; }
+    .omni-ad-box { overflow: hidden; border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 16px; background: rgba(15, 23, 42, 0.35); }
+    .omni-ad-inner { min-height: 90px; display: flex; align-items: center; justify-content: center; padding: 12px 16px; color: #94a3b8; font-size: 12px; }
+    .omni-ad-label { margin: 0; padding: 8px 16px; border-top: 1px solid rgba(148, 163, 184, 0.18); text-align: center; color: #94a3b8; font-size: 11px; font-weight: 600; }
+  </style>
 </head>
 <body>
   <a class="mk-skip-link" href="#mk-app">Skip to content</a>
@@ -69,6 +76,18 @@
     <div class="mk-loading" data-i18n="loading">Loading…</div>
   </main>
 
+  <!-- Inline ad slot (OmniAdSlot, safe boundary): in-flow page rectangle after
+       the storefront content and before the footer — it can never cover the
+       storefront header, nav, product cards or cart. Never an overlay, never
+       OnClick/Popunder; gated OFF with zero ad requests until the owner
+       supplies a safe, approved inline zone. -->
+  <section class="omni-ad-slot" aria-label="Advertisement" data-omni-ad data-omni-ad-page="market-storefront">
+    <div class="omni-ad-box">
+      <div class="omni-ad-inner" data-omni-ad-root></div>
+      <p class="omni-ad-label">إعلان — Advertisement</p>
+    </div>
+  </section>
+
   <dialog id="mk-confirm-dialog" class="mk-dialog" aria-labelledby="mk-confirm-title" aria-describedby="mk-confirm-msg">
     <div class="mk-dialog-body">
       <p id="mk-confirm-title" class="mk-dialog-title"></p>
@@ -101,5 +120,16 @@
   <script src="market/js/api.js"></script>
   <script src="market/js/store.js"></script>
   <script src="market/js/app.js"></script>
+  <script>
+    // OmniAdSlot boundary (inline slots only). Disabled by default: no ad
+    // script, no network request, and the slot stays a quiet placeholder
+    // until the owner supplies an approved inline zone + script URL.
+    window.OMNI_AD_CONFIG = {
+      enabled: 'false',
+      zone: 'OWNER_INPUT_REQUIRED',
+      scriptUrl: ''
+    };
+  </script>
+  <script src="platform/omniAdSlot.js" defer></script>
 </body>
 </html>

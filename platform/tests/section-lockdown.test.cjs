@@ -36,6 +36,7 @@ const PLATFORM_CSS = read('platform/platform.css');
 const BUSINESS_HTML = read('business.html');
 const STUDENT_HTML = read('student.html');
 const SUPPORT_HTML = read('support.html');
+const STORE_HTML = read('market.html');
 const AD_SLOT_SRC = read('platform/omniAdSlot.js');
 const INDEX_HTML = read('index.html');
 const MARKETPLACE_INDEX = read('marketplace/index.html');
@@ -246,6 +247,21 @@ check('support.html is the real customer-request center with the slot', () => {
   assert.ok(SUPPORT_HTML.includes("enabled: 'false'"), 'support gate must be off');
 });
 
+check('Game Hosting storefront (market.html) carries the gated inline slot', () => {
+  assert.strictEqual(count(STORE_HTML, 'data-omni-ad-root'), 1, 'storefront slot missing');
+  assert.ok(STORE_HTML.includes("enabled: 'false'"), 'storefront gate must be off');
+  assert.ok(STORE_HTML.includes("zone: 'OWNER_INPUT_REQUIRED'"), 'storefront zone must stay owner input');
+  assert.strictEqual(count(STORE_HTML, 'platform/omniAdSlot.js'), 1, 'storefront engine must load once');
+  // Storefront SPA stays untouched: mount point, cart and its own scripts.
+  assert.ok(STORE_HTML.includes('id="mk-app"'), 'storefront SPA mount removed');
+  assert.ok(STORE_HTML.includes('mk-bottom-cart-count'), 'storefront cart markup removed');
+  for (const s of ['market/js/locales.js', 'market/js/api.js', 'market/js/store.js', 'market/js/app.js']) {
+    assert.ok(STORE_HTML.includes(s), 'storefront script missing: ' + s);
+  }
+  assert.ok(!STORE_HTML.includes('quge5'), 'storefront must not reference ad hosts');
+  assert.strictEqual(count(STORE_HTML, 'data-zone='), 0, 'no zone attribute may ship on the storefront');
+});
+
 // ---------------------------------------------------------------------------
 // 5. platform/omniAdSlot.js — the safe inline-only boundary
 // ---------------------------------------------------------------------------
@@ -395,11 +411,14 @@ check('working-tree diff touches only intended files', () => {
     'backend/tests/platformPublic.test.js',
     'platform/tests/section-lockdown.test.cjs',
     'tests/e2e/verify-platform-nav.js',
+    'tests/e2e/verify-platform-hub.js',
     'marketplace/src/components/layout/Footer.tsx',
     // Tracked build entry: postbuild regenerates it (hashed asset name
     // changes because Footer now imports OmniAdSlot) — the documented
     // convention from the Monetag AdSlot cycle.
     'marketplace/index.html',
+    // Game Hosting storefront shell: inline slot only, SPA logic untouched.
+    'market.html',
     'docs/monetag-onclick-disable-and-filtering-request.md'
   ]);
   const allowedUntracked = new Set([
@@ -420,7 +439,7 @@ check('working-tree diff touches only intended files', () => {
 
 check('Marketplace build, legacy market, sw.js, .env and backend/data show no working-tree diff', () => {
   const git = (args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' }).stdout;
-  const protectedPaths = ['market.html', 'market', 'sw.js', '.env', 'backend/data', 'marketplace/dist'];
+  const protectedPaths = ['market', 'sw.js', '.env', 'backend/data', 'marketplace/dist'];
   const dirty = git(['diff', '--name-only', 'HEAD', '--', ...protectedPaths])
     .split('\n')
     .map((f) => f.trim())

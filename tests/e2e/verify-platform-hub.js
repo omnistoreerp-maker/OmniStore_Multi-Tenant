@@ -61,10 +61,14 @@ async function main() {
   context.on('request', (r) => { if (AD_HOSTS.test(r.url())) adRequests += 1; });
 
   try {
+    // Both surfaces that carry the inline slot in static HTML: the Platform
+    // hub and the Game Hosting / Market storefront (market.html#/game-hosting).
+    const PAGES = [['/platform.html', 'HUB', 'hub'], ['/market.html', 'STORE', 'storefront']];
+    for (const [pathname, prefix, human] of PAGES) {
     for (const [width, label] of VIEWPORTS) {
       const page = await context.newPage();
       await page.setViewportSize({ width, height: Math.max(640, Math.round(width * 2.1)) });
-      await page.goto(base + '/platform.html', { waitUntil: 'domcontentloaded' }).catch(() => {});
+      await page.goto(base + pathname, { waitUntil: 'domcontentloaded' }).catch(() => {});
       await page.waitForTimeout(400);
       const geo = await page.evaluate(() => {
         const doc = document.documentElement;
@@ -83,11 +87,15 @@ async function main() {
         };
       }).catch(() => ({ overflow: 9999, slotState: 'missing', slotPos: 'missing', placeholder: false, bottomNavLinks: 0, topNavLinks: 0, footerLinks: 0 }));
 
-      check(label + ': hub has zero horizontal overflow', geo.overflow <= 2, 'overflowPx=' + geo.overflow);
-      check(label + ': OmniAdSlot is in-flow (never fixed/absolute/sticky)', geo.slotPos === 'static', 'position=' + geo.slotPos);
-      check(label + ': OmniAdSlot renders the disabled placeholder', geo.slotState === 'placeholder' && geo.placeholder, 'state=' + geo.slotState);
-      check(label + ': all section entries present (top nav = 7 links)', geo.topNavLinks === 7, 'top=' + geo.topNavLinks + ' footer=' + geo.footerLinks + ' bottom=' + geo.bottomNavLinks);
+      const tag = prefix + '_' + width;
+      check(tag + ': ' + human + ' has zero horizontal overflow', geo.overflow <= 2, 'overflowPx=' + geo.overflow);
+      check(tag + ': OmniAdSlot is in-flow (never fixed/absolute/sticky)', geo.slotPos === 'static', 'position=' + geo.slotPos);
+      check(tag + ': OmniAdSlot renders the disabled placeholder', geo.slotState === 'placeholder' && geo.placeholder, 'state=' + geo.slotState);
+      if (prefix === 'HUB') {
+        check(tag + ': all section entries present (top nav = 7 links)', geo.topNavLinks === 7, 'top=' + geo.topNavLinks + ' footer=' + geo.footerLinks + ' bottom=' + geo.bottomNavLinks);
+      }
       await page.close();
+    }
     }
 
     check('ZERO_AD_REQUESTS: no ad-network host contacted while gated', adRequests === 0, 'ad requests: ' + adRequests);
