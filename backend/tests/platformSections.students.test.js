@@ -8,8 +8,9 @@
 //
 //   1. PUBLIC DISCOVERY — GET /api/v1/platform-public/sections and /catalog
 //      must advertise Students as active with the real route /student.html,
-//      while marketplace/business-services stay active and game-hosting,
-//      media-reels and support stay honestly Coming Soon with url:null.
+//      while marketplace/business-services/game-hosting stay active, the new
+//      Media / Reels feed advertises /media-reels.html, and support stays
+//      honestly Coming Soon with url:null.
 //   2. HTTP GATE — the tenant Students API is only usable when the request
 //      carries a real tenant identity; anonymous access is rejected.
 //
@@ -81,11 +82,11 @@ describe('GET /api/v1/platform-public — Students activation regression', () =>
     expect(student.url).toBe('/student.html');
   });
 
-  test('sections keeps every other locked section Coming Soon with url:null', async () => {
+  test('sections keeps the remaining locked section Coming Soon with url:null', async () => {
     const res = await request(server).get('/api/v1/platform-public/sections');
     const sections = res.body.data.sections;
     const byId = Object.fromEntries(sections.map((s) => [s.id, s]));
-    for (const locked of ['media-reels', 'support']) {
+    for (const locked of ['support']) {
       expect(byId[locked]).toBeTruthy();
       expect(byId[locked].status).toBe('coming-soon');
       expect(byId[locked].url).toBeNull();
@@ -95,6 +96,16 @@ describe('GET /api/v1/platform-public — Students activation regression', () =>
     expect(game).toBeTruthy();
     expect(game.status).toBe('active');
     expect(game.url).toBe('/index.html');
+  });
+
+  test('sections exposes media-reels as the active reels feed', async () => {
+    const res = await request(server).get('/api/v1/platform-public/sections');
+    expect(res.statusCode).toBe(200);
+    const byId = Object.fromEntries(res.body.data.sections.map((s) => [s.id, s]));
+    const media = byId['media-reels'];
+    expect(media).toBeTruthy();
+    expect(media.status).toBe('active');
+    expect(media.url).toBe('/media-reels.html');
   });
 
   test('sections keeps the previously active sections active', async () => {

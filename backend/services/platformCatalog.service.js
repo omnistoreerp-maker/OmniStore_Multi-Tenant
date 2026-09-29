@@ -92,8 +92,8 @@ function _defaultDoc() {
         id: 'media-reels',
         title: 'Media / Reels',
         description: 'Media content and reels sharing.',
-        status: 'coming-soon',
-        url: null,
+        status: 'active',
+        url: '/media-reels.html',
         icon: 'fa-film'
       },
       {
