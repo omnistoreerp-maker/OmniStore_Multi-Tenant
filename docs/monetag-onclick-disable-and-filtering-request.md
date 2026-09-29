@@ -140,6 +140,18 @@ We understand CPM rates may decrease as a result of filtering; please confirm th
   `/marketplace/` instead of the ad chain.
 - Confirm Monetag's meta/tag/zone presence is unchanged in the process (it is not touched by us).
 
+## Codebase update (2026-09-29)
+
+The unsafe Multitag tag (zone `288239`) and the Monetag verification meta were **removed** from
+`platform.html`, and every Monetag origin was removed from the backend CSP. The platform-wide
+ad surface is now **OmniAdSlot** (`platform/omniAdSlot.js` + the Marketplace `OmniAdSlot.tsx`):
+an inline, page-flow slot that is hard-gated OFF (`enabled: 'false'`,
+`zone: 'OWNER_INPUT_REQUIRED'`) and hard-blocks the prohibited zones
+`288239`, `11912374`, `11912377`, `11857331`. It stays a silent placeholder with zero ad
+network requests until the owner supplies a safe, approved inline zone + official script URL.
+If Monetag confirms OnClick disabled + filtering enabled and issues a dedicated inline zone,
+that zone can be entered in the single configuration point and the gate flipped in one commit.
+
 ## Explicitly out of scope for the codebase
 
 No click-shields, no JavaScript click interception, no CSS forced resizing of ad containers, no fake ads

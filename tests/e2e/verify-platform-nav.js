@@ -133,16 +133,37 @@ async function main() {
   });
 
   try {
-    // ---------- static contract: the hub still ships the official ad tag ----------
+    // ---------- static contract: no ad tag on the hub + all active sections ----------
+    // The unsafe Multitag zone (288239, OnClick/Popunder runtime sub-zone
+    // 11912374) was REMOVED from the hub after the reproduced navigation
+    // hijack; the only sanctioned ad surface is the gated inline OmniAdSlot,
+    // which makes zero requests while the owner gate is off.
     const hubHtml = await (await fetch(hub)).text();
+    const countIn = (hay, needle) => hay.split(needle).length - 1;
     const tags = hubHtml.match(/quge5\.com\/88\/tag\.min\.js/g) || [];
     const zones = hubHtml.match(/data-zone="[^"]*"/g) || [];
-    check('MONETAG_PRESENT: hub ships the official tag exactly once', tags.length === 1, 'tag occurrences: ' + tags.length);
-    check('MONETAG_ZONE=288239 (single data-zone, unchanged)',
-      zones.length === 1 && zones[0] === 'data-zone="288239"', zones.join(', '));
+    check('NO_AD_TAG: hub ships no third-party ad script', tags.length === 0, 'tag occurrences: ' + tags.length);
+    check('NO_PROHIBITED_ZONE: no data-zone attribute anywhere on the hub', zones.length === 0, zones.join(', '));
     check('hub links to the marketplace from its navigation',
       (hubHtml.match(/href="\/marketplace\/"/g) || []).length >= 5,
       'links: ' + (hubHtml.match(/href="\/marketplace\/"/g) || []).length);
+    const SECTION_LINKS = [
+      ['business.html', 'BUSINESS'],
+      ['student.html', 'STUDENTS'],
+      ['support.html', 'SUPPORT'],
+      ['market.html#/game-hosting', 'GAME_HOSTING']
+    ];
+    for (const [route, label] of SECTION_LINKS) {
+      check(label + '_LINK: hub links to ' + route,
+        countIn(hubHtml, 'href="' + route + '"') >= 1,
+        'occurrences: ' + countIn(hubHtml, 'href="' + route + '"'));
+    }
+    check('OMNI_AD_SLOT_PRESENT: hub carries the inline gated ad slot',
+      hubHtml.includes('data-omni-ad') && hubHtml.includes('OWNER_INPUT_REQUIRED'),
+      'slot marker + owner gate present');
+    check('AD_ENGINE_GATE=DISABLED on the hub (zero ad requests possible)',
+      hubHtml.includes("enabled: 'false'"),
+      'OMNI_AD_CONFIG.enabled=false');
 
     // ---------- DIRECT_MARKETPLACE ----------
     const page = await context.newPage();

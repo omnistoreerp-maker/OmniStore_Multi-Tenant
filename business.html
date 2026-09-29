@@ -99,8 +99,12 @@
     <div class="container">
       <h1>Business Management Services</h1>
       <p>Your company workspace on OmniStore — sign in, or start a new subscription</p>
-      <nav class="platform-nav" aria-label="Breadcrumb">
+      <nav class="platform-nav" aria-label="Platform navigation">
         <a href="platform.html">← Platform Home</a>
+        <a href="/marketplace/">Marketplace</a>
+        <a href="market.html#/game-hosting">Game Hosting</a>
+        <a href="student.html">Students</a>
+        <a href="support.html">Support</a>
       </nav>
     </div>
   </header>
@@ -223,6 +227,16 @@
         <div class="tiktok-feed__empty">Loading TikTok feed…</div>
       </div>
     </section>
+
+    <!-- Inline ad slot (safe boundary, disabled until the owner supplies a
+         zone): never an overlay, never OnClick/Popunder; sits in the page
+         flow after all content, inside the max-width container. -->
+    <aside class="omni-ad-slot" aria-label="Advertisement" data-omni-ad data-omni-ad-page="business">
+      <div class="omni-ad-box">
+        <div class="omni-ad-inner" data-omni-ad-root></div>
+        <p class="omni-ad-label">Advertisement</p>
+      </div>
+    </aside>
   </main>
 
   <script>
@@ -517,5 +531,16 @@
       loadTikTokFeed();
     })();
   </script>
+  <script>
+    // OmniAdSlot boundary (inline slots only). Disabled by default: no ad
+    // script, no network request, and the slot stays a quiet placeholder
+    // until the owner supplies an approved inline zone + script URL.
+    window.OMNI_AD_CONFIG = {
+      enabled: 'false',
+      zone: 'OWNER_INPUT_REQUIRED',
+      scriptUrl: ''
+    };
+  </script>
+  <script src="platform/omniAdSlot.js" defer></script>
 </body>
 </html>

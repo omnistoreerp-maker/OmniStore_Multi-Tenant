@@ -58,7 +58,7 @@ function _defaultDoc() {
         title: 'Marketplace',
         description: 'Visitor-facing marketplace for products and services.',
         status: 'active',
-        url: '/market.html',
+        url: '/marketplace/',
         icon: 'fa-store'
       },
       {
@@ -70,9 +70,10 @@ function _defaultDoc() {
         icon: 'fa-building'
       },
       {
-        // Documented activation exception: Students is the only section that
-        // has graduated from the platform lockdown policy. Gaming / Media /
-        // Support stay Coming Soon until their own activation cycles.
+        // Documented activation exceptions: Students, Game Hosting and
+        // Support have graduated from the platform lockdown policy. Only
+        // Media/Reels stays Coming Soon until its own activation cycle
+        // (reserved — Device 2 owns it; never force it active elsewhere).
         id: 'student-services',
         title: 'Student Services & Printing',
         description: 'Print shop orders, cost calculator, and student monthly passes.',
@@ -80,18 +81,18 @@ function _defaultDoc() {
         url: '/student.html',
         icon: 'fa-graduation-cap'
       },
-{
+      {
         id: 'game-hosting',
         title: 'Game Hosting',
-        description: 'Host and manage game sessions and catalogs.',
+        description: 'Plans, ordering and server management in the public storefront.',
         status: 'active',
-        url: '/index.html',
+        url: '/market.html#/game-hosting',
         icon: 'fa-gamepad'
       },
       {
         id: 'media-reels',
         title: 'Media / Reels',
-        description: 'Media content and reels sharing.',
+        description: 'Media content and reels sharing — reserved for its own activation cycle.',
         status: 'coming-soon',
         url: null,
         icon: 'fa-film'
@@ -99,9 +100,9 @@ function _defaultDoc() {
       {
         id: 'support',
         title: 'Support',
-        description: 'Customer support center — coming soon.',
-        status: 'coming-soon',
-        url: null,
+        description: 'Open and track real customer support requests.',
+        status: 'active',
+        url: '/support.html',
         icon: 'fa-life-ring'
       }
     ]

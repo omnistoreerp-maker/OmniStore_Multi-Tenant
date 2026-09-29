@@ -8,8 +8,10 @@
 //
 //   1. PUBLIC DISCOVERY — GET /api/v1/platform-public/sections and /catalog
 //      must advertise Students as active with the real route /student.html,
-//      while marketplace/business-services stay active and game-hosting,
-//      media-reels and support stay honestly Coming Soon with url:null.
+//      while marketplace/business-services stay active with their real
+//      routes, Game Hosting and Support expose their real storefront/support
+//      routes, and media-reels stays honestly Coming Soon with url:null
+//      (reserved — owned by Device 2's activation cycle).
 //   2. HTTP GATE — the tenant Students API is only usable when the request
 //      carries a real tenant identity; anonymous access is rejected.
 //
@@ -85,16 +87,21 @@ describe('GET /api/v1/platform-public — Students activation regression', () =>
     const res = await request(server).get('/api/v1/platform-public/sections');
     const sections = res.body.data.sections;
     const byId = Object.fromEntries(sections.map((s) => [s.id, s]));
-    for (const locked of ['media-reels', 'support']) {
-      expect(byId[locked]).toBeTruthy();
-      expect(byId[locked].status).toBe('coming-soon');
-      expect(byId[locked].url).toBeNull();
-    }
-    // Game Hosting graduated to active in the Device 2 activation cycle.
+    // Only Media/Reels stays locked now — it is Device 2's reserved cycle
+    // and must never be forced active from this branch.
+    expect(byId['media-reels']).toBeTruthy();
+    expect(byId['media-reels'].status).toBe('coming-soon');
+    expect(byId['media-reels'].url).toBeNull();
+    // Game Hosting + Support expose their real routes now (storefront +
+    // support center), never the ERP shell.
     const game = byId['game-hosting'];
     expect(game).toBeTruthy();
     expect(game.status).toBe('active');
-    expect(game.url).toBe('/index.html');
+    expect(game.url).toBe('/market.html#/game-hosting');
+    const support = byId['support'];
+    expect(support).toBeTruthy();
+    expect(support.status).toBe('active');
+    expect(support.url).toBe('/support.html');
   });
 
   test('sections keeps the previously active sections active', async () => {
@@ -102,7 +109,7 @@ describe('GET /api/v1/platform-public — Students activation regression', () =>
     const byId = Object.fromEntries(res.body.data.sections.map((s) => [s.id, s]));
     expect(byId.marketplace.status).toBe('active');
     expect(byId['business-services'].status).toBe('active');
-    expect(byId.marketplace.url).toBe('/market.html');
+    expect(byId.marketplace.url).toBe('/marketplace/');
     expect(byId['business-services'].url).toBe('/business.html');
   });
 

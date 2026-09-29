@@ -49,12 +49,18 @@ app.use(helmet({
       // single-file build with inline onclick handlers, and the project's own
       // nginx.conf already allows 'unsafe-inline'. Leaving the directive out
       // makes attribute handlers fall back to script-src ('unsafe-inline').
-      scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdnjs.cloudflare.com', 'https://cdn.jsdelivr.net', 'https://quge5.com', 'https://auqot.com', 'https://ekhay.com', 'https://b3mny.com'],
+      // Monetag origins removed: the unsafe Multitag zone (288239) was taken
+      // out of platform.html after its OnClick/Popunder runtime sub-zone
+      // hijacked Platform→Marketplace navigation (reproduced 6× on
+      // production, 2026-09-28). The only sanctioned ad surface is the gated
+      // inline OmniAdSlot; when the owner later approves a safe inline zone
+      // with an official script origin, that exact origin is added back here.
+      scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdnjs.cloudflare.com', 'https://cdn.jsdelivr.net'],
       scriptSrcAttr: ["'self'", "'unsafe-inline'"], // overrides helmet's default 'none'
       styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
       imgSrc: ["'self'", 'data:'],
-      connectSrc: ["'self'", 'https://api.github.com', 'https://cdn.jsdelivr.net', 'https://6opo.com', 'https://auqot.com', 'https://my.rtmark.net', 'https://jmosl.com', 'https://094kk.com'],
+      connectSrc: ["'self'", 'https://api.github.com', 'https://cdn.jsdelivr.net'],
       frameSrc: ["'none'"],
       objectSrc: ["'none'"]
     }

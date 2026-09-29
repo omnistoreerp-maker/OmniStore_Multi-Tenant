@@ -43,7 +43,7 @@ const MONETAG_TAG = '<script src="https://quge5.com/88/tag.min.js" data-zone="28
 const MONETAG_TAG_SRC = 'https://quge5.com/88/tag.min.js';
 const MONETAG_ZONE = '288239';
 const MONETAG_SCRIPT_ORIGIN = 'https://quge5.com';
-const PROHIBITED_ZONES = ['11857331', '11912374'];
+const PROHIBITED_ZONES = ['11857331', '11912374', '11912377', '288239'];
 const SERVER_JS = repoFile('backend/server.js');
 
 const countOf = (haystack, needle) => haystack.split(needle).length - 1;
@@ -186,13 +186,13 @@ describe('Monetag boundary — shipped HTML surfaces', () => {
     expect(INDEX_HTML).not.toMatch(/monetag/i);
   });
 
-  test('official owner-provided verification meta present exactly once inside platform.html <head>', () => {
+  test('official verification meta removed from platform.html (hub is ad-free)', () => {
     const occurrences = PLATFORM_HTML.match(/e1700efedc78f54b923023e572faa053/g) || [];
-    expect(occurrences.length).toBe(1);
-    expect(PLATFORM_HTML).toContain(MONETAG_META);
+    expect(occurrences.length).toBe(0);
+    expect(PLATFORM_HTML).not.toContain(MONETAG_META);
     const head = PLATFORM_HTML.match(/<head>[\s\S]*?<\/head>/);
     expect(head).not.toBeNull();
-    expect(head[0]).toContain(MONETAG_META);
+    expect(head[0]).not.toContain(MONETAG_META);
     expect(INDEX_HTML).not.toContain(MONETAG_META_VALUE);
     expect(MONETAG_SRC).not.toContain(MONETAG_META_VALUE);
     expect(PLATFORM_JS).not.toContain(MONETAG_META_VALUE);
@@ -212,62 +212,59 @@ describe('Monetag boundary — shipped HTML surfaces', () => {
 });
 
 describe('Monetag Multitag — official Get-tag integration (platform.html)', () => {
-  test('MONETAG_META_EXACT: verification meta unchanged, exact, single-instance in <head>', () => {
-    expect(PLATFORM_HTML).toContain(MONETAG_META);
+  test('MONETAG_META_GONE: verification meta absent, zero-instance', () => {
+    expect(PLATFORM_HTML).not.toContain(MONETAG_META);
     const occurrences = PLATFORM_HTML.match(/e1700efedc78f54b923023e572faa053/g) || [];
-    expect(occurrences.length).toBe(1);
+    expect(occurrences.length).toBe(0);
     const head = PLATFORM_HTML.match(/<head>[\s\S]*?<\/head>/);
     expect(head).not.toBeNull();
-    expect(head[0]).toContain(MONETAG_META);
+    expect(head[0]).not.toContain(MONETAG_META);
   });
 
-  test('MONETAG_SCRIPT_PRESENT/EXACT: official tag byte-exact as provided by Monetag', () => {
-    expect(PLATFORM_HTML).toContain(MONETAG_TAG);
+  test('MONETAG_TAG_REMOVED: the unsafe Multitag tag no longer ships at all', () => {
+    // The OnClick/Popunder runtime sub-zone (11912374) of this very tag
+    // hijacked Platform-Marketplace navigation on production (reproduced 6x
+    // on 2026-09-28). The tag is removed, not gated: it must not exist.
+    expect(PLATFORM_HTML).not.toContain(MONETAG_TAG);
     const external = PLATFORM_HTML.match(/<script[^>]*src="https?:\/\/[^"]*"[^>]*><\/script>/g) || [];
-    expect(external).toContain(MONETAG_TAG);
+    expect(external).toEqual([]);
   });
 
-  test('MONETAG_SCRIPT_SINGLE_INSTANCE: exactly one tag, one origin reference, none elsewhere', () => {
-    expect(countOf(PLATFORM_HTML, MONETAG_TAG)).toBe(1);
-    expect(countOf(PLATFORM_HTML, 'quge5.com')).toBe(1);
-    expect(countOf(PLATFORM_HTML, 'tag.min.js')).toBe(1);
-    expect(countOf(PLATFORM_HTML, 'data-zone=')).toBe(1);
+  test('MONETAG_SCRIPT_ZERO_INSTANCE: no tag, no origin reference anywhere', () => {
+    expect(countOf(PLATFORM_HTML, MONETAG_TAG)).toBe(0);
+    expect(countOf(PLATFORM_HTML, 'quge5.com')).toBe(0);
+    expect(countOf(PLATFORM_HTML, 'tag.min.js')).toBe(0);
+    expect(countOf(PLATFORM_HTML, 'data-zone=')).toBe(0);
     expect(INDEX_HTML).not.toContain('quge5.com');
     expect(INDEX_HTML).not.toContain('tag.min.js');
     expect(MONETAG_SRC).not.toContain('quge5.com');
     expect(PLATFORM_JS).not.toContain('quge5.com');
   });
 
-  test('MONETAG_ZONE=288239 and MONETAG_SCRIPT_ORIGIN=https://quge5.com', () => {
-    const m = PLATFORM_HTML.match(/<script src="https:\/\/quge5\.com\/88\/tag\.min\.js" data-zone="(\d+)" async data-cfasync="false"><\/script>/);
-    expect(m).not.toBeNull();
-    expect(m[1]).toBe(MONETAG_ZONE);
-    expect(MONETAG_TAG).toContain('src="' + MONETAG_TAG_SRC + '"');
-    expect(MONETAG_SCRIPT_ORIGIN).toBe('https://quge5.com');
+  test('MONETAG_ZONE_GONE: 288239 and the quge5 origin appear nowhere', () => {
+    expect(countOf(PLATFORM_HTML, '288239')).toBe(0);
+    expect(countOf(PLATFORM_HTML, 'quge5.com')).toBe(0);
+    expect(MONETAG_SCRIPT_ORIGIN).toBe('https://quge5.com'); // historical constant used only for absence assertions
   });
 
-  test('tag lives in <head> with async: immediate load start, never blocks Platform UI', () => {
+  test('head carries no external ad script at all', () => {
     const head = PLATFORM_HTML.match(/<head>[\s\S]*?<\/head>/);
-    expect(head[0]).toContain(MONETAG_TAG);
-    expect(PLATFORM_HTML.indexOf(MONETAG_TAG)).toBeLessThan(PLATFORM_HTML.indexOf('</head>'));
-    expect(PLATFORM_HTML.indexOf(MONETAG_TAG)).toBeGreaterThan(-1);
-    expect(MONETAG_TAG).toContain(' async ');
-    expect(MONETAG_TAG).toContain('data-cfasync="false"');
-    expect(MONETAG_TAG).not.toContain('onclick');
-    expect(MONETAG_TAG).not.toContain('DOMContentLoaded');
+    expect(head).not.toBeNull();
+    expect(head[0]).not.toContain(MONETAG_TAG);
+    expect(head[0]).not.toContain('quge5');
+    expect(head[0]).not.toContain('data-zone=');
   });
 
-  test('NO_OLD_ZONE_11857331: prohibited zones absent from all shipped surfaces', () => {
+  test('NO_PROHIBITED_ZONE: all prohibited zones absent from all shipped surfaces', () => {
     const surfaces = PLATFORM_HTML + '\n' + INDEX_HTML + '\n' + MONETAG_SRC + '\n' + PLATFORM_JS;
     for (const zone of PROHIBITED_ZONES) {
       expect(surfaces).not.toContain(zone);
     }
   });
 
-  test('NO_FAKE_MONETAG_SCRIPT: platform.html carries exactly one external https script (the official tag)', () => {
+  test('NO_FAKE_MONETAG_SCRIPT: platform.html carries ZERO external https scripts', () => {
     const external = PLATFORM_HTML.match(/<script[^>]+src="https?:\/\/[^"]+"/g) || [];
-    expect(external.length).toBe(1);
-    expect(external[0]).toContain(MONETAG_TAG_SRC);
+    expect(external.length).toBe(0);
     const surfaces = PLATFORM_HTML + '\n' + INDEX_HTML + '\n' + MONETAG_SRC;
     for (const marker of FAKE_MARKERS) {
       expect(surfaces).not.toContain(marker);
@@ -280,25 +277,22 @@ describe('Monetag Multitag — official Get-tag integration (platform.html)', ()
     expect(SERVER_JS).toContain('helmet');
     const scriptLine = (SERVER_JS.match(/scriptSrc: \[[^\]]*\]/) || [])[0];
     expect(scriptLine).toBeTruthy();
-    expect(scriptLine).toContain("'" + MONETAG_SCRIPT_ORIGIN + "'");
-    expect(scriptLine).toContain("'https://auqot.com'");
-    expect(scriptLine).toContain("'https://ekhay.com'");
-    expect(scriptLine).toContain("'https://b3mny.com'");
+    for (const origin of ['quge5.com', 'auqot.com', 'ekhay.com', 'b3mny.com']) {
+      expect(scriptLine).not.toContain(origin);
+    }
     expect(scriptLine).not.toContain('*');
     expect(scriptLine).toContain("'self'");
     expect(scriptLine).toContain("'unsafe-inline'");
     expect(scriptLine).toContain('https://cdnjs.cloudflare.com');
     expect(scriptLine).toContain('https://cdn.jsdelivr.net');
-    expect((scriptLine.match(/https:\/\//g) || []).length).toBe(6);
+    expect((scriptLine.match(/https:\/\//g) || []).length).toBe(2);
     const connectLine = (SERVER_JS.match(/connectSrc: \[[^\]]*\]/) || [])[0];
     expect(connectLine).toBeTruthy();
-    expect(connectLine).toContain("'https://6opo.com'");
-    expect(connectLine).toContain("'https://auqot.com'");
-    expect(connectLine).toContain("'https://my.rtmark.net'");
-    expect(connectLine).toContain("'https://jmosl.com'");
-    expect(connectLine).toContain("'https://094kk.com'");
+    for (const origin of ['6opo.com', 'auqot.com', 'my.rtmark.net', 'jmosl.com', '094kk.com']) {
+      expect(connectLine).not.toContain(origin);
+    }
     expect(connectLine).not.toContain('*');
-    expect((connectLine.match(/https:\/\//g) || []).length).toBe(7);
+    expect((connectLine.match(/https:\/\//g) || []).length).toBe(2);
     expect(SERVER_JS).toContain('frameSrc: ["\'none\'"]');
     expect(SERVER_JS).toContain('objectSrc: ["\'none\'"]');
     expect(SERVER_JS).toContain('styleSrc: ["\'self\'", "\'unsafe-inline\'", \'https://fonts.googleapis.com\']');

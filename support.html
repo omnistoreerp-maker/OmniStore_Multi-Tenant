@@ -22,6 +22,11 @@
       padding: calc(16px + env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
     }
     .container { max-width: 960px; margin: 0 auto; }
+    /* OmniAdSlot — inline page-flow slot only; never fixed/absolute/overlay. */
+    .omni-ad-slot { margin: 24px auto 0; max-width: 768px; }
+    .omni-ad-box { overflow: hidden; border: 1px solid rgba(15,23,42,0.10); border-radius: 16px; background: #fff; }
+    .omni-ad-inner { min-height: 90px; display: flex; align-items: center; justify-content: center; padding: 12px 16px; color: #64748b; font-size: 12px; }
+    .omni-ad-label { margin: 0; padding: 8px 16px; border-top: 1px solid rgba(15,23,42,0.08); text-align: center; color: #64748b; font-size: 11px; font-weight: 600; }
     .page-header {
       display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 18px;
     }
@@ -166,6 +171,16 @@
       <h2 id="detail-h">🔎 تفاصيل الطلب</h2>
       <div id="detailBody"></div>
     </section>
+
+    <!-- Inline ad slot (safe boundary, disabled until the owner supplies a
+         zone): never an overlay, never OnClick/Popunder; in-flow inside the
+         max-width container, after all content. -->
+    <aside class="omni-ad-slot" aria-label="Advertisement" data-omni-ad data-omni-ad-page="support">
+      <div class="omni-ad-box">
+        <div class="omni-ad-inner" data-omni-ad-root></div>
+        <p class="omni-ad-label">Advertisement</p>
+      </div>
+    </aside>
   </div>
 
   <script>
@@ -377,5 +392,16 @@
       loadRequests();
     })();
   </script>
+  <script>
+    // OmniAdSlot boundary (inline slots only). Disabled by default: no ad
+    // script, no network request, and the slot stays a quiet placeholder
+    // until the owner supplies an approved inline zone + script URL.
+    window.OMNI_AD_CONFIG = {
+      enabled: 'false',
+      zone: 'OWNER_INPUT_REQUIRED',
+      scriptUrl: ''
+    };
+  </script>
+  <script src="platform/omniAdSlot.js" defer></script>
 </body>
 </html>

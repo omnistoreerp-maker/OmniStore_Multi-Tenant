@@ -1,5 +1,6 @@
 import { Shield, Truck, Headphones, CreditCard } from "lucide-react";
 import { AdSlot } from "@/components/marketplace/AdSlot";
+import { OmniAdSlot } from "@/components/marketplace/OmniAdSlot";
 
 const TRUST = [
   { icon: Truck, title: "توصيل سريع", desc: "شحن لجميع المحافظات" },
@@ -12,7 +13,12 @@ export function Footer() {
   return (
     <footer className="mt-16 border-t border-border bg-card/60">
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        {/* Inline ad slot — our outer container only; see AdSlot contract. */}
+        {/* Inline ad slots — our outer containers only; see contracts.
+            OmniAdSlot is the platform-wide slot; AdSlot is marketplace-only.
+            Both gated OFF: zero ad requests until the owner supplies a safe
+            zone + flips the gate. They sit AFTER all product content and
+            BEFORE the trust grid, inside the max-width container. */}
+        <OmniAdSlot />
         <AdSlot />
 
         <ul className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-4">

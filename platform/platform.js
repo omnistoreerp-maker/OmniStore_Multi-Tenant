@@ -29,11 +29,13 @@
       nav_market: 'Market',
       nav_business: 'Business Solutions',
       nav_students: 'Student Services',
+      nav_support: 'Support',
       nav_game: 'Game Hosting',
       nav_app: 'Open Application',
       nav_market_short: 'Market',
       nav_business_short: 'Business',
       nav_students_short: 'Students',
+      nav_support_short: 'Support',
       nav_game_short: 'Games',
       nav_app_short: 'App',
       nav_soon: 'Soon',
@@ -93,11 +95,13 @@
       nav_market: 'السوق',
       nav_business: 'حلول الأعمال',
       nav_students: 'خدمات الطلاب',
+      nav_support: 'الدعم الفني',
       nav_game: 'استضافة الألعاب',
       nav_app: 'Open Application',
       nav_market_short: 'الماركت',
       nav_business_short: 'الأعمال',
       nav_students_short: 'الطلاب',
+      nav_support_short: 'الدعم',
       nav_game_short: 'الألعاب',
       nav_app_short: 'التطبيق',
       nav_soon: 'قريباً',
@@ -249,16 +253,18 @@
   // Only the sections below may render as active; everything else — including
   // any section the backend/API may return with a different status — is forced
   // to an honest non-active "Coming Soon" state with no destination URL.
-  // Students is the single documented exception: the Student Services &
-  // Printing backend and UI are live and tenant-scoped, so it renders active.
+  // Documented active exceptions (real implementations, real routes):
+  // Marketplace, Business, Students, Game Hosting (storefront route) and
+  // Support. Media/Reels stays reserved for Device 2's own activation cycle.
   const SECTION_LOCK_POLICY = {
     active: {
       'marketplace': '/marketplace/',
       'business-services': '/business.html',
       'student-services': '/student.html',
-      'game-hosting': '/index.html'
+      'game-hosting': '/market.html#/game-hosting',
+      'support': '/support.html'
     },
-    lockedIds: ['media-reels', 'support']
+    lockedIds: ['media-reels']
   };
 
   // Fallback catalog shown when the API returns no sections at all.
@@ -266,9 +272,9 @@
     { id: 'marketplace', title: 'Marketplace', description: 'Visitor-facing marketplace for products and services.', status: 'active', url: '/marketplace/', icon: 'fa-store' },
     { id: 'business-services', title: 'Business Management Services', description: 'Existing company access and new company onboarding.', status: 'active', url: '/business.html', icon: 'fa-building' },
     { id: 'student-services', title: 'Student Services & Printing', description: 'Print shop orders, cost calculator, and student monthly passes.', status: 'active', url: '/student.html', icon: 'fa-graduation-cap' },
-    { id: 'game-hosting', title: 'Game Hosting', description: 'Host and manage game sessions and catalogs.', status: 'active', url: '/index.html', icon: 'fa-gamepad' },
-    { id: 'media-reels', title: 'Media / Reels', description: 'Media content and reels sharing — coming soon.', status: 'coming-soon', url: null, icon: 'fa-film' },
-    { id: 'support', title: 'Support', description: 'Customer support center — coming soon.', status: 'coming-soon', url: null, icon: 'fa-life-ring' }
+    { id: 'game-hosting', title: 'Game Hosting', description: 'Plans, ordering and server management in the public storefront.', status: 'active', url: '/market.html#/game-hosting', icon: 'fa-gamepad' },
+    { id: 'media-reels', title: 'Media / Reels', description: 'Media content and reels sharing — reserved for its own activation cycle.', status: 'coming-soon', url: null, icon: 'fa-film' },
+    { id: 'support', title: 'Support', description: 'Open and track real customer support requests.', status: 'active', url: '/support.html', icon: 'fa-life-ring' }
   ];
 
   function applySectionPolicy(list) {
