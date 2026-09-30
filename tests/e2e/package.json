@@ -4,9 +4,10 @@
   "private": true,
   "description": "Playwright end-to-end regression suite for the DigiTronics frontends",
   "scripts": {
-    "test": "node verify.js index.html 18940 && node verify.js DigiTronics_v5.html 18941",
+    "test": "node verify.js index.html 18940 && node verify.js DigiTronics_v5.html 18941 && node verify-lang.js",
     "test:index": "node verify.js index.html 18940",
-    "test:v5": "node verify.js DigiTronics_v5.html 18941"
+    "test:v5": "node verify.js DigiTronics_v5.html 18941",
+    "test:lang": "node verify-lang.js"
   },
   "devDependencies": {
     "playwright": "1.62.0"
