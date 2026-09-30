@@ -110,6 +110,14 @@ server.listen(PORT, "127.0.0.1", async () => {
   const browser = await chromium.launch();
   try {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    // The global language switcher (platform/omni-i18n.js) defaults to English;
+    // this test's chip selectors are the authored Arabic strings, so seed the
+    // saved language preference to Arabic before app scripts run.
+    await ctx.addInitScript(() => {
+      try {
+        localStorage.setItem("omnistore_language", "ar");
+      } catch (e) {}
+    });
     const page = await ctx.newPage();
     const apiCalls = [];
     const writes = [];
@@ -122,10 +130,20 @@ server.listen(PORT, "127.0.0.1", async () => {
       apiCalls.push({ marker: apiCalls.length, method: m, search: parsed.search });
     });
 
-    const cardIds = () => page.$$eval("a[href^=\"#/product/\"]", (a) => a.map((x) => x.getAttribute("href").replace("#/product/", "")));
+    // Each product card renders TWO anchors to #/product/:id (primary link +
+    // details link), so count unique product ids, not raw anchors.
+    const cardIds = () =>
+      page.$$eval("a[href^=\"#/product/\"]", (a) => [
+        ...new Set(a.map((x) => x.getAttribute("href").replace("#/product/", ""))),
+      ]);
     const cardCount = () => page.$$eval("a[href^=\"#/product/\"]", (a) => a.length);
     const waitCards = async (n) => {
-      await page.waitForFunction((expected) => document.querySelectorAll("a[href^=\"#/product/\"]").length === expected, n, { timeout: 15000 });
+      await page.waitForFunction((expected) => {
+        const hrefs = [...document.querySelectorAll("a[href^=\"#/product/\"]")].map((x) =>
+          x.getAttribute("href")
+        );
+        return new Set(hrefs).size === expected;
+      }, n, { timeout: 15000 });
       await page.waitForTimeout(250);
     };
 

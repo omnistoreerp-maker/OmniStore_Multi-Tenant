@@ -428,7 +428,36 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/controllers/internalChangeCenter.controller.js',
     'backend/routes/internalChangeCenter.routes.js',
     // Media / Reels clean port: runtime media storage stays untracked.
-    '.gitignore'
+    '.gitignore',
+    // Global Language Visual System cycle — LANGUAGE (index integration,
+    // html lang/dir switcher boot + lang slots) / SECTION_STYLE (violet
+    // main-section recolor) / TRANSLATION (ar→en dict):
+    'index.html',
+    'student.html',
+    'support.html',
+    'media-reels.html',
+    // LANGUAGE: marketplace React language-aware formatting + dict.
+    'marketplace/index.html',
+    'marketplace/dev.html',
+    'marketplace/src/App.tsx',
+    'marketplace/src/components/cart/CartDrawer.tsx',
+    'marketplace/src/components/layout/Footer.tsx',
+    'marketplace/src/components/layout/Header.tsx',
+    'marketplace/src/components/marketplace/ProductCard.tsx',
+    'marketplace/src/components/marketplace/ProductGallery.tsx',
+    'marketplace/src/index.css',
+    'marketplace/src/lib/format.ts',
+    'marketplace/src/pages/Checkout.tsx',
+    'marketplace/tests/category-reset.test.cjs',
+    // LANGUAGE: new e2e language-switcher test wiring (never ci.yml).
+    'tests/e2e/package.json',
+    // TRANSLATION-ONLY REPAIR cycle: index runtime messages + native
+    // dialog translation (tpl/t wrappers) + composed-message dict keys.
+    'platform/omni-i18n.js',
+    'platform/i18n/index.dict.js',
+    // TRANSLATION-ONLY REPAIR cycle: vm sandbox gets an OmniLang stub
+    // because extracted real functions now wrap messages in OmniLang.t/tpl.
+    'backend/tests/frontendInvoicesSync.test.js'
   ]);
   const allowedUntracked = new Set([
     'platform/tests/section-lockdown.test.cjs',
@@ -443,7 +472,23 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/routes/reels.routes.js',
     'backend/controllers/reels.controller.js',
     'backend/services/reels.service.js',
-    'backend/tests/reelsPublic.test.js'
+    'backend/tests/reelsPublic.test.js',
+    // LANGUAGE: i18n core, design tokens and per-page dictionaries.
+    'platform/omni-i18n.js',
+    'platform/omni-design.css',
+    'platform/i18n/platform.dict.js',
+    'platform/i18n/business.dict.js',
+    'platform/i18n/student.dict.js',
+    'platform/i18n/support.dict.js',
+    'platform/i18n/media.dict.js',
+    'platform/i18n/index.dict.js',
+    // LANGUAGE: marketplace language runtime + dictionary.
+    'marketplace/public/i18n/marketplace.dict.js',
+    'marketplace/public/omni-design.css',
+    'marketplace/public/omni-i18n.js',
+    'marketplace/src/omni-lang.d.ts',
+    // LANGUAGE: new e2e language-switcher test.
+    'tests/e2e/verify-lang.js'
   ]);
   const git = (args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' }).stdout.split('\n').map((s) => s.trim()).filter(Boolean);
   const modified = git(['diff', '--name-only', 'HEAD']);
@@ -458,7 +503,7 @@ check('working-tree diff touches only intended platform files', () => {
 
 check('Marketplace, legacy market, sw.js, .env and backend/data show no working-tree diff', () => {
   const git = (args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' }).stdout;
-  const protectedPaths = ['marketplace', 'market.html', 'market', 'sw.js', '.env', 'backend/data'];
+  const protectedPaths = ['market.html', 'market', 'sw.js', '.env', 'backend/data'];
   const dirty = git(['diff', '--name-only', 'HEAD', '--', ...protectedPaths])
     .split('\n')
     .map((f) => f.trim())
@@ -468,6 +513,30 @@ check('Marketplace, legacy market, sw.js, .env and backend/data show no working-
     // report); every other protected path must stay byte-identical.
     .filter((f) => f !== 'backend/data/platformPublic.json');
   assert.deepStrictEqual(dirty, [], 'forbidden diffs: ' + dirty.join(', '));
+  // Marketplace build surface is intentionally touched by the Global Language
+  // Visual System cycle (language-aware formatting + dict + category-reset
+  // test patch); every tracked marketplace diff must be inside this allowlist.
+  const allowedMarketplace = new Set([
+    'marketplace/index.html',
+    'marketplace/dev.html',
+    'marketplace/src/App.tsx',
+    'marketplace/src/components/cart/CartDrawer.tsx',
+    'marketplace/src/components/layout/Footer.tsx',
+    'marketplace/src/components/layout/Header.tsx',
+    'marketplace/src/components/marketplace/ProductCard.tsx',
+    'marketplace/src/components/marketplace/ProductGallery.tsx',
+    'marketplace/src/index.css',
+    'marketplace/src/lib/format.ts',
+    'marketplace/src/pages/Checkout.tsx',
+    'marketplace/tests/category-reset.test.cjs'
+  ]);
+  const mktDirty = git(['diff', '--name-only', 'HEAD', '--', 'marketplace'])
+    .split('\n')
+    .map((f) => f.trim())
+    .filter(Boolean);
+  for (const f of mktDirty) {
+    assert.ok(allowedMarketplace.has(f), 'unexpected marketplace diff: ' + f);
+  }
 });
 
 console.log('\nsection-lockdown.test.cjs: ' + passed + ' passed, ' + failed + ' failed');

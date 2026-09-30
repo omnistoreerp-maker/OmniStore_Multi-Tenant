@@ -4,7 +4,7 @@ import { Loader2, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
 import { cartStore, useCart, useCartRefs, useCartTotal } from "@/stores/cart";
 import { isAuthed, marketApi, MarketApiError, setToken, type MarketConfig } from "@/lib/api";
-import { formatEGP } from "@/lib/format";
+import { formatEGP, uiLang } from "@/lib/format";
 import { setLastOrder } from "@/lib/lastOrder";
 
 /**
@@ -91,7 +91,7 @@ export default function Checkout() {
           </p>
         </li>
       )),
-    [items]
+    [items, uiLang()]
   );
 
   // Auth gate: same behavior as market.html (redirects to #/account).
@@ -138,7 +138,9 @@ export default function Checkout() {
         // place the order silently; let the user review the updated summary.
         setSubmitting(false);
         setNotice(
-          `تمت إزالة ${before - cartStore.refs().length} منتج لم يعد متاحًا من مراجعة المخزون. راجع ملخص الطلب ثم أعد التأكيد.`
+          uiLang() === "en"
+            ? `${before - cartStore.refs().length} item(s) that are no longer available were removed during stock review. Review the order summary, then confirm again.`
+            : `تمت إزالة ${before - cartStore.refs().length} منتج لم يعد متاحًا من مراجعة المخزون. راجع ملخص الطلب ثم أعد التأكيد.`
         );
         return;
       }
@@ -253,7 +255,13 @@ export default function Checkout() {
             className="btn-focus inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 disabled:opacity-70"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
-            {submitting ? "جارٍ تأكيد الطلب..." : `تأكيد الطلب — ${formatEGP(total)}`}
+            {submitting
+              ? uiLang() === "en"
+                ? "Confirming order..."
+                : "جارٍ تأكيد الطلب..."
+              : uiLang() === "en"
+                ? `Confirm order — ${formatEGP(total)}`
+                : `تأكيد الطلب — ${formatEGP(total)}`}
           </button>
         </form>
 

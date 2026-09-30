@@ -66,6 +66,11 @@ function buildInvoiceSandbox(fnName, opts = {}) {
     addStockMovement: () => {},
     addCashEntry: () => {},
     formatMoney: (n) => String(n),
+    OmniLang: {
+      t: (s) => s,
+      tpl: (strings, ...values) =>
+        strings.reduce((acc, seg, i) => acc + seg + (i < values.length ? String(values[i]) : ''), '')
+    },
     document: {
       getElementById: () => elementStub(),
       createElement: () => elementStub(),

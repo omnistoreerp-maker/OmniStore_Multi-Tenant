@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { ShoppingCart, Info } from "lucide-react";
 import type { Product } from "@/types/product";
-import { formatPrice } from "@/lib/format";
+import { formatPrice, uiLang } from "@/lib/format";
 import { cartStore } from "@/stores/cart";
 import { ProductImage } from "./ProductImage";
 import { toast } from "sonner";
@@ -32,7 +32,9 @@ export function ProductCard({ product }: { product: Product }) {
   const handleAdd = () => {
     if (!inStock) return;
     cartStore.add(product, 1);
-    toast.success("تم إضافة المنتج إلى السلة", { description: product.name });
+    toast.success(uiLang() === "en" ? "Product added to cart" : "تم إضافة المنتج إلى السلة", {
+      description: product.name,
+    });
   };
 
   return (
@@ -40,7 +42,9 @@ export function ProductCard({ product }: { product: Product }) {
       <Link
         to={`/product/${product.id}`}
         className="btn-focus flex flex-1 flex-col"
-        aria-label={`عرض تفاصيل ${product.name}`}
+        aria-label={
+          uiLang() === "en" ? `View details for ${product.name}` : `عرض تفاصيل ${product.name}`
+        }
       >
         {/* Image — fixed-ratio container, full-bleed */}
         <div className="relative">
@@ -97,7 +101,9 @@ export function ProductCard({ product }: { product: Product }) {
           type="button"
           onClick={handleAdd}
           disabled={!inStock}
-          aria-label={`أضف ${product.name} إلى السلة`}
+          aria-label={
+            uiLang() === "en" ? `Add ${product.name} to cart` : `أضف ${product.name} إلى السلة`
+          }
           className="btn-focus inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-primary px-3 text-[13px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90 active:bg-primary/80 disabled:cursor-not-allowed disabled:opacity-45 sm:w-auto sm:flex-1"
         >
           <ShoppingCart className="h-4 w-4" aria-hidden />

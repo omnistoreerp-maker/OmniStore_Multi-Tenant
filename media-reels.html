@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" data-omni-section="media" data-omni-tone="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -216,6 +216,9 @@
     padding:1px 8px;background:var(--surface);
   }
 </style>
+<link rel="stylesheet" href="platform/omni-design.css">
+<script src="platform/omni-i18n.js"></script>
+<script src="platform/i18n/media.dict.js"></script>
 </head>
 <body>
   <div class="app" id="app">
@@ -230,6 +233,7 @@
         <span class="topbar-title" data-i18n="page_title">Media / Reels</span>
       </div>
       <div class="topbar-actions">
+        <div data-omni-lang-slot></div>
         <button class="icon-btn" id="shareBtn" type="button" data-i18n="action_share">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
@@ -388,17 +392,26 @@
     }
   };
 
-  function t(key){
+  function currentLang(){
+    if (window.OmniLang) return OmniLang.get();
     var lang = 'ar';
     try { var saved = localStorage.getItem('omnistore_reels_lang'); if (saved === 'ar' || saved === 'en') lang = saved; } catch(e){}
+    return lang;
+  }
+
+  function t(key){
+    var lang = currentLang();
     return (I18N[lang] && I18N[lang][key]) ? I18N[lang][key] : (I18N.en[key] || key);
   }
 
   function setLang(lang){
+    if (window.OmniLang) { OmniLang.set(lang); return; }
     try { localStorage.setItem('omnistore_reels_lang', lang); } catch(e){}
     document.documentElement.setAttribute('lang', lang);
     document.documentElement.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
-    rerenderDynamic();
+    try {
+      if (typeof buildFeed === 'function' && Array.isArray(reels) && reels.length && feedInner && !feedInner.classList.contains('hidden')) buildFeed();
+    } catch(e){}
   }
 
   function escapeHtml(s){
@@ -412,8 +425,7 @@
     if (!iso) return '';
     var d = new Date(iso);
     if (isNaN(d.getTime())) return '';
-    var lang = 'ar';
-    try { var saved = localStorage.getItem('omnistore_reels_lang'); if (saved === 'ar' || saved === 'en') lang = saved; } catch(e){}
+    var lang = currentLang();
     try {
       return d.toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US', {
         year:'numeric', month:'short', day:'numeric'
@@ -875,15 +887,26 @@
 
   /* ---------- init ---------- */
   function init(){
-    try {
-      var saved = localStorage.getItem('omnistore_reels_lang');
-      if (saved === 'ar' || saved === 'en'){
-        document.documentElement.setAttribute('lang', saved);
-        document.documentElement.setAttribute('dir', saved === 'ar' ? 'rtl' : 'ltr');
-      }
-    }catch(e){}
+    if (window.OmniLang){
+      document.documentElement.setAttribute('lang', OmniLang.get());
+      document.documentElement.setAttribute('dir', OmniLang.dir());
+    } else {
+      try {
+        var saved = localStorage.getItem('omnistore_reels_lang');
+        if (saved === 'ar' || saved === 'en'){
+          document.documentElement.setAttribute('lang', saved);
+          document.documentElement.setAttribute('dir', saved === 'ar' ? 'rtl' : 'ltr');
+        }
+      }catch(e){}
+    }
     loadReels();
   }
+
+  document.addEventListener('omnilangchange', function(){
+    try {
+      if (typeof buildFeed === 'function' && Array.isArray(reels) && reels.length && feedInner && !feedInner.classList.contains('hidden')) buildFeed();
+    } catch(e){}
+  });
 
   if (document.readyState === 'loading'){
     document.addEventListener('DOMContentLoaded', init);

@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Loader2, Menu, Search as SearchIcon, ShoppingCart, Store, User } from "lucide-react";
 import { useCartCount } from "@/stores/cart";
 import { useMarketUI } from "@/stores/marketUI";
-import { formatCount } from "@/lib/format";
+import { formatCount, uiLang } from "@/lib/format";
 import { categoryLabel } from "@/lib/mapper";
 import { MobileNav } from "./MobileNav";
 
@@ -97,11 +97,18 @@ export function Header({ onOpenCart }: Props) {
           </a>
         </nav>
 
+        {/* Language switcher — rendered by platform/omni-i18n.js */}
+        <div data-omni-lang-slot />
+
         {/* Cart — always visible */}
         <button
           type="button"
           onClick={onOpenCart}
-          aria-label={`السلة، ${formatCount(count)} عنصر`}
+          aria-label={
+            uiLang() === "en"
+              ? `Cart, ${formatCount(count)} items`
+              : `السلة، ${formatCount(count)} عنصر`
+          }
           className="btn-focus relative inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-3 text-sm font-semibold text-foreground shadow-sm transition-colors hover:border-primary/30 hover:text-primary sm:h-11"
         >
           <ShoppingCart className="h-5 w-5" aria-hidden />

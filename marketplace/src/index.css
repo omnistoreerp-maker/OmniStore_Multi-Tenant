@@ -4,48 +4,48 @@
 
 @layer base {
   :root {
-    /* Warm neutral canvas */
-    --background: 36 30% 98%;
-    --foreground: 200 20% 12%;
+    /* Cool light canvas — OmniStore Marketplace blue/cyan identity */
+    --background: 214 100% 98%;
+    --foreground: 215 43% 15%;
 
     --card: 0 0% 100%;
-    --card-foreground: 200 20% 12%;
+    --card-foreground: 215 43% 15%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 200 20% 12%;
+    --popover-foreground: 215 43% 15%;
 
-    /* Deep teal — OmniStore brand primary */
-    --primary: 182 55% 18%;
-    --primary-foreground: 40 40% 98%;
+    /* Deep blue — OmniStore brand primary */
+    --primary: 221 83% 44%;
+    --primary-foreground: 0 0% 100%;
 
-    /* Warm sand secondary */
-    --secondary: 35 30% 94%;
-    --secondary-foreground: 200 20% 15%;
+    /* Cool light secondary */
+    --secondary: 214 45% 94%;
+    --secondary-foreground: 215 43% 15%;
 
-    --muted: 30 20% 95%;
-    --muted-foreground: 210 12% 42%;
+    --muted: 214 40% 95%;
+    --muted-foreground: 219 27% 41%;
 
-    /* Warm amber accent — CTAs and highlights */
-    --accent: 35 92% 55%;
+    /* Cyan accent — CTAs and highlights */
+    --accent: 188 94% 53%;
     --accent-foreground: 200 30% 10%;
 
     --destructive: 0 72% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 30 15% 90%;
-    --input: 30 15% 90%;
-    --ring: 182 55% 25%;
+    --border: 214 30% 90%;
+    --input: 214 30% 90%;
+    --ring: 221 83% 44%;
 
     --radius: 0.85rem;
 
-    --sidebar-background: 36 30% 98%;
-    --sidebar-foreground: 200 20% 12%;
-    --sidebar-primary: 182 55% 18%;
-    --sidebar-primary-foreground: 40 40% 98%;
-    --sidebar-accent: 35 30% 94%;
-    --sidebar-accent-foreground: 200 20% 15%;
-    --sidebar-border: 30 15% 90%;
-    --sidebar-ring: 182 55% 25%;
+    --sidebar-background: 214 100% 98%;
+    --sidebar-foreground: 215 43% 15%;
+    --sidebar-primary: 221 83% 44%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 214 45% 94%;
+    --sidebar-accent-foreground: 215 43% 15%;
+    --sidebar-border: 214 30% 90%;
+    --sidebar-ring: 221 83% 44%;
   }
 
   .dark {
@@ -55,19 +55,19 @@
     --card-foreground: 40 30% 96%;
     --popover: 200 25% 11%;
     --popover-foreground: 40 30% 96%;
-    --primary: 172 60% 55%;
+    --primary: 217 91% 65%;
     --primary-foreground: 200 25% 8%;
     --secondary: 200 20% 15%;
     --secondary-foreground: 40 30% 96%;
     --muted: 200 20% 15%;
     --muted-foreground: 210 12% 65%;
-    --accent: 35 92% 60%;
+    --accent: 188 94% 55%;
     --accent-foreground: 200 30% 10%;
     --destructive: 0 62% 45%;
     --destructive-foreground: 0 0% 100%;
     --border: 200 20% 20%;
     --input: 200 20% 20%;
-    --ring: 172 60% 55%;
+    --ring: 217 91% 65%;
   }
 
   * {
@@ -130,11 +130,11 @@
   }
 
   .card-elevated {
-    @apply bg-card border border-border/70 rounded-2xl shadow-[0_1px_2px_rgba(15,61,62,0.04),0_8px_24px_-12px_rgba(15,61,62,0.12)] transition-all duration-300;
+    @apply bg-card border border-border/70 rounded-2xl shadow-[0_1px_2px_rgba(29,78,216,0.04),0_8px_24px_-12px_rgba(29,78,216,0.12)] transition-all duration-300;
   }
 
   .card-elevated:hover {
-    @apply shadow-[0_2px_6px_rgba(15,61,62,0.06),0_18px_40px_-16px_rgba(15,61,62,0.22)];
+    @apply shadow-[0_2px_6px_rgba(29,78,216,0.06),0_18px_40px_-16px_rgba(29,78,216,0.22)];
     transform: translateY(-2px);
   }
 

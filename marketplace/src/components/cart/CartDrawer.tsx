@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { X, Minus, Plus, Trash2, ShoppingBag, AlertTriangle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cartStore, useCart, useCartTotal } from "@/stores/cart";
-import { formatEGP } from "@/lib/format";
+import { formatEGP, uiLang } from "@/lib/format";
 import { useDrawerA11y } from "@/lib/useDrawerA11y";
 import type { Product } from "@/types/product";
 
@@ -128,7 +128,11 @@ export function CartDrawer({ open, onClose }: Props) {
                   <button
                     type="button"
                     onClick={() => cartStore.remove(item.product.id)}
-                    aria-label={`إزالة ${item.product.name}`}
+                    aria-label={
+                      uiLang() === "en"
+                        ? `Remove ${item.product.name}`
+                        : `إزالة ${item.product.name}`
+                    }
                     className="btn-focus h-10 w-10 shrink-0 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                   >
                     <Trash2 className="mx-auto h-4 w-4" />
