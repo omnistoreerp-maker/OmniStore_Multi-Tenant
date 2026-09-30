@@ -3,9 +3,10 @@
 // Platform section lockdown + Monetag boundary static regression checks.
 //
 // Verifies, without any server or browser:
-//   1. Active sections (marketplace, business, students, game-hosting and the
-//      new Media / Reels feed) expose their real shipped routes.
-//   2. Support stays locked as Coming Soon everywhere; Media-Reels ships
+//   1. Active sections (marketplace, business, students, the
+//      new Media / Reels feed and Support) expose their real shipped
+//      routes; Game Hosting stays locked (coming-soon, url null).
+//   2. Support is active everywhere with /support.html; Media-Reels ships
 //      active with the reels feed player /media-reels.html.
 //   3. Business + Marketplace + Students are active, with Marketplace
 //      pointing at the active public route /marketplace/.
@@ -48,15 +49,18 @@ const MONETAG_TAG = '<script src="https://quge5.com/88/tag.min.js" data-zone="28
 const PROHIBITED_ZONES = ['11857331', '11912374'];
 
 // Students graduated to active in the Students activation cycle;
-// game-hosting graduated in the Device 2 activation cycle; Media / Reels
-// ships active with the public reels feed. Only support stays locked.
-const LOCKED_IDS = ['support'];
+// Media / Reels ships active with the public reels feed.
+// Support graduated to active in the Support activation cycle
+// (support.html + customer request API + operator workflow).
+// Game Hosting stays locked per the owner correction cycle:
+// coming-soon with url:null, and it stays inside lockedIds.
+const LOCKED_IDS = ['game-hosting'];
 const ACTIVE_ROUTES = {
   'marketplace': '/marketplace/',
   'business-services': '/business.html',
   'student-services': '/student.html',
-  'game-hosting': '/index.html',
-  'media-reels': '/media-reels.html'
+  'media-reels': '/media-reels.html',
+  'support': '/support.html'
 };
 
 let passed = 0;
@@ -190,7 +194,7 @@ check('platform.js active allowlist matches the shipped active sections', () => 
     'exactly ' + Object.keys(ACTIVE_ROUTES).length + ' sections may stay active');
 });
 
-check('platform.js locks the support id and releases graduated sections', () => {
+check('platform.js locks game-hosting id and keeps graduated sections released', () => {
   const m = PLATFORM_JS.match(/lockedIds:\s*\[([^\]]*)\]/);
   assert.ok(m, 'lockedIds array missing');
   for (const id of LOCKED_IDS) {
@@ -205,18 +209,18 @@ check('platform.js wires policy into init with empty-API fallback', () => {
   assert.ok(PLATFORM_JS.includes('if (!rawSections.length) rawSections = DEFAULT_SECTIONS;'), 'fallback missing');
 });
 
-check('platform.js policy appends missing locked ids (support always visible)', () => {
+check('platform.js policy appends missing locked ids (game-hosting always visible)', () => {
   const fn = PLATFORM_JS.match(/function applySectionPolicy[\s\S]*?\n  \}/);
   assert.ok(fn, 'applySectionPolicy not found');
   assert.ok(fn[0].includes('SECTION_LOCK_POLICY.lockedIds.forEach'), 'locked-id append loop missing');
   assert.ok(fn[0].includes('if (def) base.push'), 'append missing locked entry missing');
 });
 
-check('platform.js fallback catalog exposes support as coming-soon', () => {
+check('platform.js fallback catalog exposes support as active', () => {
   const m = PLATFORM_JS.match(/id:\s*'support'[^}]+\}/);
   assert.ok(m, 'support entry missing from DEFAULT_SECTIONS');
-  assert.ok(m[0].includes("status: 'coming-soon'"));
-  assert.ok(m[0].includes('url: null'));
+  assert.ok(m[0].includes("status: 'active'"), 'support fallback must be active');
+  assert.ok(m[0].includes("url: '/support.html'"), 'support fallback must open /support.html');
 });
 
 check('platform.js fallback catalog exposes students as the one active exception', () => {
@@ -419,12 +423,18 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/tests/platformPublic.test.js',
     // Students activation cycle: catalog/sections discovery assertions.
     'backend/tests/platformSections.students.test.js',
+    // Support activation cycle: operator/admin reply + guarded transition.
+    'backend/services/customerRequest.service.js',
+    'backend/controllers/internalChangeCenter.controller.js',
+    'backend/routes/internalChangeCenter.routes.js',
     // Media / Reels clean port: runtime media storage stays untracked.
     '.gitignore'
   ]);
   const allowedUntracked = new Set([
     'platform/tests/section-lockdown.test.cjs',
     'backend/tests/platformSections.students.test.js',
+    // Support activation cycle: operator workflow tests.
+    'backend/tests/internalChangeCenter.workflow.test.js',
     'CANDIDATE_HANDOFF_20260920.md',
     'docs/REAL_REPOSITORY_RECONCILIATION.md',
     'docs/TEABLE_AGENT_RECONCILIATION.md',

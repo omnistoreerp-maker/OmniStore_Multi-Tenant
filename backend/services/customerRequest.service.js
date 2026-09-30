@@ -259,6 +259,46 @@ function transitionStatus(companyId, requestId, toStatus, actor, actorType, note
   return { request: _sanitizeForResponse(record) };
 }
 
+function transitionStatusInternal(requestId, toStatus, actor, actorType, note, releaseId) {
+  if (!VALID_STATUSES.includes(toStatus)) {
+    return { error: 'Invalid status: ' + toStatus, code: 'INVALID_STATUS' };
+  }
+  if (toStatus === 'RESOLVED') {
+    return { error: 'RESOLVED is only reachable through customer verification', code: 'RESOLVED_VERIFICATION_ONLY' };
+  }
+  const { store, record } = _findRequestInternal(requestId);
+  if (!record) return { error: 'Request not found', code: 'REQUEST_NOT_FOUND' };
+  const fromStatus = record.status;
+  const allowed = ALLOWED_TRANSITIONS[fromStatus] || [];
+  if (!allowed.includes(toStatus)) {
+    return { error: 'Invalid status transition: ' + fromStatus + ' -> ' + toStatus, code: 'INVALID_STATUS_TRANSITION' };
+  }
+  if (toStatus === 'RELEASED' && !releaseId) {
+    return { error: 'Release evidence is required to mark a request as RELEASED', code: 'RELEASE_REQUIRED' };
+  }
+  if (releaseId) {
+    record.releaseId = releaseId;
+  }
+  record.status = toStatus;
+  record.updatedAt = new Date().toISOString();
+  _appendAudit(store, record, fromStatus, toStatus, actor, actorType, note, releaseId);
+  _saveStore(store);
+  return { request: _sanitizeForResponse(record) };
+}
+
+function addNoteInternal(requestId, actor, actorType, note) {
+  const text = _sanitizeText(note, 2000);
+  if (!text) {
+    return { error: 'Note text is required', code: 'NOTE_REQUIRED' };
+  }
+  const { store, record } = _findRequestInternal(requestId);
+  if (!record) return { error: 'Request not found', code: 'REQUEST_NOT_FOUND' };
+  const current = record.status;
+  _appendAudit(store, record, current, current, actor, actorType, text, record.releaseId || null);
+  _saveStore(store);
+  return { request: _sanitizeForResponse(record) };
+}
+
 function verifyReleaseMatches(request) {
   if (!request || !request.releaseId) return { matches: false, reason: 'NO_RELEASE' };
   const current = buildIdentity.getBuildIdentity();
@@ -794,5 +834,7 @@ module.exports = {
   listAllForInternal,
   getByIdForInternal,
   getDashboardSummary,
-  listCompaniesWithRequests
+  listCompaniesWithRequests,
+  transitionStatusInternal,
+  addNoteInternal
 };

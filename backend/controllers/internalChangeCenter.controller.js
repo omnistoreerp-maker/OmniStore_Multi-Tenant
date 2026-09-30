@@ -104,11 +104,51 @@ function registerRelease(req, res) {
   }
 }
 
+function transitionChange(req, res) {
+  try {
+    const requestId = String(req.params.id || '').trim();
+    if (!requestId) return error(res, 'Change ID is required', 400);
+    const body = req.body || {};
+    const toStatus = String(body.toStatus || '').toUpperCase();
+    const note = body.note || '';
+    const releaseId = body.releaseId || null;
+    const actor = req.platformAdmin ? req.platformAdmin.username : 'unknown';
+    const result = customerRequest.transitionStatusInternal(requestId, toStatus, actor, 'operator', note, releaseId);
+    if (result.error) {
+      const status = result.code === 'REQUEST_NOT_FOUND' ? 404 : 400;
+      return error(res, result.error, status, result.code ? { code: result.code } : null);
+    }
+    success(res, { request: result.request }, 'Status transitioned');
+  } catch (err) {
+    logger.error('internalChangeCenter.transition error:', err.message);
+    error(res, 'Failed to transition status', 500);
+  }
+}
+
+function addChangeNote(req, res) {
+  try {
+    const requestId = String(req.params.id || '').trim();
+    if (!requestId) return error(res, 'Change ID is required', 400);
+    const actor = req.platformAdmin ? req.platformAdmin.username : 'unknown';
+    const result = customerRequest.addNoteInternal(requestId, actor, 'operator', (req.body || {}).note);
+    if (result.error) {
+      const status = result.code === 'REQUEST_NOT_FOUND' ? 404 : 400;
+      return error(res, result.error, status, result.code ? { code: result.code } : null);
+    }
+    success(res, { request: result.request }, 'Note added');
+  } catch (err) {
+    logger.error('internalChangeCenter.note error:', err.message);
+    error(res, 'Failed to add note', 500);
+  }
+}
+
 module.exports = {
   getDashboard,
   listChanges,
   getChange,
   listReleases,
   getRelease,
-  registerRelease
+  registerRelease,
+  transitionChange,
+  addChangeNote
 };

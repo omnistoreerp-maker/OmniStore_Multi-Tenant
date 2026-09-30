@@ -8,9 +8,9 @@
 //
 //   1. PUBLIC DISCOVERY — GET /api/v1/platform-public/sections and /catalog
 //      must advertise Students as active with the real route /student.html,
-//      while marketplace/business-services/game-hosting stay active, the new
-//      Media / Reels feed advertises /media-reels.html, and support stays
-//      honestly Coming Soon with url:null.
+//      while marketplace/business-services stay active, Media / Reels
+//      advertises /media-reels.html, support advertises /support.html as
+//      active, and game-hosting stays honestly Coming Soon with url:null.
 //   2. HTTP GATE — the tenant Students API is only usable when the request
 //      carries a real tenant identity; anonymous access is rejected.
 //
@@ -82,20 +82,18 @@ describe('GET /api/v1/platform-public — Students activation regression', () =>
     expect(student.url).toBe('/student.html');
   });
 
-  test('sections keeps the remaining locked section Coming Soon with url:null', async () => {
+  test('sections keeps game-hosting locked and exposes support as active', async () => {
     const res = await request(server).get('/api/v1/platform-public/sections');
     const sections = res.body.data.sections;
     const byId = Object.fromEntries(sections.map((s) => [s.id, s]));
-    for (const locked of ['support']) {
+    for (const locked of ['game-hosting']) {
       expect(byId[locked]).toBeTruthy();
       expect(byId[locked].status).toBe('coming-soon');
       expect(byId[locked].url).toBeNull();
     }
-    // Game Hosting graduated to active in the Device 2 activation cycle.
-    const game = byId['game-hosting'];
-    expect(game).toBeTruthy();
-    expect(game.status).toBe('active');
-    expect(game.url).toBe('/index.html');
+    expect(byId.support).toBeTruthy();
+    expect(byId.support.status).toBe('active');
+    expect(byId.support.url).toBe('/support.html');
   });
 
   test('sections exposes media-reels as the active reels feed', async () => {
