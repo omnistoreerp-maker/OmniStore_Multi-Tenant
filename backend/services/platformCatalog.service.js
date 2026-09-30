@@ -99,9 +99,9 @@ function _defaultDoc() {
       {
         id: 'support',
         title: 'Support',
-        description: 'Customer support center — coming soon.',
-        status: 'coming-soon',
-        url: null,
+        description: 'Customer support center — requests, replies and status tracking.',
+        status: 'active',
+        url: '/support.html',
         icon: 'fa-life-ring'
       }
     ]
@@ -119,7 +119,16 @@ function getCatalog() {
   if (!Array.isArray(store.sections) || store.sections.length === 0) {
     return Object.assign({}, store, { sections: _defaultDoc().sections });
   }
-  return store;
+  // A stored document may also predate an individual section entry (Support
+  // activated while production data had no support row). Surface default
+  // entries for ids the stored document omits, appending only — stored
+  // entries are never overwritten and nothing is written back to disk.
+  const defaults = _defaultDoc().sections;
+  const seen = {};
+  store.sections.forEach(function (s) { if (s && s.id) seen[s.id] = true; });
+  const missing = defaults.filter(function (d) { return !seen[d.id]; });
+  if (!missing.length) return store;
+  return Object.assign({}, store, { sections: store.sections.concat(missing) });
 }
 
 function getDefaultDoc() {
