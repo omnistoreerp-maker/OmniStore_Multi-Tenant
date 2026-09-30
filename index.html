@@ -2337,7 +2337,7 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
         <div class="d6-header-center">
           <div class="d6-search">
-            <input type="text" placeholder="بحث سريع..." id="d6GlobalSearch" onkeydown="if(event.key==='Enter')alert('البحث: '+this.value)">
+            <input type="text" placeholder="بحث سريع..." id="d6GlobalSearch" onkeydown="if(event.key==='Enter')alert(OmniLang.t('البحث:') + ' ' + this.value)">
           </div>
         </div>
         <div class="d6-header-right">
@@ -8047,7 +8047,7 @@ function toggleOmniModule(id, enabled) {
   window.OmniModuleLoader.setEnabled(id, enabled);
   renderOmniModuleSettings();
   applyPermissions();
-  showToast(`تم ${enabled ? 'تفعيل' : 'إيقاف'} الوحدة محلياً`);
+  showToast(OmniLang.t(enabled ? 'تم تفعيل الوحدة محلياً' : 'تم إيقاف الوحدة محلياً'));
 }
 
 function editOmniModuleSettings(id) {
@@ -8062,7 +8062,7 @@ function editOmniModuleSettings(id) {
     renderOmniModuleSettings();
     showToast('✅ تم حفظ إعدادات الوحدة محلياً');
   } catch (error) {
-    showToast('JSON غير صالح: ' + error.message, 'error');
+    showToast(OmniLang.t('JSON غير صالح:') + ' ' + error.message, 'error');
   }
 }
 
@@ -8274,7 +8274,7 @@ function importOmniStoreSettings(input) {
       renderBusinessProfileSettings();
       showToast('✅ تم استيراد الإعدادات بدون لمس بيانات التشغيل');
     } catch (error) {
-      showToast('ملف إعدادات غير صالح: ' + (error.message || error), 'error');
+      showToast(OmniLang.t('ملف إعدادات غير صالح:') + ' ' + (error.message || error), 'error');
     } finally {
       input.value = '';
     }
@@ -8628,7 +8628,7 @@ function logAppError(action, error, extra = {}) {
 
 function showFriendlySaveError(action, error, fallbackMessage = 'حدث خطأ أثناء الحفظ') {
   logAppError(action, error);
-  showToast(`${fallbackMessage} - يرجى المحاولة مرة أخرى`, 'error');
+  showToast(OmniLang.tpl`${OmniLang.t(fallbackMessage)} - يرجى المحاولة مرة أخرى`, 'error');
 }
 
 window.addEventListener('error', event => {
@@ -9420,7 +9420,7 @@ async function rebuildProductStockBalance(options = {}) {
     finalBalances: repaired
   };
   console.table(repaired);
-  if (!options.silent) showToast(`تم إصلاح رصيد المخزون: ${repaired.length} صنف`);
+  if (!options.silent) showToast(OmniLang.tpl`تم إصلاح رصيد المخزون: ${repaired.length} صنف`);
   await refreshSupabaseLiveState({ silent: true });
   return { ok: true, ...report };
 }
@@ -9724,7 +9724,7 @@ async function rebuildSupabaseProductsAndInventoryLinks(options = {}) {
     report.missingRecords = report.errors.concat(report.warnings);
     console.log('Supabase product/inventory rebuild report', report);
     if (!options.silent) {
-      showToast(`تم ترميم Supabase: purchase_items ${report.purchaseItemsRead} | legacy ${report.distinctLegacyProductIds} | منتجات ${report.productsCreated} | رصيد ${report.productStockBalanceRows}`);
+      showToast(OmniLang.tpl`تم ترميم Supabase: purchase_items ${report.purchaseItemsRead} | legacy ${report.distinctLegacyProductIds} | منتجات ${report.productsCreated} | رصيد ${report.productStockBalanceRows}`);
       showSupabaseRebuildReport(report);
     }
     return report;
@@ -9734,7 +9734,7 @@ async function rebuildSupabaseProductsAndInventoryLinks(options = {}) {
     report.missingRecords = report.errors.concat(report.warnings);
     console.error('Supabase product/inventory rebuild failed', error, report);
     if (!options.silent) {
-      showToast('تعذر ترميم منتجات Supabase: ' + msg, 'error');
+      showToast(OmniLang.t('تعذر ترميم منتجات Supabase:') + ' ' + msg, 'error');
       showSupabaseRebuildReport(report);
     }
     return report;
@@ -10162,7 +10162,7 @@ async function applySupabaseProductRestore() {
     showToast('لا توجد منتجات جديدة للإنشاء', 'info');
     return;
   }
-  if (!confirm(`سيتم إنشاء ${preflight.productsToCreate} منتج داخل جدول products فقط.\nلن يتم تعديل أي فاتورة أو حركة مخزون أو ربط UUID.\nهل تريد المتابعة؟`)) return;
+  if (!confirm(OmniLang.tpl`سيتم إنشاء ${preflight.productsToCreate} منتج داخل جدول products فقط.\nلن يتم تعديل أي فاتورة أو حركة مخزون أو ربط UUID.\nهل تريد المتابعة؟`)) return;
 
   const btn = document.getElementById('productRestoreApplyBtn');
   supabaseProductRestoreState.applying = true;
@@ -10193,7 +10193,7 @@ async function applySupabaseProductRestore() {
     report.ok = createdRows.length === payloads.length;
     if (!report.ok) throw new Error(`تم إرجاع ${createdRows.length} صف بدلاً من ${payloads.length}`);
 
-    showToast(`✅ تم إنشاء ${report.productsCreated} منتج فقط. لم يتم ربط UUID.`);
+    showToast(OmniLang.tpl`✅ تم إنشاء ${report.productsCreated} منتج فقط. لم يتم ربط UUID.`);
     const uuidDryRunBtn = document.getElementById('uuidLinkDryRunBtn');
     if (uuidDryRunBtn) uuidDryRunBtn.disabled = false;
   } catch (error) {
@@ -10335,7 +10335,7 @@ async function applyUuidLinkMigration() {
     return;
   }
   const total = preflight.purchaseCandidates + preflight.saleCandidates + preflight.stockCandidates;
-  if (!confirm(`سيتم ربط ${total} سجلًا بـ UUID مع الاحتفاظ بـ legacy_product_id.\nلن يتم إنشاء منتجات أو إعادة بناء مخزون.\nهل تريد المتابعة؟`)) return;
+  if (!confirm(OmniLang.tpl`سيتم ربط ${total} سجلًا بـ UUID مع الاحتفاظ بـ legacy_product_id.\nلن يتم إنشاء منتجات أو إعادة بناء مخزون.\nهل تريد المتابعة؟`)) return;
   const btn = document.getElementById('uuidLinkApplyBtn');
   uuidLinkMigrationState.applying = true;
   if (btn) { btn.disabled = true; btn.textContent = '⏳ جاري الربط...'; }
@@ -10636,24 +10636,24 @@ function validateSaleSerialsOrWarn(items = []) {
     const serialMode = item.trackingMode === 'serial' || item.saleTrackingMode === 'serial' || (!item.noSerial && serials.length > 0);
     if (!serialMode) continue;
     if (!product) {
-      showToast(`الصنف المرتبط بالسيريال غير موجود: ${item.name || item.productId}`, 'error');
+      showToast(OmniLang.tpl`الصنف المرتبط بالسيريال غير موجود: ${item.name || item.productId}`, 'error');
       return false;
     }
     const qty = Math.max(0, toSafeInt(item.qty, 0));
     if (qty > 0 && serials.length !== qty) {
-      showToast(`اختر السيريال المباع للصنف: ${item.name || product.name || item.productId}`, 'error');
+      showToast(OmniLang.tpl`اختر السيريال المباع للصنف: ${item.name || product.name || item.productId}`, 'error');
       return false;
     }
     for (const serial of serials) {
       const key = serial.toLowerCase();
       if (seen.has(key)) {
-        showToast(`هذا السيريال مكرر في نفس الفاتورة — السيريال: ${serial}`, 'error');
+        showToast(OmniLang.tpl`هذا السيريال مكرر في نفس الفاتورة — السيريال: ${serial}`, 'error');
         return false;
       }
       seen.add(key);
       const info = getSerialSaleBlockInfo(serial);
       if (!info.deviceRecord) {
-        showToast(`هذا السيريال غير مسجل في سجل الأجهزة — السيريال: ${serial}`, 'error');
+        showToast(OmniLang.tpl`هذا السيريال غير مسجل في سجل الأجهزة — السيريال: ${serial}`, 'error');
         return false;
       }
       const deviceStatus = String(info.deviceRecord?.status || '').toLowerCase();
@@ -10693,13 +10693,13 @@ function validatePurchaseSerialsOrWarn(items = []) {
     for (const serial of serials) {
       const key = serial.toLowerCase();
       if (seen.has(key)) {
-        showToast(`السيريال مكرر داخل فاتورة الشراء — ${serial}`, 'error');
+        showToast(OmniLang.tpl`السيريال مكرر داخل فاتورة الشراء — ${serial}`, 'error');
         return false;
       }
       seen.add(key);
       const dup = findDuplicateSerialIdentifier(serial);
       if (dup) {
-        showToast(`لا يمكن إضافة سيريال مكرر: ${serial}${dup.ref ? ' — مرتبط بـ ' + dup.ref : ''}`, 'error');
+        showToast(OmniLang.tpl`لا يمكن إضافة سيريال مكرر: ${serial}${dup.ref ? OmniLang.t(' — مرتبط بـ ') + dup.ref : ''}`, 'error');
         return false;
       }
     }
@@ -11386,7 +11386,7 @@ function clearProductionTempData() {
   } catch (err) {
     logAppError('production.clear_temp', err);
   }
-  showToast(`تم تنظيف بيانات مؤقتة آمنة: ${removed}`);
+  showToast(OmniLang.tpl`تم تنظيف بيانات مؤقتة آمنة: ${removed}`);
   renderProductionChecklist();
 }
 
@@ -12131,7 +12131,7 @@ const digitronicsDataAdapter = {
       updateSupabaseStatusIndicator('offline');
       logAppError('supabase.create_sale', err, { fallback: 'legacy' });
       console.warn('Supabase create_sale failed; falling back to legacy storage', err);
-      showToast(`⚠️ Supabase Offline — تم حفظ البيع محلياً مؤقتاً${supabaseLastError ? ': ' + supabaseLastError : ''}`, 'error');
+      showToast(OmniLang.tpl`⚠️ Supabase Offline — تم حفظ البيع محلياً مؤقتاً${supabaseLastError ? ': ' + supabaseLastError : ''}`, 'error');
       return legacyCreateSale(preparedPayload);
     }
   },
@@ -12199,7 +12199,7 @@ const digitronicsDataAdapter = {
       updateSupabaseStatusIndicator('offline');
       logAppError('supabase.create_purchase', err, { fallback: 'legacy' });
       console.error('Supabase create_purchase failed; falling back to legacy storage', err);
-      showToast(`⚠️ Supabase Offline — تم حفظ الشراء محلياً مؤقتاً${supabaseLastError ? ': ' + supabaseLastError : ''}`, 'error');
+      showToast(OmniLang.tpl`⚠️ Supabase Offline — تم حفظ الشراء محلياً مؤقتاً${supabaseLastError ? ': ' + supabaseLastError : ''}`, 'error');
       return legacyCreatePurchase(preparedPayload);
     }
   },
@@ -16744,7 +16744,7 @@ async function frConnect() {
     const ud = await r.json();
     if (ghToken() && ghToken() !== token) localStorage.removeItem(ghGistKey());
     localStorage.setItem(GH_TOKEN_KEY, token);
-    frSetStatus('✅ مرحباً '+(ud.name||ud.login)+'!', 'var(--green)', 'rgba(0,168,84,.08)');
+    frSetStatus(OmniLang.t('✅ مرحباً') + ' ' + (ud.name||ud.login) + '!', 'var(--green)', 'rgba(0,168,84,.08)');
     frSetStatus('⏳ جاري تجهيز المزامنة على GitHub...', 'var(--accent)', 'rgba(0,102,255,.08)');
     const finalGistId = await ghEnsureGistForToken(token, gistId);
     localStorage.setItem(ghGistKey(), finalGistId);
@@ -20138,7 +20138,7 @@ async function testCatchWaConnection() {
     await sendCatchWaViaApi(p, 'Test from DigiTronics CatchNumber ✅');
     showToast('نجح الاتصال وتم إرسال رسالة اختبار');
   } catch (e) {
-    showToast(`فشل الاختبار: ${e.message || e}`, 'error');
+    showToast(OmniLang.tpl`فشل الاختبار: ${e.message || e}`, 'error');
   }
 }
 
@@ -20262,7 +20262,7 @@ function openCatchWaSingle() {
   if (!p) return showToast('اكتب رقم الهاتف أولاً', 'error');
   const msg = String(document.getElementById('catchWaMessage')?.value || '').trim();
   if ((DB.settings.catchWaMode || 'wa') === 'api') {
-    sendCatchWaViaApi(p, msg || 'مرحبا').then(() => showToast('تم الإرسال عبر Cloud API')).catch(e => showToast(`فشل الإرسال: ${e.message || e}`, 'error'));
+    sendCatchWaViaApi(p, msg || 'مرحبا').then(() => showToast('تم الإرسال عبر Cloud API')).catch(e => showToast(OmniLang.tpl`فشل الإرسال: ${e.message || e}`, 'error'));
     return;
   }
   const txt = encodeURIComponent(msg);
@@ -20306,7 +20306,7 @@ async function startCatchWaCampaign(customRecipients, customCampaignName) {
   saveDB();
   renderCatchWaCampaignLog();
   renderCatchWaDashboard();
-  showToast(`تم إنهاء الحملة: ${campaign}`);
+  showToast(OmniLang.tpl`تم إنهاء الحملة: ${campaign}`);
 }
 
 function scheduleCatchWaCampaign() {
@@ -20560,7 +20560,7 @@ function closeOpsDayNow() {
   DB.settings = DB.settings || {};
   DB.dailyCloseLog = Array.isArray(DB.dailyCloseLog) ? DB.dailyCloseLog : [];
   const today = new Date().toISOString().slice(0, 10);
-  if (!confirm(`تأكيد اعتماد نهاية اليوم ${today}؟`)) return;
+  if (!confirm(OmniLang.tpl`تأكيد اعتماد نهاية اليوم ${today}؟`)) return;
   DB.settings.dailyCloseUntil = today;
   DB.dailyCloseLog.unshift({
     id: Date.now(),
@@ -20595,7 +20595,7 @@ function reopenOpsClosedDay() {
     showToast('لازم تكتب سبب إعادة الفتح', 'error');
     return;
   }
-  if (!confirm(`سيتم فتح الأيام بعد ${current} للتعديل. متابعة؟`)) return;
+  if (!confirm(OmniLang.tpl`سيتم فتح الأيام بعد ${current} للتعديل. متابعة؟`)) return;
   DB.settings.dailyCloseUntil = '';
   DB.dailyCloseLog.unshift({
     id: Date.now(),
@@ -20792,7 +20792,7 @@ function reopenMonthlyLock() {
     showToast('يجب إدخال سبب إعادة الفتح', 'error');
     return;
   }
-  if (!confirm(`سيتم فك الإقفال الشهري الحالي (${lock}). متابعة؟`)) return;
+  if (!confirm(OmniLang.tpl`سيتم فك الإقفال الشهري الحالي (${lock}). متابعة؟`)) return;
   DB.settings = DB.settings || {};
   DB.settings.monthlyLockUntil = '';
   saveDB();
@@ -21149,12 +21149,12 @@ function highlightTermInElement(root, term) {
 
 function getPaymentLabel(method) {
   const labels = { cash: '💵 كاش', instapay: '📲 InstaPay', vodafone: '📱 Vodafone Cash', fawry: '🏪 Fawry', installment: '📆 تقسيط' };
-  return labels[method] || method;
+  return OmniLang.t(labels[method] || method);
 }
 
 function getInvoiceTypeLabel(type) {
-  if (type === 'installment') return '📆 تقسيط';
-  return type === 'cash' ? '💵 كاش' : '📋 آجل';
+  if (type === 'installment') return OmniLang.t('📆 تقسيط');
+  return OmniLang.t(type === 'cash' ? '💵 كاش' : '📋 آجل');
 }
 
 function isToday(dateStr) {
@@ -21277,7 +21277,7 @@ function settleAmanatManual(invoiceId, itemIdx) {
   });
   saveDB();
   renderAmanatPage();
-  showToast(`✅ تمت تسوية ${take} وحدة`);
+  showToast(OmniLang.tpl`✅ تمت تسوية ${take} وحدة`);
 }
 
 function renderAmanatPage() {
@@ -21534,8 +21534,8 @@ async function repairPurchaseInvoiceProductLinks() {
   report.supabase = { ok: false, skipped: true, reason: 'Supabase rebuild disabled for rollback/data safety' };
 
   console.log('Purchase-stock link repair report', report);
-  const sbText = ' | Supabase لم يتم تعديله';
-  showToast(`تم إصلاح الربط: ${report.itemsLinked} بند، وإعادة حساب ${report.localStockRecalculated} صنف${sbText}`);
+  const sbText = OmniLang.t(' | Supabase لم يتم تعديله');
+  showToast(OmniLang.tpl`تم إصلاح الربط: ${report.itemsLinked} بند، وإعادة حساب ${report.localStockRecalculated} صنف${sbText}`);
   return report;
 }
 
@@ -21573,7 +21573,7 @@ function addCashEntry(type, amount, method, desc, entryDate, meta = {}) {
         lockType: 'daily'
       });
       saveDB();
-      showToast(`⛔ الإغلاق اليومي مفعل حتى ${dailyLockDate} — لا يمكن تسجيل حركة بتاريخ أقدم/مساوي`, 'error');
+      showToast(OmniLang.tpl`⛔ الإغلاق اليومي مفعل حتى ${dailyLockDate} — لا يمكن تسجيل حركة بتاريخ أقدم/مساوي`, 'error');
       return false;
     }
   }
@@ -21596,7 +21596,7 @@ function addCashEntry(type, amount, method, desc, entryDate, meta = {}) {
         lockType: 'monthly'
       });
       saveDB();
-      showToast(`⛔ الإقفال الشهري مفعل حتى ${lockDate} — التسجيل المالى قبل/حتى هذا التاريخ للمالك فقط`, 'error');
+      showToast(OmniLang.tpl`⛔ الإقفال الشهري مفعل حتى ${lockDate} — التسجيل المالى قبل/حتى هذا التاريخ للمالك فقط`, 'error');
       return false;
     }
   }
@@ -21638,7 +21638,7 @@ async function addTreasuryOutRequired(amount, method, desc, entryDate, meta = {}
    if (!ok) return false;
    const after = roundMoney(before - roundMoney(toSafeFloat(amount, 0)));
    if (after < 0) {
-     showToast(`⚠️ تم الخصم والخزنة أصبحت بالسالب: ${formatMoney(after)}`, 'error');
+     showToast(OmniLang.tpl`⚠️ تم الخصم والخزنة أصبحت بالسالب: ${formatMoney(after)}`, 'error');
    }
    return true;
  }
@@ -21788,7 +21788,7 @@ function reconcileMissingCashPurchaseEntries(options = {}) {
 
   if (fixedCount > 0) {
     logActivity('تسوية خزنة', `إضافة ${fixedCount} قيود شراء كاش مفقودة بقيمة ${formatMoney(fixedTotal)}`);
-    if (!silent) showToast(`✅ تم خصم فواتير الشراء الناقصة: ${fixedCount} فاتورة | ${formatMoney(fixedTotal)}`);
+    if (!silent) showToast(OmniLang.tpl`✅ تم خصم فواتير الشراء الناقصة: ${fixedCount} فاتورة | ${formatMoney(fixedTotal)}`);
   } else if (!silent) {
     showToast('لا توجد فواتير شراء كاش ناقصة في الخزنة', 'info');
   }
@@ -21805,7 +21805,7 @@ function fixMissingPurchaseCashForProduct(productId) {
     return;
   }
   const details = missingRows.map(r => `${r.invoiceId}: ${formatMoney(r.missing)}`).join('\n');
-  if (!confirm(`سيتم خصم مبلغ شراء ناقص من الخزنة للصنف:\n${product?.name || productId}\n\n${details}\n\nالإجمالي: ${formatMoney(total)}\nهل تريد المتابعة؟`)) return;
+  if (!confirm(OmniLang.tpl`سيتم خصم مبلغ شراء ناقص من الخزنة للصنف:\n${product?.name || productId}\n\n${details}\n\nالإجمالي: ${formatMoney(total)}\nهل تريد المتابعة؟`)) return;
   reconcileMissingCashPurchaseEntries({ apply: true, productId, silent: false });
   renderTreasury();
   renderPurchases();
@@ -21821,7 +21821,7 @@ function fixAllMissingPurchaseCashEntries() {
     openTreasuryAuditModal();
     return;
   }
-  if (!confirm(`سيتم خصم فواتير الشراء الكاش غير المسجلة في الخزنة.\nعدد الفواتير: ${missingRows.length}\nالإجمالي: ${formatMoney(total)}\nهل تريد المتابعة؟`)) return;
+  if (!confirm(OmniLang.tpl`سيتم خصم فواتير الشراء الكاش غير المسجلة في الخزنة.\nعدد الفواتير: ${missingRows.length}\nالإجمالي: ${formatMoney(total)}\nهل تريد المتابعة؟`)) return;
   reconcileMissingCashPurchaseEntries({ apply: true, silent: false });
   renderTreasury();
   renderPurchases();
@@ -23186,8 +23186,8 @@ function renderDashboardRevenueChart() {
   window._dashboardRevenueChart = new Chart(ctx, {
     type: 'bar',
     data: { labels: labels, datasets: [
-      { label: 'إيرادات', data: revenue, backgroundColor: 'rgba(124,58,237,0.25)', borderColor: 'rgba(124,58,237,1)', borderWidth: 2, borderRadius: 6 },
-      { label: 'مصروفات', data: expenses, backgroundColor: 'rgba(220,38,38,0.15)', borderColor: 'rgba(220,38,38,1)', borderWidth: 2, borderRadius: 6 }
+      { label: OmniLang.t('إيرادات'), data: revenue, backgroundColor: 'rgba(124,58,237,0.25)', borderColor: 'rgba(124,58,237,1)', borderWidth: 2, borderRadius: 6 },
+      { label: OmniLang.t('مصروفات'), data: expenses, backgroundColor: 'rgba(220,38,38,0.15)', borderColor: 'rgba(220,38,38,1)', borderWidth: 2, borderRadius: 6 }
     ]},
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { boxWidth: 10, font: { size: 10 } } } }, scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' } }, x: { grid: { display: false } } } }
   });
@@ -23202,7 +23202,7 @@ function renderDashboardInventoryChart() {
   const data = products.map(p => getProductStock(p.id));
   window._dashboardInventoryChart = new Chart(ctx, {
     type: 'bar',
-    data: { labels: labels, datasets: [{ label: 'المخزون', data: data, backgroundColor: products.map((_, i) => 'hsla(' + (200 + i * 20) + ',70%,55%,0.7)'), borderRadius: 6 }] },
+    data: { labels: labels, datasets: [{ label: OmniLang.t('المخزون'), data: data, backgroundColor: products.map((_, i) => 'hsla(' + (200 + i * 20) + ',70%,55%,0.7)'), borderRadius: 6 }] },
     options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' } }, y: { grid: { display: false } } } }
   });
 }
@@ -24028,13 +24028,13 @@ async function saveProduct() {
     logProductChange('إضافة منتج', name, `سعر شراء: ${buyPrice}, سعر بيع: ${sellPrice}, سيريالات: ${serials.length}`);
     if (!saveDB()) return;
     closeModal('productModal'); renderProductsTable();
-    showToast(`تم إضافة ${serials.length} سيريال للمنتج ${name}`);
+    showToast(OmniLang.tpl`تم إضافة ${serials.length} سيريال للمنتج ${name}`);
   } else {
     DB.products.push(newProduct);
     logProductChange('إضافة منتج', name, `بدون سيريال — الكمية تُضاف من فواتير الشراء`);
     if (!saveDB()) return;
     closeModal('productModal'); renderProductsTable();
-    showToast(`✅ تم إضافة المنتج "${name}" — أضف الكمية عبر فاتورة شراء`);
+    showToast(OmniLang.tpl`✅ تم إضافة المنتج "${name}" — أضف الكمية عبر فاتورة شراء`);
   }
 }
 
@@ -24461,7 +24461,7 @@ function saveNewSerials() {
   saveDB();
   closeModal('addSerialsModal');
   renderProductsTable();
-  showToast(`✅ تم إضافة ${unique.length} سيريال`);
+  showToast(OmniLang.tpl`✅ تم إضافة ${unique.length} سيريال`);
 }
 
 function editProduct(id) {
@@ -24630,7 +24630,7 @@ function applyCostAuditProductCost(productId) {
 function applyPurchaseAveragesToOldCosts() {
   const rows = getCostAuditRows().filter(r => r.purchaseAvg > 0 && r.productCost <= 0);
   if (!rows.length) { showToast('لا توجد أصناف يمكن تحديثها من متوسط الشراء', 'info'); return; }
-  if (!confirm(`سيتم تحديث سعر شراء ${rows.length} صنف بمتوسط فواتير الشراء. هل تريد المتابعة؟`)) return;
+  if (!confirm(OmniLang.tpl`سيتم تحديث سعر شراء ${rows.length} صنف بمتوسط فواتير الشراء. هل تريد المتابعة؟`)) return;
   rows.forEach(r => {
     const oldCost = toSafeFloat(r.product.buyPrice, 0);
     r.product.buyPrice = r.purchaseAvg;
@@ -24639,7 +24639,7 @@ function applyPurchaseAveragesToOldCosts() {
   saveDB();
   renderProductsTable();
   renderCostAuditTable();
-  showToast(`✅ تم تحديث ${rows.length} صنف من متوسط الشراء`);
+  showToast(OmniLang.tpl`✅ تم تحديث ${rows.length} صنف من متوسط الشراء`);
 }
 
 async function deleteProduct(id) {
@@ -24840,7 +24840,7 @@ function addPurchaseItem() {
     // Check for duplicates against already-existing serials in DB
     const duplicatesInDB = serials.filter(sn => DB.serials.find(x => x.serial === sn));
     if (duplicatesInDB.length > 0) {
-      showToast(`❌ السيريالات التالية موجودة مسبقاً: ${duplicatesInDB.slice(0,3).join(', ')}`, 'error');
+      showToast(OmniLang.tpl`❌ السيريالات التالية موجودة مسبقاً: ${duplicatesInDB.slice(0,3).join(', ')}`, 'error');
       return false;
     }
 
@@ -24848,7 +24848,7 @@ function addPurchaseItem() {
       String(d[field] || '').trim().toLowerCase() === String(sn).trim().toLowerCase()
     )));
     if (duplicateDevices.length > 0) {
-      showToast(`❌ هذا الجهاز مسجل مسبقاً: ${duplicateDevices.slice(0,3).join(', ')}`, 'error');
+      showToast(OmniLang.tpl`❌ هذا الجهاز مسجل مسبقاً: ${duplicateDevices.slice(0,3).join(', ')}`, 'error');
       return false;
     }
 
@@ -24856,7 +24856,7 @@ function addPurchaseItem() {
     const cartSerials = purCart.flatMap(i => i.serials);
     const duplicatesInCart = serials.filter(sn => cartSerials.includes(sn));
     if (duplicatesInCart.length > 0) {
-      showToast(`❌ سيريال مكرر في الفاتورة الحالية: ${duplicatesInCart.slice(0,3).join(', ')}`, 'error');
+      showToast(OmniLang.tpl`❌ سيريال مكرر في الفاتورة الحالية: ${duplicatesInCart.slice(0,3).join(', ')}`, 'error');
       return false;
     }
   }
@@ -24868,7 +24868,7 @@ function addPurchaseItem() {
   } else {
     if (serials.length === 0) { showToast('أدخل السيريالات للصنف المتتبع', 'error'); return false; }
     if (serials.length !== qtyInput) {
-      showToast(`عدد السيريالات (${serials.length}) يجب أن يساوي الكمية (${qtyInput})`, 'error');
+      showToast(OmniLang.tpl`عدد السيريالات (${serials.length}) يجب أن يساوي الكمية (${qtyInput})`, 'error');
       return false;
     }
     qty = qtyInput;
@@ -25254,7 +25254,7 @@ function legacySavePurchaseFromModal(payload) {
   auditAndSyncFinanceStock('savePurchase');
   closeModal('purchaseModal');
   renderPurchases();
-  showToast(`تم حفظ فاتورة الشراء (${items.length} صنف - ${formatMoney(total)})${autoSettledAmanatUnits > 0 ? ` | ✅ تمت تسوية أمانات: ${autoSettledAmanatUnits} وحدة` : ''}`);
+  showToast(OmniLang.tpl`تم حفظ فاتورة الشراء (${items.length} صنف - ${formatMoney(total)})${autoSettledAmanatUnits > 0 ? OmniLang.tpl` | ✅ تمت تسوية أمانات: ${autoSettledAmanatUnits} وحدة` : ''}`);
   purCart = [];
   return invoice;
 }
@@ -25531,10 +25531,10 @@ async function updatePurchaseInvoice(id) {
     if (!treasuryOk) return;
   }
 
-  const purPayLabel = m => m==='cash'?'كاش':m==='vodafone'?'فودافون':m==='instapay'?'InstaPay':m==='fawry'?'فوري':m||'';
+  const purPayLabel = m => OmniLang.t(m==='cash'?'كاش':m==='vodafone'?'فودافون':m==='instapay'?'InstaPay':m==='fawry'?'فوري':m||'');
   const purTMsg = (oldInvType==='cash' && invoiceType==='cash' && oldPayMethod !== paymentMethod)
-    ? ` | تحويل خزنة: ${purPayLabel(oldPayMethod)} → ${purPayLabel(paymentMethod)}`
-    : (oldInvType==='cash' || invoiceType==='cash') ? ' | الخزنة تم تحديثها' : '';
+    ? OmniLang.tpl` | تحويل خزنة: ${purPayLabel(oldPayMethod)} → ${purPayLabel(paymentMethod)}`
+    : (oldInvType==='cash' || invoiceType==='cash') ? OmniLang.t(' | الخزنة تم تحديثها') : '';
 
   // ===== UPDATE INVOICE RECORD =====
   inv.supplierId = supplierId || null;
@@ -25577,7 +25577,7 @@ async function updatePurchaseInvoice(id) {
   closeModal('purchaseModal');
   renderPurchases();
   renderTreasury();
-  showToast(`✅ تم تحديث فاتورة الشراء #${id}${purTMsg}`);
+  showToast(OmniLang.tpl`✅ تم تحديث فاتورة الشراء #${id}${purTMsg}`);
   purCart = [];
 }
 
@@ -25969,7 +25969,7 @@ function saveSupplierPayment() {
       }
     );
     closeModal('supplierPaymentModal');
-    showToast(`⏳ تم إرسال طلب موافقة ${req.id}`);
+    showToast(OmniLang.tpl`⏳ تم إرسال طلب موافقة ${req.id}`);
     renderApprovalsPage();
     renderDashboard();
     return;
@@ -26071,7 +26071,7 @@ function convertSupplierToOtherParty(supplierId) {
   renderSuppliers();
   renderVouchers();
   renderTreasury();
-  showToast(`✅ تم تحويل ${s.name} إلى جهة أخرى وإزالته من الموردين`);
+  showToast(OmniLang.tpl`✅ تم تحويل ${s.name} إلى جهة أخرى وإزالته من الموردين`);
 }
 
 function editSupplier(id) {
@@ -26373,7 +26373,7 @@ async function openQuickAddCustomer() {
     document.getElementById('cartCustomerSelect').value = `c_${newCust.id}`;
   }
   onCartCustomerSelect();
-  showToast(`✅ تم إضافة ال${label} ${name}`);
+  showToast(OmniLang.t('✅ تم إضافة ال' + label) + ' ' + name);
 }
 
 function viewCustomerStatement(customerIdOrName) {
@@ -26817,8 +26817,8 @@ function viewInstallmentDetails(id) {
   const inst = DB.installments.find(i => i.id === id);
   if (!inst) return;
   normalizeInstallment(inst);
-  const rows = (inst.schedule || []).map(s => `#${s.no} | ${s.dueDate} | ${formatMoney(s.amount)} | ${s.status === 'paid' ? 'مدفوع' : s.status === 'partial' ? 'جزئي' : 'غير مدفوع'}`).join('\n');
-  alert(`تقسيط: ${inst.id}\nالعميل: ${inst.customer}\nفاتورة: ${inst.invoiceId || '-'}\nالمتبقي: ${formatMoney(inst.remaining)}\n\nجدول الأقساط:\n${rows}`);
+  const rows = (inst.schedule || []).map(s => `#${s.no} | ${s.dueDate} | ${formatMoney(s.amount)} | ${s.status === 'paid' ? OmniLang.t('مدفوع') : s.status === 'partial' ? OmniLang.t('جزئي') : OmniLang.t('غير مدفوع')}`).join('\n');
+  alert(OmniLang.tpl`تقسيط: ${inst.id}\nالعميل: ${inst.customer}\nفاتورة: ${inst.invoiceId || '-'}\nالمتبقي: ${formatMoney(inst.remaining)}\n\nجدول الأقساط:\n${rows}`);
 }
 
 function clearInstallmentFilters() {
@@ -27292,7 +27292,7 @@ function saveReturnImpl() {
   renderProductsTable();
   renderDashboard();
   adjustSupabaseProductStockBalanceFromItems(returnedItems, 'in', 'Sale Return').catch(error => console.warn('Sale return stock balance sync failed', error));
-  showToast(`✅ تم تسجيل المرتجع — المخزون والخزنة تم تحديثهم`);
+  showToast(OmniLang.tpl`✅ تم تسجيل المرتجع — المخزون والخزنة تم تحديثهم`);
 }
 
 function renderReturns() {
@@ -27393,11 +27393,11 @@ function fixWrongSaleReturnCashEntries() {
   const totalIn = roundMoney(plan.filter(x => x.correctionType === 'in').reduce((s, x) => s + x.correctionAmount, 0));
   const totalOut = roundMoney(plan.filter(x => x.correctionType === 'out').reduce((s, x) => s + x.correctionAmount, 0));
   const preview = plan.map(x => {
-    const label = x.correctionType === 'in' ? 'وارد' : 'صادر';
-    return `${x.ret.invoiceId || x.ret.id}: ${label} ${formatMoney(x.correctionAmount)}`;
+const label = x.correctionType === 'in' ? 'وارد' : 'صادر';
+    return `${x.ret.invoiceId || x.ret.id}: ${OmniLang.t(label)} ${formatMoney(x.correctionAmount)}`;
   }).join('\n');
 
-  if (!confirm(`سيتم تصحيح خزنة فواتير الإرجاع التالية بدون حذف القيود القديمة:\n\n${preview}\n\nإجمالي وارد: ${formatMoney(totalIn)}\nإجمالي صادر: ${formatMoney(totalOut)}\n\nهل تريد المتابعة؟`)) return;
+  if (!confirm(OmniLang.tpl`سيتم تصحيح خزنة فواتير الإرجاع التالية بدون حذف القيود القديمة:\n\n${preview}\n\nإجمالي وارد: ${formatMoney(totalIn)}\nإجمالي صادر: ${formatMoney(totalOut)}\n\nهل تريد المتابعة؟`)) return;
 
   let fixedCount = 0;
   let fixedTotal = 0;
@@ -27429,7 +27429,7 @@ function fixWrongSaleReturnCashEntries() {
   renderReturns();
   renderTreasury();
   renderDashboard();
-  showToast(`✅ تم تصحيح ${fixedCount} فاتورة إرجاع بإجمالي فروق ${formatMoney(fixedTotal)}`);
+  showToast(OmniLang.tpl`✅ تم تصحيح ${fixedCount} فاتورة إرجاع بإجمالي فروق ${formatMoney(fixedTotal)}`);
 }
 
 function editReturn(id) {
@@ -27553,7 +27553,7 @@ function retScanSerial(e, idx) {
     }
   });
   if (found) {
-    showToast('✅ تم تحديد: ' + scanned, 'success');
+    showToast(OmniLang.t('✅ تم تحديد:') + ' ' + scanned, 'success');
   } else {
     showToast('❌ السيريال غير موجود في هذه الفاتورة أو غير متاح للإرجاع', 'error');
   }
@@ -28376,7 +28376,7 @@ async function reverseTreasuryEntry(entryId) {
    const lockUntilMs = DB.settings.reversePinLockUntil ? new Date(DB.settings.reversePinLockUntil).getTime() : 0;
    if (lockUntilMs && nowMs < lockUntilMs) {
      const leftMin = Math.max(1, Math.ceil((lockUntilMs - nowMs) / 60000));
-     return showToast(`🔒 تم قفل الاسترجاع مؤقتًا. حاول بعد ${leftMin} دقيقة`, 'error');
+     return showToast(OmniLang.tpl`🔒 تم قفل الاسترجاع مؤقتًا. حاول بعد ${leftMin} دقيقة`, 'error');
    }
    if (lockUntilMs && nowMs >= lockUntilMs) {
      DB.settings.reversePinLockUntil = '';
@@ -28956,7 +28956,7 @@ async function createTreasurySettlement(type, amount, note, method = 'cash') {
    if (!(safeAmount > 0)) { showToast('قيمة غير صحيحة', 'error'); return; }
    const safeNote = String(note || '').trim() || `تسوية فرق دفتر يدوي حتى ${localDateString()}`;
    const label = safeType === 'in' ? 'وارد' : 'صادر';
-   if (!confirm(`تأكيد إنشاء قيد تسوية؟\\n\\nالنوع: ${label}\\nالقيمة: ${formatMoney(safeAmount)}\\nالوسيلة: ${getPaymentLabel(method)}\\nالوصف: ${safeNote}`)) return;
+   if (!confirm(OmniLang.tpl`تأكيد إنشاء قيد تسوية؟\\n\\nالنوع: ${OmniLang.t(label)}\\nالقيمة: ${formatMoney(safeAmount)}\\nالوسيلة: ${getPaymentLabel(method)}\\nالوصف: ${safeNote}`)) return;
 
    // Phase 23B: create in backend when enabled
    if (USE_BACKEND && backendApi && backendApi.treasury) {
@@ -28966,7 +28966,7 @@ async function createTreasurySettlement(type, amount, note, method = 'cash') {
    logActivity('قيد تسوية خزنة', `${label} - ${formatMoney(safeAmount)} - ${safeNote}`);
    renderTreasury();
    openTreasuryAuditModal();
-   showToast(`✅ تم إنشاء قيد تسوية ${label} بقيمة ${formatMoney(safeAmount)}`);
+   showToast(OmniLang.tpl`✅ تم إنشاء قيد تسوية ${OmniLang.t(label)} بقيمة ${formatMoney(safeAmount)}`);
  }
 
 function createSettlementFromAudit(defaultAmount) {
@@ -29015,7 +29015,7 @@ function saveExpense() {
       }
     );
     closeModal('expenseModal');
-    showToast(`⏳ تم إرسال طلب موافقة رقم ${req.id}`);
+    showToast(OmniLang.tpl`⏳ تم إرسال طلب موافقة رقم ${req.id}`);
     renderApprovalsPage();
     renderDashboard();
     return;
@@ -31419,7 +31419,7 @@ function togglePluginState(pluginId) {
   if (!plugin) return;
   if (plugin.locked) return showToast('System plugins cannot be disabled', 'error');
   const requiredBy = getPluginRegistry().filter(p => (p.dependencies || []).includes(pluginId) && p.enabled);
-  if (plugin.enabled && requiredBy.length) return showToast(`لا يمكن التعطيل: مطلوب بواسطة ${requiredBy.map(p => p.name).join(', ')}`, 'error');
+  if (plugin.enabled && requiredBy.length) return showToast(OmniLang.tpl`لا يمكن التعطيل: مطلوب بواسطة ${requiredBy.map(p => p.name).join(', ')}`, 'error');
   const state = getPluginCenterState();
   state.states[pluginId] = { ...(state.states[pluginId] || {}), enabled: !plugin.enabled, lastUpdate: new Date().toISOString() };
   savePluginCenterState({ states: state.states });
@@ -31606,7 +31606,7 @@ function syncRepMobileQueue() {
   renderRepMobilePage();
   if (currentPage === 'vouchers') renderVouchers();
   renderDashboard();
-  showToast(`✅ تمت مزامنة ${syncedCount} عنصر`);
+  showToast(OmniLang.tpl`✅ تمت مزامنة ${syncedCount} عنصر`);
 }
 
 function renderDevicesPage() {
@@ -31800,7 +31800,7 @@ async function saveDeviceRegistration() {
     const dup = await deviceDuplicateExists(payload);
     if (dup) {
       const labels = { serial_number: 'Serial Number', imei: 'IMEI', service_tag: 'Service Tag' };
-      showToast(`⚠️ ${labels[dup]} موجود بالفعل`, 'error');
+      showToast(OmniLang.tpl`⚠️ ${labels[dup]} موجود بالفعل`, 'error');
       return;
     }
     if (isSupabaseEnabled()) {
@@ -32192,7 +32192,7 @@ async function openDeviceHistory(deviceId) {
     openModal('deviceHistoryModal');
   } catch (error) {
     console.error('Device history failed', error);
-    showToast(`تعذر فتح تاريخ الجهاز: ${error.message || error}`, 'error');
+    showToast(OmniLang.tpl`تعذر فتح تاريخ الجهاز: ${error.message || error}`, 'error');
   }
 }
 
@@ -32559,7 +32559,7 @@ function confirmGeneratePayroll() {
   closeModal('dynamicModal');
   renderHRManagement();
   renderEmployees();
-  showToast(`✅ تم إنشاء Payroll لـ ${created} موظف للشهر ${monthKey}`);
+  showToast(OmniLang.tpl`✅ تم إنشاء Payroll لـ ${created} موظف للشهر ${monthKey}`);
 }
 function getMonthlyEmployeeBonuses(empId, monthKey) {
   return (DB.employeeBonuses || []).filter(b => String(b.employeeId) === String(empId) && String(b.date || '').slice(0, 7) === monthKey)
@@ -32984,7 +32984,7 @@ function confirmPaySalary(id) {
   renderHRManagement();
   renderEmployeePerformance();
   renderTreasury();
-  showToast(`✅ تم صرف راتب ${emp.name} #${vchId}`);
+  showToast(OmniLang.tpl`✅ تم صرف راتب ${emp.name} #${vchId}`);
 }
 
 async function deleteEmployee(idx) {
@@ -33104,7 +33104,7 @@ function saveEmployeeAdvance() {
   saveDB();
   closeModal('employeeAdvanceModal');
   renderEmployees(); renderTreasury();
-  showToast(`✅ تم صرف سلفة ${emp.name} #${vchId}`);
+  showToast(OmniLang.tpl`✅ تم صرف سلفة ${emp.name} #${vchId}`);
   logActivity('سلفة موظف', `#${vchId} - ${emp.name} - ${formatMoney(amount)}`);
   logAudit('سلفة موظف', emp.name, { module: 'hr', actionType: 'advance', recordId: String(emp.id), description: `${formatMoney(amount)} - ${notes}` });
 }
@@ -33219,7 +33219,7 @@ function saveBonus() {
   saveDB();
   closeModal('bonusModal');
   renderEmployees(); renderTreasury();
-  showToast(`✅ تم صرف مكافأة ${emp.name} #${vchId}`);
+  showToast(OmniLang.tpl`✅ تم صرف مكافأة ${emp.name} #${vchId}`);
   logAudit('مكافأة موظف', emp.name, { module: 'hr', actionType: 'bonus', recordId: String(emp.id), description: `${formatMoney(amount)} - ${reason}` });
 }
 
@@ -33259,7 +33259,7 @@ function savePenalty() {
   saveDB();
   closeModal('penaltyModal');
   renderEmployees();
-  showToast(`✅ تم تسجيل جزاء ${emp.name}`);
+  showToast(OmniLang.tpl`✅ تم تسجيل جزاء ${emp.name}`);
   logAudit('جزاء موظف', emp.name, { module: 'hr', actionType: 'penalty', recordId: String(emp.id), description: `${formatMoney(amount)} - ${reason}` });
 }
 
@@ -33302,7 +33302,7 @@ function saveAbsence() {
   saveDB();
   closeModal('absenceModal');
   renderEmployees();
-  showToast(`✅ تم تسجيل غياب ${emp.name}`);
+  showToast(OmniLang.tpl`✅ تم تسجيل غياب ${emp.name}`);
   logAudit('غياب موظف', emp.name, { module: 'hr', actionType: 'absence', recordId: String(emp.id), description: `${days} يوم - ${paid}` });
 }
 
@@ -33353,7 +33353,7 @@ function saveEvaluation() {
   DB.employeeEvaluations.push(ev);
   saveDB();
   closeModal('evaluationModal');
-  showToast(`✅ تم تسجيل تقييم ${emp.name}`);
+  showToast(OmniLang.tpl`✅ تم تسجيل تقييم ${emp.name}`);
   logAudit('تقييم موظف', emp.name, { module: 'hr', actionType: 'evaluation', recordId: String(emp.id), description: `${ev.month} - ${ev.percent}%` });
 }
 
@@ -33861,7 +33861,7 @@ function savePartnerCapitalTx() {
   renderPartners();
   renderPartnerTransactions();
   renderTreasury();
-  showToast(`✅ تم تسجيل ${kindLabel}`);
+  showToast(OmniLang.t('✅ تم تسجيل ' + kindLabel));
 }
 
 function renderPartnerTransactions() {
@@ -35407,7 +35407,7 @@ function disposeFixedAsset() {
   }
   logAudit(type === 'sold' ? 'Asset Sale' : 'Asset Scrap', `${asset.name} - ${formatMoney(amount)} - ${formatMoney(gainLoss)}`, { module: 'fixed_assets', actionType: type, recordId: row.id, description: asset.name }, { save: false });
   saveDB();
-  showToast(`تم ${type === 'sold' ? 'بيع' : 'إعدام'} الأصل. الربح/الخسارة: ${formatMoney(gainLoss)}`);
+  showToast(OmniLang.t(type === 'sold' ? 'تم بيع الأصل. الربح/الخسارة:' : 'تم إعدام الأصل. الربح/الخسارة:') + ' ' + formatMoney(gainLoss));
   renderFixedAssetsPage();
   try { renderDashboard(); } catch(e) {}
 }
@@ -36085,7 +36085,7 @@ function saveCapitalPartnerMovement() {
   saveDB();
   renderFinancialCenter();
   renderTreasury();
-  showToast(label + ' تم تسجيلها');
+  showToast(OmniLang.t(label + ' تم تسجيلها'));
 }
 
 function renderCapitalPartnerStatement(partnerId) {
@@ -36121,7 +36121,7 @@ function deactivateCapitalPartner(id) {
   const p = DB.capitalPartners.find(x => String(x.id) === String(id));
   if (!p) return;
   if ((p.status || 'active') === 'inactive') return;
-  if (!confirm(`تأكيد إيقاف شريك رأس المال: ${p.name}؟\nلن يتم حذف أي سجل تاريخي.`)) return;
+  if (!confirm(OmniLang.tpl`تأكيد إيقاف شريك رأس المال: ${p.name}؟\nلن يتم حذف أي سجل تاريخي.`)) return;
   p.status = 'inactive';
   p.deactivatedAt = localDateTimeString();
   p.deactivatedBy = currentUser ? currentUser.username : 'system';
@@ -36322,7 +36322,7 @@ function payCapitalPartnerSettlement(id) {
   if (s.status === 'cancelled') { showToast('لا يمكن دفع تسوية ملغية', 'error'); return; }
   const amount = roundMoney(toSafeFloat(s.partnerShare, 0));
   if (!(amount > 0)) { showToast('لا توجد أرباح مستحقة لهذه الفترة', 'error'); return; }
-  if (!confirm(`تأكيد دفع نصيب الشريك؟\n${s.partnerName}\n${formatMoney(amount)}`)) return;
+  if (!confirm(OmniLang.tpl`تأكيد دفع نصيب الشريك؟\n${s.partnerName}\n${formatMoney(amount)}`)) return;
   const desc = `توزيع أرباح شريك رأس مال - ${s.partnerName} - ${s.fromDate} إلى ${s.toDate} - ${s.id}`;
   const ok = addTreasuryOutRequired(amount, 'cash', desc, localDateTimeString(), {
     referenceType: 'capital_partner_settlement',
@@ -36506,9 +36506,9 @@ function goToAutoDistStep2() {
   if (_autoDistState.netProfit <= 0 && !confirm('صافي الربح يساوي صفر أو أقل. هل تريد المتابعة؟')) return;
   DB.capitalPartnerDistBatches = DB.capitalPartnerDistBatches || [];
   const dup = DB.capitalPartnerDistBatches.find(b => b.status === 'completed' && String(b.accountingPeriod?.from) === String(_autoDistState.periodFrom) && String(b.accountingPeriod?.to) === String(_autoDistState.periodTo));
-  if (dup && !confirm('⚠️ توجد دفعة توزيع موجودة بالفعل للفترة ' + _autoDistState.periodLabel + ' (' + dup.id + ').\nهل تريد إنشاء دفعة أخرى؟')) return;
+if (dup && !confirm(OmniLang.t('⚠️ توجد دفعة توزيع موجودة بالفعل للفترة') + ' ' + _autoDistState.periodLabel + ' (' + dup.id + ').\n' + OmniLang.t('هل تريد إنشاء دفعة أخرى؟'))) return;
   const totalPct = _autoDistState.partners.reduce((s, p) => s + (p.tempPercentage != null ? p.tempPercentage : p.percentage), 0);
-  if (Math.abs(totalPct - 100) > 0.01 && !confirm('⚠️ مجموع نسب الشركاء = ' + totalPct.toFixed(2) + '% (يجب أن يكون 100%).\nهل تريد المتابعة مع هذه النسب؟')) return;
+if (Math.abs(totalPct - 100) > 0.01 && !confirm(OmniLang.t('⚠️ مجموع نسب الشركاء =') + ' ' + totalPct.toFixed(2) + '% ' + OmniLang.t('(يجب أن يكون 100%).') + '\n' + OmniLang.t('هل تريد المتابعة مع هذه النسب؟'))) return;
   calculateAutoDistribution();
   renderAutoDistStep2();
 }
@@ -36676,7 +36676,7 @@ function confirmAutoDistribution(batchId) {
   saveDB();
   closeModal('autoDistModal');
   renderFinancialCenter();
-  showToast('✅ تم إنشاء دفعة ' + batchId + ' - ' + voucherIds.length + ' سندات');
+  showToast(OmniLang.t('✅ تم إنشاء دفعة') + ' ' + batchId + ' - ' + voucherIds.length + ' ' + OmniLang.t('سندات'));
 }
 
 // ==================== Distribution Batch History ====================
@@ -37394,11 +37394,11 @@ async function confirmUserEnableState(action, idx) {
   const u = phaseFUsersCache[idx];
   if (!u || u.id == null) return;
   const label = action === 'disable' ? 'تعطيل' : 'تفعيل';
-  if (!confirm(`تأكيد ${label} المستخدم "${u.username}"؟`)) return;
+  if (!confirm(OmniLang.t(action === 'disable' ? 'تأكيد تعطيل المستخدم' : 'تأكيد تفعيل المستخدم') + ' "' + u.username + '"' + OmniLang.t('؟'))) return;
   if (action === 'disable' && !canEffective('users.disable')) { permissionDenied(); return; }
   if (action === 'enable' && !canEffective('users.enable')) { permissionDenied(); return; }
   const res = action === 'disable' ? await backendApi.users.disable(String(u.id)) : await backendApi.users.enable(String(u.id));
-  if (res && res.success) { showToast('✅ تم ' + label + ' المستخدم'); renderUsers(); }
+  if (res && res.success) { showToast(OmniLang.t(action === 'disable' ? '✅ تم تعطيل المستخدم' : '✅ تم تفعيل المستخدم')); renderUsers(); }
   else { const f = friendlyBackendError(res); showToast(f.msg, 'error'); renderUsers(); }
 }
 
@@ -37406,7 +37406,7 @@ async function confirmDeleteUser(idx) {
   const u = phaseFUsersCache[idx];
   if (!u || u.id == null) return;
   if (!canEffective('users.delete')) { permissionDenied(); return; }
-  if (!confirm(`حذف المستخدم "${u.username}" نهائياً؟`)) return;
+  if (!confirm(OmniLang.tpl`حذف المستخدم "${u.username}" نهائياً؟`)) return;
   const res = await backendApi.users.delete(String(u.id));
   if (res && res.success) { showToast('✅ تم حذف المستخدم'); renderUsers(); }
   else { const f = friendlyBackendError(res); showToast(f.msg, 'error'); renderUsers(); }
@@ -37996,7 +37996,7 @@ function exportVCF() {
   a.href=URL.createObjectURL(blob);
   a.download='DigiTronics_Contacts_'+new Date().toISOString().slice(0,10)+'.vcf';
   a.click();URL.revokeObjectURL(a.href);
-  showToast('✅ تم تصدير '+total+' جهة اتصال');
+  showToast(OmniLang.t('✅ تم تصدير') + ' ' + total + ' ' + OmniLang.t('جهة اتصال'));
   logActivity('تصدير VCF',total+' جهة اتصال');
 }
 
@@ -38186,7 +38186,7 @@ function addItemToCurrentInvoice() {
   if (trackingMode === 'serial') {
     const availableSerials = getAvailableSerials(p.id);
     if (availableSerials.length < qty) {
-      showToast(`السيريالات المتاحة ${availableSerials.length} فقط`, 'error');
+      showToast(OmniLang.tpl`السيريالات المتاحة ${availableSerials.length} فقط`, 'error');
       return;
     }
     openSerialPicker(p.id, qty);
@@ -38198,7 +38198,7 @@ function addItemToCurrentInvoice() {
   const existing = currentCart.find(item => item.productId === p.id && item.noSerial);
   const requestedQty = qty + (existing ? toSafeInt(existing.qty, 0) : 0);
   if (!isAmanatEnabledInPOS() && quantityAvailable < requestedQty) {
-    showToast(`مخزون الكمية المتاح ${quantityAvailable} فقط. اختر "بيع بسيريال" إذا كان للصنف سيريالات متاحة.`, 'error');
+    showToast(OmniLang.tpl`مخزون الكمية المتاح ${quantityAvailable} فقط. اختر "بيع بسيريال" إذا كان للصنف سيريالات متاحة.`, 'error');
     return;
   }
   const newItem = {
@@ -38383,7 +38383,7 @@ function confirmSerialPicker() {
   }
   const requiredQty = Math.max(1, toSafeInt(pendingSerialPicker?.qty, 1));
   if (selected.length !== requiredQty) {
-    showToast(`عدد السيريالات المختارة (${selected.length}) يجب أن يساوي الكمية (${requiredQty})`, 'error');
+    showToast(OmniLang.tpl`عدد السيريالات المختارة (${selected.length}) يجب أن يساوي الكمية (${requiredQty})`, 'error');
     return;
   }
   
@@ -38482,7 +38482,7 @@ function setCartQty(idx, val) {
 
   if (item.noSerial) {
     const stock = getProductStock(item.productId);
-    if (!item.isAmanat && newQty > stock) { showToast(`المخزون المتاح: ${stock}`, 'error'); renderCart(); return; }
+    if (!item.isAmanat && newQty > stock) { showToast(OmniLang.tpl`المخزون المتاح: ${stock}`, 'error'); renderCart(); return; }
     item.qty = newQty;
     renderCart();
     return;
@@ -38791,7 +38791,7 @@ async function completeSaleImpl() {
     return item.qty > available;
   });
   if (unavailableItems.length) {
-    showToast(`لا يوجد مخزون كافٍ: ${unavailableItems.map(i => i.name).join('، ')}`, 'error');
+    showToast(OmniLang.tpl`لا يوجد مخزون كافٍ: ${unavailableItems.map(i => i.name).join(', ')}`, 'error');
     return;
   }
   const missingSerialItems = normalizedCart.filter(item => {
@@ -38802,7 +38802,7 @@ async function completeSaleImpl() {
     return availableSerials.length > 0 && (!Array.isArray(item.serials) || item.serials.filter(Boolean).length !== item.qty);
   });
   if (missingSerialItems.length) {
-    showToast(`اختر السيريال المباع للصنف: ${missingSerialItems.map(i => i.name).join('، ')}`, 'error');
+    showToast(OmniLang.tpl`اختر السيريال المباع للصنف: ${missingSerialItems.map(i => i.name).join(', ')}`, 'error');
     return;
   }
   const subtotal = normalizedCart.reduce((sum, item) => sum + (item.price * item.qty), 0);
@@ -38839,7 +38839,7 @@ async function completeSaleImpl() {
         user: currentUser ? currentUser.username : 'system'
       }
     );
-    showToast(`⏳ تم إرسال الفاتورة للموافقة رقم ${req.id}`);
+    showToast(OmniLang.tpl`⏳ تم إرسال الفاتورة للموافقة رقم ${req.id}`);
     renderApprovalsPage();
     renderDashboard();
     return;
@@ -38934,12 +38934,8 @@ function buildPurchasePayloadFromPOS() {
     return prod.hasSerial !== false && serials.length === 0;
   });
   if (serialWithoutSerial.length > 0) {
-    const names = serialWithoutSerial.map(i => i.name).join('، ');
-    const ok = confirm(
-      'يوجد أصناف متسلسلة بدون سيريال:\n' +
-      names +
-      '\n\nهل تريد المتابعة وتسجيلها في المخزون بدون سيريال؟'
-    );
+    const names = serialWithoutSerial.map(i => i.name).join(', ');
+    const ok = confirm(OmniLang.t('يوجد أصناف متسلسلة بدون سيريال:\n') + names + OmniLang.t('\n\nهل تريد المتابعة وتسجيلها في المخزون بدون سيريال؟'));
     if (!ok) {
       showToast('تم إلغاء الحفظ حتى إدخال السيريالات', 'info');
       return;
@@ -39092,7 +39088,7 @@ function legacyCompletePurchaseFromPOS(payload) {
   try { renderReports(); } catch(e) {}
   try { renderFinancial(); } catch(e) {}
   try { renderTreasury(); } catch(e) {}
-  showToast(`✅ تم إتمام الشراء بنجاح${autoSettledAmanatUnits > 0 ? ` | ✅ تمت تسوية أمانات: ${autoSettledAmanatUnits} وحدة` : ''}`);
+  showToast(OmniLang.tpl`✅ تم إتمام الشراء بنجاح${autoSettledAmanatUnits > 0 ? OmniLang.tpl` | ✅ تمت تسوية أمانات: ${autoSettledAmanatUnits} وحدة` : ''}`);
   return invoice;
 }
 
@@ -39510,7 +39506,7 @@ function validateSaleModeSerials(productId, serials, qty, productName = '') {
   const seen = new Set();
   for (const serial of cleanSerials) {
     const key = serial.toLowerCase();
-    if (seen.has(key)) { showToast(`هذا السيريال مكرر في نفس البند: ${serial}`, 'error'); return false; }
+    if (seen.has(key)) { showToast(OmniLang.tpl`هذا السيريال مكرر في نفس البند: ${serial}`, 'error'); return false; }
     seen.add(key);
   }
   const alreadyInInvoice = editSaleInvItems
@@ -39518,12 +39514,12 @@ function validateSaleModeSerials(productId, serials, qty, productName = '') {
     .flatMap(item => Array.isArray(item.serials) ? item.serials : [])
     .map(sn => String(sn || '').trim().toLowerCase());
   const duplicateInInvoice = cleanSerials.find(sn => alreadyInInvoice.includes(String(sn || '').trim().toLowerCase()));
-  if (duplicateInInvoice) { showToast(`هذا السيريال مختار بالفعل داخل الفاتورة: ${duplicateInInvoice}`, 'error'); return false; }
+  if (duplicateInInvoice) { showToast(OmniLang.tpl`هذا السيريال مختار بالفعل داخل الفاتورة: ${duplicateInInvoice}`, 'error'); return false; }
   for (const serial of cleanSerials) {
     const serialRecord = (DB.serials || []).find(s => String(s.serial || '').trim().toLowerCase() === serial.toLowerCase() && eqId(s.productId, productId));
-    if (!serialRecord) { showToast(`هذا السيريال غير متاح لهذا الصنف: ${serial}`, 'error'); return false; }
+    if (!serialRecord) { showToast(OmniLang.tpl`هذا السيريال غير متاح لهذا الصنف: ${serial}`, 'error'); return false; }
     const info = getSerialSaleBlockInfo(serial);
-    if (!info.deviceRecord) { showToast(`هذا السيريال غير مسجل في سجل الأجهزة — السيريال: ${serial}`, 'error'); return false; }
+    if (!info.deviceRecord) { showToast(OmniLang.tpl`هذا السيريال غير مسجل في سجل الأجهزة — السيريال: ${serial}`, 'error'); return false; }
     const deviceStatus = String(info.deviceRecord?.status || '').toLowerCase();
     const serialStatus = String(info.serialRecord?.status || serialRecord.status || '').toLowerCase();
     if (['sold', 'resold'].includes(deviceStatus) || ['sold', 'resold'].includes(serialStatus)) {
@@ -39550,7 +39546,7 @@ function addItemToEditSaleInvoice() {
   if (trackingMode === 'quantity') {
     const quantityStock = getProductQuantityStock(id);
     if (quantityStock < qty) {
-      showToast(`المخزون بدون سيريال غير كافٍ. المتاح: ${quantityStock}`, 'error');
+      showToast(OmniLang.tpl`المخزون بدون سيريال غير كافٍ. المتاح: ${quantityStock}`, 'error');
       return;
     }
   } else {
@@ -39696,7 +39692,7 @@ function editScanSerialKey(e, idx) {
   ta.value = existing.join('\n');
   editSerialsChanged(idx);
   scanEl.value = '';
-  showToast('✅ تم إضافة: ' + scanned, 'success');
+  showToast(OmniLang.t('✅ تم إضافة:') + ' ' + scanned, 'success');
 }
 
 function editSerialsChanged(idx) {
@@ -39715,7 +39711,7 @@ async function deleteSaleInvoice(id) {
   if (!requirePermission('deleteData')) return;
   const inv = DB.saleInvoices.find(i => String(i.id) === String(id) || String(i._backendId || '') === String(id));
   if (!inv) return;
-  if (!confirm(`⚠️ هل تريد حذف فاتورة البيع #${id} نهائياً؟\n\nسيتم:\n• إعادة السيريالات للمخزون\n• خصم المبلغ من الخزنة\n\nهذا الإجراء لا يمكن التراجع عنه!`)) return;
+  if (!confirm(OmniLang.tpl`⚠️ هل تريد حذف فاتورة البيع #${id} نهائياً؟\n\nسيتم:\n• إعادة السيريالات للمخزون\n• خصم المبلغ من الخزنة\n\nهذا الإجراء لا يمكن التراجع عنه!`)) return;
 
   // Reverse inventory effects
   (inv.items || []).forEach(item => {
@@ -39750,7 +39746,7 @@ async function deleteSaleInvoice(id) {
   saveDB();
   renderInvoices();
   renderTreasury();
-  showToast(`✅ تم حذف الفاتورة #${id} والمخزون والخزنة تم تحديثهم`);
+  showToast(OmniLang.tpl`✅ تم حذف الفاتورة #${id} والمخزون والخزنة تم تحديثهم`);
 }
 
 // ===== DELETE PURCHASE INVOICE (with full inventory + treasury sync) =====
@@ -39758,7 +39754,7 @@ async function deletePurchaseInvoice(id) {
   if (!requirePermission('deleteData')) return;
   const inv = DB.purchaseInvoices.find(p => String(p.id) === String(id) || String(p._backendId || '') === String(id));
   if (!inv) return;
-  if (!confirm(`⚠️ هل تريد حذف فاتورة الشراء #${id} نهائياً؟\n\nسيتم:\n• حذف السيريالات المرتبطة بها\n• إرجاع المبلغ للخزنة\n\nهذا الإجراء لا يمكن التراجع عنه!`)) return;
+  if (!confirm(OmniLang.tpl`⚠️ هل تريد حذف فاتورة الشراء #${id} نهائياً؟\n\nسيتم:\n• حذف السيريالات المرتبطة بها\n• إرجاع المبلغ للخزنة\n\nهذا الإجراء لا يمكن التراجع عنه!`)) return;
 
   // Reverse inventory effects
   const items = inv.items && inv.items.length > 0 ? inv.items
@@ -39789,7 +39785,7 @@ async function deletePurchaseInvoice(id) {
   saveDB();
   renderPurchases();
   renderTreasury();
-  showToast(`✅ تم حذف فاتورة الشراء #${id} والمخزون والخزنة تم تحديثهم`);
+  showToast(OmniLang.tpl`✅ تم حذف فاتورة الشراء #${id} والمخزون والخزنة تم تحديثهم`);
 }
 
 // ===== PURCHASE SERIAL SCANNER HELPERS =====
@@ -39814,7 +39810,7 @@ function purScanSerial(e) {
   if (existing.includes(scanned)) { showToast('❌ السيريال مكرر في القائمة', 'error'); scanEl.value = ''; scanEl.focus(); return; }
   // Check duplicate in DB/device registry
   const duplicate = findDuplicateSerialIdentifier(scanned);
-  if (duplicate) { showToast(`❌ السيريال موجود مسبقاً في النظام${duplicate.ref ? ' — ' + duplicate.ref : ''}`, 'error'); scanEl.value = ''; scanEl.focus(); return; }
+  if (duplicate) { showToast(OmniLang.tpl`❌ السيريال موجود مسبقاً في النظام${duplicate.ref ? ' — ' + duplicate.ref : ''}`, 'error'); scanEl.value = ''; scanEl.focus(); return; }
   existing.push(scanned);
   ta.value = existing.join('\n');
   updatePurSerialsCount();
@@ -39963,12 +39959,12 @@ async function saveEditSaleInvoice() {
   closeModal('editSaleInvoiceModal');
   renderInvoices();
   renderTreasury();
-  const payLabel = m => m==='cash'?'كاش':m==='vodafone'?'فودافون':m==='instapay'?'InstaPay':m==='fawry'?'فوري':m||'';
+  const payLabel = m => OmniLang.t(m==='cash'?'كاش':m==='vodafone'?'فودافون':m==='instapay'?'InstaPay':m==='fawry'?'فوري':m||'');
   const tMsg = (oldHadCashEntry && newHasCashEntry && oldPayment !== newPayment)
-    ? ` | تحويل خزنة: ${payLabel(oldPayment)} → ${payLabel(newPayment)}`
-    : (oldHadCashEntry || newHasCashEntry) ? ' | الخزنة تم تحديثها' : '';
+    ? OmniLang.tpl` | تحويل خزنة: ${payLabel(oldPayment)} → ${payLabel(newPayment)}`
+    : (oldHadCashEntry || newHasCashEntry) ? OmniLang.t(' | الخزنة تم تحديثها') : '';
   const amanatUnits = (inv.items || []).reduce((s, it) => s + (it.isAmanat ? (parseInt(it.qty, 10) || 0) : 0), 0);
-  showToast(`✅ تم تعديل فاتورة البيع #${id}${tMsg}${amanatUnits > 0 ? ` | 🟠 أمانات: ${amanatUnits} وحدة` : ''}`);
+  showToast(OmniLang.tpl`✅ تم تعديل فاتورة البيع #${id}${tMsg}${amanatUnits > 0 ? OmniLang.tpl` | 🟠 أمانات: ${amanatUnits} وحدة` : ''}`);
   editSaleInvItems = [];
 }
 
@@ -40317,7 +40313,7 @@ function addUnifiedOffset(customerId, supplierId, customerName, supplierName, sa
   if (p.maxSettle <= 0) { showToast('لا يوجد رصيد قابل للتسوية بين العميل والمورد', 'error'); return; }
   if (p.totalOffset > p.maxSettle + 0.0001) {
     const remain = Math.max(0, p.maxSettle - p.savedOffsets);
-    showToast(`❌ لا يمكن حفظ التسوية. الحد الأقصى: ${formatMoney(p.maxSettle)} | المسجل سابقًا: ${formatMoney(p.savedOffsets)} | المتاح الآن: ${formatMoney(remain)}`, 'error');
+    showToast(OmniLang.tpl`❌ لا يمكن حفظ التسوية. الحد الأقصى: ${formatMoney(p.maxSettle)} | المسجل سابقًا: ${formatMoney(p.savedOffsets)} | المتاح الآن: ${formatMoney(remain)}`, 'error');
     return;
   }
   DB.accountOffsets = Array.isArray(DB.accountOffsets) ? DB.accountOffsets : [];
@@ -40351,7 +40347,7 @@ function editUnifiedOffset(offsetId, customerId, supplierId) {
   const others = getUnifiedOffsets(customerId, supplierId).filter(x => x.id != offsetId).reduce((sum, x) => sum + toSafeFloat(x.amount, 0), 0);
   const maxSettle = Math.min(Math.abs(base.saleBalance), Math.abs(base.purBalance));
   if (others + amount > maxSettle + 0.0001) {
-    showToast(`❌ لا يمكن تعديل التسوية: الإجمالي سيتجاوز الحد ${formatMoney(maxSettle)}`, 'error');
+    showToast(OmniLang.tpl`❌ لا يمكن تعديل التسوية: الإجمالي سيتجاوز الحد ${formatMoney(maxSettle)}`, 'error');
     return;
   }
   const note = prompt('ملاحظة التسوية:', o.note || '') ?? o.note;
@@ -40923,7 +40919,7 @@ function deleteASPayment(paymentId) {
   DB.asPayments = DB.asPayments || [];
   const p = DB.asPayments.find(x => x.id == paymentId);
   if (!p) return;
-  if (!confirm('هل تريد حذف هذه الدفعة؟\n' + (p.note || '') + ' - ' + formatMoney(p.amount))) return;
+if (!confirm(OmniLang.t('هل تريد حذف هذه الدفعة؟') + '\n' + (p.note || '') + ' - ' + formatMoney(p.amount))) return;
   const cashType = p.direction === 'pay' ? 'in' : 'out';
   addCashEntry(cashType === 'in' ? 'out' : 'in', p.amount, p.method || 'cash', 'الغاء دفعة - ' + p.entityName);
   DB.asPayments = DB.asPayments.filter(x => x.id != paymentId);
@@ -41158,7 +41154,7 @@ async function saveVoucher() {
      partyId = document.getElementById('vchPartySelect').value;
      const list = partyType === 'customer' ? DB.customers : DB.suppliers;
      const entity = list.find(x => x.id == partyId);
-     if (!entity) { showToast('اختر ' + (partyType === 'customer' ? 'العميل' : 'المورد'), 'error'); return; }
+     if (!entity) { showToast(OmniLang.t('اختر') + ' ' + OmniLang.t(partyType === 'customer' ? 'العميل' : 'المورد'), 'error'); return; }
      partyName = entity.name;
    }
 
@@ -41232,7 +41228,7 @@ async function saveVoucher() {
    saveDB();
    closeModal('voucherModal');
    renderVouchers();
-   showToast(`✅ تم حفظ ${isProfitDist ? 'توزيع الأرباح' : type === 'receipt' ? 'سند القبض' : 'سند الصرف'} #${vchId}`);
+   showToast(OmniLang.t(isProfitDist ? '✅ تم حفظ توزيع الأرباح' : type === 'receipt' ? '✅ تم حفظ سند القبض' : '✅ تم حفظ سند الصرف') + ' #' + vchId);
 
    // Auto-print
    printVoucher(voucher);
@@ -41792,7 +41788,7 @@ async function saveChangePassword() {
     u.password = np;
     saveDB();
     closeModal('changePassModal');
-    showToast(`✅ تم تغيير كلمة مرور ${username}`);
+    showToast(OmniLang.tpl`✅ تم تغيير كلمة مرور ${username}`);
     logActivity('تغيير كلمة مرور', username);
     return;
   }
@@ -41936,7 +41932,7 @@ function renderQuotations() {
 function convertQuotationToInvoice(id) {
   const qt = DB.quotations.find(q => q.id === id);
   if (!qt) return;
-  if (!confirm(`تحويل عرض السعر #${id} لفاتورة بيع؟`)) return;
+  if (!confirm(OmniLang.tpl`تحويل عرض السعر #${id} لفاتورة بيع؟`)) return;
   currentCart = qt.items.map(i => ({ productId: i.productId, name: i.name, price: i.price, buyPrice: 0, qty: i.qty, serials: [], noSerial: true }));
   document.getElementById('cartCustomer').value = qt.customer;
   document.getElementById('cartCustomerPhone').value = qt.phone || '';
@@ -42127,17 +42123,17 @@ function addMasterRecord(key, inputId, prefix, label) {
   if (!requirePermission('editProducts')) return;
   const input = document.getElementById(inputId);
   const name = String(input?.value || '').trim();
-  if (!name) { showToast(`أدخل اسم ${label}`, 'error'); return; }
+  if (!name) { showToast(OmniLang.tpl`أدخل اسم ${OmniLang.t(label)}`, 'error'); return; }
   DB[key] = Array.isArray(DB[key]) ? DB[key] : [];
   if (DB[key].some(row => row.status !== 'archived' && String(row.name || '').trim().toLowerCase() === name.toLowerCase())) {
-    showToast(`${label} موجود بالفعل`, 'error');
+    showToast(OmniLang.tpl`${OmniLang.t(label)} موجود بالفعل`, 'error');
     return;
   }
   DB[key].push({ id: `${prefix}-${Date.now()}`, name, businessType: getCurrentBusinessType(), status: 'active', createdAt: localDateTimeString() });
   input.value = '';
   saveDB();
   renderMasterDataPage();
-  showToast(`تمت إضافة ${label}`);
+  showToast(OmniLang.tpl`تمت إضافة ${OmniLang.t(label)}`);
 }
 
 function addMasterCategory() {
@@ -42184,7 +42180,7 @@ function archiveMasterRecord(key, id, label) {
     ? (DB.products || []).some(product => String(product[property] || '') === String(id))
     : (DB.products || []).some(product => Array.isArray(product.tags) && product.tags.includes(row?.name));
   if (inUse) {
-    showToast(`لا يمكن أرشفة ${label} لأنها مرتبطة بمنتجات`, 'error');
+    showToast(OmniLang.tpl`لا يمكن أرشفة ${OmniLang.t(label)} لأنها مرتبطة بمنتجات`, 'error');
     return;
   }
   if (!row) return;
@@ -42424,10 +42420,10 @@ function renderCharts() {
   ['salesChart','profitChart','categoryChart','paymentChart'].forEach(id => { if (_charts[id]) { _charts[id].destroy(); delete _charts[id]; } });
 
   const salesCtx = document.getElementById('salesChart');
-  if (salesCtx) _charts.salesChart = new Chart(salesCtx, { type: 'bar', data: { labels, datasets: [{ label: 'المبيعات', data: salesData, backgroundColor: 'rgba(0,102,255,0.7)', borderRadius: 6 }] }, options: { ...chartDefaults } });
+  if (salesCtx) _charts.salesChart = new Chart(salesCtx, { type: 'bar', data: { labels, datasets: [{ label: OmniLang.t('المبيعات'), data: salesData, backgroundColor: 'rgba(0,102,255,0.7)', borderRadius: 6 }] }, options: { ...chartDefaults } });
 
   const profitCtx = document.getElementById('profitChart');
-  if (profitCtx) _charts.profitChart = new Chart(profitCtx, { type: 'line', data: { labels, datasets: [{ label: 'الأرباح', data: profitData, borderColor: '#00a854', backgroundColor: 'rgba(0,168,84,0.1)', fill: true, tension: 0.4, pointRadius: 5 }] }, options: { ...chartDefaults } });
+  if (profitCtx) _charts.profitChart = new Chart(profitCtx, { type: 'line', data: { labels, datasets: [{ label: OmniLang.t('الأرباح'), data: profitData, borderColor: '#00a854', backgroundColor: 'rgba(0,168,84,0.1)', fill: true, tension: 0.4, pointRadius: 5 }] }, options: { ...chartDefaults } });
 
   const catCtx = document.getElementById('categoryChart');
   if (catCtx && topProds.length) _charts.categoryChart = new Chart(catCtx, { type: 'doughnut', data: { labels: topProds.map(p=>p[0]), datasets: [{ data: topProds.map(p=>p[1]), backgroundColor: ['#0066ff','#00a854','#f9a825','#7c3aed','#e65100'] }] }, options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: textColor, font: { family: 'Cairo' }, boxWidth: 12 } } } } });
@@ -42438,6 +42434,17 @@ function renderCharts() {
   if (payCtx && payVals.length) _charts.paymentChart = new Chart(payCtx, { type: 'pie', data: { labels: payLabels, datasets: [{ data: payVals, backgroundColor: ['#00a854','#0066ff','#e65100','#f9a825','#7c3aed'] }] }, options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: textColor, font: { family: 'Cairo' }, boxWidth: 12 } } } } });
 }
 
+
+document.addEventListener('omnilangchange', function () {
+  try {
+    if (typeof currentPage !== 'undefined' && currentPage === 'dashboard') {
+      try { renderDashboardRevenueChart(); } catch (e) {}
+      try { renderDashboardInventoryChart(); } catch (e) {}
+      try { renderDashboardSalesChart(); } catch (e) {}
+    }
+    if (typeof _charts !== 'undefined' && (_charts.salesChart || _charts.profitChart || _charts.paymentChart)) renderCharts();
+  } catch (e) {}
+});
 
 // ================= CUSTOMER RATING =================
 function buildRatingHtml(entityId, entityType) {
@@ -42775,7 +42782,7 @@ function sendBroadcast() {
   const selected = getSelectedBroadcastContacts();
   if (selected.length === 0) { showToast('اختر مستلماً واحداً على الأقل', 'error'); return; }
   const valid = selected.filter(c => normalizeWAPhone(c.phone).length >= 10);
-  if (!confirm(`إرسال الرسالة لـ ${valid.length} شخص عبر واتساب؟`)) return;
+  if (!confirm(OmniLang.tpl`إرسال الرسالة لـ ${valid.length} شخص عبر واتساب؟`)) return;
   let delay = 0;
   valid.forEach((c) => {
     const waPhone = normalizeWAPhone(c.phone);
@@ -42785,7 +42792,7 @@ function sendBroadcast() {
     }, delay);
     delay += 1000;
   });
-  showToast('✅ جاري فتح واتساب لـ ' + valid.length + ' شخص');
+  showToast(OmniLang.tpl`✅ جاري فتح واتساب لـ ${valid.length} شخص`);
 }
 
 // ================= RATING IN AS CARD =================

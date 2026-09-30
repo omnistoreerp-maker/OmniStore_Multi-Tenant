@@ -450,7 +450,14 @@ check('working-tree diff touches only intended platform files', () => {
     'marketplace/src/pages/Checkout.tsx',
     'marketplace/tests/category-reset.test.cjs',
     // LANGUAGE: new e2e language-switcher test wiring (never ci.yml).
-    'tests/e2e/package.json'
+    'tests/e2e/package.json',
+    // TRANSLATION-ONLY REPAIR cycle: index runtime messages + native
+    // dialog translation (tpl/t wrappers) + composed-message dict keys.
+    'platform/omni-i18n.js',
+    'platform/i18n/index.dict.js',
+    // TRANSLATION-ONLY REPAIR cycle: vm sandbox gets an OmniLang stub
+    // because extracted real functions now wrap messages in OmniLang.t/tpl.
+    'backend/tests/frontendInvoicesSync.test.js'
   ]);
   const allowedUntracked = new Set([
     'platform/tests/section-lockdown.test.cjs',

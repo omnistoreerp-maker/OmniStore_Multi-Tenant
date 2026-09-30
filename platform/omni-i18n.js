@@ -112,6 +112,20 @@
     return hit === null ? text : hit;
   }
 
+  function tpl(strings) {
+    var skeleton = strings.join('\u0000');
+    var entry = lookup(skeleton);
+    var seg = entry && lang !== entry.src ? entry.val.split('\u0000') : null;
+    if (!seg || seg.length !== strings.length) {
+      var out = strings[0];
+      for (var i = 1; i < strings.length; i++) out += arguments[i] + strings[i];
+      return out;
+    }
+    var res = seg[0];
+    for (var j = 1; j < seg.length; j++) res += arguments[j] + seg[j];
+    return res;
+  }
+
   function wrapSpaces(orig, val) {
     var m = /^(\s*)([\s\S]*?)(\s*)$/.exec(String(orig));
     if (!m || (!m[1] && !m[3])) return val;
@@ -337,8 +351,19 @@
     onChange: onChange,
     registerDict: registerDict,
     translate: t,
+    t: t,
+    tpl: tpl,
     apply: runPass,
     source: 'omnistore_language'
+  };
+
+  var _nativeAlert = window.alert;
+  var _nativeConfirm = window.confirm;
+  window.alert = function (msg) {
+    return _nativeAlert(typeof msg === 'string' ? t(msg) : msg);
+  };
+  window.confirm = function (msg) {
+    return _nativeConfirm(typeof msg === 'string' ? t(msg) : msg);
   };
 
   start();
