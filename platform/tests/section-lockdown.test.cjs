@@ -420,12 +420,18 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/tests/platformPublic.test.js',
     // Students activation cycle: catalog/sections discovery assertions.
     'backend/tests/platformSections.students.test.js',
+    // Support activation cycle: operator/admin reply + guarded transition.
+    'backend/services/customerRequest.service.js',
+    'backend/controllers/internalChangeCenter.controller.js',
+    'backend/routes/internalChangeCenter.routes.js',
     // Media / Reels clean port: runtime media storage stays untracked.
     '.gitignore'
   ]);
   const allowedUntracked = new Set([
     'platform/tests/section-lockdown.test.cjs',
     'backend/tests/platformSections.students.test.js',
+    // Support activation cycle: operator workflow tests.
+    'backend/tests/internalChangeCenter.workflow.test.js',
     'CANDIDATE_HANDOFF_20260920.md',
     'docs/REAL_REPOSITORY_RECONCILIATION.md',
     'docs/TEABLE_AGENT_RECONCILIATION.md',
