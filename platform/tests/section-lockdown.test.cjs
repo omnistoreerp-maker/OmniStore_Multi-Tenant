@@ -361,11 +361,129 @@ check('CSP narrowly allows the official Monetag chain only (no wildcard, policy 
   assert.ok(connectLine.includes("'https://094kk.com'"), 'observed Multitag beacon origin missing from connect-src');
   assert.ok(!connectLine.includes('*'), 'wildcard forbidden in connect-src');
   assert.strictEqual((connectLine.match(/https:\/\//g) || []).length, 7, 'unexpected extra origin in connect-src');
-  assert.ok(serverJs.includes('frameSrc: ["\'none\'"]'), 'frame-src policy changed');
+  assert.ok(!connectLine.includes('*'), 'wildcard forbidden in connect-src');
+  // -------------------------------------------------------------------------
+  // frame-src / img-src - TikTok embedded playback (TikTok Display API cycle).
+  //
+  // The intentional change is narrow and is asserted as an exact allowlist:
+  //   frame-src = https://www.tiktok.com ONLY (the official Embed Player origin).
+  //   img-src   = 'self', data:, https://*.tiktokcdn.com, https://*.tiktokcdn-us.com.
+  // A bare `*` is rejected, 'self' must not reappear in frame-src (same-origin
+  // frames stay blocked), and unrelated external origins are asserted absent.
+  // -------------------------------------------------------------------------
+  const frameLine = (serverJs.match(/frameSrc: \[[^\]]*\]/) || [])[0];
+  assert.ok(frameLine, 'frameSrc directive missing');
+  assert.ok(frameLine.includes("'https://www.tiktok.com'"), 'TikTok Embed Player origin missing from frame-src');
+  assert.ok(!frameLine.includes("'none'"), "frame-src must no longer be 'none' (TikTok playback is intentional)");
+  assert.ok(!frameLine.includes("'self'"), "frame-src must not re-allow same-origin frames");
+  assert.ok(!frameLine.includes("'unsafe-inline'"), 'frame-src must not allow inline frames');
+  assert.ok(!/(^|[^.\w])\*/.test(frameLine), 'wildcard forbidden in frame-src');
+  assert.strictEqual((frameLine.match(/https:\/\//g) || []).length, 1, 'unexpected extra origin in frame-src');
+  for (const blocked of ['youtube.com', 'vimeo.com', 'facebook.com', 'instagram.com', 'tiktokcdn.com', 'tiktokcdn-us.com', 'quge5.com', 'auqot.com', 'ekhay.com', 'b3mny.com', 'google.com']) {
+    assert.ok(!frameLine.includes(blocked), 'unrelated origin must not be allowed in frame-src: ' + blocked);
+  }
+  const imgLine = (serverJs.match(/imgSrc: \[[^\]]*\]/) || [])[0];
+  assert.ok(imgLine, 'imgSrc directive missing');
+  assert.ok(imgLine.includes("'self'"), "img-src must keep 'self'");
+  assert.ok(imgLine.includes("'data:'"), "img-src must keep data:");
+  assert.ok(imgLine.includes("'https://*.tiktokcdn.com'"), 'TikTok cover CDN domain missing from img-src');
+  assert.ok(imgLine.includes("'https://*.tiktokcdn-us.com'"), 'TikTok cover CDN domain missing from img-src');
+  assert.ok(!imgLine.includes("'unsafe-inline'"), 'img-src must not allow unsafe-inline');
+  assert.ok(!/(^|[\s'"])\*(?=$|[\s'"(])/.test(imgLine), 'bare wildcard origin forbidden in img-src');
+  assert.strictEqual((imgLine.match(/https:\/\//g) || []).length, 2, 'unexpected extra external origin in img-src');
+  for (const blocked of ['quge5.com', 'auqot.com', 'ekhay.com', 'b3mny.com', '6opo.com', 'my.rtmark.net', 'jmosl.com', '094kk.com', 'google.com', 'gstatic.com', 'unsplash.com']) {
+    assert.ok(!imgLine.includes(blocked), 'unrelated origin must not be allowed in img-src: ' + blocked);
+  }
+  // object-src is unrelated to this change and must stay fully closed.
   assert.ok(serverJs.includes('objectSrc: ["\'none\'"]'), 'object-src policy changed');
-  assert.ok(serverJs.includes('imgSrc: ["\'self\'", \'data:\']'), 'img-src policy changed');
   assert.ok(serverJs.includes('styleSrc: ["\'self\'", "\'unsafe-inline\'", \'https://fonts.googleapis.com\']'), 'style-src policy changed');
 });
+
+// Both security layers are active (Express serves the app in single-process
+// mode, nginx terminates in production). If they disagree, the stricter one
+// silently breaks TikTok playback, so the TikTok allowlist must be IDENTICAL
+// in nginx.conf and backend/server.js. This asserts equality of the exact
+// directive values rather than the mere presence of a header.
+check('nginx.conf and backend/server.js express the same narrow TikTok CSP allowlist', () => {
+  const nginx = read('nginx.conf');
+  const serverJs = read('backend/server.js');
+  const header = (nginx.match(/add_header Content-Security-Policy "([^"]+)"/) || [])[1];
+  assert.ok(header, 'nginx Content-Security-Policy header missing');
+  assert.ok(!/\*/.test(header.replace(/https:\/\/\*\./g, '')), 'bare wildcard forbidden in nginx CSP');
+
+  const nginxDirectives = Object.fromEntries(
+    header.split(';').map((d) => d.trim()).filter(Boolean).map((d) => {
+      const idx = d.indexOf(' ');
+      return [d.slice(0, idx), d.slice(idx + 1).trim()];
+    })
+  );
+
+  // frame-src: exactly one origin, and it must be the TikTok player origin.
+  assert.ok(nginxDirectives['frame-src'], 'nginx frame-src directive missing');
+  assert.strictEqual(nginxDirectives['frame-src'], 'https://www.tiktok.com', 'nginx frame-src must allow the TikTok Embed Player origin only');
+  assert.ok(!nginxDirectives['frame-src'].includes("'self'"), 'nginx frame-src must not re-allow same-origin frames');
+
+  // img-src: self + data + the two TikTok CDN domains, nothing else.
+  assert.ok(nginxDirectives['img-src'], 'nginx img-src directive missing');
+  const nginxImg = nginxDirectives['img-src'].split(/\s+/).sort();
+  assert.deepStrictEqual(nginxImg, ["'self'", 'data:', 'https://*.tiktokcdn-us.com', 'https://*.tiktokcdn.com'].sort(),
+    'nginx img-src must be exactly self, data and the two TikTok CDN domains');
+
+  // Unrelated directives must remain as restrictive as before.
+  assert.strictEqual(nginxDirectives['default-src'], "'self'", 'nginx default-src changed');
+  assert.strictEqual(nginxDirectives['connect-src'], "'self'", 'nginx connect-src changed');
+
+  // Parity: the same origins must be present in the Express policy.
+  const frameLine = (serverJs.match(/frameSrc: \[[^\]]*\]/) || [])[0] || '';
+  const imgLine = (serverJs.match(/imgSrc: \[[^\]]*\]/) || [])[0] || '';
+  assert.ok(frameLine.includes("'https://www.tiktok.com'"), 'Express frame-src lacks the nginx frame-src origin');
+  for (const origin of ['https://*.tiktokcdn.com', 'https://*.tiktokcdn-us.com']) {
+    assert.ok(nginxDirectives['img-src'].includes(origin), 'nginx img-src missing ' + origin);
+    assert.ok(imgLine.includes("'" + origin + "'"), 'Express img-src missing ' + origin);
+  }
+});
+
+// The Reels page must build the player from the numeric post id against the
+// exact origin the CSP allows, and must not inject upstream embed HTML.
+check('reels.html player is origin-pinned to the CSP-allowed TikTok host', () => {
+  const reels = read('reels.html');
+  assert.ok(reels.includes('https://www.tiktok.com/player/v1/'), 'player URL must use the documented TikTok Embed Player origin');
+  assert.ok(!/https:\/\/(?!www\.tiktok\.com)[a-z0-9.-]+/i.test(reels.replace(/platform\.css|fonts\.g|example\.com|localhost/g, '')),
+    'reels.html must not reference any third-party origin outside www.tiktok.com');
+  assert.ok(!/innerHTML\s*=|insertAdjacentHTML|document\.write/.test(reels), 'reels.html must not inject remote HTML');
+  assert.ok(!reels.includes('embed_html'), 'reels.html must not consume upstream embed_html');
+  assert.ok(!/\.(mp4|m3u8)\b/i.test(reels), 'reels.html must not reference a video/media file');
+  // The public page must not offer a connect action or the admin status route.
+  const code = reels
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+  assert.ok(!/tiktok\/connect/.test(code), 'reels.html must not expose a Connect action to visitors');
+  assert.ok(!/reels\/status/.test(code), 'reels.html must not call the admin-only reels/status route');
+});
+
+// TikTok Reels must never shadow the tenant-scoped OmniStore Reels surface:
+// the TikTok feed lives under /tiktok/reels, and the reels controller used by
+// the main feature must stay byte-identical in its public read contract.
+check('tiktok reels routes are namespaced away from the main OmniStore reels surface', () => {
+  const platformPublic = read('backend/routes/platformPublic.routes.js');
+  const routes = read('backend/routes/tiktokPublic.routes.js');
+  // main's platformPublic boundary file keeps zero reels surface (asserted
+  // by reelsPublic.test.js too): no TikTok controller, no /tiktok/reels.
+  assert.ok(!platformPublic.includes('tiktokReels.controller'), 'platformPublic must not require the TikTok reels controller');
+  assert.ok(!platformPublic.includes("router.get('/tiktok/reels'"), 'platformPublic must not register /tiktok/reels (owned by tiktokPublic.routes.js)');
+  assert.ok(!platformPublic.includes("router.get('/reels',"), 'platformPublic must not register /reels (owned by reels.routes.js)');
+  assert.ok(routes.includes("require('../controllers/tiktokReels.controller')"), 'TikTok controller must be the separated tiktokReels.controller');
+  assert.ok(routes.includes("router.get('/tiktok/reels'"), 'TikTok public feed must live at /tiktok/reels');
+  assert.ok(!routes.includes("router.get('/reels',"), 'tiktokPublic must not register /reels (owned by reels.routes.js)');
+  assert.ok(routes.includes('requireAuth, requirePlatformAdmin()'), 'TikTok admin routes must stay platform-admin gated');
+  for (const route of ['/tiktok/connect', '/tiktok/callback', '/tiktok/status', '/tiktok/reels/status', '/tiktok/sync', '/tiktok/disconnect']) {
+    assert.ok(routes.includes("'" + route + "'"), 'TikTok route missing: ' + route);
+  }
+  const serverSrc = read('backend/server.js');
+  assert.ok(serverSrc.includes("app.use('/api/v1/platform-public', tiktokPublicRoutes)"), 'tiktokPublic router must be mounted under /api/v1/platform-public');
+});
+
 
 check('monetag boundary stays isolated from core machinery (source tokens)', () => {
   const forbidden = ['visitorsNow', 'activity/heartbeat', 'platformActivity', 'auth/login', 'requireAuth', 'payments/webhook'];
@@ -457,7 +575,28 @@ check('working-tree diff touches only intended platform files', () => {
     'platform/i18n/index.dict.js',
     // TRANSLATION-ONLY REPAIR cycle: vm sandbox gets an OmniLang stub
     // because extracted real functions now wrap messages in OmniLang.t/tpl.
-    'backend/tests/frontendInvoicesSync.test.js'
+    'backend/tests/frontendInvoicesSync.test.js',
+    // TikTok Display API cycle: env template gains EMPTY TikTok placeholders
+    // (never secrets; the real .env stays gitignored and untouched).
+    'backend/.env.example',
+    // TikTok Display API cycle: new feature files (tracked once committed;
+    // listed here so the working-tree guard also accepts staged additions).
+    'backend/config/tiktok.js',
+    'backend/controllers/tiktokReels.controller.js',
+    'backend/services/reelsCache.service.js',
+    'backend/services/tiktokConnection.service.js',
+    'backend/services/tiktokDisplayApi.service.js',
+    'backend/tests/tiktokReels.test.js',
+    'backend/tests/tiktokReelsRouteCollision.test.js',
+    // TikTok cycle: platformPublic keeps zero reels surface; TikTok lives
+    // in its own router (tiktokPublic.routes.js) under /tiktok/*.
+    'backend/routes/platformPublic.routes.js',
+    'backend/routes/tiktokPublic.routes.js',
+    // TikTok Display API / Reels integration repair cycle: the separated
+    // TikTok controller, public page and route namespace.
+    'reels.html',
+    'backend/controllers/tiktokReels.controller.js',
+    'nginx.conf'
   ]);
   const allowedUntracked = new Set([
     'platform/tests/section-lockdown.test.cjs',
@@ -488,7 +627,17 @@ check('working-tree diff touches only intended platform files', () => {
     'marketplace/public/omni-i18n.js',
     'marketplace/src/omni-lang.d.ts',
     // LANGUAGE: new e2e language-switcher test.
-    'tests/e2e/verify-lang.js'
+    'tests/e2e/verify-lang.js',
+    // TikTok Display API / Reels integration repair cycle: new files.
+    'reels.html',
+    'backend/config/tiktok.js',
+    'backend/controllers/tiktokReels.controller.js',
+    'backend/tests/tiktokReelsRouteCollision.test.js',
+    'backend/routes/tiktokPublic.routes.js',
+    'backend/services/reelsCache.service.js',
+    'backend/services/tiktokConnection.service.js',
+    'backend/services/tiktokDisplayApi.service.js',
+    'backend/tests/tiktokReels.test.js'
   ]);
   const git = (args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' }).stdout.split('\n').map((s) => s.trim()).filter(Boolean);
   const modified = git(['diff', '--name-only', 'HEAD']);

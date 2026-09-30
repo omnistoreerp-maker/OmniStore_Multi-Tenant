@@ -461,20 +461,9 @@
       loadPricing();
 
       // ---------- TikTok Reels / Shorts ----------
-      var tiktokLoaded = false;
-
-      function ensureTikTokScript() {
-        if (tiktokLoaded) return Promise.resolve();
-        return new Promise(function (resolve) {
-          var s = document.createElement('script');
-          s.src = 'https://www.tiktok.com/embed.js';
-          s.async = true;
-          s.defer = true;
-          s.onload = function () { tiktokLoaded = true; resolve(); };
-          s.onerror = function () { resolve(); };
-          document.head.appendChild(s);
-        });
-      }
+      // No third-party TikTok embed.js loader here any more: each card embeds
+      // TikTok's own Embed Player iframe directly (see renderEmbedCard), so no
+      // remote script is fetched, injected, or awaited.
 
       async function loadTikTokFeed() {
         var host = document.getElementById('tiktok-feed-host');
@@ -492,29 +481,63 @@
             host.innerHTML = renderFallback();
             return;
           }
-          await ensureTikTokScript();
-          host.innerHTML = embeds.map(function (item) {
-            if (item.fallback || !item.embed_html) {
-              return '<a class="tiktok-feed__fallback" href="' + escapeHtml(item.url) + '" target="_blank" rel="noopener">' +
-                '<div style="font-size:28px">🎵</div>' +
-                '<div style="font-weight:800;font-size:14px">' + escapeHtml(item.title || 'Check out our TikTok') + '</div>' +
-                '<div style="font-size:12px;color:var(--muted)">@' + escapeHtml(item.author_name || '') + '</div>' +
-                '<span class="tiktok-feed__cta">Open TikTok →</span>' +
-              '</a>';
-            }
-            return '<div class="tiktok-feed__card">' + item.embed_html + '</div>';
-          }).join('');
+          // SECURITY: the upstream oEmbed `embed_html` is third-party markup
+          // and is deliberately NOT injected here. It is ignored, and each
+          // card instead embeds TikTok's documented Embed Player iframe
+          // (https://www.tiktok.com/player/v1/{post_id}) built from the
+          // video id, so no remote HTML is ever written into the DOM.
+          host.textContent = '';
+          embeds.forEach(function (item) {
+            host.appendChild(renderEmbedCard(item));
+          });
         } catch (e) {
           host.innerHTML = renderFallback();
         }
       }
 
+      // Builds one card. The iframe src is derived from a numeric post id
+      // only, so the attribute can never carry attacker-controlled markup.
+      function renderEmbedCard(item) {
+        var card = document.createElement('div');
+        card.className = 'tiktok-feed__card';
+        var postId = extractPostId(item.url);
+        if (!postId) {
+          card.className = 'tiktok-feed__fallback';
+          var link = document.createElement('a');
+          link.href = item.url;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.textContent = 'Open on TikTok';
+          card.appendChild(link);
+          return card;
+        }
+        var frame = document.createElement('iframe');
+        frame.src = 'https://www.tiktok.com/player/v1/' + postId + '?controls=1&progress_bar=1';
+        frame.title = item.title || 'TikTok video';
+        frame.loading = 'lazy';
+        frame.setAttribute('allow', 'encrypted-media; picture-in-picture; fullscreen');
+        frame.setAttribute('allowfullscreen', '');
+        frame.setAttribute('referrerpolicy', 'no-referrer');
+        card.appendChild(frame);
+        return card;
+      }
+
+      // Accepts only a bare numeric post id out of a tiktok.com video URL.
+      function extractPostId(url) {
+        var m = /\/video\/(\d+)/.exec(String(url || ''));
+        return m ? m[1] : null;
+      }
+
+      // The account identity now comes from the backend. A hardcoded handle
+      // here would be a second source of truth that drifts from the
+      // OAuth-authorized account, so the fallback points at the Reels surface
+      // instead of guessing a username.
       function renderFallback() {
-        return '<a class="tiktok-feed__fallback" href="https://www.tiktok.com/@' + escapeHtml('YOUR_TIKTOK_USERNAME_HERE') + '" target="_blank" rel="noopener">' +
+        return '<a class="tiktok-feed__fallback" href="reels.html" >' +
           '<div style="font-size:28px">🎵</div>' +
-          '<div style="font-weight:800;font-size:14px">Check out our TikTok</div>' +
-          '<div style="font-size:12px;color:var(--muted)">@YOUR_TIKTOK_USERNAME_HERE</div>' +
-          '<span class="tiktok-feed__cta">Open TikTok →</span>' +
+          '<div style="font-weight:800;font-size:14px">TikTok Reels</div>' +
+          '<div style="font-size:12px;color:var(--muted)">Open the OmniStore Reels feed</div>' +
+          '<span class="tiktok-feed__cta">Open Reels →</span>' +
         '</a>';
       }
 
