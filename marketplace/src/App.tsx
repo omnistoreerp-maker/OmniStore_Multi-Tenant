@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { HashRouter, Route, Routes } from "react-router-dom";
 import { Toaster } from "sonner";
 import { MarketUIProvider } from "@/stores/marketUI";
@@ -18,8 +18,41 @@ import NotFound from "@/pages/NotFound";
  * HashRouter so deep links (#/product/:id, #/checkout, #/track/:token…)
  * work from plain static hosting with zero server rewrite rules.
  */
+
+/** Toaster direction follows the global language (platform/omni-i18n.js). */
+function DynamicToaster() {
+  const readDir = () => (document.documentElement.getAttribute("dir") === "ltr" ? "ltr" : "rtl");
+  const [dir, setDir] = useState<"rtl" | "ltr">(readDir);
+  useEffect(() => {
+    const onLang = () => setDir(readDir());
+    document.addEventListener("omnilangchange", onLang);
+    return () => document.removeEventListener("omnilangchange", onLang);
+  }, []);
+  return (
+    <Toaster
+      position="top-center"
+      dir={dir}
+      toastOptions={{
+        style: {
+          fontFamily: "Cairo, Inter, system-ui, sans-serif",
+          borderRadius: "0.85rem",
+        },
+      }}
+    />
+  );
+}
+
 export default function App() {
   const [cartOpen, setCartOpen] = useState(false);
+  // Re-render the whole tree when the global language switches so lang-aware
+  // formatters (lib/format.ts) and aria ternaries re-evaluate. State/scroll
+  // are preserved — this is a plain setState, not a key remount.
+  const [, setLangTick] = useState(0);
+  useEffect(() => {
+    const onLang = () => setLangTick((t) => t + 1);
+    document.addEventListener("omnilangchange", onLang);
+    return () => document.removeEventListener("omnilangchange", onLang);
+  }, []);
 
   return (
     <HashRouter>
@@ -41,16 +74,7 @@ export default function App() {
           </main>
           <Footer />
           <CartDrawer open={cartOpen} onClose={() => setCartOpen(false)} />
-          <Toaster
-            position="top-center"
-            dir="rtl"
-            toastOptions={{
-              style: {
-                fontFamily: "Cairo, Inter, system-ui, sans-serif",
-                borderRadius: "0.85rem",
-              },
-            }}
-          />
+          <DynamicToaster />
         </div>
       </MarketUIProvider>
     </HashRouter>

@@ -2,7 +2,8 @@
   'use strict';
 
   const API = '/api/v1/platform-public';
-  const STORAGE_KEY = 'omnistore_platform_lang';
+  const STORAGE_KEY = 'omnistore_language';
+  const LEGACY_STORAGE_KEY = 'omnistore_platform_lang';
 
   const TRANSLATIONS = {
     en: {
@@ -189,14 +190,19 @@
   }
 
   function getLang() {
+    if (window.OmniLang) return window.OmniLang.get();
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+      const saved = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
       if (saved === 'ar' || saved === 'en') return saved;
     } catch (_) {}
-    return 'ar';
+    return 'en';
   }
 
   function setLang(lang) {
+    if (window.OmniLang) {
+      window.OmniLang.set(lang);
+      return;
+    }
     try {
       localStorage.setItem(STORAGE_KEY, lang);
     } catch (_) {}
@@ -205,7 +211,7 @@
   }
 
   function applyLang(lang) {
-    const t = TRANSLATIONS[lang] || TRANSLATIONS.ar;
+    const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
     const html = document.documentElement;
     html.setAttribute('lang', t.lang);
     html.setAttribute('dir', t.dir);
@@ -223,9 +229,6 @@
     if (taglineEl && t.platform_tagline) {
       taglineEl.textContent = t.platform_tagline;
     }
-
-    const switchBtn = document.getElementById('lang-switch');
-    if (switchBtn) switchBtn.textContent = lang === 'en' ? 'العربية' : 'English';
   }
 
   function el(tag, cls, text) {
@@ -316,7 +319,7 @@
     if (!root || !Array.isArray(stats)) return;
     root.innerHTML = '';
     const lang = getLang();
-    const t = TRANSLATIONS[lang] || TRANSLATIONS.ar;
+    const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
     root.appendChild(sectionHead(t.section_overview || 'Platform Overview', 'Overview'));
     const grid = el('div', 'stats');
     for (const s of stats) {
@@ -338,7 +341,7 @@
     if (!root || !Array.isArray(features)) return;
     root.innerHTML = '';
     const lang = getLang();
-    const t = TRANSLATIONS[lang] || TRANSLATIONS.ar;
+    const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
     root.appendChild(sectionHead(t.section_core_modules || 'Core Modules', 'Modules'));
     const grid = el('div', 'features');
     for (const f of features) {
@@ -358,7 +361,7 @@
     if (!root || !Array.isArray(highlights)) return;
     root.innerHTML = '';
     const lang = getLang();
-    const t = TRANSLATIONS[lang] || TRANSLATIONS.ar;
+    const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
     root.appendChild(sectionHead(t.section_why || 'Why OmniStore', 'Highlights'));
     const grid = el('div', 'highlights');
     for (const h of highlights) {
@@ -372,7 +375,7 @@
 
   function statusLabel(status) {
     const lang = getLang();
-    const t = TRANSLATIONS[lang] || TRANSLATIONS.ar;
+    const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
     if (status === 'active') return t.status_active;
     if (status === 'coming-soon') return t.status_coming_soon;
     if (status === 'under-construction') return t.status_under_construction;
@@ -381,7 +384,7 @@
 
   function sectionTitle(id) {
     const lang = getLang();
-    const t = TRANSLATIONS[lang] || TRANSLATIONS.ar;
+    const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
     const key = 'section_' + String(id).replace(/-/g, '_');
     if (t[key]) return t[key];
     const fallback = TRANSLATIONS.en[key];
@@ -396,7 +399,7 @@
     if (!Array.isArray(sections) || sections.length === 0) return;
 
     const lang = getLang();
-    const t = TRANSLATIONS[lang] || TRANSLATIONS.ar;
+    const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
     root.appendChild(sectionHead(t.section_platform_services || 'Platform Services', 'Services'));
 
     const grid = el('div', 'sections-grid');
@@ -430,7 +433,7 @@
 
   function renderActivity() {
     const lang = getLang();
-    const t = TRANSLATIONS[lang] || TRANSLATIONS.ar;
+    const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
     const visitorsRoot = document.getElementById('activity-visitors-now');
     const usersRoot = document.getElementById('activity-registered-users');
     const businessesRoot = document.getElementById('activity-active-businesses');
@@ -470,7 +473,7 @@
 
   async function loadActivityStats() {
     const lang = getLang();
-    const t = TRANSLATIONS[lang] || TRANSLATIONS.ar;
+    const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
     const visitorsRoot = document.getElementById('activity-visitors-now');
     const usersRoot = document.getElementById('activity-registered-users');
     const businessesRoot = document.getElementById('activity-active-businesses');
@@ -625,13 +628,10 @@
   }
 
   function bindEvents() {
-    const switchBtn = document.getElementById('lang-switch');
-    if (switchBtn) {
-      switchBtn.addEventListener('click', function () {
-        const next = getLang() === 'en' ? 'ar' : 'en';
-        setLang(next);
-      });
-    }
+    document.addEventListener('omnilangchange', function () {
+      applyLang(getLang());
+      rerenderDynamic();
+    });
     bindVisibility();
   }
 

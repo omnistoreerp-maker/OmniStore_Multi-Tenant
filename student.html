@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" data-omni-section="students">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -73,13 +73,19 @@
       th, td { padding: 6px 8px; font-size: 12px; }
     }
   </style>
+  <link rel="stylesheet" href="platform/omni-design.css">
+  <script src="platform/omni-i18n.js"></script>
+  <script src="platform/i18n/student.dict.js"></script>
 </head>
 <body>
   <div class="container">
-    <div class="page-header">
-      <h1>🎓 Student Services &amp; Printing</h1>
+  <div class="page-header">
+    <h1>🎓 Student Services &amp; Printing</h1>
+    <div class="header-side">
       <a class="back-link" href="business.html">← Business</a>
+      <div data-omni-lang-slot></div>
     </div>
+  </div>
 
     <!-- Cost Calculator -->
     <section class="card" aria-labelledby="calc-h">
