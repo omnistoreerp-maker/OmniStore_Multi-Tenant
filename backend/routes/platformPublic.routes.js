@@ -3,9 +3,12 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/platformPublic.controller');
 const tiktokCtrl = require('../controllers/tiktokFeed.controller');
+const reelsCtrl = require('../controllers/reels.controller');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
 const { error: errorResponse } = require('../utils/apiResponse');
+const { requireAuth } = require('../middleware/auth');
+const { requirePlatformAdmin } = require('../middleware/platformAuth');
 const config = require('../config');
 
 const isTest = process.env.NODE_ENV === 'test';
@@ -49,6 +52,33 @@ router.get('/highlights', ctrl.getHighlights);
 router.get('/sections', ctrl.getSections);
 router.get('/pricing', ctrl.getPricing);
 router.get('/social-feed/tiktok', tiktokCtrl.getTikTokFeed);
+
+// Public Reels feed — display metadata only, no credentials. Global platform
+// content: no companyId, no tenant scope, no tenant credentials.
+router.get('/reels', reelsCtrl.getReels);
+
+// ---------------------------------------------------------------------------
+// TikTok Display API connection — PLATFORM-ADMIN GATED.
+//
+// This integration owns ONE global account for the whole platform. Everything
+// that can create, replace, refresh, inspect or destroy that connection is
+// restricted to platform administrators (server-side store, independent of
+// tenant roles). Left public, any anonymous visitor could complete the OAuth
+// dance and repoint OmniStore's public Reels feed at their own TikTok
+// account, or simply disconnect it.
+//
+// /tiktok/callback is gated too: the auth cookie is SameSite=Lax, so TikTok's
+// top-level GET redirect carries it. The controller additionally enforces the
+// single-use state bound to the admin who started the flow.
+// ---------------------------------------------------------------------------
+const tiktokAdmin = [requireAuth, requirePlatformAdmin()];
+
+router.get('/tiktok/connect', tiktokAdmin, reelsCtrl.startOAuth);
+router.get('/tiktok/callback', tiktokAdmin, reelsCtrl.handleCallback);
+router.get('/tiktok/status', tiktokAdmin, reelsCtrl.getConnectionStatus);
+router.get('/reels/status', tiktokAdmin, reelsCtrl.getReelsStatus);
+router.post('/tiktok/sync', tiktokAdmin, reelsCtrl.triggerSync);
+router.post('/tiktok/disconnect', tiktokAdmin, reelsCtrl.disconnect);
 
 router.post('/', ctrl.notFound);
 router.put('/', ctrl.notFound);

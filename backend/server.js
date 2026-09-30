@@ -53,9 +53,21 @@ app.use(helmet({
       scriptSrcAttr: ["'self'", "'unsafe-inline'"], // overrides helmet's default 'none'
       styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
-      imgSrc: ["'self'", 'data:'],
+      // TikTok cover/thumbnail images. The Display API returns cover_image_url on
+      // TikTok's CDN (documented example: https://p16-sign.tiktokcdn-us.com/...).
+      // TikTok rotates the "pNN-sign" subdomain per region, so the allowlist is
+      // pinned to the two TikTok-owned CDN registrable domains rather than a
+      // specific host. This is a scoped subdomain match on TikTok-owned domains,
+      // NOT a `*` wildcard, and it does not permit any other external image host.
+      // tiktokDisplayApi.service also validates the host server-side before the
+      // URL ever reaches a browser, so this allowlist is sufficient by design.
+      imgSrc: ["'self'", 'data:', 'https://*.tiktokcdn.com', 'https://*.tiktokcdn-us.com'],
       connectSrc: ["'self'", 'https://api.github.com', 'https://cdn.jsdelivr.net', 'https://6opo.com', 'https://auqot.com', 'https://my.rtmark.net', 'https://jmosl.com', 'https://094kk.com'],
-      frameSrc: ["'none'"],
+      // TikTok embedded playback: the official Embed Player is served from
+      // https://www.tiktok.com/player/v1/<video_id> and is built in reels.html
+      // from the numeric post id alone. Exactly one origin is allowed. 'self' is
+      // deliberately NOT re-added: same-origin frames stay blocked as before.
+      frameSrc: ['https://www.tiktok.com'],
       objectSrc: ["'none'"]
     }
   }
