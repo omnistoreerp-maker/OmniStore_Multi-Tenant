@@ -62,3 +62,6 @@ backend/data/educationCenters.json
 # write and never committed.
 backend/data/educationPrograms.json
 backend/data/educationCourses.json
+# STU-6 Classes: tenant-owned runtime store, created on first write and never
+# committed.
+backend/data/educationClasses.json

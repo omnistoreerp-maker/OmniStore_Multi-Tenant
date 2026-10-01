@@ -183,13 +183,15 @@ describe('STU-1 educationPack.service — trusted tenant + fail closed', () => {
   test('capability manifest never advertises an unimplemented Education entity', () => {
     const caps = service.listCapabilities();
     // STU-2 flipped 'students', STU-3 flipped 'teachers', STU-4 flipped
-    // 'centers', STU-5 flipped 'programs' and 'courses'; everything after it
-    // must still report false so the manifest never overstates the surface.
+    // 'centers', STU-5 flipped 'programs' and 'courses' and STU-6 flipped
+    // 'classes'; everything after it must still report false so the manifest
+    // never overstates the surface.
     expect(caps.find(c => c.key === 'students').implemented).toBe(true);
     expect(caps.find(c => c.key === 'teachers').implemented).toBe(true);
     expect(caps.find(c => c.key === 'centers').implemented).toBe(true);
     expect(caps.find(c => c.key === 'programs').implemented).toBe(true);
     expect(caps.find(c => c.key === 'courses').implemented).toBe(true);
+    expect(caps.find(c => c.key === 'classes').implemented).toBe(true);
     const stillPending = ['enrollments', 'attendance', 'scheduling'];
     for (const key of stillPending) {
       const cap = caps.find(c => c.key === key);
@@ -323,12 +325,12 @@ describe('STU-1 /api/v1/tenant/education — authorization and isolation over HT
     const res = await request(app).get(`${BASE}/capabilities`).set('Authorization', `Bearer ${ownerA()}`);
     expect(res.statusCode).toBe(200);
     const keys = res.body.data.map(c => c.key);
-    expect(keys).toEqual(expect.arrayContaining(['pack', 'students', 'teachers', 'centers', 'programs', 'courses']));
+    expect(keys).toEqual(expect.arrayContaining(['pack', 'students', 'teachers', 'centers', 'programs', 'courses', 'classes']));
     // STU-2 flipped `students`, STU-3 flipped `teachers`, STU-4 flipped
-    // `centers`, STU-5 flipped `programs` and `courses`; the capabilities
-    // after them stay explicitly unimplemented so the manifest never
-    // overstates the surface.
-    for (const key of ['students', 'teachers', 'centers', 'programs', 'courses']) {
+    // `centers`, STU-5 flipped `programs` and `courses` and STU-6 flipped
+    // `classes`; the capabilities after them stay explicitly unimplemented so
+    // the manifest never overstates the surface.
+    for (const key of ['students', 'teachers', 'centers', 'programs', 'courses', 'classes']) {
       expect(res.body.data.find(c => c.key === key).implemented).toBe(true);
     }
     for (const key of ['enrollments', 'attendance', 'scheduling']) {

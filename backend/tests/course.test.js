@@ -898,7 +898,7 @@ describe('STU-5 course routes — authorization and tenant isolation', () => {
 
   test('REGRESSION: the earlier Education routes are not shadowed', async () => {
     const caps = await request(app).get(`${BASE}/capabilities`).set('Authorization', `Bearer ${ownerA()}`);
-    for (const key of ['students', 'teachers', 'centers', 'programs', 'courses']) {
+    for (const key of ['students', 'teachers', 'centers', 'programs', 'courses', 'classes']) {
       expect(caps.body.data.find(c => c.key === key).implemented).toBe(true);
     }
     for (const key of ['enrollments', 'attendance', 'scheduling']) {
@@ -909,6 +909,7 @@ describe('STU-5 course routes — authorization and tenant isolation', () => {
     expect((await request(app).get(`${BASE}/teachers`).set('Authorization', `Bearer ${ownerA()}`)).statusCode).toBe(200);
     expect((await request(app).get(`${BASE}/centers`).set('Authorization', `Bearer ${ownerA()}`)).statusCode).toBe(200);
     expect((await request(app).get(`${BASE}/programs`).set('Authorization', `Bearer ${ownerA()}`)).statusCode).toBe(200);
+    expect((await request(app).get(`${BASE}/classes`).set('Authorization', `Bearer ${ownerA()}`)).statusCode).toBe(200);
   });
 
   test('Course routes are not mounted outside the Education namespace', async () => {

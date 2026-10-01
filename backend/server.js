@@ -201,6 +201,11 @@ const teacherRoutes = require('./routes/teacher.routes');
 const centerRoutes = require('./routes/center.routes');
 const programRoutes = require('./routes/program.routes');
 const courseRoutes = require('./routes/course.routes');
+// STU-6 Education Classes (Device 2). Seventh Education router on the same
+// prefix; the Education routers declare disjoint literal paths. A Class is an
+// entity inside the existing tenant and stores only courseId/teacherId, so no
+// tenant hierarchy is introduced here.
+const classRoutes = require('./routes/class.routes');
 const shiftManagementRoutes = require('./routes/shiftManagement.routes');
 const onlineStoreRoutes = require('./routes/onlineStore.routes');
 const loyaltyRoutes = require('./routes/loyalty.routes');
@@ -366,6 +371,7 @@ app.use('/api/v1/tenant/education', centerRoutes);
 // introduced here.
 app.use('/api/v1/tenant/education', programRoutes);
 app.use('/api/v1/tenant/education', courseRoutes);
+app.use('/api/v1/tenant/education', classRoutes);
 app.use('/api/v1/tenant/shifts', shiftManagementRoutes);
 app.use('/api/v1/tenant/online-store', onlineStoreRoutes);
 
