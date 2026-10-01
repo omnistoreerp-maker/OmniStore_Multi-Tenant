@@ -52,3 +52,6 @@ backend/data/educationPack.json
 # STU-2 Student records: tenant-owned runtime store, created on first write
 # and never committed.
 backend/data/educationStudents.json
+# STU-3 Teacher directory: tenant-owned runtime store, created on first write
+# and never committed.
+backend/data/educationTeachers.json

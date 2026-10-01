@@ -61,7 +61,7 @@ const STORE_KEY = 'educationPack';
 const CAPABILITIES = Object.freeze([
   { key: 'pack', implemented: true, phase: 'STU-1', description: 'Tenant-scoped Education foundation settings.' },
   { key: 'students', implemented: true, phase: 'STU-2', description: 'Tenant-scoped Student records.' },
-  { key: 'teachers', implemented: false, phase: 'STU-3', description: 'Teacher records. Not implemented.' },
+  { key: 'teachers', implemented: true, phase: 'STU-3', description: 'Tenant-scoped Teacher directory. Operational records only; no payroll or portal.' },
   { key: 'programs', implemented: false, phase: 'STU-4', description: 'Programs and Centers. Not implemented.' },
   { key: 'enrollments', implemented: false, phase: 'STU-5', description: 'Enrollment. Not implemented.' },
   { key: 'attendance', implemented: false, phase: 'STU-6', description: 'Attendance. Not implemented.' },
