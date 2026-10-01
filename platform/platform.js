@@ -2,7 +2,8 @@
   'use strict';
 
   const API = '/api/v1/platform-public';
-  const STORAGE_KEY = 'omnistore_platform_lang';
+  const STORAGE_KEY = 'omnistore_language';
+  const LEGACY_STORAGE_KEY = 'omnistore_platform_lang';
 
   const TRANSLATIONS = {
     en: {
@@ -28,10 +29,12 @@
       nav_home: 'Home',
       nav_market: 'Market',
       nav_business: 'Business Solutions',
+      nav_students: 'Student Services',
       nav_game: 'Game Hosting',
       nav_app: 'Open Application',
       nav_market_short: 'Market',
       nav_business_short: 'Business',
+      nav_students_short: 'Students',
       nav_game_short: 'Games',
       nav_app_short: 'App',
       nav_soon: 'Soon',
@@ -90,10 +93,12 @@
       nav_home: 'الرئيسية',
       nav_market: 'السوق',
       nav_business: 'حلول الأعمال',
+      nav_students: 'خدمات الطلاب',
       nav_game: 'استضافة الألعاب',
       nav_app: 'Open Application',
       nav_market_short: 'الماركت',
       nav_business_short: 'الأعمال',
+      nav_students_short: 'الطلاب',
       nav_game_short: 'الألعاب',
       nav_app_short: 'التطبيق',
       nav_soon: 'قريباً',
@@ -185,14 +190,19 @@
   }
 
   function getLang() {
+    if (window.OmniLang) return window.OmniLang.get();
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
+      const saved = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
       if (saved === 'ar' || saved === 'en') return saved;
     } catch (_) {}
-    return 'ar';
+    return 'en';
   }
 
   function setLang(lang) {
+    if (window.OmniLang) {
+      window.OmniLang.set(lang);
+      return;
+    }
     try {
       localStorage.setItem(STORAGE_KEY, lang);
     } catch (_) {}
@@ -201,7 +211,7 @@
   }
 
   function applyLang(lang) {
-    const t = TRANSLATIONS[lang] || TRANSLATIONS.ar;
+    const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
     const html = document.documentElement;
     html.setAttribute('lang', t.lang);
     html.setAttribute('dir', t.dir);
@@ -219,9 +229,6 @@
     if (taglineEl && t.platform_tagline) {
       taglineEl.textContent = t.platform_tagline;
     }
-
-    const switchBtn = document.getElementById('lang-switch');
-    if (switchBtn) switchBtn.textContent = lang === 'en' ? 'العربية' : 'English';
   }
 
   function el(tag, cls, text) {
@@ -245,22 +252,31 @@
   // Only the sections below may render as active; everything else — including
   // any section the backend/API may return with a different status — is forced
   // to an honest non-active "Coming Soon" state with no destination URL.
+  // Students is a documented exception: the Student Services & Printing
+  // backend and UI are live and tenant-scoped, so it renders active.
+  // Media / Reels is active as well: the public reels feed ships with this
+  // release and opens the shipped /media-reels.html player.
+  // Support is active: the support center ships support.html backed by the
+  // customer request API and the platform-admin operator workflow.
   const SECTION_LOCK_POLICY = {
     active: {
       'marketplace': '/marketplace/',
-      'business-services': '/business.html'
+      'business-services': '/business.html',
+      'student-services': '/student.html',
+      'media-reels': '/media-reels.html',
+      'support': '/support.html'
     },
-    lockedIds: ['student-services', 'game-hosting', 'media-reels', 'support']
+    lockedIds: ['game-hosting']
   };
 
   // Fallback catalog shown when the API returns no sections at all.
   const DEFAULT_SECTIONS = [
     { id: 'marketplace', title: 'Marketplace', description: 'Visitor-facing marketplace for products and services.', status: 'active', url: '/marketplace/', icon: 'fa-store' },
     { id: 'business-services', title: 'Business Management Services', description: 'Existing company access and new company onboarding.', status: 'active', url: '/business.html', icon: 'fa-building' },
-    { id: 'student-services', title: 'Student Services', description: 'Student services and printing — coming soon.', status: 'coming-soon', url: null, icon: 'fa-graduation-cap' },
-    { id: 'game-hosting', title: 'Game Hosting', description: 'Host and manage game sessions — coming soon.', status: 'coming-soon', url: null, icon: 'fa-gamepad' },
-    { id: 'media-reels', title: 'Media / Reels', description: 'Media content and reels sharing — coming soon.', status: 'coming-soon', url: null, icon: 'fa-film' },
-    { id: 'support', title: 'Support', description: 'Customer support center — coming soon.', status: 'coming-soon', url: null, icon: 'fa-life-ring' }
+    { id: 'student-services', title: 'Student Services & Printing', description: 'Print shop orders, cost calculator, and student monthly passes.', status: 'active', url: '/student.html', icon: 'fa-graduation-cap' },
+    { id: 'game-hosting', title: 'Game Hosting', description: 'Host and manage game sessions and catalogs.', status: 'coming-soon', url: null, icon: 'fa-gamepad' },
+    { id: 'media-reels', title: 'Media / Reels', description: 'Media content and reels sharing.', status: 'active', url: '/media-reels.html', icon: 'fa-film' },
+    { id: 'support', title: 'Support', description: 'Customer support center — requests, replies and status tracking.', status: 'active', url: '/support.html', icon: 'fa-life-ring' }
   ];
 
   function applySectionPolicy(list) {
@@ -270,6 +286,14 @@
     // Guarantee every locked section is visible as an honest Coming Soon,
     // even when the API omits it entirely.
     SECTION_LOCK_POLICY.lockedIds.forEach(function (id) {
+      if (!seen[id]) {
+        const def = DEFAULT_SECTIONS.find(function (d) { return d.id === id; });
+        if (def) base.push(Object.assign({}, def));
+      }
+    });
+    // Guarantee every active section is visible too, so an active id can
+    // never disappear when an older stored catalog omits its entry.
+    Object.keys(SECTION_LOCK_POLICY.active).forEach(function (id) {
       if (!seen[id]) {
         const def = DEFAULT_SECTIONS.find(function (d) { return d.id === id; });
         if (def) base.push(Object.assign({}, def));
@@ -295,7 +319,7 @@
     if (!root || !Array.isArray(stats)) return;
     root.innerHTML = '';
     const lang = getLang();
-    const t = TRANSLATIONS[lang] || TRANSLATIONS.ar;
+    const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
     root.appendChild(sectionHead(t.section_overview || 'Platform Overview', 'Overview'));
     const grid = el('div', 'stats');
     for (const s of stats) {
@@ -317,7 +341,7 @@
     if (!root || !Array.isArray(features)) return;
     root.innerHTML = '';
     const lang = getLang();
-    const t = TRANSLATIONS[lang] || TRANSLATIONS.ar;
+    const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
     root.appendChild(sectionHead(t.section_core_modules || 'Core Modules', 'Modules'));
     const grid = el('div', 'features');
     for (const f of features) {
@@ -337,7 +361,7 @@
     if (!root || !Array.isArray(highlights)) return;
     root.innerHTML = '';
     const lang = getLang();
-    const t = TRANSLATIONS[lang] || TRANSLATIONS.ar;
+    const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
     root.appendChild(sectionHead(t.section_why || 'Why OmniStore', 'Highlights'));
     const grid = el('div', 'highlights');
     for (const h of highlights) {
@@ -351,7 +375,7 @@
 
   function statusLabel(status) {
     const lang = getLang();
-    const t = TRANSLATIONS[lang] || TRANSLATIONS.ar;
+    const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
     if (status === 'active') return t.status_active;
     if (status === 'coming-soon') return t.status_coming_soon;
     if (status === 'under-construction') return t.status_under_construction;
@@ -360,7 +384,7 @@
 
   function sectionTitle(id) {
     const lang = getLang();
-    const t = TRANSLATIONS[lang] || TRANSLATIONS.ar;
+    const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
     const key = 'section_' + String(id).replace(/-/g, '_');
     if (t[key]) return t[key];
     const fallback = TRANSLATIONS.en[key];
@@ -375,7 +399,7 @@
     if (!Array.isArray(sections) || sections.length === 0) return;
 
     const lang = getLang();
-    const t = TRANSLATIONS[lang] || TRANSLATIONS.ar;
+    const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
     root.appendChild(sectionHead(t.section_platform_services || 'Platform Services', 'Services'));
 
     const grid = el('div', 'sections-grid');
@@ -409,7 +433,7 @@
 
   function renderActivity() {
     const lang = getLang();
-    const t = TRANSLATIONS[lang] || TRANSLATIONS.ar;
+    const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
     const visitorsRoot = document.getElementById('activity-visitors-now');
     const usersRoot = document.getElementById('activity-registered-users');
     const businessesRoot = document.getElementById('activity-active-businesses');
@@ -449,7 +473,7 @@
 
   async function loadActivityStats() {
     const lang = getLang();
-    const t = TRANSLATIONS[lang] || TRANSLATIONS.ar;
+    const t = TRANSLATIONS[lang] || TRANSLATIONS.en;
     const visitorsRoot = document.getElementById('activity-visitors-now');
     const usersRoot = document.getElementById('activity-registered-users');
     const businessesRoot = document.getElementById('activity-active-businesses');
@@ -604,13 +628,10 @@
   }
 
   function bindEvents() {
-    const switchBtn = document.getElementById('lang-switch');
-    if (switchBtn) {
-      switchBtn.addEventListener('click', function () {
-        const next = getLang() === 'en' ? 'ar' : 'en';
-        setLang(next);
-      });
-    }
+    document.addEventListener('omnilangchange', function () {
+      applyLang(getLang());
+      rerenderDynamic();
+    });
     bindVisibility();
   }
 

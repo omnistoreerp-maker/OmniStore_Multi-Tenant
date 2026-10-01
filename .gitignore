@@ -36,3 +36,10 @@ backend/data/users.json
 backend/data/gameHostingPlans.json
 backend/data/gameHostingServers.json
 backend/data/marketCustomers.json
+backend/data/gameHostingOrders.json
+backend/data/reels-*.json
+backend/data/reel-media/
+# TikTok Display API: holds server-side access/refresh tokens and the cached
+# public video metadata. Must never be committed.
+backend/data/tiktokConnection.json
+backend/data/reelsCache.json

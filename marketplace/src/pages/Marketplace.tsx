@@ -162,7 +162,15 @@ export default function Marketplace() {
 
   const retry = useCallback(() => setReloadKey((k) => k + 1), []);
 
-  const hasActiveFilters = filters.brands.length + filters.categories.length > 0 || query.trim().length > 0;
+  // A narrowed price range is an active filter too — without this a price-only
+  // filter shows the "no products match the filters" state without any way to
+  // clear it, and the badge undercounts.
+  const priceActive =
+    Number.isFinite(bounds[0]) &&
+    Number.isFinite(bounds[1]) &&
+    (filters.price[0] > bounds[0] || filters.price[1] < bounds[1]);
+  const activeFilterCount = filters.brands.length + filters.categories.length + (priceActive ? 1 : 0);
+  const hasActiveFilters = activeFilterCount > 0 || query.trim().length > 0;
   const clearSearch = () => ui.setQuery("");
 
   return (
@@ -208,9 +216,9 @@ export default function Marketplace() {
             >
               <SlidersHorizontal className="h-4 w-4" aria-hidden />
               التصفية
-              {filters.brands.length + filters.categories.length > 0 && (
+              {activeFilterCount > 0 && (
                 <span className="grid h-5 min-w-[20px] place-items-center rounded-full bg-primary px-1 text-[11px] font-bold text-primary-foreground">
-                  {filters.brands.length + filters.categories.length}
+                  {activeFilterCount}
                 </span>
               )}
             </button>

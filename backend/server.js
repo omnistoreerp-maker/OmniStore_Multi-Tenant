@@ -27,6 +27,7 @@ const branchStore = require('./middleware/branchStore');
 const metricsMiddleware = require('./middleware/metrics');
 const { eventBus } = require('./services/eventBus');
 const webhookService = require('./services/webhook.service');
+const notificationEngine = require('./services/notificationEngine.service');
 const jobService = require('./services/job.service');
 const schedulerService = require('./services/scheduler.service');
 
@@ -52,9 +53,21 @@ app.use(helmet({
       scriptSrcAttr: ["'self'", "'unsafe-inline'"], // overrides helmet's default 'none'
       styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
-      imgSrc: ["'self'", 'data:'],
+      // TikTok cover/thumbnail images. The Display API returns cover_image_url on
+      // TikTok's CDN (documented example: https://p16-sign.tiktokcdn-us.com/...).
+      // TikTok rotates the "pNN-sign" subdomain per region, so the allowlist is
+      // pinned to the two TikTok-owned CDN registrable domains rather than a
+      // specific host. This is a scoped subdomain match on TikTok-owned domains,
+      // NOT a `*` wildcard, and it does not permit any other external image host.
+      // tiktokDisplayApi.service also validates the host server-side before the
+      // URL ever reaches a browser, so this allowlist is sufficient by design.
+      imgSrc: ["'self'", 'data:', 'https://*.tiktokcdn.com', 'https://*.tiktokcdn-us.com'],
       connectSrc: ["'self'", 'https://api.github.com', 'https://cdn.jsdelivr.net', 'https://6opo.com', 'https://auqot.com', 'https://my.rtmark.net', 'https://jmosl.com', 'https://094kk.com'],
-      frameSrc: ["'none'"],
+      // TikTok embedded playback: the official Embed Player is served from
+      // https://www.tiktok.com/player/v1/<video_id> and is built in reels.html
+      // from the numeric post id alone. Exactly one origin is allowed. 'self' is
+      // deliberately NOT re-added: same-origin frames stay blocked as before.
+      frameSrc: ['https://www.tiktok.com'],
       objectSrc: ["'none'"]
     }
   }
@@ -77,7 +90,18 @@ app.use(compression());
 // slow-request performance logging stays on in every environment.
 if (config.env === 'development') app.use(morgan('dev'));
 app.use(requestPerfLogger(config.slowRequestMs));
-app.use(express.json({ limit: config.bodyLimit, verify(req, _res, buf) { req.rawBody = buf; } }));
+// express.json with a verify hook that captures the RAW request body for
+// every parsed JSON request. The payments webhook (O2) signs the raw bytes,
+// so it must verify the HMAC against exactly what the gateway sent — not a
+// re-serialization of the parsed object. Main already carried an equivalent
+// hook; this keeps the documented form from 518a9f5 without changing behavior.
+app.use(express.json({
+  limit: config.bodyLimit,
+  verify(req, _res, buf) {
+    // Only JSON requests reach this hook; keep the capture bounded by bodyLimit.
+    req.rawBody = buf;
+  }
+}));
 app.use(express.urlencoded({ extended: true }));
 app.use(sanitizeBody);
 
@@ -117,6 +141,13 @@ app.use(apiKeyMiddleware);
 const tenantCarry = require('./middleware/tenantCarry');
 app.use(tenantCarry);
 
+// Custom Domain Resolution (O3): resolve tenant from registered custom domains
+// AFTER auth so JWT-bound tenants take precedence. No-op when
+// ENABLE_CUSTOM_DOMAIN_RESOLUTION is off. Restored from the verified RC
+// wiring that was dropped during the main integration.
+const customDomainResolver = require('./middleware/customDomainResolver');
+app.use(customDomainResolver);
+
 // Audit capture: records mutating operations (POST/PUT/DELETE) after response
 app.use(auditCapture);
 
@@ -153,11 +184,17 @@ const companyRoutes = require('./routes/company.routes');
 const updateRoutes = require('./routes/update.routes');
 const platformRoutes = require('./routes/platform.routes');
 const platformPublicRoutes = require('./routes/platformPublic.routes');
+const tiktokPublicRoutes = require('./routes/tiktokPublic.routes');
+const reelsRoutes = require('./routes/reels.routes');
 const companyProfileRoutes = require('./routes/companyProfile.routes');
 const customerRequestRoutes = require('./routes/customerRequest.routes');
 const internalChangeCenterRoutes = require('./routes/internalChangeCenter.routes');
 const platformIntegrationRoutes = require('./routes/platformIntegration.routes');
+const platformAdminRoutes = require('./routes/platformAdmin.routes');
+const tenantExtensionsRoutes = require('./routes/tenantExtensions.routes');
 const tenantOnboardingRoutes = require('./routes/tenantOnboarding.routes');
+const tenantPaymentsRoutes = require('./routes/tenantPayments.routes');
+const tenantNotificationsRoutes = require('./routes/tenantNotifications.routes');
 const studentServicesPackRoutes = require('./routes/studentServicesPack.routes');
 const shiftManagementRoutes = require('./routes/shiftManagement.routes');
 const onlineStoreRoutes = require('./routes/onlineStore.routes');
@@ -165,9 +202,6 @@ const loyaltyRoutes = require('./routes/loyalty.routes');
 const marketRoutes = require('./routes/market.routes');
 const gameHostingRoutes = require('./routes/gameHosting.routes');
 const playstationRoutes = require('./routes/playstation.routes');
-const tenantPaymentsRoutes = require('./routes/tenantPayments.routes');
-const platformAdminRoutes = require('./routes/platformAdmin.routes');
-const tenantExtensionsRoutes = require('./routes/tenantExtensions.routes');
 const companyContext = require('./middleware/companyContext');
 // Phase 33 — seed the server-authoritative platform admin store from
 // PLATFORM_ADMINS on boot (no-op once the store has entries).
@@ -186,6 +220,14 @@ app.use('/api/v1/platform', platformRoutes);
 app.use('/api/v1/tenant/onboarding', tenantOnboardingRoutes);
 // Public platform homepage — read-only catalog, no auth required.
 app.use('/api/v1/platform-public', platformPublicRoutes);
+// Reels feed lives in its own router so platformPublic.routes.js stays
+// untouched (visitor-counter boundary). Mounted after the public platform
+// router: non-/reels paths fall through exactly as before.
+app.use('/api/v1/platform-public/reels', reelsRoutes);
+// TikTok Display API surface — own router so platformPublic.routes.js keeps
+// its zero-reels boundary and the tenant reels route can never be shadowed.
+// Namespaced under /tiktok/* (see routes/tiktokPublic.routes.js).
+app.use('/api/v1/platform-public', tiktokPublicRoutes);
 // Public company profile — read-only profile data, no auth required.
 app.use('/api/v1/companies-public', companyProfileRoutes);
 // Customer Change & Resolution Foundation — authenticated, company-scoped.
@@ -194,19 +236,32 @@ app.use('/api/v1/customer', customerRequestRoutes);
 app.use('/api/v1/internal', internalChangeCenterRoutes);
 // ERP ↔ Platform Integration Contract — read-only public boundary.
 app.use('/api/v1/platform-integration', platformIntegrationRoutes);
-// Platform Admin API (mounted before optional AUTH_REQUIRED; scope via requirePlatformAdmin).
-app.use('/api/v1/platform/admin', platformAdminRoutes);
-// Tenant Extensions — tenant-scoped add-ons and custom domains.
-app.use('/api/v1/tenant', tenantExtensionsRoutes);
-// Tenant Payments — HMAC-verified gateway webhook (before AUTH_REQUIRED so gateway is not JWT-only).
-app.use('/api/v1/payments', tenantPaymentsRoutes);
 // Phase F — OmniStore Market (customer-facing storefront). Public catalog,
 // customer auth, cart/checkout, and order tracking. Mounted under /api/v1/market.
 // Self-contained module; does not alter Core ERP routes.
 app.use('/api/v1/market', marketRoutes);
+// Platform Admin Management APIs — add-ons, transaction fees, custom domains.
+// Enforced exclusively by requireAuth + requirePlatformAdmin (platform scope is
+// separate from every tenant scope). Restored from the verified RC wiring that
+// was dropped during the main integration.
+app.use('/api/v1/platform/admin', platformAdminRoutes);
+// Tenant Extensions — tenant-scoped add-ons and custom domain management.
+// Tenant id comes only from the trusted server-side context, never the body.
+app.use('/api/v1/tenant', tenantExtensionsRoutes);
+// Tenant Notifications — Telegram/WhatsApp settings + test connection.
+app.use('/api/v1/tenant/notifications', tenantNotificationsRoutes);
+// Tenant Payments — tenant-scoped add-on purchase intents, status and list,
+// plus the gateway webhook which is HMAC-verified (fail-closed without secret).
+app.use('/api/v1/payments', tenantPaymentsRoutes);
 // Phase B — Game Hosting. Self-contained module; does not alter Core ERP routes.
 // Provider integration is BLOCKED; lifecycle state machine and ownership are enforced.
 app.use('/api/v1/game-hosting', gameHostingRoutes);
+// Storefront mount: the market API client is hard-wired to BASE=/api/v1/market,
+// so the SAME router is also mounted under the market prefix. Routes are
+// relative; there is no overlap with marketRoutes (market has no
+// /game-hosting/* handlers). Both mounts share the same controllers,
+// tenant middleware and services — one implementation, two paths.
+app.use('/api/v1/market/game-hosting', gameHostingRoutes);
 // Batch 1 — PlayStation Device & Session Foundation. Self-contained module;
 // does not alter Core ERP routes. Provider integration is BLOCKED.
 app.use('/api/v1/playstation', playstationRoutes);
@@ -234,6 +289,13 @@ eventBus.subscribe('sale.updated', (ev) => webhookService.dispatch('sale.updated
 eventBus.subscribe('sale.deleted', (ev) => webhookService.dispatch('sale.deleted', ev.data, ev.data && ev.data.tenantId));
 eventBus.subscribe('inventory.updated', (ev) => webhookService.dispatch('inventory.updated', ev.data, ev.data && ev.data.tenantId));
 eventBus.subscribe('inventory.low', (ev) => webhookService.dispatch('inventory.low', ev.data, ev.data && ev.data.tenantId));
+
+// Route tenant events to the per-tenant Telegram/WhatsApp notification
+// engine (sale alerts, low-stock alerts, subscription alerts). Restored
+// from the verified RC build where server.js called
+// notificationEngine.bootstrapEventListeners(); the wiring was lost when
+// main was reconstructed, silently disabling every outbound notification.
+notificationEngine.bootstrapEventListeners();
 
 // OAuth routes (mounted at root for OAuth callbacks)
 if (oauthConfig.enabled) {

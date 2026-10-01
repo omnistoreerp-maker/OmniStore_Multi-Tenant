@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" data-omni-section="main">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
@@ -9,6 +9,9 @@
   <script src="https://quge5.com/88/tag.min.js" data-zone="288239" async data-cfasync="false"></script>
   <title data-i18n="platform_name">OmniStore ERP — Platform Home</title>
   <link rel="stylesheet" href="platform/platform.css">
+  <link rel="stylesheet" href="platform/omni-design.css">
+  <script src="platform/omni-i18n.js"></script>
+  <script src="platform/i18n/platform.dict.js"></script>
 </head>
 <body>
   <div class="ambient-bg" aria-hidden="true">
@@ -33,12 +36,13 @@
         <a class="glass-nav-link is-active" href="platform.html" data-i18n="nav_home">الرئيسية</a>
         <a class="glass-nav-link" href="/marketplace/" data-i18n="nav_market">السوق</a>
         <a class="glass-nav-link" href="business.html" data-i18n="nav_business">حلول الأعمال</a>
+        <a class="glass-nav-link" href="student.html" data-i18n="nav_students">خدمات الطلاب</a>
         <span class="glass-nav-link is-soon" aria-disabled="true"><span data-i18n="nav_game">استضافة الألعاب</span><span class="nav-soon" data-i18n="nav_soon">قريباً</span></span>
         <a class="glass-nav-link" href="index.html" data-i18n="nav_app">Open Application</a>
       </nav>
 
       <div class="header-actions">
-        <button id="lang-switch" class="lang-btn" type="button">English</button>
+        <div id="lang-switch" data-omni-lang-slot></div>
       </div>
     </header>
   </div>
@@ -146,6 +150,7 @@
         </div>
         <div class="footer-links">
           <a href="/marketplace/" data-i18n="nav_market">السوق</a>
+          <a href="student.html" data-i18n="nav_students_short">الطلاب</a>
           <a href="business.html" data-i18n="nav_business_short">الأعمال</a>
           <span class="footer-link is-soon" aria-disabled="true"><span data-i18n="nav_game_short">الألعاب</span> <span class="nav-soon" data-i18n="nav_soon">قريباً</span></span>
           <a href="index.html" data-i18n="nav_app_short">التطبيق</a>
@@ -158,6 +163,7 @@
     <a class="bottom-nav-link is-active" href="platform.html" data-i18n="nav_home">الرئيسية</a>
     <a class="bottom-nav-link" href="/marketplace/" data-i18n="nav_market_short">الماركت</a>
     <a class="bottom-nav-link" href="business.html" data-i18n="nav_business_short">الأعمال</a>
+    <a class="bottom-nav-link" href="student.html" data-i18n="nav_students_short">الطلاب</a>
     <span class="bottom-nav-link is-soon" aria-disabled="true"><span data-i18n="nav_game_short">الألعاب</span><span class="nav-soon" data-i18n="nav_soon">قريباً</span></span>
     <a class="bottom-nav-link" href="index.html" data-i18n="nav_app_short">التطبيق</a>
   </nav>

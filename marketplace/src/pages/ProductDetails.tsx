@@ -218,9 +218,10 @@ export default function ProductDetails() {
               <span className="min-w-[2.5rem] text-center text-sm font-bold">{qty}</span>
               <button
                 type="button"
-                onClick={() => setQty((q) => q + 1)}
+                onClick={() => setQty((q) => Math.min(product.stock ?? Number.MAX_SAFE_INTEGER, q + 1))}
+                disabled={product.stock != null && qty >= product.stock}
                 aria-label="زيادة الكمية"
-                className="btn-focus grid h-full w-11 place-items-center text-foreground hover:bg-secondary"
+                className="btn-focus grid h-full w-11 place-items-center text-foreground hover:bg-secondary disabled:cursor-not-allowed disabled:text-muted-foreground/50 disabled:hover:bg-transparent"
               >
                 +
               </button>

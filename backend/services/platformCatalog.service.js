@@ -70,18 +70,21 @@ function _defaultDoc() {
         icon: 'fa-building'
       },
       {
+        // Documented activation exception: Students is the only section that
+        // has graduated from the platform lockdown policy. Gaming / Media /
+        // Support stay Coming Soon until their own activation cycles.
         id: 'student-services',
-        title: 'Student Services',
-        description: 'Student-facing services and accounts.',
-        status: 'coming-soon',
-        url: null,
+        title: 'Student Services & Printing',
+        description: 'Print shop orders, cost calculator, and student monthly passes.',
+        status: 'active',
+        url: '/student.html',
         icon: 'fa-graduation-cap'
       },
-      {
+{
         id: 'game-hosting',
         title: 'Game Hosting',
         description: 'Host and manage game sessions and catalogs.',
-        status: 'under-construction',
+        status: 'coming-soon',
         url: null,
         icon: 'fa-gamepad'
       },
@@ -89,17 +92,17 @@ function _defaultDoc() {
         id: 'media-reels',
         title: 'Media / Reels',
         description: 'Media content and reels sharing.',
-        status: 'coming-soon',
-        url: null,
+        status: 'active',
+        url: '/media-reels.html',
         icon: 'fa-film'
       },
       {
-        id: 'student-services',
-        title: 'Student Services & Printing',
-        description: 'Print shop orders, cost calculator, and student monthly passes.',
+        id: 'support',
+        title: 'Support',
+        description: 'Customer support center — requests, replies and status tracking.',
         status: 'active',
-        url: '/student.html',
-        icon: 'fa-graduation-cap'
+        url: '/support.html',
+        icon: 'fa-life-ring'
       }
     ]
   };
@@ -108,7 +111,24 @@ function _defaultDoc() {
 function getCatalog() {
   const store = _readStore();
   if (!store) return _defaultDoc();
-  return store;
+  // The persisted platform document predates the sections field, so a stored
+  // doc without sections would make /sections and /catalog report an empty
+  // catalog. Fall back to the documented default catalog for that field only:
+  // the stored document stays authoritative for everything else and is never
+  // rewritten here.
+  if (!Array.isArray(store.sections) || store.sections.length === 0) {
+    return Object.assign({}, store, { sections: _defaultDoc().sections });
+  }
+  // A stored document may also predate an individual section entry (Support
+  // activated while production data had no support row). Surface default
+  // entries for ids the stored document omits, appending only — stored
+  // entries are never overwritten and nothing is written back to disk.
+  const defaults = _defaultDoc().sections;
+  const seen = {};
+  store.sections.forEach(function (s) { if (s && s.id) seen[s.id] = true; });
+  const missing = defaults.filter(function (d) { return !seen[d.id]; });
+  if (!missing.length) return store;
+  return Object.assign({}, store, { sections: store.sections.concat(missing) });
 }
 
 function getDefaultDoc() {

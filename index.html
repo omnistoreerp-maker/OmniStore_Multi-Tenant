@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" data-omni-section="main" data-omni-tone="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -12,14 +12,17 @@
 <meta name="application-name" content="OmniStore ERP">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/digitronics-icon-192.svg">
+<link rel="stylesheet" href="platform/omni-design.css">
+<script src="platform/omni-i18n.js"></script>
+<script src="platform/i18n/index.dict.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap');
 :root {
   --bg:#f8fbff; --surface:#ffffff; --surface2:#eef4fb; --border:#d7e3f2;
-  --accent:#2563eb; --accent2:#1d4ed8; --green:#16a34a; --red:#dc2626;
+  --accent:#7c3aed; --accent2:#6d28d9; --green:#16a34a; --red:#dc2626;
   --yellow:#f59e0b; --purple:#7c3aed; --orange:#ea580c;
   --teal:#0f9f9a; --sky:#0284c7; --indigo:#4f46e5; --emerald:#059669; --amber:#d97706;
-  --text:#0f172a; --text2:#475569; --muted:#64748b; --glow:0 0 20px rgba(37,99,235,0.12);
+  --text:#0f172a; --text2:#475569; --muted:#64748b; --glow:0 0 20px rgba(124,58,237,0.12);
   --glass-bg:rgba(255,255,255,0.82); --glass-border:rgba(255,255,255,0.65);
   --glass-blur:16px; --glass-shadow:0 10px 28px rgba(15,23,42,0.08);
   --accent-color:var(--accent);
@@ -42,7 +45,7 @@ body::before{
 body::after{
   content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;
   background:
-    radial-gradient(circle at 16% 18%,rgba(37,99,235,.08),transparent 30%),
+    radial-gradient(circle at 16% 18%,rgba(124,58,237,.08),transparent 30%),
     radial-gradient(circle at 82% 20%,rgba(15,159,154,.06),transparent 28%),
     radial-gradient(circle at 48% 92%,rgba(124,58,237,.06),transparent 34%);
   opacity:.56;
@@ -56,7 +59,7 @@ body.wallpaper-calm{--wallpaper-gradient:linear-gradient(135deg,#f7fbff 0%,#eef6
 body.wallpaper-sky{--wallpaper-gradient:linear-gradient(135deg,#eef8ff 0%,#f7fbff 45%,#edf7ff 100%);}
 body.wallpaper-aurora{--wallpaper-gradient:linear-gradient(135deg,#fbf8ff 0%,#f2f7ff 45%,#fff7ef 100%);}
 body.wallpaper-midnight{--wallpaper-gradient:linear-gradient(135deg,#101828 0%,#1e293b 54%,#172033 100%);}
-body.accent-blue{--accent:#2563eb;--accent2:#1d4ed8;--accent-color:#2563eb;}
+body.accent-blue{--accent:#7c3aed;--accent2:#6d28d9;--accent-color:#7c3aed;}
 body.accent-green{--accent:#00a854;--accent2:#047857;--accent-color:#00a854;}
 body.accent-purple{--accent:#7c3aed;--accent2:#5b21b6;--accent-color:#7c3aed;}
 body.accent-orange{--accent:#ea580c;--accent2:#c2410c;--accent-color:#ea580c;}
@@ -76,7 +79,7 @@ body.accent-orange{--accent:#ea580c;--accent2:#c2410c;--accent-color:#ea580c;}
   box-shadow:-12px 0 35px rgba(15,23,42,.10),inset 1px 0 0 rgba(255,255,255,.55)!important;
 }
 [data-theme="light"] .nav-icon-btn{color:#334155;}
-[data-theme="light"] .nav-icon-btn.active{background:#2563eb;color:#fff;}
+[data-theme="light"] .nav-icon-btn.active{background:#7c3aed;color:#fff;}
 [data-theme="light"] .stat-card,[data-theme="light"] .table-container,[data-theme="light"] .report-card,[data-theme="light"] .modal{
   background:rgba(255,255,255,.82)!important;
   border-color:rgba(255,255,255,.65)!important;
@@ -175,14 +178,14 @@ body.accent-orange{--accent:#ea580c;--accent2:#c2410c;--accent-color:#ea580c;}
 }
 .nav-icon-btn:hover{
   transform: scale(1.10) translateY(-2px);
-  background: rgba(37,99,235,0.10);
-  box-shadow: 0 8px 22px rgba(37,99,235,0.14), inset 0 1px 0 rgba(255,255,255,0.55);
+  background: rgba(124,58,237,0.10);
+  box-shadow: 0 8px 22px rgba(124,58,237,0.14), inset 0 1px 0 rgba(255,255,255,0.55);
   color:var(--accent);
 }
 .nav-icon-btn:active{ transform: scale(1.05); }
 .nav-icon-btn.active{
   background: linear-gradient(135deg,var(--accent2),var(--accent));
-  box-shadow: 0 8px 22px rgba(37,99,235,0.22), inset 0 1px 0 rgba(255,255,255,0.42);
+  box-shadow: 0 8px 22px rgba(124,58,237,0.22), inset 0 1px 0 rgba(255,255,255,0.42);
   color:#fff;
 }
 [data-theme="dark"] .nav-icon-btn{ color:rgba(255,255,255,0.6); }
@@ -287,8 +290,8 @@ body.accent-orange{--accent:#ea580c;--accent2:#c2410c;--accent-color:#ea580c;}
 }
 .sidebar-action-btn:hover{
   transform:scale(1.06) translateY(-2px);
-  background:rgba(37,99,235,0.12);
-  box-shadow:0 8px 20px rgba(37,99,235,0.14), inset 0 1px 0 rgba(255,255,255,0.55);
+  background:rgba(124,58,237,0.12);
+  box-shadow:0 8px 20px rgba(124,58,237,0.14), inset 0 1px 0 rgba(255,255,255,0.55);
   color:var(--accent);
 }
 .sidebar-action-btn:active{ transform:scale(1.05); }
@@ -463,8 +466,8 @@ body.accent-orange{--accent:#ea580c;--accent2:#c2410c;--accent-color:#ea580c;}
 
 /* BUTTONS */
 .btn{padding:9px 15px;border-radius:12px;border:none;font-family:'Cairo',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:6px;box-shadow:0 5px 16px rgba(15,23,42,.06);}
-.btn-accent{background:var(--accent);color:#fff;}.btn-accent:hover{background:var(--accent2);box-shadow:0 8px 20px rgba(37,99,235,.18);}
-.btn-outline{background:rgba(255,255,255,.58);color:var(--accent);border:1px solid rgba(37,99,235,.35);}.btn-outline:hover{background:rgba(37,99,235,.08);}
+.btn-accent{background:var(--accent);color:#fff;}.btn-accent:hover{background:var(--accent2);box-shadow:0 8px 20px rgba(124,58,237,.18);}
+.btn-outline{background:rgba(255,255,255,.58);color:var(--accent);border:1px solid rgba(124,58,237,.35);}.btn-outline:hover{background:rgba(124,58,237,.08);}
 .btn-danger{background:rgba(255,82,82,.15);color:var(--red);border:1px solid rgba(255,82,82,.3);}.btn-danger:hover{background:rgba(255,82,82,.25);}
 .btn-green{background:var(--green);color:#fff;}.btn-green:hover{background:#008844;}
 .btn-yellow{background:var(--yellow);color:#000;}.btn-yellow:hover{background:#e69a00;}
@@ -472,7 +475,7 @@ body.accent-orange{--accent:#ea580c;--accent2:#c2410c;--accent-color:#ea580c;}
 .btn-orange{background:var(--orange);color:#fff;}.btn-orange:hover{background:#cc4400;}
 .btn-sm{padding:5px 10px;font-size:0.7rem;}
 .search-input{background:rgba(255,255,255,.78);border:1px solid rgba(148,163,184,.36);border-radius:14px;padding:10px 14px;color:var(--text);font-family:'Cairo',sans-serif;font-size:0.82rem;outline:none;width:170px;transition:border-color .2s,box-shadow .2s;background-color .2s;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
-.search-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(37,99,235,.10);}
+.search-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(124,58,237,.10);}
 
 /* BADGES */
 .badge{display:inline-block;padding:3px 8px;border-radius:20px;font-size:0.68rem;font-weight:700;}
@@ -599,7 +602,7 @@ body.accent-orange{--accent:#ea580c;--accent2:#c2410c;--accent-color:#ea580c;}
 .report-card-title{font-size:0.9rem;color:var(--text2);font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:7px;}
 
 /* SERIAL SEARCH PAGE */
-.serial-search-card{background:var(--glass-bg);border:1px solid rgba(37,99,235,.30);border-radius:22px;padding:18px;margin-bottom:18px;box-shadow:var(--glass-shadow);backdrop-filter:blur(var(--glass-blur)) saturate(145%);-webkit-backdrop-filter:blur(var(--glass-blur)) saturate(145%);}
+.serial-search-card{background:var(--glass-bg);border:1px solid rgba(124,58,237,.30);border-radius:22px;padding:18px;margin-bottom:18px;box-shadow:var(--glass-shadow);backdrop-filter:blur(var(--glass-blur)) saturate(145%);-webkit-backdrop-filter:blur(var(--glass-blur)) saturate(145%);}
 .serial-result-card{background:rgba(255,255,255,.66);border:1px solid var(--glass-border);border-radius:18px;padding:16px;margin-bottom:14px;}
 .serial-movement-item{border-right:4px solid var(--accent);padding:10px 14px;margin-bottom:8px;background:var(--glass-bg);border-radius:8px;}
 .serial-movement-item.sale{border-right-color:var(--green);}
@@ -802,9 +805,9 @@ body.accent-orange{--accent:#ea580c;--accent2:#c2410c;--accent-color:#ea580c;}
 .ai-priority{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:4px 9px;font-size:.72rem;font-weight:800;}
 .ai-priority.critical{background:rgba(239,68,68,.14);color:var(--red);}
 .ai-priority.high{background:rgba(245,158,11,.18);color:#b45309;}
-.ai-priority.medium{background:rgba(37,99,235,.12);color:var(--accent);}
+.ai-priority.medium{background:rgba(124,58,237,.12);color:var(--accent);}
 .ai-priority.low{background:rgba(34,197,94,.14);color:var(--green);}
-.ai-answer-box{background:rgba(37,99,235,.08);border:1px solid rgba(37,99,235,.18);border-radius:16px;padding:12px;min-height:52px;}
+.ai-answer-box{background:rgba(124,58,237,.08);border:1px solid rgba(124,58,237,.18);border-radius:16px;padding:12px;min-height:52px;}
 .ai-mobile-stack{display:grid;gap:12px;}
 @media(max-width:768px){.ai-mobile-stack{grid-template-columns:1fr}.ai-assistant-card{padding:12px}.ai-assistant-actions .btn{min-height:44px;flex:1}}
 .automation-rule-card{background:linear-gradient(135deg,rgba(255,255,255,.9),rgba(255,255,255,.66));border:1px solid rgba(255,255,255,.66);border-radius:20px;padding:12px;margin-bottom:10px;box-shadow:var(--glass-shadow);}
@@ -813,11 +816,11 @@ body.accent-orange{--accent:#ea580c;--accent2:#c2410c;--accent-color:#ea580c;}
 .automation-status.enabled,.automation-status.completed{background:rgba(34,197,94,.14);color:var(--green)}
 .automation-status.disabled,.automation-status.cancelled{background:rgba(100,116,139,.14);color:var(--text2)}
 .automation-status.failed{background:rgba(239,68,68,.14);color:var(--red)}
-.automation-status.running,.automation-status.pending{background:rgba(37,99,235,.12);color:var(--accent)}
+.automation-status.running,.automation-status.pending{background:rgba(124,58,237,.12);color:var(--accent)}
 .automation-mobile-strip{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(180px,70vw);gap:10px;overflow-x:auto;padding-bottom:8px;margin-bottom:12px;scroll-snap-type:x mandatory}
 @media(min-width:769px){.automation-mobile-strip{grid-auto-flow:row;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));overflow:visible}}
 .workflow-card{background:linear-gradient(135deg,rgba(255,255,255,.9),rgba(255,255,255,.64));border:1px solid rgba(255,255,255,.65);border-radius:20px;padding:12px;margin-bottom:10px;box-shadow:var(--glass-shadow)}
-.workflow-step{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:4px 9px;background:rgba(37,99,235,.1);color:var(--accent);font-size:.72rem;font-weight:800}
+.workflow-step{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:4px 9px;background:rgba(124,58,237,.1);color:var(--accent);font-size:.72rem;font-weight:800}
 .workflow-step.done{background:rgba(34,197,94,.14);color:var(--green)}
 .workflow-step.rejected{background:rgba(239,68,68,.14);color:var(--red)}
 .workflow-status{display:inline-flex;border-radius:999px;padding:4px 9px;font-size:.72rem;font-weight:900}
@@ -830,7 +833,7 @@ body.accent-orange{--accent:#ea580c;--accent2:#c2410c;--accent-color:#ea580c;}
 .plugin-badge{display:inline-flex;align-items:center;border-radius:999px;padding:4px 9px;font-size:.72rem;font-weight:900}
 .plugin-badge.enabled{background:rgba(34,197,94,.14);color:var(--green)}
 .plugin-badge.disabled{background:rgba(100,116,139,.16);color:var(--text2)}
-.plugin-badge.locked{background:rgba(37,99,235,.12);color:var(--accent)}
+.plugin-badge.locked{background:rgba(124,58,237,.12);color:var(--accent)}
 .plugin-badge.experimental{background:rgba(245,158,11,.18);color:#b45309}
 .plugin-health-ok{color:var(--green);font-weight:900}.plugin-health-warn{color:#b45309;font-weight:900}.plugin-health-error{color:var(--red);font-weight:900}
 
@@ -926,7 +929,7 @@ body.accent-orange{--accent:#ea580c;--accent2:#c2410c;--accent-color:#ea580c;}
 .command-score{font-size:2.4rem;font-weight:1000;line-height:1;color:var(--accent)}
 .command-pill{display:inline-flex;align-items:center;border-radius:999px;padding:4px 10px;font-size:.72rem;font-weight:900}
 .command-pill.excellent{background:rgba(34,197,94,.14);color:var(--green)}
-.command-pill.good{background:rgba(37,99,235,.12);color:var(--accent)}
+.command-pill.good{background:rgba(124,58,237,.12);color:var(--accent)}
 .command-pill.warning{background:rgba(245,158,11,.17);color:#b45309}
 .command-pill.critical{background:rgba(239,68,68,.14);color:var(--red)}
 .command-list{display:grid;gap:8px;margin-top:8px}
@@ -935,7 +938,7 @@ body.accent-orange{--accent:#ea580c;--accent2:#c2410c;--accent-color:#ea580c;}
 .command-muted{font-size:.78rem;color:var(--text2);line-height:1.7}
 .doc-center-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
 .doc-card{background:rgba(255,255,255,.84);border:1px solid rgba(255,255,255,.65);box-shadow:0 10px 28px rgba(15,23,42,.08);border-radius:16px;padding:14px}
-.doc-chip{display:inline-flex;align-items:center;border-radius:999px;padding:4px 10px;font-size:.72rem;font-weight:900;background:rgba(37,99,235,.10);color:var(--accent)}
+.doc-chip{display:inline-flex;align-items:center;border-radius:999px;padding:4px 10px;font-size:.72rem;font-weight:900;background:rgba(124,58,237,.10);color:var(--accent)}
 .doc-chip.pending{background:rgba(245,158,11,.16);color:#b45309}
 .doc-chip.archived{background:rgba(100,116,139,.14);color:var(--text2)}
 .doc-chip.paid,.doc-chip.approved{background:rgba(34,197,94,.14);color:var(--green)}
@@ -950,8 +953,8 @@ body.accent-orange{--accent:#ea580c;--accent2:#c2410c;--accent-color:#ea580c;}
 @media (max-width: 768px){
   body{padding-bottom:calc(82px + env(safe-area-inset-bottom));overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;}
   .pwa-bottom-nav{position:fixed;left:0;right:0;bottom:0;z-index:920;display:grid;grid-template-columns:repeat(5,1fr);gap:5px;padding:8px calc(8px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-left));background:rgba(255,255,255,.78);border-top:1px solid rgba(255,255,255,.62);box-shadow:0 -12px 32px rgba(15,23,42,.12);backdrop-filter:blur(18px);}
-  .pwa-bottom-nav button{min-height:48px;border:0;border-radius:14px;background:rgba(37,99,235,.08);color:#0f172a;font-weight:900;font-size:.72rem;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;}
-  .pwa-bottom-nav button:active{transform:scale(.98);background:rgba(37,99,235,.16);}
+  .pwa-bottom-nav button{min-height:48px;border:0;border-radius:14px;background:rgba(124,58,237,.08);color:#0f172a;font-weight:900;font-size:.72rem;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;}
+  .pwa-bottom-nav button:active{transform:scale(.98);background:rgba(124,58,237,.16);}
   .pwa-install-banner{right:calc(12px + env(safe-area-inset-right));left:calc(12px + env(safe-area-inset-left));bottom:calc(88px + env(safe-area-inset-bottom));}
 }
 @media print{.pwa-bottom-nav,.pwa-install-banner{display:none!important}}
@@ -959,7 +962,7 @@ body.accent-orange{--accent:#ea580c;--accent2:#c2410c;--accent-color:#ea580c;}
 /* ==== PHASE 34.1 — NAVIGATION ARCHITECTURE (master/company/internal scopes) ==== */
 #omniScopeSwitch{display:none;margin:0 8px 8px;padding:4px;border-radius:12px;background:var(--surface2);border:1px solid var(--border);}
 .omni-scope-pill{flex:1;border:0;border-radius:9px;padding:6px 8px;font-size:.72rem;font-weight:800;cursor:pointer;color:var(--text2);background:transparent;font-family:inherit;}
-.omni-scope-pill.active{background:var(--accent);color:#fff;box-shadow:0 2px 8px rgba(37,99,235,.25);}
+.omni-scope-pill.active{background:var(--accent);color:#fff;box-shadow:0 2px 8px rgba(124,58,237,.25);}
 .omni-scope-pill.active[data-scope="master"]{background:#7c3aed;box-shadow:0 2px 10px rgba(124,58,237,.35);}
 [data-nav-scope="master"].nav-icon-btn{color:#c4b5fd;}
 [data-nav-scope="master"].nav-icon-btn:hover{background:rgba(124,58,237,.16);}
@@ -988,7 +991,7 @@ button.settings-link{text-align:start;font-family:inherit;}
 .mobile-nav-drawer .drawer-section{margin-bottom:12px;}
 .mobile-nav-drawer .drawer-section-title{font-size:.74rem;font-weight:800;color:var(--accent);margin-bottom:6px;}
 .mobile-nav-drawer .drawer-item{display:flex;align-items:center;gap:8px;width:100%;text-align:start;padding:9px 12px;margin-bottom:5px;border-radius:10px;border:1px solid var(--border);background:var(--surface2);cursor:pointer;font-size:.8rem;font-weight:700;color:var(--text);font-family:inherit;}
-.mobile-nav-drawer .drawer-item:active{transform:scale(.99);background:rgba(37,99,235,.1);}
+.mobile-nav-drawer .drawer-item:active{transform:scale(.99);background:rgba(124,58,237,.1);}
 .mobile-nav-drawer-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:975;display:none;}
 .mobile-nav-drawer-backdrop.open{display:block;}
 [data-theme="dark"] .omni-scope-pill.active{color:#fff;}
@@ -1570,6 +1573,7 @@ window.DIGITRONICS_SUPABASE = window.DIGITRONICS_SUPABASE || {
   <div class="login-box">
     <div class="login-logo">◈ OmniStore ERP</div>
     <div class="login-sub">نظام الإدارة الاحترافي بالسيريالات v6</div>
+    <div data-omni-lang-slot style="display:flex;justify-content:center;margin:10px 0 4px"></div>
     <div id="loginCompanyIdentity" style="display:none;text-align:center;margin:6px 0 14px;padding:12px 14px;border:1px solid var(--accent);border-radius:14px;background:rgba(0,102,255,.06)">
       <div style="font-size:1.1rem;font-weight:900;color:var(--accent)" id="loginCompanyIdentityName"></div>
       <div style="font-size:0.8rem;color:var(--text2);margin-top:3px" id="loginCompanyIdentityBranch"></div>
@@ -1764,7 +1768,7 @@ document.addEventListener('DOMContentLoaded', function() {
     .d6-header-center{display:flex;align-items:center;gap:8px;flex:1;justify-content:center;max-width:400px}
     .d6-search{position:relative;flex:1;max-width:320px}
     .d6-search input{width:100%;padding:8px 14px 8px 36px;border-radius:12px;border:1px solid var(--d6-border);background:rgba(255,255,255,.7);font-size:.78rem;font-family:inherit;outline:none;transition:all .2s}
-    .d6-search input:focus{border-color:var(--d6-accent);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+    .d6-search input:focus{border-color:var(--d6-accent);box-shadow:0 0 0 3px rgba(124,58,237,.1)}
     .d6-search::before{content:'🔍';position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:.8rem;opacity:.5}
     .d6-header-right{display:flex;align-items:center;gap:8px}
     .d6-header-btn{position:relative;width:36px;height:36px;border-radius:10px;border:1px solid var(--d6-border);background:rgba(255,255,255,.7);display:grid;place-items:center;cursor:pointer;transition:all .2s;font-size:1rem}
@@ -1777,7 +1781,7 @@ document.addEventListener('DOMContentLoaded', function() {
     .d6-connection.offline{color:var(--d6-red)}
     .d6-kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;padding:16px 20px}
     .d6-kpi-card{background:rgba(255,255,255,.85);backdrop-filter:blur(12px);border-radius:14px;padding:14px;border:1px solid rgba(215,227,242,.6);box-shadow:0 2px 8px rgba(15,23,42,.04);transition:all .25s cubic-bezier(.4,0,.2,1);position:relative;overflow:hidden;cursor:pointer}
-    .d6-kpi-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(15,23,42,.1);border-color:rgba(37,99,235,.2)}
+    .d6-kpi-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(15,23,42,.1);border-color:rgba(124,58,237,.2)}
     .d6-kpi-card::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:14px 14px 0 0;opacity:.8}
     .d6-kpi-card.sales::after{background:linear-gradient(90deg,var(--d6-green),#22c55e)}
     .d6-kpi-card.profit::after{background:linear-gradient(90deg,var(--d6-accent),#3b82f6)}
@@ -1788,7 +1792,7 @@ document.addEventListener('DOMContentLoaded', function() {
     .d6-kpi-card.maintenance::after{background:linear-gradient(90deg,var(--d6-yellow),#fbbf24)}
     .d6-kpi-card.installments::after{background:linear-gradient(90deg,var(--d6-teal),#2dd4bf)}
     .d6-kpi-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-    .d6-kpi-icon{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;font-size:1rem;background:rgba(37,99,235,.08)}
+    .d6-kpi-icon{width:32px;height:32px;border-radius:9px;display:grid;place-items:center;font-size:1rem;background:rgba(124,58,237,.08)}
     .d6-kpi-trend{font-size:.62rem;font-weight:700;padding:2px 6px;border-radius:10px;background:rgba(22,163,74,.1);color:var(--d6-green)}
     .d6-kpi-trend.down{background:rgba(220,38,38,.1);color:var(--d6-red)}
     .d6-kpi-value{font-size:1.2rem;font-weight:800;color:var(--d6-text);line-height:1.1;margin-bottom:2px}
@@ -1798,19 +1802,19 @@ document.addEventListener('DOMContentLoaded', function() {
     .d6-section{display:flex;align-items:center;justify-content:space-between;padding:0 20px;margin:16px 0 10px}
     .d6-section-title{font-size:.82rem;font-weight:800;color:var(--d6-text);display:flex;align-items:center;gap:6px}
     .d6-section-title span{font-size:.68rem;color:var(--d6-muted);font-weight:500}
-    .d6-section-action{font-size:.68rem;color:var(--d6-accent);font-weight:600;cursor:pointer;padding:4px 10px;border-radius:8px;background:rgba(37,99,235,.08);transition:all .2s}
+    .d6-section-action{font-size:.68rem;color:var(--d6-accent);font-weight:600;cursor:pointer;padding:4px 10px;border-radius:8px;background:rgba(124,58,237,.08);transition:all .2s}
     .d6-section-action:hover{background:var(--d6-accent);color:#fff}
     .d6-chart-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;padding:0 20px 16px}
     .d6-chart-card{background:rgba(255,255,255,.85);backdrop-filter:blur(12px);border-radius:16px;padding:16px;border:1px solid rgba(215,227,242,.6);box-shadow:0 2px 8px rgba(15,23,42,.04);transition:all .2s}
     .d6-chart-card:hover{box-shadow:0 6px 20px rgba(15,23,42,.08)}
     .d6-chart-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
     .d6-chart-title{font-size:.78rem;font-weight:700;color:var(--d6-text)}
-    .d6-chart-badge{font-size:.6rem;font-weight:700;padding:2px 8px;border-radius:10px;background:rgba(37,99,235,.08);color:var(--d6-accent)}
+    .d6-chart-badge{font-size:.6rem;font-weight:700;padding:2px 8px;border-radius:10px;background:rgba(124,58,237,.08);color:var(--d6-accent)}
     .d6-chart-area{height:200px;position:relative}
     .d6-chart-empty{display:grid;place-items:center;height:200px;color:var(--d6-muted);font-size:.75rem}
     .d6-timeline{background:rgba(255,255,255,.85);backdrop-filter:blur(12px);border-radius:16px;padding:16px;margin:0 20px 16px;border:1px solid rgba(215,227,242,.6);box-shadow:0 2px 8px rgba(15,23,42,.04)}
     .d6-timeline-item{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid rgba(215,227,242,.4);font-size:.75rem;transition:all .2s;cursor:pointer}
-    .d6-timeline-item:hover{background:rgba(37,99,235,.02);margin:0 -16px;padding:10px 16px;border-radius:8px}
+    .d6-timeline-item:hover{background:rgba(124,58,237,.02);margin:0 -16px;padding:10px 16px;border-radius:8px}
     .d6-timeline-item:last-child{border-bottom:none}
     .d6-timeline-dot{width:8px;height:8px;border-radius:50%;margin-top:5px;flex-shrink:0;position:relative}
     .d6-timeline-dot::after{content:'';position:absolute;top:10px;left:3px;width:2px;height:calc(100% + 8px);background:rgba(215,227,242,.5)}
@@ -1824,10 +1828,10 @@ document.addEventListener('DOMContentLoaded', function() {
     .d6-alert-card.critical{border-right:3px solid var(--d6-red)}
     .d6-alert-card.warning{border-right:3px solid var(--d6-yellow)}
     .d6-alert-card.info{border-right:3px solid var(--d6-accent)}
-    .d6-alert-icon{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-size:1rem;flex-shrink:0;background:rgba(37,99,235,.08)}
+    .d6-alert-icon{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-size:1rem;flex-shrink:0;background:rgba(124,58,237,.08)}
     .d6-alert-icon.critical{background:rgba(220,38,38,.1);color:var(--d6-red)}
     .d6-alert-icon.warning{background:rgba(245,158,11,.1);color:var(--d6-yellow)}
-    .d6-alert-icon.info{background:rgba(37,99,235,.1);color:var(--d6-accent)}
+    .d6-alert-icon.info{background:rgba(124,58,237,.1);color:var(--d6-accent)}
     .d6-alert-text{flex:1;min-width:0}
     .d6-alert-title{font-weight:700;font-size:.76rem;color:var(--d6-text);margin-bottom:2px}
     .d6-alert-desc{font-size:.68rem;color:var(--d6-muted)}
@@ -1835,14 +1839,14 @@ document.addEventListener('DOMContentLoaded', function() {
     .d6-quick-actions{display:flex;gap:8px;padding:0 20px 16px;overflow-x:auto;scrollbar-width:none}
     .d6-quick-actions::-webkit-scrollbar{display:none}
     .d6-quick-btn{flex-shrink:0;display:flex;align-items:center;gap:6px;padding:10px 16px;border-radius:12px;border:1px solid rgba(215,227,242,.6);background:rgba(255,255,255,.8);color:var(--d6-text2);font-size:.72rem;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap}
-    .d6-quick-btn:hover{background:var(--d6-accent);color:#fff;border-color:var(--d6-accent);transform:translateY(-2px);box-shadow:0 4px 12px rgba(37,99,235,.2)}
+    .d6-quick-btn:hover{background:var(--d6-accent);color:#fff;border-color:var(--d6-accent);transform:translateY(-2px);box-shadow:0 4px 12px rgba(124,58,237,.2)}
     .d6-quick-btn .icon{font-size:1.1rem}
     .d6-modules-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;padding:0 20px 20px}
     .d6-module-tile{background:rgba(255,255,255,.85);backdrop-filter:blur(12px);border-radius:16px;padding:16px;border:1px solid rgba(215,227,242,.6);box-shadow:0 2px 8px rgba(15,23,42,.04);transition:all .25s cubic-bezier(.4,0,.2,1);cursor:pointer;position:relative;overflow:hidden}
-    .d6-module-tile:hover{transform:translateY(-4px) scale(1.01);box-shadow:0 12px 32px rgba(15,23,42,.12);border-color:rgba(37,99,235,.15)}
+    .d6-module-tile:hover{transform:translateY(-4px) scale(1.01);box-shadow:0 12px 32px rgba(15,23,42,.12);border-color:rgba(124,58,237,.15)}
     .d6-module-tile::before{content:'';position:absolute;top:0;right:0;width:60px;height:60px;border-radius:0 0 0 60px;opacity:.06}
     .d6-module-top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-    .d6-module-icon{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-size:1.2rem;background:linear-gradient(135deg,rgba(37,99,235,.1),rgba(37,99,235,.05))}
+    .d6-module-icon{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-size:1.2rem;background:linear-gradient(135deg,rgba(124,58,237,.1),rgba(124,58,237,.05))}
     .d6-module-title{font-size:.82rem;font-weight:800;color:var(--d6-text)}
     .d6-module-desc{font-size:.68rem;color:var(--d6-muted);margin-bottom:10px;line-height:1.5}
     .d6-module-metrics{display:flex;gap:12px;font-size:.65rem;color:var(--d6-text2)}
@@ -1851,8 +1855,8 @@ document.addEventListener('DOMContentLoaded', function() {
     .d6-empty{display:grid;place-items:center;padding:20px;color:var(--d6-muted);font-size:.75rem;text-align:center}
     .d6-skeleton{background:linear-gradient(90deg,rgba(215,227,242,.5) 25%,rgba(238,244,251,.8) 50%,rgba(215,227,242,.5) 75%);background-size:200% 100%;animation:d6-skel 1.5s infinite;border-radius:8px}
     @keyframes d6-skel{0%{background-position:200% 0}100%{background-position:-200% 0}}
-    .d6-fab{position:fixed;bottom:24px;left:24px;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--d6-accent),var(--d6-sky));color:#fff;border:none;box-shadow:0 4px 20px rgba(37,99,235,.35);display:grid;place-items:center;font-size:1.5rem;cursor:pointer;z-index:90;transition:all .3s cubic-bezier(.4,0,.2,1)}
-    .d6-fab:hover{transform:scale(1.1) rotate(90deg);box-shadow:0 6px 28px rgba(37,99,235,.45)}
+    .d6-fab{position:fixed;bottom:24px;left:24px;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--d6-accent),var(--d6-sky));color:#fff;border:none;box-shadow:0 4px 20px rgba(124,58,237,.35);display:grid;place-items:center;font-size:1.5rem;cursor:pointer;z-index:90;transition:all .3s cubic-bezier(.4,0,.2,1)}
+    .d6-fab:hover{transform:scale(1.1) rotate(90deg);box-shadow:0 6px 28px rgba(124,58,237,.45)}
     .d6-fab-menu{position:fixed;bottom:88px;left:24px;display:flex;flex-direction:column;gap:8px;z-index:89;opacity:0;transform:translateY(20px);pointer-events:none;transition:all .3s cubic-bezier(.4,0,.2,1)}
     .d6-fab-menu.open{opacity:1;transform:translateY(0);pointer-events:auto}
     .d6-fab-item{display:flex;align-items:center;gap:8px;padding:10px 16px;border-radius:12px;background:rgba(255,255,255,.95);backdrop-filter:blur(12px);border:1px solid var(--d6-border);box-shadow:0 4px 16px rgba(15,23,42,.1);font-size:.72rem;font-weight:700;color:var(--d6-text);cursor:pointer;transition:all .2s;white-space:nowrap}
@@ -1876,6 +1880,7 @@ document.addEventListener('DOMContentLoaded', function() {
   </style>
   <nav class="sidebar" id="sidebar">
     <div class="sidebar-logo">◈ OmniStore ERP</div>
+    <div data-omni-lang-slot style="display:flex;justify-content:center;margin:8px 10px"></div>
     <div id="omniCompanyHeader" style="display:none;margin:0 10px 8px;padding:7px 9px;border-radius:9px;background:var(--surface2);color:var(--text2);font-size:.7rem;font-weight:700;text-align:center"></div>
     
     <!-- Phase 34.1 scope switch: COMPANY (tenant) ⇄ MASTER (platform) -->
@@ -1951,6 +1956,12 @@ document.addEventListener('DOMContentLoaded', function() {
         <span>🔑</span>
         <span class="btn-label">كلمة المرور</span>
       </button>
+
+      <!-- Support Requests (customer-facing /api/v1/customer request center) -->
+      <a class="sidebar-action-btn" href="support.html" target="_blank" rel="noopener" title="طلبات الدعم">
+        <span>🛟</span>
+        <span class="btn-label">طلبات الدعم</span>
+      </a>
 
       <!-- Logout -->
       <button class="sidebar-action-btn logout-btn" onclick="doLogout()" title="تسجيل الخروج">
@@ -2261,6 +2272,7 @@ document.addEventListener('DOMContentLoaded', function() {
   <div class="nav-dropdown" id="dropdown-entertainment" data-nav-scope="tenant">
     <div class="nav-dropdown-header">🎮 خدمات إضافية</div>
     <div class="nav-dropdown-item" data-page="playstation"><span class="icon">🎮</span> PlayStation</div>
+    <div class="nav-dropdown-item" data-page="game-hosting"><span class="icon">🌐</span> Game Hosting</div>
     <div class="nav-dropdown-item" data-page="car-rental"><span class="icon">🚗</span> تأجير السيارات</div>
   </div>
 
@@ -2325,7 +2337,7 @@ document.addEventListener('DOMContentLoaded', function() {
         </div>
         <div class="d6-header-center">
           <div class="d6-search">
-            <input type="text" placeholder="بحث سريع..." id="d6GlobalSearch" onkeydown="if(event.key==='Enter')alert('البحث: '+this.value)">
+            <input type="text" placeholder="بحث سريع..." id="d6GlobalSearch" onkeydown="if(event.key==='Enter')alert(OmniLang.t('البحث:') + ' ' + this.value)">
           </div>
         </div>
         <div class="d6-header-right">
@@ -5863,6 +5875,12 @@ document.addEventListener('DOMContentLoaded', function() {
       <div class="page-header"><div><div class="page-title">🚗 تأجير السيارات</div><div style="font-size:.78rem;color:var(--text2)">وحدة قادمة — مكان مؤقت في القائمة فقط</div></div></div>
       <div class="alert alert-info" style="margin:16px 0;font-size:.85rem">🚧 هذه الوحدة ضمن خارطة طريق OmniStore وستتوفر في إصدار لاحق. متاحة حالياً كمكان مؤقت فقط.</div>
     </div>
+    <div class="page" id="page-game-hosting">
+      <div class="page-header"><div><div class="page-title">🌐 Game Hosting</div><div style="font-size:.78rem;color:var(--text2)">Game Hosting customer experience</div></div></div>
+      <div id="gameHostingRoot" style="margin:16px 0">
+        <div id="ghView"></div>
+      </div>
+    </div>
 
     <!-- ENTERPRISE DOCUMENT CENTER -->
     <div class="page" id="page-documents">
@@ -8029,7 +8047,7 @@ function toggleOmniModule(id, enabled) {
   window.OmniModuleLoader.setEnabled(id, enabled);
   renderOmniModuleSettings();
   applyPermissions();
-  showToast(`تم ${enabled ? 'تفعيل' : 'إيقاف'} الوحدة محلياً`);
+  showToast(OmniLang.t(enabled ? 'تم تفعيل الوحدة محلياً' : 'تم إيقاف الوحدة محلياً'));
 }
 
 function editOmniModuleSettings(id) {
@@ -8044,7 +8062,7 @@ function editOmniModuleSettings(id) {
     renderOmniModuleSettings();
     showToast('✅ تم حفظ إعدادات الوحدة محلياً');
   } catch (error) {
-    showToast('JSON غير صالح: ' + error.message, 'error');
+    showToast(OmniLang.t('JSON غير صالح:') + ' ' + error.message, 'error');
   }
 }
 
@@ -8256,7 +8274,7 @@ function importOmniStoreSettings(input) {
       renderBusinessProfileSettings();
       showToast('✅ تم استيراد الإعدادات بدون لمس بيانات التشغيل');
     } catch (error) {
-      showToast('ملف إعدادات غير صالح: ' + (error.message || error), 'error');
+      showToast(OmniLang.t('ملف إعدادات غير صالح:') + ' ' + (error.message || error), 'error');
     } finally {
       input.value = '';
     }
@@ -8610,7 +8628,7 @@ function logAppError(action, error, extra = {}) {
 
 function showFriendlySaveError(action, error, fallbackMessage = 'حدث خطأ أثناء الحفظ') {
   logAppError(action, error);
-  showToast(`${fallbackMessage} - يرجى المحاولة مرة أخرى`, 'error');
+  showToast(OmniLang.tpl`${OmniLang.t(fallbackMessage)} - يرجى المحاولة مرة أخرى`, 'error');
 }
 
 window.addEventListener('error', event => {
@@ -9402,7 +9420,7 @@ async function rebuildProductStockBalance(options = {}) {
     finalBalances: repaired
   };
   console.table(repaired);
-  if (!options.silent) showToast(`تم إصلاح رصيد المخزون: ${repaired.length} صنف`);
+  if (!options.silent) showToast(OmniLang.tpl`تم إصلاح رصيد المخزون: ${repaired.length} صنف`);
   await refreshSupabaseLiveState({ silent: true });
   return { ok: true, ...report };
 }
@@ -9706,7 +9724,7 @@ async function rebuildSupabaseProductsAndInventoryLinks(options = {}) {
     report.missingRecords = report.errors.concat(report.warnings);
     console.log('Supabase product/inventory rebuild report', report);
     if (!options.silent) {
-      showToast(`تم ترميم Supabase: purchase_items ${report.purchaseItemsRead} | legacy ${report.distinctLegacyProductIds} | منتجات ${report.productsCreated} | رصيد ${report.productStockBalanceRows}`);
+      showToast(OmniLang.tpl`تم ترميم Supabase: purchase_items ${report.purchaseItemsRead} | legacy ${report.distinctLegacyProductIds} | منتجات ${report.productsCreated} | رصيد ${report.productStockBalanceRows}`);
       showSupabaseRebuildReport(report);
     }
     return report;
@@ -9716,7 +9734,7 @@ async function rebuildSupabaseProductsAndInventoryLinks(options = {}) {
     report.missingRecords = report.errors.concat(report.warnings);
     console.error('Supabase product/inventory rebuild failed', error, report);
     if (!options.silent) {
-      showToast('تعذر ترميم منتجات Supabase: ' + msg, 'error');
+      showToast(OmniLang.t('تعذر ترميم منتجات Supabase:') + ' ' + msg, 'error');
       showSupabaseRebuildReport(report);
     }
     return report;
@@ -10144,7 +10162,7 @@ async function applySupabaseProductRestore() {
     showToast('لا توجد منتجات جديدة للإنشاء', 'info');
     return;
   }
-  if (!confirm(`سيتم إنشاء ${preflight.productsToCreate} منتج داخل جدول products فقط.\nلن يتم تعديل أي فاتورة أو حركة مخزون أو ربط UUID.\nهل تريد المتابعة؟`)) return;
+  if (!confirm(OmniLang.tpl`سيتم إنشاء ${preflight.productsToCreate} منتج داخل جدول products فقط.\nلن يتم تعديل أي فاتورة أو حركة مخزون أو ربط UUID.\nهل تريد المتابعة؟`)) return;
 
   const btn = document.getElementById('productRestoreApplyBtn');
   supabaseProductRestoreState.applying = true;
@@ -10175,7 +10193,7 @@ async function applySupabaseProductRestore() {
     report.ok = createdRows.length === payloads.length;
     if (!report.ok) throw new Error(`تم إرجاع ${createdRows.length} صف بدلاً من ${payloads.length}`);
 
-    showToast(`✅ تم إنشاء ${report.productsCreated} منتج فقط. لم يتم ربط UUID.`);
+    showToast(OmniLang.tpl`✅ تم إنشاء ${report.productsCreated} منتج فقط. لم يتم ربط UUID.`);
     const uuidDryRunBtn = document.getElementById('uuidLinkDryRunBtn');
     if (uuidDryRunBtn) uuidDryRunBtn.disabled = false;
   } catch (error) {
@@ -10317,7 +10335,7 @@ async function applyUuidLinkMigration() {
     return;
   }
   const total = preflight.purchaseCandidates + preflight.saleCandidates + preflight.stockCandidates;
-  if (!confirm(`سيتم ربط ${total} سجلًا بـ UUID مع الاحتفاظ بـ legacy_product_id.\nلن يتم إنشاء منتجات أو إعادة بناء مخزون.\nهل تريد المتابعة؟`)) return;
+  if (!confirm(OmniLang.tpl`سيتم ربط ${total} سجلًا بـ UUID مع الاحتفاظ بـ legacy_product_id.\nلن يتم إنشاء منتجات أو إعادة بناء مخزون.\nهل تريد المتابعة؟`)) return;
   const btn = document.getElementById('uuidLinkApplyBtn');
   uuidLinkMigrationState.applying = true;
   if (btn) { btn.disabled = true; btn.textContent = '⏳ جاري الربط...'; }
@@ -10618,24 +10636,24 @@ function validateSaleSerialsOrWarn(items = []) {
     const serialMode = item.trackingMode === 'serial' || item.saleTrackingMode === 'serial' || (!item.noSerial && serials.length > 0);
     if (!serialMode) continue;
     if (!product) {
-      showToast(`الصنف المرتبط بالسيريال غير موجود: ${item.name || item.productId}`, 'error');
+      showToast(OmniLang.tpl`الصنف المرتبط بالسيريال غير موجود: ${item.name || item.productId}`, 'error');
       return false;
     }
     const qty = Math.max(0, toSafeInt(item.qty, 0));
     if (qty > 0 && serials.length !== qty) {
-      showToast(`اختر السيريال المباع للصنف: ${item.name || product.name || item.productId}`, 'error');
+      showToast(OmniLang.tpl`اختر السيريال المباع للصنف: ${item.name || product.name || item.productId}`, 'error');
       return false;
     }
     for (const serial of serials) {
       const key = serial.toLowerCase();
       if (seen.has(key)) {
-        showToast(`هذا السيريال مكرر في نفس الفاتورة — السيريال: ${serial}`, 'error');
+        showToast(OmniLang.tpl`هذا السيريال مكرر في نفس الفاتورة — السيريال: ${serial}`, 'error');
         return false;
       }
       seen.add(key);
       const info = getSerialSaleBlockInfo(serial);
       if (!info.deviceRecord) {
-        showToast(`هذا السيريال غير مسجل في سجل الأجهزة — السيريال: ${serial}`, 'error');
+        showToast(OmniLang.tpl`هذا السيريال غير مسجل في سجل الأجهزة — السيريال: ${serial}`, 'error');
         return false;
       }
       const deviceStatus = String(info.deviceRecord?.status || '').toLowerCase();
@@ -10675,13 +10693,13 @@ function validatePurchaseSerialsOrWarn(items = []) {
     for (const serial of serials) {
       const key = serial.toLowerCase();
       if (seen.has(key)) {
-        showToast(`السيريال مكرر داخل فاتورة الشراء — ${serial}`, 'error');
+        showToast(OmniLang.tpl`السيريال مكرر داخل فاتورة الشراء — ${serial}`, 'error');
         return false;
       }
       seen.add(key);
       const dup = findDuplicateSerialIdentifier(serial);
       if (dup) {
-        showToast(`لا يمكن إضافة سيريال مكرر: ${serial}${dup.ref ? ' — مرتبط بـ ' + dup.ref : ''}`, 'error');
+        showToast(OmniLang.tpl`لا يمكن إضافة سيريال مكرر: ${serial}${dup.ref ? OmniLang.t(' — مرتبط بـ ') + dup.ref : ''}`, 'error');
         return false;
       }
     }
@@ -11368,7 +11386,7 @@ function clearProductionTempData() {
   } catch (err) {
     logAppError('production.clear_temp', err);
   }
-  showToast(`تم تنظيف بيانات مؤقتة آمنة: ${removed}`);
+  showToast(OmniLang.tpl`تم تنظيف بيانات مؤقتة آمنة: ${removed}`);
   renderProductionChecklist();
 }
 
@@ -11870,6 +11888,47 @@ const backendApi = {
     reverse: (payload) => USE_BACKEND ? backendApi._fetch('POST', '/loyalty/reverse', payload) : null,
     awardBirthdayBonus: (customerId) => USE_BACKEND ? backendApi._fetch('POST', '/loyalty/birthday-bonus', { customerId }) : null
   },
+  // Game Hosting (Device-2 Batch 1) — customer-facing plans/provisioning/servers.
+  // Tenant and customer ownership are enforced server-side; the frontend never
+  // supplies tenantId/customerId as authorization.
+  gameHosting: {
+    provider: {
+      status: () => USE_BACKEND ? backendApi._fetch('GET', '/game-hosting/provider/status') : null
+    },
+    plans: {
+      list: (query) => USE_BACKEND ? backendApi._fetch('GET', '/game-hosting/plans' + (query ? '?' + new URLSearchParams(query).toString() : '')) : null,
+      getById: (id) => USE_BACKEND ? backendApi._fetch('GET', '/game-hosting/plans/' + encodeURIComponent(id)) : null,
+      create: (data) => USE_BACKEND ? backendApi._fetch('POST', '/game-hosting/plans', data) : null,
+      update: (id, data) => USE_BACKEND ? backendApi._fetch('PUT', '/game-hosting/plans/' + encodeURIComponent(id), data) : null,
+      delete: (id) => USE_BACKEND ? backendApi._fetch('DELETE', '/game-hosting/plans/' + encodeURIComponent(id)) : null
+    },
+    servers: {
+      list: (query) => USE_BACKEND ? backendApi._fetch('GET', '/game-hosting/servers' + (query ? '?' + new URLSearchParams(query).toString() : '')) : null,
+      getById: (id) => USE_BACKEND ? backendApi._fetch('GET', '/game-hosting/servers/' + encodeURIComponent(id)) : null,
+      create: (data) => USE_BACKEND ? backendApi._fetch('POST', '/game-hosting/servers', data) : null,
+      update: (id, data) => USE_BACKEND ? backendApi._fetch('PUT', '/game-hosting/servers/' + encodeURIComponent(id), data) : null,
+      delete: (id) => USE_BACKEND ? backendApi._fetch('DELETE', '/game-hosting/servers/' + encodeURIComponent(id)) : null,
+      start: (id) => USE_BACKEND ? backendApi._fetch('POST', '/game-hosting/servers/' + encodeURIComponent(id) + '/start') : null,
+      stop: (id) => USE_BACKEND ? backendApi._fetch('POST', '/game-hosting/servers/' + encodeURIComponent(id) + '/stop') : null,
+      terminate: (id) => USE_BACKEND ? backendApi._fetch('POST', '/game-hosting/servers/' + encodeURIComponent(id) + '/terminate') : null
+    },
+    provisioningRequests: {
+      list: (query) => USE_BACKEND ? backendApi._fetch('GET', '/game-hosting/provisioning-requests' + (query ? '?' + new URLSearchParams(query).toString() : '')) : null,
+      getById: (id) => USE_BACKEND ? backendApi._fetch('GET', '/game-hosting/provisioning-requests/' + encodeURIComponent(id)) : null,
+      create: (data) => USE_BACKEND ? backendApi._fetch('POST', '/game-hosting/provisioning-requests', data) : null,
+      approve: (id) => USE_BACKEND ? backendApi._fetch('POST', '/game-hosting/provisioning-requests/' + encodeURIComponent(id) + '/approve') : null,
+      reject: (id) => USE_BACKEND ? backendApi._fetch('POST', '/game-hosting/provisioning-requests/' + encodeURIComponent(id) + '/reject') : null
+    },
+    entitlements: {
+      list: () => USE_BACKEND ? backendApi._fetch('GET', '/game-hosting/entitlements') : null,
+      create: (data) => USE_BACKEND ? backendApi._fetch('POST', '/game-hosting/entitlements', data) : null,
+      update: (id, data) => USE_BACKEND ? backendApi._fetch('PUT', '/game-hosting/entitlements/' + encodeURIComponent(id), data) : null,
+      delete: (id) => USE_BACKEND ? backendApi._fetch('DELETE', '/game-hosting/entitlements/' + encodeURIComponent(id)) : null
+    },
+    auditLog: {
+      list: () => USE_BACKEND ? backendApi._fetch('GET', '/game-hosting/audit-log') : null
+    }
+  }
 };
 // ===== Backend Op Queue: retrying delete/update ops (bug 3.2) =====
 const BACKEND_OP_QUEUE_KEY = 'digitronics_backend_op_queue_v1';
@@ -11970,6 +12029,32 @@ const backendOpQueue = {
   }
 };
 
+// Merge a freshly listed backend collection into the local mirror WITHOUT
+// dropping local records that the backend does not have yet (creates made
+// while the backend was unreachable — _syncedToBackend falsy). Backend rows
+// win for records they represent (matched by id or _backendId); pending
+// local records stay appended so they remain visible and retryable instead
+// of being silently replaced-and-lost by hydration.
+function mergeBackendRows(localRows, backendRows) {
+  const backend = Array.isArray(backendRows) ? backendRows.slice() : [];
+  const local = Array.isArray(localRows) ? localRows : [];
+  const known = new Set();
+  backend.forEach(r => {
+    if (!r || typeof r !== 'object') return;
+    if (r.id !== undefined && r.id !== null) known.add(String(r.id));
+    if (r._backendId !== undefined && r._backendId !== null) known.add(String(r._backendId));
+  });
+  const validBackend = backend.filter(r => r && typeof r === 'object');
+  const pending = local.filter(r => {
+    if (!r || typeof r !== 'object') return false;
+    if (r._syncedToBackend) return false;
+    if (r.id !== undefined && r.id !== null && known.has(String(r.id))) return false;
+    if (r._backendId !== undefined && r._backendId !== null && known.has(String(r._backendId))) return false;
+    return true;
+  });
+  return validBackend.concat(pending);
+}
+
 const digitronicsDataAdapter = {
   mode() {
     return isSupabaseEnabled() ? 'supabase' : 'legacy';
@@ -12046,7 +12131,7 @@ const digitronicsDataAdapter = {
       updateSupabaseStatusIndicator('offline');
       logAppError('supabase.create_sale', err, { fallback: 'legacy' });
       console.warn('Supabase create_sale failed; falling back to legacy storage', err);
-      showToast(`⚠️ Supabase Offline — تم حفظ البيع محلياً مؤقتاً${supabaseLastError ? ': ' + supabaseLastError : ''}`, 'error');
+      showToast(OmniLang.tpl`⚠️ Supabase Offline — تم حفظ البيع محلياً مؤقتاً${supabaseLastError ? ': ' + supabaseLastError : ''}`, 'error');
       return legacyCreateSale(preparedPayload);
     }
   },
@@ -12114,7 +12199,7 @@ const digitronicsDataAdapter = {
       updateSupabaseStatusIndicator('offline');
       logAppError('supabase.create_purchase', err, { fallback: 'legacy' });
       console.error('Supabase create_purchase failed; falling back to legacy storage', err);
-      showToast(`⚠️ Supabase Offline — تم حفظ الشراء محلياً مؤقتاً${supabaseLastError ? ': ' + supabaseLastError : ''}`, 'error');
+      showToast(OmniLang.tpl`⚠️ Supabase Offline — تم حفظ الشراء محلياً مؤقتاً${supabaseLastError ? ': ' + supabaseLastError : ''}`, 'error');
       return legacyCreatePurchase(preparedPayload);
     }
   },
@@ -12733,6 +12818,10 @@ const digitronicsDataAdapter = {
   _normalizeBackendEmployee(be) {
     if (!be) return null;
     return { ...be, name: be.name || '', position: be.position || '', phone: be.phone || '', phone2: be.phone2 || '', address: be.address || '', status: be.status || 'active', salary: parseFloat(be.salary) || 0, commission: parseFloat(be.commission) || 0, bonus: parseFloat(be.bonus) || 0, advance: parseFloat(be.advance) || 0, vacationDays: parseInt(be.vacationDays, 10) || 0 };
+  },
+  _findEmployee(id) {
+    const key = String(id);
+    return (DB.employees || []).find(e => String(e.id) === key || String(e._backendId || '') === key) || null;
   },
   async listEmployees() {
     if (!USE_BACKEND) return DB.employees;
@@ -15080,7 +15169,7 @@ async function loadPlatformAudit() {
     const events = Array.from(new Set(all.map(e => String(e.action || '').split('_').slice(0, 2).join('_')).filter(Boolean))).slice(0, 8);
     const renderChips = () => {
       const sel = String(window.__pmAuditFilter || '');
-      const chipStyle = (active) => 'padding:4px 10px;border-radius:20px;font-size:0.74rem;font-weight:600;cursor:pointer;border:1px solid ' + (active ? 'var(--accent)' : 'var(--border)') + ';background:' + (active ? 'rgba(37,99,235,0.12)' : 'var(--surface2)') + ';color:' + (active ? 'var(--accent)' : 'var(--text2)');
+      const chipStyle = (active) => 'padding:4px 10px;border-radius:20px;font-size:0.74rem;font-weight:600;cursor:pointer;border:1px solid ' + (active ? 'var(--accent)' : 'var(--border)') + ';background:' + (active ? 'rgba(124,58,237,0.12)' : 'var(--surface2)') + ';color:' + (active ? 'var(--accent)' : 'var(--text2)');
       return '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px" role="group" aria-label="تصفية الأحداث">' +
         '<button class="pm-audit-chip" data-evt="" style="' + chipStyle(!sel) + '">الكل</button>' +
         events.map(e => '<button class="pm-audit-chip" data-evt="' + escapeHtml(e) + '" style="' + chipStyle(sel === e) + '">' + escapeHtml(e) + '</button>').join('') +
@@ -16010,6 +16099,7 @@ function canAccessPage(page) {
   if (page === 'command-center') return can('all') || _effectiveRole() === 'Manager';
   if (page === 'live-sync') return !!currentUser;
   if (page === 'pwa') return !!currentUser;
+  if (page === 'game-hosting') return !!currentUser;
   if (can('all')) return true;
   if (page === 'backup') return can('manageSettings') || can('backupExport') || can('backupRestore');
   if (page === 'employees' || page === 'hr') return can('manageEmployees') || can('viewOwnAttendance');
@@ -16654,7 +16744,7 @@ async function frConnect() {
     const ud = await r.json();
     if (ghToken() && ghToken() !== token) localStorage.removeItem(ghGistKey());
     localStorage.setItem(GH_TOKEN_KEY, token);
-    frSetStatus('✅ مرحباً '+(ud.name||ud.login)+'!', 'var(--green)', 'rgba(0,168,84,.08)');
+    frSetStatus(OmniLang.t('✅ مرحباً') + ' ' + (ud.name||ud.login) + '!', 'var(--green)', 'rgba(0,168,84,.08)');
     frSetStatus('⏳ جاري تجهيز المزامنة على GitHub...', 'var(--accent)', 'rgba(0,102,255,.08)');
     const finalGistId = await ghEnsureGistForToken(token, gistId);
     localStorage.setItem(ghGistKey(), finalGistId);
@@ -20048,7 +20138,7 @@ async function testCatchWaConnection() {
     await sendCatchWaViaApi(p, 'Test from DigiTronics CatchNumber ✅');
     showToast('نجح الاتصال وتم إرسال رسالة اختبار');
   } catch (e) {
-    showToast(`فشل الاختبار: ${e.message || e}`, 'error');
+    showToast(OmniLang.tpl`فشل الاختبار: ${e.message || e}`, 'error');
   }
 }
 
@@ -20172,7 +20262,7 @@ function openCatchWaSingle() {
   if (!p) return showToast('اكتب رقم الهاتف أولاً', 'error');
   const msg = String(document.getElementById('catchWaMessage')?.value || '').trim();
   if ((DB.settings.catchWaMode || 'wa') === 'api') {
-    sendCatchWaViaApi(p, msg || 'مرحبا').then(() => showToast('تم الإرسال عبر Cloud API')).catch(e => showToast(`فشل الإرسال: ${e.message || e}`, 'error'));
+    sendCatchWaViaApi(p, msg || 'مرحبا').then(() => showToast('تم الإرسال عبر Cloud API')).catch(e => showToast(OmniLang.tpl`فشل الإرسال: ${e.message || e}`, 'error'));
     return;
   }
   const txt = encodeURIComponent(msg);
@@ -20216,7 +20306,7 @@ async function startCatchWaCampaign(customRecipients, customCampaignName) {
   saveDB();
   renderCatchWaCampaignLog();
   renderCatchWaDashboard();
-  showToast(`تم إنهاء الحملة: ${campaign}`);
+  showToast(OmniLang.tpl`تم إنهاء الحملة: ${campaign}`);
 }
 
 function scheduleCatchWaCampaign() {
@@ -20470,7 +20560,7 @@ function closeOpsDayNow() {
   DB.settings = DB.settings || {};
   DB.dailyCloseLog = Array.isArray(DB.dailyCloseLog) ? DB.dailyCloseLog : [];
   const today = new Date().toISOString().slice(0, 10);
-  if (!confirm(`تأكيد اعتماد نهاية اليوم ${today}؟`)) return;
+  if (!confirm(OmniLang.tpl`تأكيد اعتماد نهاية اليوم ${today}؟`)) return;
   DB.settings.dailyCloseUntil = today;
   DB.dailyCloseLog.unshift({
     id: Date.now(),
@@ -20505,7 +20595,7 @@ function reopenOpsClosedDay() {
     showToast('لازم تكتب سبب إعادة الفتح', 'error');
     return;
   }
-  if (!confirm(`سيتم فتح الأيام بعد ${current} للتعديل. متابعة؟`)) return;
+  if (!confirm(OmniLang.tpl`سيتم فتح الأيام بعد ${current} للتعديل. متابعة؟`)) return;
   DB.settings.dailyCloseUntil = '';
   DB.dailyCloseLog.unshift({
     id: Date.now(),
@@ -20702,7 +20792,7 @@ function reopenMonthlyLock() {
     showToast('يجب إدخال سبب إعادة الفتح', 'error');
     return;
   }
-  if (!confirm(`سيتم فك الإقفال الشهري الحالي (${lock}). متابعة؟`)) return;
+  if (!confirm(OmniLang.tpl`سيتم فك الإقفال الشهري الحالي (${lock}). متابعة؟`)) return;
   DB.settings = DB.settings || {};
   DB.settings.monthlyLockUntil = '';
   saveDB();
@@ -21059,12 +21149,12 @@ function highlightTermInElement(root, term) {
 
 function getPaymentLabel(method) {
   const labels = { cash: '💵 كاش', instapay: '📲 InstaPay', vodafone: '📱 Vodafone Cash', fawry: '🏪 Fawry', installment: '📆 تقسيط' };
-  return labels[method] || method;
+  return OmniLang.t(labels[method] || method);
 }
 
 function getInvoiceTypeLabel(type) {
-  if (type === 'installment') return '📆 تقسيط';
-  return type === 'cash' ? '💵 كاش' : '📋 آجل';
+  if (type === 'installment') return OmniLang.t('📆 تقسيط');
+  return OmniLang.t(type === 'cash' ? '💵 كاش' : '📋 آجل');
 }
 
 function isToday(dateStr) {
@@ -21187,7 +21277,7 @@ function settleAmanatManual(invoiceId, itemIdx) {
   });
   saveDB();
   renderAmanatPage();
-  showToast(`✅ تمت تسوية ${take} وحدة`);
+  showToast(OmniLang.tpl`✅ تمت تسوية ${take} وحدة`);
 }
 
 function renderAmanatPage() {
@@ -21444,8 +21534,8 @@ async function repairPurchaseInvoiceProductLinks() {
   report.supabase = { ok: false, skipped: true, reason: 'Supabase rebuild disabled for rollback/data safety' };
 
   console.log('Purchase-stock link repair report', report);
-  const sbText = ' | Supabase لم يتم تعديله';
-  showToast(`تم إصلاح الربط: ${report.itemsLinked} بند، وإعادة حساب ${report.localStockRecalculated} صنف${sbText}`);
+  const sbText = OmniLang.t(' | Supabase لم يتم تعديله');
+  showToast(OmniLang.tpl`تم إصلاح الربط: ${report.itemsLinked} بند، وإعادة حساب ${report.localStockRecalculated} صنف${sbText}`);
   return report;
 }
 
@@ -21483,7 +21573,7 @@ function addCashEntry(type, amount, method, desc, entryDate, meta = {}) {
         lockType: 'daily'
       });
       saveDB();
-      showToast(`⛔ الإغلاق اليومي مفعل حتى ${dailyLockDate} — لا يمكن تسجيل حركة بتاريخ أقدم/مساوي`, 'error');
+      showToast(OmniLang.tpl`⛔ الإغلاق اليومي مفعل حتى ${dailyLockDate} — لا يمكن تسجيل حركة بتاريخ أقدم/مساوي`, 'error');
       return false;
     }
   }
@@ -21506,7 +21596,7 @@ function addCashEntry(type, amount, method, desc, entryDate, meta = {}) {
         lockType: 'monthly'
       });
       saveDB();
-      showToast(`⛔ الإقفال الشهري مفعل حتى ${lockDate} — التسجيل المالى قبل/حتى هذا التاريخ للمالك فقط`, 'error');
+      showToast(OmniLang.tpl`⛔ الإقفال الشهري مفعل حتى ${lockDate} — التسجيل المالى قبل/حتى هذا التاريخ للمالك فقط`, 'error');
       return false;
     }
   }
@@ -21548,7 +21638,7 @@ async function addTreasuryOutRequired(amount, method, desc, entryDate, meta = {}
    if (!ok) return false;
    const after = roundMoney(before - roundMoney(toSafeFloat(amount, 0)));
    if (after < 0) {
-     showToast(`⚠️ تم الخصم والخزنة أصبحت بالسالب: ${formatMoney(after)}`, 'error');
+     showToast(OmniLang.tpl`⚠️ تم الخصم والخزنة أصبحت بالسالب: ${formatMoney(after)}`, 'error');
    }
    return true;
  }
@@ -21698,7 +21788,7 @@ function reconcileMissingCashPurchaseEntries(options = {}) {
 
   if (fixedCount > 0) {
     logActivity('تسوية خزنة', `إضافة ${fixedCount} قيود شراء كاش مفقودة بقيمة ${formatMoney(fixedTotal)}`);
-    if (!silent) showToast(`✅ تم خصم فواتير الشراء الناقصة: ${fixedCount} فاتورة | ${formatMoney(fixedTotal)}`);
+    if (!silent) showToast(OmniLang.tpl`✅ تم خصم فواتير الشراء الناقصة: ${fixedCount} فاتورة | ${formatMoney(fixedTotal)}`);
   } else if (!silent) {
     showToast('لا توجد فواتير شراء كاش ناقصة في الخزنة', 'info');
   }
@@ -21715,7 +21805,7 @@ function fixMissingPurchaseCashForProduct(productId) {
     return;
   }
   const details = missingRows.map(r => `${r.invoiceId}: ${formatMoney(r.missing)}`).join('\n');
-  if (!confirm(`سيتم خصم مبلغ شراء ناقص من الخزنة للصنف:\n${product?.name || productId}\n\n${details}\n\nالإجمالي: ${formatMoney(total)}\nهل تريد المتابعة؟`)) return;
+  if (!confirm(OmniLang.tpl`سيتم خصم مبلغ شراء ناقص من الخزنة للصنف:\n${product?.name || productId}\n\n${details}\n\nالإجمالي: ${formatMoney(total)}\nهل تريد المتابعة؟`)) return;
   reconcileMissingCashPurchaseEntries({ apply: true, productId, silent: false });
   renderTreasury();
   renderPurchases();
@@ -21731,7 +21821,7 @@ function fixAllMissingPurchaseCashEntries() {
     openTreasuryAuditModal();
     return;
   }
-  if (!confirm(`سيتم خصم فواتير الشراء الكاش غير المسجلة في الخزنة.\nعدد الفواتير: ${missingRows.length}\nالإجمالي: ${formatMoney(total)}\nهل تريد المتابعة؟`)) return;
+  if (!confirm(OmniLang.tpl`سيتم خصم فواتير الشراء الكاش غير المسجلة في الخزنة.\nعدد الفواتير: ${missingRows.length}\nالإجمالي: ${formatMoney(total)}\nهل تريد المتابعة؟`)) return;
   reconcileMissingCashPurchaseEntries({ apply: true, silent: false });
   renderTreasury();
   renderPurchases();
@@ -23042,7 +23132,7 @@ async function renderDashboard() {
         { id: 'sales', title: 'المبيعات', desc: 'فواتير البيع والمردودات', icon: '🛒', color: 'linear-gradient(135deg,#16a34a,#22c55e)', metrics: [{l:'اليوم',v:formatMoney(todaySales)},{l:'الفواتير',v:todayInvoices.length}] },
         { id: 'purchases', title: 'المشتريات', desc: 'فواتير الشراء والموردين', icon: '📥', color: 'linear-gradient(135deg,#0284c7,#38bdf8)', metrics: [{l:'المشتريات',v:(DB.purchaseInvoices||[]).length},{l:'الموردين',v:(DB.suppliers||[]).length}] },
         { id: 'inventory', title: 'المخزون', desc: 'المنتجات والتنبيهات', icon: '📦', color: 'linear-gradient(135deg,#7c3aed,#a78bfa)', metrics: [{l:'المنتجات',v:totalProducts},{l:'منخفض',v:lowStock}] },
-        { id: 'finance', title: 'المالية', desc: 'الخزينة والتقارير', icon: '🏦', color: 'linear-gradient(135deg,#2563eb,#3b82f6)', metrics: [{l:'الرصيد',v:formatMoney(treasuryBalance)},{l:'المصروفات',v:formatMoney(todayExpenses)}] },
+        { id: 'finance', title: 'المالية', desc: 'الخزينة والتقارير', icon: '🏦', color: 'linear-gradient(135deg,#7c3aed,#3b82f6)', metrics: [{l:'الرصيد',v:formatMoney(treasuryBalance)},{l:'المصروفات',v:formatMoney(todayExpenses)}] },
         { id: 'maintenance', title: 'الصيانة', desc: 'طلبات الصيانة والضمان', icon: '🔧', color: 'linear-gradient(135deg,#d97706,#fbbf24)', metrics: [{l:'معلقة',v:maintPending},{l:'الأجهزة',v:(DB.devices||[]).length}] },
         { id: 'customers', title: 'العملاء', desc: 'قاعدة العملاء والولاء', icon: '👤', color: 'linear-gradient(135deg,#ea580c,#fb923c)', metrics: [{l:'العملاء',v:(DB.customers||[]).length},{l:'الجديد',v:(DB.customers||[]).filter(c=>{const d=new Date(c.registrationDate||c.createdAt||c.id||0);return !isNaN(d.getTime())&&d>=new Date(today.getFullYear(),today.getMonth(),1);}).length}] },
         { id: 'employees', title: 'الموظفين', desc: 'الحضور والرواتب', icon: '👨‍💼', color: 'linear-gradient(135deg,#0f9f9a,#2dd4bf)', metrics: [{l:'الموظفين',v:(DB.employees||[]).length},{l:'الحضور',v:'-'}] },
@@ -23096,8 +23186,8 @@ function renderDashboardRevenueChart() {
   window._dashboardRevenueChart = new Chart(ctx, {
     type: 'bar',
     data: { labels: labels, datasets: [
-      { label: 'إيرادات', data: revenue, backgroundColor: 'rgba(37,99,235,0.25)', borderColor: 'rgba(37,99,235,1)', borderWidth: 2, borderRadius: 6 },
-      { label: 'مصروفات', data: expenses, backgroundColor: 'rgba(220,38,38,0.15)', borderColor: 'rgba(220,38,38,1)', borderWidth: 2, borderRadius: 6 }
+      { label: OmniLang.t('إيرادات'), data: revenue, backgroundColor: 'rgba(124,58,237,0.25)', borderColor: 'rgba(124,58,237,1)', borderWidth: 2, borderRadius: 6 },
+      { label: OmniLang.t('مصروفات'), data: expenses, backgroundColor: 'rgba(220,38,38,0.15)', borderColor: 'rgba(220,38,38,1)', borderWidth: 2, borderRadius: 6 }
     ]},
     options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { boxWidth: 10, font: { size: 10 } } } }, scales: { y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' } }, x: { grid: { display: false } } } }
   });
@@ -23112,7 +23202,7 @@ function renderDashboardInventoryChart() {
   const data = products.map(p => getProductStock(p.id));
   window._dashboardInventoryChart = new Chart(ctx, {
     type: 'bar',
-    data: { labels: labels, datasets: [{ label: 'المخزون', data: data, backgroundColor: products.map((_, i) => 'hsla(' + (200 + i * 20) + ',70%,55%,0.7)'), borderRadius: 6 }] },
+    data: { labels: labels, datasets: [{ label: OmniLang.t('المخزون'), data: data, backgroundColor: products.map((_, i) => 'hsla(' + (200 + i * 20) + ',70%,55%,0.7)'), borderRadius: 6 }] },
     options: { responsive: true, maintainAspectRatio: false, indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.04)' } }, y: { grid: { display: false } } } }
   });
 }
@@ -23151,13 +23241,13 @@ function renderDashboardSalesChart() {
       datasets: [{
         label: 'Sales',
         data: data,
-        borderColor: '#2563eb',
-        backgroundColor: 'rgba(37,99,235,0.08)',
+        borderColor: '#7c3aed',
+        backgroundColor: 'rgba(124,58,237,0.08)',
         borderWidth: 2,
         tension: 0.4,
         fill: true,
         pointRadius: 3,
-        pointBackgroundColor: '#2563eb'
+        pointBackgroundColor: '#7c3aed'
       }]
     },
     options: {
@@ -23938,13 +24028,13 @@ async function saveProduct() {
     logProductChange('إضافة منتج', name, `سعر شراء: ${buyPrice}, سعر بيع: ${sellPrice}, سيريالات: ${serials.length}`);
     if (!saveDB()) return;
     closeModal('productModal'); renderProductsTable();
-    showToast(`تم إضافة ${serials.length} سيريال للمنتج ${name}`);
+    showToast(OmniLang.tpl`تم إضافة ${serials.length} سيريال للمنتج ${name}`);
   } else {
     DB.products.push(newProduct);
     logProductChange('إضافة منتج', name, `بدون سيريال — الكمية تُضاف من فواتير الشراء`);
     if (!saveDB()) return;
     closeModal('productModal'); renderProductsTable();
-    showToast(`✅ تم إضافة المنتج "${name}" — أضف الكمية عبر فاتورة شراء`);
+    showToast(OmniLang.tpl`✅ تم إضافة المنتج "${name}" — أضف الكمية عبر فاتورة شراء`);
   }
 }
 
@@ -24101,7 +24191,13 @@ async function renderProductsTable(filter = '') {
   // Phase 23B: fetch from backend when enabled
   let products = DB.products;
   if (USE_BACKEND && typeof digitronicsDataAdapter !== 'undefined') {
-    try { products = await digitronicsDataAdapter.listProducts(); } catch (_) {}
+    try {
+      products = await digitronicsDataAdapter.listProducts();
+      // Hydrate the mirror so row actions and delete sync operate on exactly
+      // the records rendered from the API — while keeping local records the
+      // backend does not have yet (failed/offline creates) visible.
+      if (Array.isArray(products)) DB.products = mergeBackendRows(DB.products, products);
+    } catch (_) {}
   }
   // R1: window the rendered rows so a 10k/100k product DB does not freeze the
   // UI. Data and search are unaffected; only the DOM slice is capped and a
@@ -24365,7 +24461,7 @@ function saveNewSerials() {
   saveDB();
   closeModal('addSerialsModal');
   renderProductsTable();
-  showToast(`✅ تم إضافة ${unique.length} سيريال`);
+  showToast(OmniLang.tpl`✅ تم إضافة ${unique.length} سيريال`);
 }
 
 function editProduct(id) {
@@ -24534,7 +24630,7 @@ function applyCostAuditProductCost(productId) {
 function applyPurchaseAveragesToOldCosts() {
   const rows = getCostAuditRows().filter(r => r.purchaseAvg > 0 && r.productCost <= 0);
   if (!rows.length) { showToast('لا توجد أصناف يمكن تحديثها من متوسط الشراء', 'info'); return; }
-  if (!confirm(`سيتم تحديث سعر شراء ${rows.length} صنف بمتوسط فواتير الشراء. هل تريد المتابعة؟`)) return;
+  if (!confirm(OmniLang.tpl`سيتم تحديث سعر شراء ${rows.length} صنف بمتوسط فواتير الشراء. هل تريد المتابعة؟`)) return;
   rows.forEach(r => {
     const oldCost = toSafeFloat(r.product.buyPrice, 0);
     r.product.buyPrice = r.purchaseAvg;
@@ -24543,7 +24639,7 @@ function applyPurchaseAveragesToOldCosts() {
   saveDB();
   renderProductsTable();
   renderCostAuditTable();
-  showToast(`✅ تم تحديث ${rows.length} صنف من متوسط الشراء`);
+  showToast(OmniLang.tpl`✅ تم تحديث ${rows.length} صنف من متوسط الشراء`);
 }
 
 async function deleteProduct(id) {
@@ -24551,9 +24647,11 @@ async function deleteProduct(id) {
   if (!confirm('هل تريد حذف هذا المنتج؟')) return;
   
   const p = DB.products.find(x => x.id === id);
-  // Phase 23B: delete in backend when enabled
+  // Phase 23B: delete in backend when enabled (id-first, then legacy index path)
   if (USE_BACKEND && backendApi && backendApi.inventory && p && p._backendId) {
     try { await backendApi.inventory.delete(p._backendId); } catch (_) {}
+  } else if (USE_BACKEND && backendApi && backendApi.inventory && p && p.id !== undefined && p.id !== null) {
+    try { await backendApi.inventory.delete(p.id); } catch (_) {}
   }
   DB.products = DB.products.filter(x => x.id !== id);
   DB.serials = DB.serials.filter(s => s.productId !== id);
@@ -24742,7 +24840,7 @@ function addPurchaseItem() {
     // Check for duplicates against already-existing serials in DB
     const duplicatesInDB = serials.filter(sn => DB.serials.find(x => x.serial === sn));
     if (duplicatesInDB.length > 0) {
-      showToast(`❌ السيريالات التالية موجودة مسبقاً: ${duplicatesInDB.slice(0,3).join(', ')}`, 'error');
+      showToast(OmniLang.tpl`❌ السيريالات التالية موجودة مسبقاً: ${duplicatesInDB.slice(0,3).join(', ')}`, 'error');
       return false;
     }
 
@@ -24750,7 +24848,7 @@ function addPurchaseItem() {
       String(d[field] || '').trim().toLowerCase() === String(sn).trim().toLowerCase()
     )));
     if (duplicateDevices.length > 0) {
-      showToast(`❌ هذا الجهاز مسجل مسبقاً: ${duplicateDevices.slice(0,3).join(', ')}`, 'error');
+      showToast(OmniLang.tpl`❌ هذا الجهاز مسجل مسبقاً: ${duplicateDevices.slice(0,3).join(', ')}`, 'error');
       return false;
     }
 
@@ -24758,7 +24856,7 @@ function addPurchaseItem() {
     const cartSerials = purCart.flatMap(i => i.serials);
     const duplicatesInCart = serials.filter(sn => cartSerials.includes(sn));
     if (duplicatesInCart.length > 0) {
-      showToast(`❌ سيريال مكرر في الفاتورة الحالية: ${duplicatesInCart.slice(0,3).join(', ')}`, 'error');
+      showToast(OmniLang.tpl`❌ سيريال مكرر في الفاتورة الحالية: ${duplicatesInCart.slice(0,3).join(', ')}`, 'error');
       return false;
     }
   }
@@ -24770,7 +24868,7 @@ function addPurchaseItem() {
   } else {
     if (serials.length === 0) { showToast('أدخل السيريالات للصنف المتتبع', 'error'); return false; }
     if (serials.length !== qtyInput) {
-      showToast(`عدد السيريالات (${serials.length}) يجب أن يساوي الكمية (${qtyInput})`, 'error');
+      showToast(OmniLang.tpl`عدد السيريالات (${serials.length}) يجب أن يساوي الكمية (${qtyInput})`, 'error');
       return false;
     }
     qty = qtyInput;
@@ -25156,7 +25254,7 @@ function legacySavePurchaseFromModal(payload) {
   auditAndSyncFinanceStock('savePurchase');
   closeModal('purchaseModal');
   renderPurchases();
-  showToast(`تم حفظ فاتورة الشراء (${items.length} صنف - ${formatMoney(total)})${autoSettledAmanatUnits > 0 ? ` | ✅ تمت تسوية أمانات: ${autoSettledAmanatUnits} وحدة` : ''}`);
+  showToast(OmniLang.tpl`تم حفظ فاتورة الشراء (${items.length} صنف - ${formatMoney(total)})${autoSettledAmanatUnits > 0 ? OmniLang.tpl` | ✅ تمت تسوية أمانات: ${autoSettledAmanatUnits} وحدة` : ''}`);
   purCart = [];
   return invoice;
 }
@@ -25178,7 +25276,13 @@ async function renderPurchases(filter = '') {
   // Phase 23B: fetch from backend when enabled
   let purchases = DB.purchaseInvoices;
   if (USE_BACKEND && typeof digitronicsDataAdapter !== 'undefined') {
-    try { purchases = await digitronicsDataAdapter.listPurchases(); } catch (_) {}
+    try {
+      purchases = await digitronicsDataAdapter.listPurchases();
+      // Hydrate the mirror so delete row actions resolve exactly the records
+      // rendered from the API — without dropping local records pending their
+      // first backend sync.
+      if (Array.isArray(purchases)) DB.purchaseInvoices = mergeBackendRows(DB.purchaseInvoices, purchases);
+    } catch (_) {}
   }
   if (filter) {
     purchases = purchases.filter(p =>
@@ -25427,10 +25531,10 @@ async function updatePurchaseInvoice(id) {
     if (!treasuryOk) return;
   }
 
-  const purPayLabel = m => m==='cash'?'كاش':m==='vodafone'?'فودافون':m==='instapay'?'InstaPay':m==='fawry'?'فوري':m||'';
+  const purPayLabel = m => OmniLang.t(m==='cash'?'كاش':m==='vodafone'?'فودافون':m==='instapay'?'InstaPay':m==='fawry'?'فوري':m||'');
   const purTMsg = (oldInvType==='cash' && invoiceType==='cash' && oldPayMethod !== paymentMethod)
-    ? ` | تحويل خزنة: ${purPayLabel(oldPayMethod)} → ${purPayLabel(paymentMethod)}`
-    : (oldInvType==='cash' || invoiceType==='cash') ? ' | الخزنة تم تحديثها' : '';
+    ? OmniLang.tpl` | تحويل خزنة: ${purPayLabel(oldPayMethod)} → ${purPayLabel(paymentMethod)}`
+    : (oldInvType==='cash' || invoiceType==='cash') ? OmniLang.t(' | الخزنة تم تحديثها') : '';
 
   // ===== UPDATE INVOICE RECORD =====
   inv.supplierId = supplierId || null;
@@ -25473,7 +25577,7 @@ async function updatePurchaseInvoice(id) {
   closeModal('purchaseModal');
   renderPurchases();
   renderTreasury();
-  showToast(`✅ تم تحديث فاتورة الشراء #${id}${purTMsg}`);
+  showToast(OmniLang.tpl`✅ تم تحديث فاتورة الشراء #${id}${purTMsg}`);
   purCart = [];
 }
 
@@ -25554,7 +25658,13 @@ async function renderSuppliers() {
    // Phase 23B: fetch from backend when enabled
    let suppliers = DB.suppliers;
    if (USE_BACKEND && typeof digitronicsDataAdapter !== 'undefined') {
-     try { suppliers = await digitronicsDataAdapter.listSuppliers(); } catch (_) {}
+     try {
+       suppliers = await digitronicsDataAdapter.listSuppliers();
+       // Hydrate the mirror so idx-based row actions and delete sync operate
+       // on exactly the records rendered from the API — without dropping
+       // local records pending their first backend sync.
+       if (Array.isArray(suppliers)) DB.suppliers = mergeBackendRows(DB.suppliers, suppliers);
+     } catch (_) {}
    }
   // Single-pass aggregation for supplier debt stats (was O(suppliers*(invoices+payments+vouchers)))
   const suppAgg = new Map();
@@ -25859,7 +25969,7 @@ function saveSupplierPayment() {
       }
     );
     closeModal('supplierPaymentModal');
-    showToast(`⏳ تم إرسال طلب موافقة ${req.id}`);
+    showToast(OmniLang.tpl`⏳ تم إرسال طلب موافقة ${req.id}`);
     renderApprovalsPage();
     renderDashboard();
     return;
@@ -25901,9 +26011,11 @@ async function deleteSupplier(idx) {
    if (!confirm('هل تريد حذف هذا المورد؟')) return;
    const s = DB.suppliers[idx];
    DB.suppliers.splice(idx, 1);
-   // Phase 23B: delete in backend when enabled
+   // Phase 23B: delete in backend when enabled (id-first, then legacy index path)
    if (USE_BACKEND && backendApi && backendApi.suppliers && s && s._backendId) {
      try { await backendApi.suppliers.delete(s._backendId); } catch (_) {}
+   } else if (USE_BACKEND && backendApi && backendApi.suppliers && s && s.id !== undefined && s.id !== null) {
+     try { await backendApi.suppliers.delete(s.id); } catch (_) {}
    }
    saveDB();
    renderSuppliers();
@@ -25959,7 +26071,7 @@ function convertSupplierToOtherParty(supplierId) {
   renderSuppliers();
   renderVouchers();
   renderTreasury();
-  showToast(`✅ تم تحويل ${s.name} إلى جهة أخرى وإزالته من الموردين`);
+  showToast(OmniLang.tpl`✅ تم تحويل ${s.name} إلى جهة أخرى وإزالته من الموردين`);
 }
 
 function editSupplier(id) {
@@ -26137,7 +26249,13 @@ async function renderCustomersTable(filter = '') {
   // Phase 23B: fetch from backend when enabled
   let customers = DB.customers;
   if (USE_BACKEND && typeof digitronicsDataAdapter !== 'undefined') {
-    try { customers = await digitronicsDataAdapter.listCustomers(); } catch (_) {}
+    try {
+      customers = await digitronicsDataAdapter.listCustomers();
+      // Hydrate the mirror so idx-based row actions and delete sync operate
+      // on exactly the records rendered from the API — without dropping
+      // local records pending their first backend sync.
+      if (Array.isArray(customers)) DB.customers = mergeBackendRows(DB.customers, customers);
+    } catch (_) {}
   }
   if (filter) customers = customers.filter(c => c.name.toLowerCase().includes(filter.toLowerCase()) || (c.phone && c.phone.includes(filter)));
   // R1: precompute ajel totals per customer in a single pass (was O(customers*invoices)).
@@ -26255,7 +26373,7 @@ async function openQuickAddCustomer() {
     document.getElementById('cartCustomerSelect').value = `c_${newCust.id}`;
   }
   onCartCustomerSelect();
-  showToast(`✅ تم إضافة ال${label} ${name}`);
+  showToast(OmniLang.t('✅ تم إضافة ال' + label) + ' ' + name);
 }
 
 function viewCustomerStatement(customerIdOrName) {
@@ -26398,9 +26516,11 @@ async function deleteCustomer(idx) {
   if (!confirm('هل تريد حذف هذا العميل؟')) return;
   const c = DB.customers[idx];
   DB.customers.splice(idx, 1);
-  // Phase 23B: delete in backend when enabled
+  // Phase 23B: delete in backend when enabled (id-first, then legacy index path)
   if (USE_BACKEND && backendApi && backendApi.customers && c && c._backendId) {
     try { await backendApi.customers.delete(c._backendId); } catch (_) {}
+  } else if (USE_BACKEND && backendApi && backendApi.customers && c && c.id !== undefined && c.id !== null) {
+    try { await backendApi.customers.delete(c.id); } catch (_) {}
   }
   saveDB();
   renderCustomersTable();
@@ -26697,8 +26817,8 @@ function viewInstallmentDetails(id) {
   const inst = DB.installments.find(i => i.id === id);
   if (!inst) return;
   normalizeInstallment(inst);
-  const rows = (inst.schedule || []).map(s => `#${s.no} | ${s.dueDate} | ${formatMoney(s.amount)} | ${s.status === 'paid' ? 'مدفوع' : s.status === 'partial' ? 'جزئي' : 'غير مدفوع'}`).join('\n');
-  alert(`تقسيط: ${inst.id}\nالعميل: ${inst.customer}\nفاتورة: ${inst.invoiceId || '-'}\nالمتبقي: ${formatMoney(inst.remaining)}\n\nجدول الأقساط:\n${rows}`);
+  const rows = (inst.schedule || []).map(s => `#${s.no} | ${s.dueDate} | ${formatMoney(s.amount)} | ${s.status === 'paid' ? OmniLang.t('مدفوع') : s.status === 'partial' ? OmniLang.t('جزئي') : OmniLang.t('غير مدفوع')}`).join('\n');
+  alert(OmniLang.tpl`تقسيط: ${inst.id}\nالعميل: ${inst.customer}\nفاتورة: ${inst.invoiceId || '-'}\nالمتبقي: ${formatMoney(inst.remaining)}\n\nجدول الأقساط:\n${rows}`);
 }
 
 function clearInstallmentFilters() {
@@ -27172,7 +27292,7 @@ function saveReturnImpl() {
   renderProductsTable();
   renderDashboard();
   adjustSupabaseProductStockBalanceFromItems(returnedItems, 'in', 'Sale Return').catch(error => console.warn('Sale return stock balance sync failed', error));
-  showToast(`✅ تم تسجيل المرتجع — المخزون والخزنة تم تحديثهم`);
+  showToast(OmniLang.tpl`✅ تم تسجيل المرتجع — المخزون والخزنة تم تحديثهم`);
 }
 
 function renderReturns() {
@@ -27273,11 +27393,11 @@ function fixWrongSaleReturnCashEntries() {
   const totalIn = roundMoney(plan.filter(x => x.correctionType === 'in').reduce((s, x) => s + x.correctionAmount, 0));
   const totalOut = roundMoney(plan.filter(x => x.correctionType === 'out').reduce((s, x) => s + x.correctionAmount, 0));
   const preview = plan.map(x => {
-    const label = x.correctionType === 'in' ? 'وارد' : 'صادر';
-    return `${x.ret.invoiceId || x.ret.id}: ${label} ${formatMoney(x.correctionAmount)}`;
+const label = x.correctionType === 'in' ? 'وارد' : 'صادر';
+    return `${x.ret.invoiceId || x.ret.id}: ${OmniLang.t(label)} ${formatMoney(x.correctionAmount)}`;
   }).join('\n');
 
-  if (!confirm(`سيتم تصحيح خزنة فواتير الإرجاع التالية بدون حذف القيود القديمة:\n\n${preview}\n\nإجمالي وارد: ${formatMoney(totalIn)}\nإجمالي صادر: ${formatMoney(totalOut)}\n\nهل تريد المتابعة؟`)) return;
+  if (!confirm(OmniLang.tpl`سيتم تصحيح خزنة فواتير الإرجاع التالية بدون حذف القيود القديمة:\n\n${preview}\n\nإجمالي وارد: ${formatMoney(totalIn)}\nإجمالي صادر: ${formatMoney(totalOut)}\n\nهل تريد المتابعة؟`)) return;
 
   let fixedCount = 0;
   let fixedTotal = 0;
@@ -27309,7 +27429,7 @@ function fixWrongSaleReturnCashEntries() {
   renderReturns();
   renderTreasury();
   renderDashboard();
-  showToast(`✅ تم تصحيح ${fixedCount} فاتورة إرجاع بإجمالي فروق ${formatMoney(fixedTotal)}`);
+  showToast(OmniLang.tpl`✅ تم تصحيح ${fixedCount} فاتورة إرجاع بإجمالي فروق ${formatMoney(fixedTotal)}`);
 }
 
 function editReturn(id) {
@@ -27433,7 +27553,7 @@ function retScanSerial(e, idx) {
     }
   });
   if (found) {
-    showToast('✅ تم تحديد: ' + scanned, 'success');
+    showToast(OmniLang.t('✅ تم تحديد:') + ' ' + scanned, 'success');
   } else {
     showToast('❌ السيريال غير موجود في هذه الفاتورة أو غير متاح للإرجاع', 'error');
   }
@@ -28238,7 +28358,9 @@ function renderTreasuryReverseAction(c) {
   if (!canReverse) return '-';
   if (c.reversalOf) return '<span class="badge badge-blue">قيد عكسي</span>';
   if (c.reversedBy) return '<span class="badge badge-yellow">تم استرجاعها</span>';
-  return `<button class="btn btn-outline btn-sm" onclick="reverseTreasuryEntry(${Number(c.id) || 0})">↩️ استرجاع</button>`;
+  // Keep the raw id intact (UUIDs break under Number()); the handler resolves
+  // both local ids and backend ids.
+  return `<button class="btn btn-outline btn-sm" onclick="reverseTreasuryEntry('${String(c.id ?? (c._backendId ?? ''))}')">↩️ استرجاع</button>`;
 }
 
 async function reverseTreasuryEntry(entryId) {
@@ -28254,7 +28376,7 @@ async function reverseTreasuryEntry(entryId) {
    const lockUntilMs = DB.settings.reversePinLockUntil ? new Date(DB.settings.reversePinLockUntil).getTime() : 0;
    if (lockUntilMs && nowMs < lockUntilMs) {
      const leftMin = Math.max(1, Math.ceil((lockUntilMs - nowMs) / 60000));
-     return showToast(`🔒 تم قفل الاسترجاع مؤقتًا. حاول بعد ${leftMin} دقيقة`, 'error');
+     return showToast(OmniLang.tpl`🔒 تم قفل الاسترجاع مؤقتًا. حاول بعد ${leftMin} دقيقة`, 'error');
    }
    if (lockUntilMs && nowMs >= lockUntilMs) {
      DB.settings.reversePinLockUntil = '';
@@ -28263,7 +28385,24 @@ async function reverseTreasuryEntry(entryId) {
    }
 
    DB.cashFlow = Array.isArray(DB.cashFlow) ? DB.cashFlow : [];
-   const row = DB.cashFlow.find(c => Number(c.id) === Number(entryId));
+   // Resolve by raw id string first (never Number() — UUIDs collapse to NaN);
+   // fall back to the backend id so API rows are reversible even when their
+   // local id differs. A backend row the local mirror has never seen is
+   // fetched by id so it stays reversible — with zero backend mutations.
+   let row = DB.cashFlow.find(c => String(c.id) === String(entryId))
+     || DB.cashFlow.find(c => String(c._backendId || '') === String(entryId));
+   if (!row && USE_BACKEND && backendApi && backendApi.treasury) {
+     try {
+       const res = await backendApi.treasury.getById(entryId);
+       if (res && res.success && res.data) {
+         row = normalizeTreasuryEntry(res.data);
+         row._backendId = res.data.id || entryId;
+         row._importedFromBackend = true;
+         if (row.reversedBy) return showToast('تم استرجاع هذه الحركة مسبقًا', 'info');
+         DB.cashFlow.unshift(row);
+       }
+     } catch (_) {}
+   }
    if (!row) return showToast('الحركة غير موجودة', 'error');
    if (row.reversalOf) return showToast('هذه حركة عكسية بالفعل', 'info');
    if (row.reversedBy) return showToast('تم استرجاع هذه الحركة مسبقًا', 'info');
@@ -28311,11 +28450,12 @@ async function reverseTreasuryEntry(entryId) {
      saveDB();
    }
 
-   // Phase 23B: delete original from backend when enabled
-   if (USE_BACKEND && backendApi && backendApi.treasury && row._backendId) {
-     try { await backendApi.treasury.delete(row._backendId); } catch (_) {}
-   }
-
+   // NOTE: no backend mutation happens before the final confirm() below.
+   // The original entry is intentionally NOT deleted from the backend: a
+   // reversal keeps the original as an audit trail and adds the opposite   // entry (net zero) — mirroring the local behavior. Deleting the original
+   // here would both diverge the backend ledger from the local one (delete +
+   // opposite entry = negative net) and destroy the record if the user
+   // cancels the final confirmation after entering the PIN.
    const movementType = row.type === 'in' ? 'وارد' : 'صادر';
    const when = row.date ? new Date(row.date).toLocaleString('ar-EG') : '-';
    const summary = [
@@ -28345,9 +28485,20 @@ async function reverseTreasuryEntry(entryId) {
      reversalOf: row.id,
      reversalReason: reasonText
    };
-   // Phase 23B: create opposite entry in backend when enabled
+   // Phase 23B: create the opposite entry in the backend — the ONLY backend
+   // mutation of a reversal, and it happens strictly after the final
+   // confirm() above. A backend failure surfaces as an error toast and leaves
+   // the local mirror untouched (no false local-only reversal).
    if (USE_BACKEND && backendApi && backendApi.treasury) {
-     try { await backendApi.treasury.create(newEntry); } catch (_) {}
+     try {
+       const res = await backendApi.treasury.create(newEntry);
+       if (res && res.success && res.data) { newEntry._backendId = res.data.id || null; newEntry._syncedToBackend = true; }
+       else throw new Error((res && res.error) || 'backend reversal rejected');
+     } catch (e) {
+       logAppError('treasury.reverse', e);
+       showToast('⚠️ تعذر حفظ القيد العكسي على الخادم — لم يتم الاسترجاع. حاول مرة أخرى', 'error');
+       return;
+     }
    }
    DB.cashFlow.unshift(newEntry);
 
@@ -28805,7 +28956,7 @@ async function createTreasurySettlement(type, amount, note, method = 'cash') {
    if (!(safeAmount > 0)) { showToast('قيمة غير صحيحة', 'error'); return; }
    const safeNote = String(note || '').trim() || `تسوية فرق دفتر يدوي حتى ${localDateString()}`;
    const label = safeType === 'in' ? 'وارد' : 'صادر';
-   if (!confirm(`تأكيد إنشاء قيد تسوية؟\\n\\nالنوع: ${label}\\nالقيمة: ${formatMoney(safeAmount)}\\nالوسيلة: ${getPaymentLabel(method)}\\nالوصف: ${safeNote}`)) return;
+   if (!confirm(OmniLang.tpl`تأكيد إنشاء قيد تسوية؟\\n\\nالنوع: ${OmniLang.t(label)}\\nالقيمة: ${formatMoney(safeAmount)}\\nالوسيلة: ${getPaymentLabel(method)}\\nالوصف: ${safeNote}`)) return;
 
    // Phase 23B: create in backend when enabled
    if (USE_BACKEND && backendApi && backendApi.treasury) {
@@ -28815,7 +28966,7 @@ async function createTreasurySettlement(type, amount, note, method = 'cash') {
    logActivity('قيد تسوية خزنة', `${label} - ${formatMoney(safeAmount)} - ${safeNote}`);
    renderTreasury();
    openTreasuryAuditModal();
-   showToast(`✅ تم إنشاء قيد تسوية ${label} بقيمة ${formatMoney(safeAmount)}`);
+   showToast(OmniLang.tpl`✅ تم إنشاء قيد تسوية ${OmniLang.t(label)} بقيمة ${formatMoney(safeAmount)}`);
  }
 
 function createSettlementFromAudit(defaultAmount) {
@@ -28864,7 +29015,7 @@ function saveExpense() {
       }
     );
     closeModal('expenseModal');
-    showToast(`⏳ تم إرسال طلب موافقة رقم ${req.id}`);
+    showToast(OmniLang.tpl`⏳ تم إرسال طلب موافقة رقم ${req.id}`);
     renderApprovalsPage();
     renderDashboard();
     return;
@@ -31268,7 +31419,7 @@ function togglePluginState(pluginId) {
   if (!plugin) return;
   if (plugin.locked) return showToast('System plugins cannot be disabled', 'error');
   const requiredBy = getPluginRegistry().filter(p => (p.dependencies || []).includes(pluginId) && p.enabled);
-  if (plugin.enabled && requiredBy.length) return showToast(`لا يمكن التعطيل: مطلوب بواسطة ${requiredBy.map(p => p.name).join(', ')}`, 'error');
+  if (plugin.enabled && requiredBy.length) return showToast(OmniLang.tpl`لا يمكن التعطيل: مطلوب بواسطة ${requiredBy.map(p => p.name).join(', ')}`, 'error');
   const state = getPluginCenterState();
   state.states[pluginId] = { ...(state.states[pluginId] || {}), enabled: !plugin.enabled, lastUpdate: new Date().toISOString() };
   savePluginCenterState({ states: state.states });
@@ -31455,7 +31606,7 @@ function syncRepMobileQueue() {
   renderRepMobilePage();
   if (currentPage === 'vouchers') renderVouchers();
   renderDashboard();
-  showToast(`✅ تمت مزامنة ${syncedCount} عنصر`);
+  showToast(OmniLang.tpl`✅ تمت مزامنة ${syncedCount} عنصر`);
 }
 
 function renderDevicesPage() {
@@ -31649,7 +31800,7 @@ async function saveDeviceRegistration() {
     const dup = await deviceDuplicateExists(payload);
     if (dup) {
       const labels = { serial_number: 'Serial Number', imei: 'IMEI', service_tag: 'Service Tag' };
-      showToast(`⚠️ ${labels[dup]} موجود بالفعل`, 'error');
+      showToast(OmniLang.tpl`⚠️ ${labels[dup]} موجود بالفعل`, 'error');
       return;
     }
     if (isSupabaseEnabled()) {
@@ -32041,7 +32192,7 @@ async function openDeviceHistory(deviceId) {
     openModal('deviceHistoryModal');
   } catch (error) {
     console.error('Device history failed', error);
-    showToast(`تعذر فتح تاريخ الجهاز: ${error.message || error}`, 'error');
+    showToast(OmniLang.tpl`تعذر فتح تاريخ الجهاز: ${error.message || error}`, 'error');
   }
 }
 
@@ -32209,7 +32360,7 @@ function calcAttendanceOvertime(att) {
 }
 
 function employeeCheckIn(id) {
-  const emp = DB.employees.find(e => String(e.id) === String(id));
+  const emp = _findEmployee(id);
   if (!emp || !canManageEmployee(emp)) { permissionDenied(); return; }
   const existing = getTodayAttendance(id);
   if (existing && existing.checkIn) { showToast('تم تسجيل الحضور اليوم بالفعل', 'error'); return; }
@@ -32235,7 +32386,7 @@ function employeeCheckIn(id) {
 }
 
 function employeeCheckOut(id) {
-  const emp = DB.employees.find(e => String(e.id) === String(id));
+  const emp = _findEmployee(id);
   if (!emp || !canManageEmployee(emp)) { permissionDenied(); return; }
   const att = getTodayAttendance(id);
   if (!att || !att.checkIn) { showToast('سجل الحضور أولاً', 'error'); return; }
@@ -32254,7 +32405,7 @@ function employeeCheckOut(id) {
 }
 
 function openEmployeeLeaveModal(id) {
-  const emp = DB.employees.find(e => String(e.id) === String(id));
+  const emp = _findEmployee(id);
   if (!emp || !canManageEmployee(emp) || !can('manageEmployees')) { permissionDenied(); return; }
   document.getElementById('leaveEmployeeId').value = emp.id;
   document.getElementById('leaveEmployeeName').value = emp.name;
@@ -32408,7 +32559,7 @@ function confirmGeneratePayroll() {
   closeModal('dynamicModal');
   renderHRManagement();
   renderEmployees();
-  showToast(`✅ تم إنشاء Payroll لـ ${created} موظف للشهر ${monthKey}`);
+  showToast(OmniLang.tpl`✅ تم إنشاء Payroll لـ ${created} موظف للشهر ${monthKey}`);
 }
 function getMonthlyEmployeeBonuses(empId, monthKey) {
   return (DB.employeeBonuses || []).filter(b => String(b.employeeId) === String(empId) && String(b.date || '').slice(0, 7) === monthKey)
@@ -32449,7 +32600,7 @@ function openEmployeeModal() {
 }
 
 function editEmployee(id) {
-  const emp = DB.employees.find(e => e.id === id);
+  const emp = _findEmployee(id);
   if (!emp) return;
   if (!canManageEmployee(emp) || !can('manageEmployees')) { permissionDenied(); return; }
   populateEmployeeBranchControls();
@@ -32496,8 +32647,9 @@ async function saveEmployee() {
    if (!name) { showToast('أدخل اسم الموظف', 'error'); return; }
 
    if (editingEmployeeId) {
-     const emp = DB.employees.find(e => e.id === editingEmployeeId);
+     const emp = _findEmployee(editingEmployeeId);
      if (!emp) { showToast('الموظف غير موجود', 'error'); return; }
+     const backendKey = (USE_BACKEND && emp._backendId) ? emp._backendId : String(emp.id);
      emp.name = name;
      emp.position = position;
      emp.phone = phone;
@@ -32518,6 +32670,7 @@ async function saveEmployee() {
      if (USE_BACKEND && backendApi && backendApi.employees && emp._backendId) {
        try { await backendApi.employees.update(emp._backendId, emp); } catch (_) {}
      }
+     editingEmployeeId = backendKey;
    } else {
      const newEmp = {
        id: Date.now(),
@@ -32590,9 +32743,9 @@ function renderHRManagement() {
       <td>${canFullHR ? (paidDate ? paidDate.toLocaleDateString('ar-EG') : 'لم يُصرف') : '***'}</td>
       <td>${canFullHR ? statusBadge : '<span class="badge badge-blue">حضور شخصي</span>'}</td>
       <td>
-        <button class="btn btn-sm btn-outline" onclick="employeeCheckIn(${e.id})">حضور</button>
-        <button class="btn btn-sm btn-outline" onclick="employeeCheckOut(${e.id})">انصراف</button>
-        ${canFullHR ? `<button class="btn btn-sm btn-green" onclick="paySalary(${e.id})">💰 صرف</button>` : ''}
+        <button class="btn btn-sm btn-outline" onclick="employeeCheckIn('${escapeHtml(e.id)}')">حضور</button>
+        <button class="btn btn-sm btn-outline" onclick="employeeCheckOut('${escapeHtml(e.id)}')">انصراف</button>
+        ${canFullHR ? `<button class="btn btn-sm btn-green" onclick="paySalary('${escapeHtml(e.id)}')">💰 صرف</button>` : ''}
       </td>
     </tr>`;
   }).join('') || '<tr><td colspan="7" style="text-align:center">لا يوجد موظفين</td></tr>';
@@ -32643,7 +32796,13 @@ async function renderEmployees() {
    // Phase 23B: fetch from backend when enabled
    let employees = getVisibleEmployees();
    if (USE_BACKEND && typeof digitronicsDataAdapter !== 'undefined') {
-     try { employees = await digitronicsDataAdapter.listEmployees(); } catch (_) {}
+     try {
+       employees = await digitronicsDataAdapter.listEmployees();
+       // Hydrate the local mirror so row actions (pay/attendance/edit/delete)
+       // operate on the same records that were just rendered from the API,
+       // while local records pending their first backend sync stay visible.
+       if (Array.isArray(employees)) DB.employees = mergeBackendRows(DB.employees, employees);
+     } catch (_) {}
    }
    const search = String(document.getElementById('employeeSearchInput')?.value || '').trim().toLowerCase();
    const branchFilter = String(document.getElementById('employeeBranchFilter')?.value || '').trim();
@@ -32669,7 +32828,7 @@ async function renderEmployees() {
    const tbody = document.getElementById('employeesTbody');
    tbody.innerHTML = filtered.map((e, idx) => {
      const att = getTodayAttendance(e.id);
-     const attendanceBtns = `<button class="btn btn-sm btn-outline" onclick="employeeCheckIn(${e.id})">حضور</button><button class="btn btn-sm btn-outline" onclick="employeeCheckOut(${e.id})">انصراف</button>`;
+     const attendanceBtns = `<button class="btn btn-sm btn-outline" onclick="employeeCheckIn('${escapeHtml(e.id)}')">حضور</button><button class="btn btn-sm btn-outline" onclick="employeeCheckOut('${escapeHtml(e.id)}')">انصراف</button>`;
      return `<tr>
      <td>${idx + 1}</td>
      <td>${escapeHtml(e.name)}<div style="font-size:.68rem;color:var(--text2)">${escapeHtml(e.branchName || getBranchNameById(getEmployeeBranchId(e)))} · ${att?.checkIn ? 'حاضر اليوم' : 'لم يسجل حضور'}</div></td>
@@ -32683,11 +32842,11 @@ async function renderEmployees() {
      <td>${e.lastPaid ? new Date(e.lastPaid).toLocaleDateString('ar-EG') : 'لم يُصرف'}</td>
      <td>
        ${attendanceBtns}
-       ${canFullHR ? `<button class="btn btn-sm btn-accent" onclick="openEmployeeProfile(${e.id})">👤 ملف</button>
-       <button class="btn btn-sm btn-green" onclick="paySalary(${e.id})">💰 صرف</button>
-       <button class="btn btn-sm btn-yellow" onclick="openEmployeeLeaveModal(${e.id})">🌴 إجازة</button>
-       <button class="btn btn-sm btn-outline" onclick="editEmployee(${e.id})">✏️ تعديل</button>
-       <button class="btn btn-sm btn-danger" onclick="deleteEmployeeById(${e.id})">🗑️</button>` : ''}
+       ${canFullHR ? `<button class="btn btn-sm btn-accent" onclick="openEmployeeProfile('${escapeHtml(e.id)}')">👤 ملف</button>
+       <button class="btn btn-sm btn-green" onclick="paySalary('${escapeHtml(e.id)}')">💰 صرف</button>
+       <button class="btn btn-sm btn-yellow" onclick="openEmployeeLeaveModal('${escapeHtml(e.id)}')">🌴 إجازة</button>
+       <button class="btn btn-sm btn-outline" onclick="editEmployee('${escapeHtml(e.id)}')">✏️ تعديل</button>
+       <button class="btn btn-sm btn-danger" onclick="deleteEmployeeById('${escapeHtml(e.id)}')">🗑️</button>` : ''}
      </td>
    </tr>`;
    }).join('') || '<tr><td colspan="11" style="text-align:center">لا يوجد موظفين</td></tr>';
@@ -32728,7 +32887,7 @@ async function renderEmployees() {
  }
 
 function paySalary(id) {
-  const emp = DB.employees.find(e => e.id === id);
+  const emp = _findEmployee(id);
   if (!emp) return;
   if (!canManageEmployee(emp) || !can('manageEmployees')) { permissionDenied(); return; }
   const vacationDays = Math.max(0, parseInt(emp.vacationDays, 10) || 0);
@@ -32825,17 +32984,20 @@ function confirmPaySalary(id) {
   renderHRManagement();
   renderEmployeePerformance();
   renderTreasury();
-  showToast(`✅ تم صرف راتب ${emp.name} #${vchId}`);
+  showToast(OmniLang.tpl`✅ تم صرف راتب ${emp.name} #${vchId}`);
 }
 
 async function deleteEmployee(idx) {
    if (!requirePermission('manageEmployees')) return;
-   if (!confirm('هل تريد حذف هذا الموظف؟')) return;
    const emp = DB.employees[idx];
+   if (!emp) return;
+   if (!confirm('هل تريد حذف هذا الموظف؟')) return;
    DB.employees.splice(idx, 1);
-   // Phase 23B: delete in backend when enabled
-   if (USE_BACKEND && backendApi && backendApi.employees && emp && emp._backendId) {
+   // Phase 23B: delete in backend when enabled (id-first, then legacy index path)
+   if (USE_BACKEND && backendApi && backendApi.employees && emp._backendId) {
      try { await backendApi.employees.delete(emp._backendId); } catch (_) {}
+   } else if (USE_BACKEND && backendApi && backendApi.employees && emp.id !== undefined && emp.id !== null) {
+     try { await backendApi.employees.delete(emp.id); } catch (_) {}
    }
    saveDB();
    renderEmployees();
@@ -32846,7 +33008,7 @@ async function deleteEmployee(idx) {
  }
 
 function deleteEmployeeById(id) {
-  const idx = DB.employees.findIndex(e => String(e.id) === String(id));
+  const idx = DB.employees.findIndex(e => String(e.id) === String(id) || String(e._backendId || '') === String(id));
   if (idx >= 0) deleteEmployee(idx);
 }
 
@@ -32942,7 +33104,7 @@ function saveEmployeeAdvance() {
   saveDB();
   closeModal('employeeAdvanceModal');
   renderEmployees(); renderTreasury();
-  showToast(`✅ تم صرف سلفة ${emp.name} #${vchId}`);
+  showToast(OmniLang.tpl`✅ تم صرف سلفة ${emp.name} #${vchId}`);
   logActivity('سلفة موظف', `#${vchId} - ${emp.name} - ${formatMoney(amount)}`);
   logAudit('سلفة موظف', emp.name, { module: 'hr', actionType: 'advance', recordId: String(emp.id), description: `${formatMoney(amount)} - ${notes}` });
 }
@@ -33057,7 +33219,7 @@ function saveBonus() {
   saveDB();
   closeModal('bonusModal');
   renderEmployees(); renderTreasury();
-  showToast(`✅ تم صرف مكافأة ${emp.name} #${vchId}`);
+  showToast(OmniLang.tpl`✅ تم صرف مكافأة ${emp.name} #${vchId}`);
   logAudit('مكافأة موظف', emp.name, { module: 'hr', actionType: 'bonus', recordId: String(emp.id), description: `${formatMoney(amount)} - ${reason}` });
 }
 
@@ -33097,7 +33259,7 @@ function savePenalty() {
   saveDB();
   closeModal('penaltyModal');
   renderEmployees();
-  showToast(`✅ تم تسجيل جزاء ${emp.name}`);
+  showToast(OmniLang.tpl`✅ تم تسجيل جزاء ${emp.name}`);
   logAudit('جزاء موظف', emp.name, { module: 'hr', actionType: 'penalty', recordId: String(emp.id), description: `${formatMoney(amount)} - ${reason}` });
 }
 
@@ -33140,7 +33302,7 @@ function saveAbsence() {
   saveDB();
   closeModal('absenceModal');
   renderEmployees();
-  showToast(`✅ تم تسجيل غياب ${emp.name}`);
+  showToast(OmniLang.tpl`✅ تم تسجيل غياب ${emp.name}`);
   logAudit('غياب موظف', emp.name, { module: 'hr', actionType: 'absence', recordId: String(emp.id), description: `${days} يوم - ${paid}` });
 }
 
@@ -33191,13 +33353,13 @@ function saveEvaluation() {
   DB.employeeEvaluations.push(ev);
   saveDB();
   closeModal('evaluationModal');
-  showToast(`✅ تم تسجيل تقييم ${emp.name}`);
+  showToast(OmniLang.tpl`✅ تم تسجيل تقييم ${emp.name}`);
   logAudit('تقييم موظف', emp.name, { module: 'hr', actionType: 'evaluation', recordId: String(emp.id), description: `${ev.month} - ${ev.percent}%` });
 }
 
 // ================= EMPLOYEE PROFILE =================
 function openEmployeeProfile(empId) {
-  const emp = DB.employees.find(e => String(e.id) === String(empId));
+  const emp = _findEmployee(empId);
   if (!emp) return;
   document.getElementById('profileEmployeeId').value = emp.id;
   const salBtn = document.getElementById('empProfileTabSalary');
@@ -33581,7 +33743,13 @@ async function renderPartners() {
    // Phase 23B: fetch from backend when enabled
    let partners = DB.partners;
    if (USE_BACKEND && typeof digitronicsDataAdapter !== 'undefined') {
-     try { partners = await digitronicsDataAdapter.listPartners(); } catch (_) {}
+     try {
+       partners = await digitronicsDataAdapter.listPartners();
+       // Hydrate the local mirror so row actions (edit/delete/transactions)
+       // operate on the same records that were just rendered from the API,
+       // while local records pending their first backend sync stay visible.
+       if (Array.isArray(partners)) DB.partners = mergeBackendRows(DB.partners, partners);
+     } catch (_) {}
    }
    const grid = document.getElementById('partnersGrid');
    const totalCapital = partners.reduce((sum, p) => sum + (p.capital || 0), 0);
@@ -33610,9 +33778,11 @@ async function deletePartner(idx) {
    const partner = DB.partners[idx];
    if (!partner) return;
    DB.partners.splice(idx, 1);
-   // Phase 23B: delete in backend when enabled
-   if (USE_BACKEND && backendApi && backendApi.partners && partner && partner._backendId) {
+   // Phase 23B: delete in backend when enabled (id-first, then legacy index path)
+   if (USE_BACKEND && backendApi && backendApi.partners && partner._backendId) {
      try { await backendApi.partners.delete(partner._backendId); } catch (_) {}
+   } else if (USE_BACKEND && backendApi && backendApi.partners && partner.id !== undefined && partner.id !== null) {
+     try { await backendApi.partners.delete(partner.id); } catch (_) {}
    }
    DB.partnerTransactions = (DB.partnerTransactions || []).filter(t => Number(t.partnerId) !== Number(partner.id));
    const cpIdx = (DB.capitalPartners || []).findIndex(cp => String(cp.partnerId) === String(partner.id));
@@ -33691,7 +33861,7 @@ function savePartnerCapitalTx() {
   renderPartners();
   renderPartnerTransactions();
   renderTreasury();
-  showToast(`✅ تم تسجيل ${kindLabel}`);
+  showToast(OmniLang.t('✅ تم تسجيل ' + kindLabel));
 }
 
 function renderPartnerTransactions() {
@@ -35237,7 +35407,7 @@ function disposeFixedAsset() {
   }
   logAudit(type === 'sold' ? 'Asset Sale' : 'Asset Scrap', `${asset.name} - ${formatMoney(amount)} - ${formatMoney(gainLoss)}`, { module: 'fixed_assets', actionType: type, recordId: row.id, description: asset.name }, { save: false });
   saveDB();
-  showToast(`تم ${type === 'sold' ? 'بيع' : 'إعدام'} الأصل. الربح/الخسارة: ${formatMoney(gainLoss)}`);
+  showToast(OmniLang.t(type === 'sold' ? 'تم بيع الأصل. الربح/الخسارة:' : 'تم إعدام الأصل. الربح/الخسارة:') + ' ' + formatMoney(gainLoss));
   renderFixedAssetsPage();
   try { renderDashboard(); } catch(e) {}
 }
@@ -35915,7 +36085,7 @@ function saveCapitalPartnerMovement() {
   saveDB();
   renderFinancialCenter();
   renderTreasury();
-  showToast(label + ' تم تسجيلها');
+  showToast(OmniLang.t(label + ' تم تسجيلها'));
 }
 
 function renderCapitalPartnerStatement(partnerId) {
@@ -35951,7 +36121,7 @@ function deactivateCapitalPartner(id) {
   const p = DB.capitalPartners.find(x => String(x.id) === String(id));
   if (!p) return;
   if ((p.status || 'active') === 'inactive') return;
-  if (!confirm(`تأكيد إيقاف شريك رأس المال: ${p.name}؟\nلن يتم حذف أي سجل تاريخي.`)) return;
+  if (!confirm(OmniLang.tpl`تأكيد إيقاف شريك رأس المال: ${p.name}؟\nلن يتم حذف أي سجل تاريخي.`)) return;
   p.status = 'inactive';
   p.deactivatedAt = localDateTimeString();
   p.deactivatedBy = currentUser ? currentUser.username : 'system';
@@ -36152,7 +36322,7 @@ function payCapitalPartnerSettlement(id) {
   if (s.status === 'cancelled') { showToast('لا يمكن دفع تسوية ملغية', 'error'); return; }
   const amount = roundMoney(toSafeFloat(s.partnerShare, 0));
   if (!(amount > 0)) { showToast('لا توجد أرباح مستحقة لهذه الفترة', 'error'); return; }
-  if (!confirm(`تأكيد دفع نصيب الشريك؟\n${s.partnerName}\n${formatMoney(amount)}`)) return;
+  if (!confirm(OmniLang.tpl`تأكيد دفع نصيب الشريك؟\n${s.partnerName}\n${formatMoney(amount)}`)) return;
   const desc = `توزيع أرباح شريك رأس مال - ${s.partnerName} - ${s.fromDate} إلى ${s.toDate} - ${s.id}`;
   const ok = addTreasuryOutRequired(amount, 'cash', desc, localDateTimeString(), {
     referenceType: 'capital_partner_settlement',
@@ -36336,9 +36506,9 @@ function goToAutoDistStep2() {
   if (_autoDistState.netProfit <= 0 && !confirm('صافي الربح يساوي صفر أو أقل. هل تريد المتابعة؟')) return;
   DB.capitalPartnerDistBatches = DB.capitalPartnerDistBatches || [];
   const dup = DB.capitalPartnerDistBatches.find(b => b.status === 'completed' && String(b.accountingPeriod?.from) === String(_autoDistState.periodFrom) && String(b.accountingPeriod?.to) === String(_autoDistState.periodTo));
-  if (dup && !confirm('⚠️ توجد دفعة توزيع موجودة بالفعل للفترة ' + _autoDistState.periodLabel + ' (' + dup.id + ').\nهل تريد إنشاء دفعة أخرى؟')) return;
+if (dup && !confirm(OmniLang.t('⚠️ توجد دفعة توزيع موجودة بالفعل للفترة') + ' ' + _autoDistState.periodLabel + ' (' + dup.id + ').\n' + OmniLang.t('هل تريد إنشاء دفعة أخرى؟'))) return;
   const totalPct = _autoDistState.partners.reduce((s, p) => s + (p.tempPercentage != null ? p.tempPercentage : p.percentage), 0);
-  if (Math.abs(totalPct - 100) > 0.01 && !confirm('⚠️ مجموع نسب الشركاء = ' + totalPct.toFixed(2) + '% (يجب أن يكون 100%).\nهل تريد المتابعة مع هذه النسب؟')) return;
+if (Math.abs(totalPct - 100) > 0.01 && !confirm(OmniLang.t('⚠️ مجموع نسب الشركاء =') + ' ' + totalPct.toFixed(2) + '% ' + OmniLang.t('(يجب أن يكون 100%).') + '\n' + OmniLang.t('هل تريد المتابعة مع هذه النسب؟'))) return;
   calculateAutoDistribution();
   renderAutoDistStep2();
 }
@@ -36506,7 +36676,7 @@ function confirmAutoDistribution(batchId) {
   saveDB();
   closeModal('autoDistModal');
   renderFinancialCenter();
-  showToast('✅ تم إنشاء دفعة ' + batchId + ' - ' + voucherIds.length + ' سندات');
+  showToast(OmniLang.t('✅ تم إنشاء دفعة') + ' ' + batchId + ' - ' + voucherIds.length + ' ' + OmniLang.t('سندات'));
 }
 
 // ==================== Distribution Batch History ====================
@@ -37224,11 +37394,11 @@ async function confirmUserEnableState(action, idx) {
   const u = phaseFUsersCache[idx];
   if (!u || u.id == null) return;
   const label = action === 'disable' ? 'تعطيل' : 'تفعيل';
-  if (!confirm(`تأكيد ${label} المستخدم "${u.username}"؟`)) return;
+  if (!confirm(OmniLang.t(action === 'disable' ? 'تأكيد تعطيل المستخدم' : 'تأكيد تفعيل المستخدم') + ' "' + u.username + '"' + OmniLang.t('؟'))) return;
   if (action === 'disable' && !canEffective('users.disable')) { permissionDenied(); return; }
   if (action === 'enable' && !canEffective('users.enable')) { permissionDenied(); return; }
   const res = action === 'disable' ? await backendApi.users.disable(String(u.id)) : await backendApi.users.enable(String(u.id));
-  if (res && res.success) { showToast('✅ تم ' + label + ' المستخدم'); renderUsers(); }
+  if (res && res.success) { showToast(OmniLang.t(action === 'disable' ? '✅ تم تعطيل المستخدم' : '✅ تم تفعيل المستخدم')); renderUsers(); }
   else { const f = friendlyBackendError(res); showToast(f.msg, 'error'); renderUsers(); }
 }
 
@@ -37236,7 +37406,7 @@ async function confirmDeleteUser(idx) {
   const u = phaseFUsersCache[idx];
   if (!u || u.id == null) return;
   if (!canEffective('users.delete')) { permissionDenied(); return; }
-  if (!confirm(`حذف المستخدم "${u.username}" نهائياً؟`)) return;
+  if (!confirm(OmniLang.tpl`حذف المستخدم "${u.username}" نهائياً؟`)) return;
   const res = await backendApi.users.delete(String(u.id));
   if (res && res.success) { showToast('✅ تم حذف المستخدم'); renderUsers(); }
   else { const f = friendlyBackendError(res); showToast(f.msg, 'error'); renderUsers(); }
@@ -37826,7 +37996,7 @@ function exportVCF() {
   a.href=URL.createObjectURL(blob);
   a.download='DigiTronics_Contacts_'+new Date().toISOString().slice(0,10)+'.vcf';
   a.click();URL.revokeObjectURL(a.href);
-  showToast('✅ تم تصدير '+total+' جهة اتصال');
+  showToast(OmniLang.t('✅ تم تصدير') + ' ' + total + ' ' + OmniLang.t('جهة اتصال'));
   logActivity('تصدير VCF',total+' جهة اتصال');
 }
 
@@ -38016,7 +38186,7 @@ function addItemToCurrentInvoice() {
   if (trackingMode === 'serial') {
     const availableSerials = getAvailableSerials(p.id);
     if (availableSerials.length < qty) {
-      showToast(`السيريالات المتاحة ${availableSerials.length} فقط`, 'error');
+      showToast(OmniLang.tpl`السيريالات المتاحة ${availableSerials.length} فقط`, 'error');
       return;
     }
     openSerialPicker(p.id, qty);
@@ -38028,7 +38198,7 @@ function addItemToCurrentInvoice() {
   const existing = currentCart.find(item => item.productId === p.id && item.noSerial);
   const requestedQty = qty + (existing ? toSafeInt(existing.qty, 0) : 0);
   if (!isAmanatEnabledInPOS() && quantityAvailable < requestedQty) {
-    showToast(`مخزون الكمية المتاح ${quantityAvailable} فقط. اختر "بيع بسيريال" إذا كان للصنف سيريالات متاحة.`, 'error');
+    showToast(OmniLang.tpl`مخزون الكمية المتاح ${quantityAvailable} فقط. اختر "بيع بسيريال" إذا كان للصنف سيريالات متاحة.`, 'error');
     return;
   }
   const newItem = {
@@ -38213,7 +38383,7 @@ function confirmSerialPicker() {
   }
   const requiredQty = Math.max(1, toSafeInt(pendingSerialPicker?.qty, 1));
   if (selected.length !== requiredQty) {
-    showToast(`عدد السيريالات المختارة (${selected.length}) يجب أن يساوي الكمية (${requiredQty})`, 'error');
+    showToast(OmniLang.tpl`عدد السيريالات المختارة (${selected.length}) يجب أن يساوي الكمية (${requiredQty})`, 'error');
     return;
   }
   
@@ -38312,7 +38482,7 @@ function setCartQty(idx, val) {
 
   if (item.noSerial) {
     const stock = getProductStock(item.productId);
-    if (!item.isAmanat && newQty > stock) { showToast(`المخزون المتاح: ${stock}`, 'error'); renderCart(); return; }
+    if (!item.isAmanat && newQty > stock) { showToast(OmniLang.tpl`المخزون المتاح: ${stock}`, 'error'); renderCart(); return; }
     item.qty = newQty;
     renderCart();
     return;
@@ -38621,7 +38791,7 @@ async function completeSaleImpl() {
     return item.qty > available;
   });
   if (unavailableItems.length) {
-    showToast(`لا يوجد مخزون كافٍ: ${unavailableItems.map(i => i.name).join('، ')}`, 'error');
+    showToast(OmniLang.tpl`لا يوجد مخزون كافٍ: ${unavailableItems.map(i => i.name).join(', ')}`, 'error');
     return;
   }
   const missingSerialItems = normalizedCart.filter(item => {
@@ -38632,7 +38802,7 @@ async function completeSaleImpl() {
     return availableSerials.length > 0 && (!Array.isArray(item.serials) || item.serials.filter(Boolean).length !== item.qty);
   });
   if (missingSerialItems.length) {
-    showToast(`اختر السيريال المباع للصنف: ${missingSerialItems.map(i => i.name).join('، ')}`, 'error');
+    showToast(OmniLang.tpl`اختر السيريال المباع للصنف: ${missingSerialItems.map(i => i.name).join(', ')}`, 'error');
     return;
   }
   const subtotal = normalizedCart.reduce((sum, item) => sum + (item.price * item.qty), 0);
@@ -38669,7 +38839,7 @@ async function completeSaleImpl() {
         user: currentUser ? currentUser.username : 'system'
       }
     );
-    showToast(`⏳ تم إرسال الفاتورة للموافقة رقم ${req.id}`);
+    showToast(OmniLang.tpl`⏳ تم إرسال الفاتورة للموافقة رقم ${req.id}`);
     renderApprovalsPage();
     renderDashboard();
     return;
@@ -38764,12 +38934,8 @@ function buildPurchasePayloadFromPOS() {
     return prod.hasSerial !== false && serials.length === 0;
   });
   if (serialWithoutSerial.length > 0) {
-    const names = serialWithoutSerial.map(i => i.name).join('، ');
-    const ok = confirm(
-      'يوجد أصناف متسلسلة بدون سيريال:\n' +
-      names +
-      '\n\nهل تريد المتابعة وتسجيلها في المخزون بدون سيريال؟'
-    );
+    const names = serialWithoutSerial.map(i => i.name).join(', ');
+    const ok = confirm(OmniLang.t('يوجد أصناف متسلسلة بدون سيريال:\n') + names + OmniLang.t('\n\nهل تريد المتابعة وتسجيلها في المخزون بدون سيريال؟'));
     if (!ok) {
       showToast('تم إلغاء الحفظ حتى إدخال السيريالات', 'info');
       return;
@@ -38922,7 +39088,7 @@ function legacyCompletePurchaseFromPOS(payload) {
   try { renderReports(); } catch(e) {}
   try { renderFinancial(); } catch(e) {}
   try { renderTreasury(); } catch(e) {}
-  showToast(`✅ تم إتمام الشراء بنجاح${autoSettledAmanatUnits > 0 ? ` | ✅ تمت تسوية أمانات: ${autoSettledAmanatUnits} وحدة` : ''}`);
+  showToast(OmniLang.tpl`✅ تم إتمام الشراء بنجاح${autoSettledAmanatUnits > 0 ? OmniLang.tpl` | ✅ تمت تسوية أمانات: ${autoSettledAmanatUnits} وحدة` : ''}`);
   return invoice;
 }
 
@@ -39080,7 +39246,13 @@ async function renderInvoices(filter = '') {
   // Phase 23B: fetch from backend when enabled
   let invoices = DB.saleInvoices;
   if (USE_BACKEND && typeof digitronicsDataAdapter !== 'undefined') {
-    try { invoices = await digitronicsDataAdapter.listSales(); } catch (_) {}
+    try {
+      invoices = await digitronicsDataAdapter.listSales();
+      // Hydrate the mirror so delete/edit row actions resolve exactly the
+      // records rendered from the API — without dropping local records
+      // pending their first backend sync.
+      if (Array.isArray(invoices)) DB.saleInvoices = mergeBackendRows(DB.saleInvoices, invoices);
+    } catch (_) {}
   }
   if (filter) {
     invoices = invoices.filter(inv => 
@@ -39334,7 +39506,7 @@ function validateSaleModeSerials(productId, serials, qty, productName = '') {
   const seen = new Set();
   for (const serial of cleanSerials) {
     const key = serial.toLowerCase();
-    if (seen.has(key)) { showToast(`هذا السيريال مكرر في نفس البند: ${serial}`, 'error'); return false; }
+    if (seen.has(key)) { showToast(OmniLang.tpl`هذا السيريال مكرر في نفس البند: ${serial}`, 'error'); return false; }
     seen.add(key);
   }
   const alreadyInInvoice = editSaleInvItems
@@ -39342,12 +39514,12 @@ function validateSaleModeSerials(productId, serials, qty, productName = '') {
     .flatMap(item => Array.isArray(item.serials) ? item.serials : [])
     .map(sn => String(sn || '').trim().toLowerCase());
   const duplicateInInvoice = cleanSerials.find(sn => alreadyInInvoice.includes(String(sn || '').trim().toLowerCase()));
-  if (duplicateInInvoice) { showToast(`هذا السيريال مختار بالفعل داخل الفاتورة: ${duplicateInInvoice}`, 'error'); return false; }
+  if (duplicateInInvoice) { showToast(OmniLang.tpl`هذا السيريال مختار بالفعل داخل الفاتورة: ${duplicateInInvoice}`, 'error'); return false; }
   for (const serial of cleanSerials) {
     const serialRecord = (DB.serials || []).find(s => String(s.serial || '').trim().toLowerCase() === serial.toLowerCase() && eqId(s.productId, productId));
-    if (!serialRecord) { showToast(`هذا السيريال غير متاح لهذا الصنف: ${serial}`, 'error'); return false; }
+    if (!serialRecord) { showToast(OmniLang.tpl`هذا السيريال غير متاح لهذا الصنف: ${serial}`, 'error'); return false; }
     const info = getSerialSaleBlockInfo(serial);
-    if (!info.deviceRecord) { showToast(`هذا السيريال غير مسجل في سجل الأجهزة — السيريال: ${serial}`, 'error'); return false; }
+    if (!info.deviceRecord) { showToast(OmniLang.tpl`هذا السيريال غير مسجل في سجل الأجهزة — السيريال: ${serial}`, 'error'); return false; }
     const deviceStatus = String(info.deviceRecord?.status || '').toLowerCase();
     const serialStatus = String(info.serialRecord?.status || serialRecord.status || '').toLowerCase();
     if (['sold', 'resold'].includes(deviceStatus) || ['sold', 'resold'].includes(serialStatus)) {
@@ -39374,7 +39546,7 @@ function addItemToEditSaleInvoice() {
   if (trackingMode === 'quantity') {
     const quantityStock = getProductQuantityStock(id);
     if (quantityStock < qty) {
-      showToast(`المخزون بدون سيريال غير كافٍ. المتاح: ${quantityStock}`, 'error');
+      showToast(OmniLang.tpl`المخزون بدون سيريال غير كافٍ. المتاح: ${quantityStock}`, 'error');
       return;
     }
   } else {
@@ -39520,7 +39692,7 @@ function editScanSerialKey(e, idx) {
   ta.value = existing.join('\n');
   editSerialsChanged(idx);
   scanEl.value = '';
-  showToast('✅ تم إضافة: ' + scanned, 'success');
+  showToast(OmniLang.t('✅ تم إضافة:') + ' ' + scanned, 'success');
 }
 
 function editSerialsChanged(idx) {
@@ -39537,9 +39709,9 @@ function editSerialsChanged(idx) {
 // ===== DELETE SALE INVOICE (with full inventory + treasury sync) =====
 async function deleteSaleInvoice(id) {
   if (!requirePermission('deleteData')) return;
-  const inv = DB.saleInvoices.find(i => i.id === id);
+  const inv = DB.saleInvoices.find(i => String(i.id) === String(id) || String(i._backendId || '') === String(id));
   if (!inv) return;
-  if (!confirm(`⚠️ هل تريد حذف فاتورة البيع #${id} نهائياً؟\n\nسيتم:\n• إعادة السيريالات للمخزون\n• خصم المبلغ من الخزنة\n\nهذا الإجراء لا يمكن التراجع عنه!`)) return;
+  if (!confirm(OmniLang.tpl`⚠️ هل تريد حذف فاتورة البيع #${id} نهائياً؟\n\nسيتم:\n• إعادة السيريالات للمخزون\n• خصم المبلغ من الخزنة\n\nهذا الإجراء لا يمكن التراجع عنه!`)) return;
 
   // Reverse inventory effects
   (inv.items || []).forEach(item => {
@@ -39560,8 +39732,9 @@ async function deleteSaleInvoice(id) {
     addCashEntry('out', inv.total, inv.payment || 'cash', `إلغاء فاتورة بيع #${id} - ${inv.customer}`);
   }
 
-  // Remove the invoice
-  DB.saleInvoices = DB.saleInvoices.filter(i => i.id !== id);
+  // Remove the invoice (match on id AND backend id — the row may be
+  // addressed by either after hydration)
+  DB.saleInvoices = DB.saleInvoices.filter(i => String(i.id) !== String(id) && String(i._backendId || '') !== String(id));
   // Phase 23B: delete in backend when enabled
   if (USE_BACKEND && backendApi && backendApi.sales) {
     try { await backendApi.sales.delete(inv._backendId || id); } catch (_) {}
@@ -39573,15 +39746,15 @@ async function deleteSaleInvoice(id) {
   saveDB();
   renderInvoices();
   renderTreasury();
-  showToast(`✅ تم حذف الفاتورة #${id} والمخزون والخزنة تم تحديثهم`);
+  showToast(OmniLang.tpl`✅ تم حذف الفاتورة #${id} والمخزون والخزنة تم تحديثهم`);
 }
 
 // ===== DELETE PURCHASE INVOICE (with full inventory + treasury sync) =====
 async function deletePurchaseInvoice(id) {
   if (!requirePermission('deleteData')) return;
-  const inv = DB.purchaseInvoices.find(p => p.id === id);
+  const inv = DB.purchaseInvoices.find(p => String(p.id) === String(id) || String(p._backendId || '') === String(id));
   if (!inv) return;
-  if (!confirm(`⚠️ هل تريد حذف فاتورة الشراء #${id} نهائياً؟\n\nسيتم:\n• حذف السيريالات المرتبطة بها\n• إرجاع المبلغ للخزنة\n\nهذا الإجراء لا يمكن التراجع عنه!`)) return;
+  if (!confirm(OmniLang.tpl`⚠️ هل تريد حذف فاتورة الشراء #${id} نهائياً؟\n\nسيتم:\n• حذف السيريالات المرتبطة بها\n• إرجاع المبلغ للخزنة\n\nهذا الإجراء لا يمكن التراجع عنه!`)) return;
 
   // Reverse inventory effects
   const items = inv.items && inv.items.length > 0 ? inv.items
@@ -39603,7 +39776,7 @@ async function deletePurchaseInvoice(id) {
   }
 
   // Remove the invoice
-  DB.purchaseInvoices = DB.purchaseInvoices.filter(p => p.id !== id);
+  DB.purchaseInvoices = DB.purchaseInvoices.filter(p => String(p.id) !== String(id) && String(p._backendId || '') !== String(id));
   // Phase 23B: delete in backend when enabled
   if (USE_BACKEND && backendApi && backendApi.purchases) {
     try { await backendApi.purchases.delete(inv._backendId || id); } catch (_) {}
@@ -39612,7 +39785,7 @@ async function deletePurchaseInvoice(id) {
   saveDB();
   renderPurchases();
   renderTreasury();
-  showToast(`✅ تم حذف فاتورة الشراء #${id} والمخزون والخزنة تم تحديثهم`);
+  showToast(OmniLang.tpl`✅ تم حذف فاتورة الشراء #${id} والمخزون والخزنة تم تحديثهم`);
 }
 
 // ===== PURCHASE SERIAL SCANNER HELPERS =====
@@ -39637,7 +39810,7 @@ function purScanSerial(e) {
   if (existing.includes(scanned)) { showToast('❌ السيريال مكرر في القائمة', 'error'); scanEl.value = ''; scanEl.focus(); return; }
   // Check duplicate in DB/device registry
   const duplicate = findDuplicateSerialIdentifier(scanned);
-  if (duplicate) { showToast(`❌ السيريال موجود مسبقاً في النظام${duplicate.ref ? ' — ' + duplicate.ref : ''}`, 'error'); scanEl.value = ''; scanEl.focus(); return; }
+  if (duplicate) { showToast(OmniLang.tpl`❌ السيريال موجود مسبقاً في النظام${duplicate.ref ? ' — ' + duplicate.ref : ''}`, 'error'); scanEl.value = ''; scanEl.focus(); return; }
   existing.push(scanned);
   ta.value = existing.join('\n');
   updatePurSerialsCount();
@@ -39786,12 +39959,12 @@ async function saveEditSaleInvoice() {
   closeModal('editSaleInvoiceModal');
   renderInvoices();
   renderTreasury();
-  const payLabel = m => m==='cash'?'كاش':m==='vodafone'?'فودافون':m==='instapay'?'InstaPay':m==='fawry'?'فوري':m||'';
+  const payLabel = m => OmniLang.t(m==='cash'?'كاش':m==='vodafone'?'فودافون':m==='instapay'?'InstaPay':m==='fawry'?'فوري':m||'');
   const tMsg = (oldHadCashEntry && newHasCashEntry && oldPayment !== newPayment)
-    ? ` | تحويل خزنة: ${payLabel(oldPayment)} → ${payLabel(newPayment)}`
-    : (oldHadCashEntry || newHasCashEntry) ? ' | الخزنة تم تحديثها' : '';
+    ? OmniLang.tpl` | تحويل خزنة: ${payLabel(oldPayment)} → ${payLabel(newPayment)}`
+    : (oldHadCashEntry || newHasCashEntry) ? OmniLang.t(' | الخزنة تم تحديثها') : '';
   const amanatUnits = (inv.items || []).reduce((s, it) => s + (it.isAmanat ? (parseInt(it.qty, 10) || 0) : 0), 0);
-  showToast(`✅ تم تعديل فاتورة البيع #${id}${tMsg}${amanatUnits > 0 ? ` | 🟠 أمانات: ${amanatUnits} وحدة` : ''}`);
+  showToast(OmniLang.tpl`✅ تم تعديل فاتورة البيع #${id}${tMsg}${amanatUnits > 0 ? OmniLang.tpl` | 🟠 أمانات: ${amanatUnits} وحدة` : ''}`);
   editSaleInvItems = [];
 }
 
@@ -40140,7 +40313,7 @@ function addUnifiedOffset(customerId, supplierId, customerName, supplierName, sa
   if (p.maxSettle <= 0) { showToast('لا يوجد رصيد قابل للتسوية بين العميل والمورد', 'error'); return; }
   if (p.totalOffset > p.maxSettle + 0.0001) {
     const remain = Math.max(0, p.maxSettle - p.savedOffsets);
-    showToast(`❌ لا يمكن حفظ التسوية. الحد الأقصى: ${formatMoney(p.maxSettle)} | المسجل سابقًا: ${formatMoney(p.savedOffsets)} | المتاح الآن: ${formatMoney(remain)}`, 'error');
+    showToast(OmniLang.tpl`❌ لا يمكن حفظ التسوية. الحد الأقصى: ${formatMoney(p.maxSettle)} | المسجل سابقًا: ${formatMoney(p.savedOffsets)} | المتاح الآن: ${formatMoney(remain)}`, 'error');
     return;
   }
   DB.accountOffsets = Array.isArray(DB.accountOffsets) ? DB.accountOffsets : [];
@@ -40174,7 +40347,7 @@ function editUnifiedOffset(offsetId, customerId, supplierId) {
   const others = getUnifiedOffsets(customerId, supplierId).filter(x => x.id != offsetId).reduce((sum, x) => sum + toSafeFloat(x.amount, 0), 0);
   const maxSettle = Math.min(Math.abs(base.saleBalance), Math.abs(base.purBalance));
   if (others + amount > maxSettle + 0.0001) {
-    showToast(`❌ لا يمكن تعديل التسوية: الإجمالي سيتجاوز الحد ${formatMoney(maxSettle)}`, 'error');
+    showToast(OmniLang.tpl`❌ لا يمكن تعديل التسوية: الإجمالي سيتجاوز الحد ${formatMoney(maxSettle)}`, 'error');
     return;
   }
   const note = prompt('ملاحظة التسوية:', o.note || '') ?? o.note;
@@ -40746,7 +40919,7 @@ function deleteASPayment(paymentId) {
   DB.asPayments = DB.asPayments || [];
   const p = DB.asPayments.find(x => x.id == paymentId);
   if (!p) return;
-  if (!confirm('هل تريد حذف هذه الدفعة؟\n' + (p.note || '') + ' - ' + formatMoney(p.amount))) return;
+if (!confirm(OmniLang.t('هل تريد حذف هذه الدفعة؟') + '\n' + (p.note || '') + ' - ' + formatMoney(p.amount))) return;
   const cashType = p.direction === 'pay' ? 'in' : 'out';
   addCashEntry(cashType === 'in' ? 'out' : 'in', p.amount, p.method || 'cash', 'الغاء دفعة - ' + p.entityName);
   DB.asPayments = DB.asPayments.filter(x => x.id != paymentId);
@@ -40981,7 +41154,7 @@ async function saveVoucher() {
      partyId = document.getElementById('vchPartySelect').value;
      const list = partyType === 'customer' ? DB.customers : DB.suppliers;
      const entity = list.find(x => x.id == partyId);
-     if (!entity) { showToast('اختر ' + (partyType === 'customer' ? 'العميل' : 'المورد'), 'error'); return; }
+     if (!entity) { showToast(OmniLang.t('اختر') + ' ' + OmniLang.t(partyType === 'customer' ? 'العميل' : 'المورد'), 'error'); return; }
      partyName = entity.name;
    }
 
@@ -41055,7 +41228,7 @@ async function saveVoucher() {
    saveDB();
    closeModal('voucherModal');
    renderVouchers();
-   showToast(`✅ تم حفظ ${isProfitDist ? 'توزيع الأرباح' : type === 'receipt' ? 'سند القبض' : 'سند الصرف'} #${vchId}`);
+   showToast(OmniLang.t(isProfitDist ? '✅ تم حفظ توزيع الأرباح' : type === 'receipt' ? '✅ تم حفظ سند القبض' : '✅ تم حفظ سند الصرف') + ' #' + vchId);
 
    // Auto-print
    printVoucher(voucher);
@@ -41066,7 +41239,13 @@ async function renderVouchers() {
    // Phase 23B: fetch from backend when enabled
    let vouchers = DB.vouchers;
    if (USE_BACKEND && typeof digitronicsDataAdapter !== 'undefined') {
-     try { vouchers = await digitronicsDataAdapter.listVouchers(); } catch (_) {}
+     try {
+       vouchers = await digitronicsDataAdapter.listVouchers();
+       // Hydrate the mirror so delete sync operates on exactly the records
+       // rendered from the API — without dropping local records pending
+       // their first backend sync.
+       if (Array.isArray(vouchers)) DB.vouchers = mergeBackendRows(DB.vouchers, vouchers);
+     } catch (_) {}
    }
    let sorted = [...vouchers].sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -41142,11 +41321,13 @@ function clearVoucherFilter() {
 async function deleteVoucher(id) {
    if (!requirePermission('editTreasury')) return;
    if (!confirm('هل تريد حذف هذا السند؟')) return;
-   const voucher = (DB.vouchers || []).find(v => v.id === id);
-   DB.vouchers = (DB.vouchers || []).filter(v => v.id !== id);
-   // Phase 23B: delete in backend when enabled
+   const voucher = (DB.vouchers || []).find(v => v.id === id || v._backendId === id);
+   DB.vouchers = (DB.vouchers || []).filter(v => v.id !== id && v._backendId !== id);
+   // Phase 23B: delete in backend when enabled (id-first, then legacy path)
    if (USE_BACKEND && backendApi && backendApi.vouchers && voucher && voucher._backendId) {
      try { await backendApi.vouchers.delete(voucher._backendId); } catch (_) {}
+   } else if (USE_BACKEND && backendApi && backendApi.vouchers && voucher && voucher.id !== undefined && voucher.id !== null) {
+     try { await backendApi.vouchers.delete(voucher.id); } catch (_) {}
    }
    saveDB();
    renderVouchers();
@@ -41607,7 +41788,7 @@ async function saveChangePassword() {
     u.password = np;
     saveDB();
     closeModal('changePassModal');
-    showToast(`✅ تم تغيير كلمة مرور ${username}`);
+    showToast(OmniLang.tpl`✅ تم تغيير كلمة مرور ${username}`);
     logActivity('تغيير كلمة مرور', username);
     return;
   }
@@ -41751,7 +41932,7 @@ function renderQuotations() {
 function convertQuotationToInvoice(id) {
   const qt = DB.quotations.find(q => q.id === id);
   if (!qt) return;
-  if (!confirm(`تحويل عرض السعر #${id} لفاتورة بيع؟`)) return;
+  if (!confirm(OmniLang.tpl`تحويل عرض السعر #${id} لفاتورة بيع؟`)) return;
   currentCart = qt.items.map(i => ({ productId: i.productId, name: i.name, price: i.price, buyPrice: 0, qty: i.qty, serials: [], noSerial: true }));
   document.getElementById('cartCustomer').value = qt.customer;
   document.getElementById('cartCustomerPhone').value = qt.phone || '';
@@ -41942,17 +42123,17 @@ function addMasterRecord(key, inputId, prefix, label) {
   if (!requirePermission('editProducts')) return;
   const input = document.getElementById(inputId);
   const name = String(input?.value || '').trim();
-  if (!name) { showToast(`أدخل اسم ${label}`, 'error'); return; }
+  if (!name) { showToast(OmniLang.tpl`أدخل اسم ${OmniLang.t(label)}`, 'error'); return; }
   DB[key] = Array.isArray(DB[key]) ? DB[key] : [];
   if (DB[key].some(row => row.status !== 'archived' && String(row.name || '').trim().toLowerCase() === name.toLowerCase())) {
-    showToast(`${label} موجود بالفعل`, 'error');
+    showToast(OmniLang.tpl`${OmniLang.t(label)} موجود بالفعل`, 'error');
     return;
   }
   DB[key].push({ id: `${prefix}-${Date.now()}`, name, businessType: getCurrentBusinessType(), status: 'active', createdAt: localDateTimeString() });
   input.value = '';
   saveDB();
   renderMasterDataPage();
-  showToast(`تمت إضافة ${label}`);
+  showToast(OmniLang.tpl`تمت إضافة ${OmniLang.t(label)}`);
 }
 
 function addMasterCategory() {
@@ -41999,7 +42180,7 @@ function archiveMasterRecord(key, id, label) {
     ? (DB.products || []).some(product => String(product[property] || '') === String(id))
     : (DB.products || []).some(product => Array.isArray(product.tags) && product.tags.includes(row?.name));
   if (inUse) {
-    showToast(`لا يمكن أرشفة ${label} لأنها مرتبطة بمنتجات`, 'error');
+    showToast(OmniLang.tpl`لا يمكن أرشفة ${OmniLang.t(label)} لأنها مرتبطة بمنتجات`, 'error');
     return;
   }
   if (!row) return;
@@ -42239,10 +42420,10 @@ function renderCharts() {
   ['salesChart','profitChart','categoryChart','paymentChart'].forEach(id => { if (_charts[id]) { _charts[id].destroy(); delete _charts[id]; } });
 
   const salesCtx = document.getElementById('salesChart');
-  if (salesCtx) _charts.salesChart = new Chart(salesCtx, { type: 'bar', data: { labels, datasets: [{ label: 'المبيعات', data: salesData, backgroundColor: 'rgba(0,102,255,0.7)', borderRadius: 6 }] }, options: { ...chartDefaults } });
+  if (salesCtx) _charts.salesChart = new Chart(salesCtx, { type: 'bar', data: { labels, datasets: [{ label: OmniLang.t('المبيعات'), data: salesData, backgroundColor: 'rgba(0,102,255,0.7)', borderRadius: 6 }] }, options: { ...chartDefaults } });
 
   const profitCtx = document.getElementById('profitChart');
-  if (profitCtx) _charts.profitChart = new Chart(profitCtx, { type: 'line', data: { labels, datasets: [{ label: 'الأرباح', data: profitData, borderColor: '#00a854', backgroundColor: 'rgba(0,168,84,0.1)', fill: true, tension: 0.4, pointRadius: 5 }] }, options: { ...chartDefaults } });
+  if (profitCtx) _charts.profitChart = new Chart(profitCtx, { type: 'line', data: { labels, datasets: [{ label: OmniLang.t('الأرباح'), data: profitData, borderColor: '#00a854', backgroundColor: 'rgba(0,168,84,0.1)', fill: true, tension: 0.4, pointRadius: 5 }] }, options: { ...chartDefaults } });
 
   const catCtx = document.getElementById('categoryChart');
   if (catCtx && topProds.length) _charts.categoryChart = new Chart(catCtx, { type: 'doughnut', data: { labels: topProds.map(p=>p[0]), datasets: [{ data: topProds.map(p=>p[1]), backgroundColor: ['#0066ff','#00a854','#f9a825','#7c3aed','#e65100'] }] }, options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: textColor, font: { family: 'Cairo' }, boxWidth: 12 } } } } });
@@ -42253,6 +42434,17 @@ function renderCharts() {
   if (payCtx && payVals.length) _charts.paymentChart = new Chart(payCtx, { type: 'pie', data: { labels: payLabels, datasets: [{ data: payVals, backgroundColor: ['#00a854','#0066ff','#e65100','#f9a825','#7c3aed'] }] }, options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: textColor, font: { family: 'Cairo' }, boxWidth: 12 } } } } });
 }
 
+
+document.addEventListener('omnilangchange', function () {
+  try {
+    if (typeof currentPage !== 'undefined' && currentPage === 'dashboard') {
+      try { renderDashboardRevenueChart(); } catch (e) {}
+      try { renderDashboardInventoryChart(); } catch (e) {}
+      try { renderDashboardSalesChart(); } catch (e) {}
+    }
+    if (typeof _charts !== 'undefined' && (_charts.salesChart || _charts.profitChart || _charts.paymentChart)) renderCharts();
+  } catch (e) {}
+});
 
 // ================= CUSTOMER RATING =================
 function buildRatingHtml(entityId, entityType) {
@@ -42590,7 +42782,7 @@ function sendBroadcast() {
   const selected = getSelectedBroadcastContacts();
   if (selected.length === 0) { showToast('اختر مستلماً واحداً على الأقل', 'error'); return; }
   const valid = selected.filter(c => normalizeWAPhone(c.phone).length >= 10);
-  if (!confirm(`إرسال الرسالة لـ ${valid.length} شخص عبر واتساب؟`)) return;
+  if (!confirm(OmniLang.tpl`إرسال الرسالة لـ ${valid.length} شخص عبر واتساب؟`)) return;
   let delay = 0;
   valid.forEach((c) => {
     const waPhone = normalizeWAPhone(c.phone);
@@ -42600,7 +42792,7 @@ function sendBroadcast() {
     }, delay);
     delay += 1000;
   });
-  showToast('✅ جاري فتح واتساب لـ ' + valid.length + ' شخص');
+  showToast(OmniLang.tpl`✅ جاري فتح واتساب لـ ${valid.length} شخص`);
 }
 
 // ================= RATING IN AS CARD =================
@@ -43308,8 +43500,8 @@ setInterval(() => {
 #esoUpdateBanner .eso-upd-notes{margin-top:6px;opacity:.75;font-size:12.5px;max-width:60ch}
 #esoUpdateBanner .eso-upd-mandatory{color:#fca5a5;font-weight:600;margin-top:4px}
 #esoUpdateBanner button{border:none;border-radius:8px;padding:9px 18px;font-size:13.5px;font-weight:600;cursor:pointer}
-#esoUpdateBanner .eso-upd-now{background:#2563eb;color:#fff}
-#esoUpdateBanner .eso-upd-now:hover{background:#1d4ed8}
+#esoUpdateBanner .eso-upd-now{background:#7c3aed;color:#fff}
+#esoUpdateBanner .eso-upd-now:hover{background:#6d28d9}
 #esoUpdateBanner .eso-upd-later{background:#334155;color:#e2e8f0}
 #esoUpdateBanner .eso-upd-busy{background:#64748b;color:#fff;cursor:default}
 #esoUpdateBanner.eso-upd-applying{background:#1e293b}
@@ -43403,8 +43595,262 @@ setInterval(() => {
     document.addEventListener('visibilitychange', function(){ if (!document.hidden) check(); });
   });
 })();
+
+// ===================== GAME HOSTING — BATCH 2 =====================
+// Customer-facing Game Hosting module. Server-side authorization remains
+// authoritative. The frontend never trusts client-supplied tenantId/customerId.
+(function ghModule() {
+  'use strict';
+  var state = { view: 'plans', plans: [], servers: [], requests: [], selectedPlan: null, selectedServer: null, loading: false, error: null, lifecycleLoading: null };
+
+  function t(key) {
+    var ar = { plans: 'الخطط', myServers: 'سيرفراتي', provision: 'طلب توفير', serverDetails: 'تفاصيل السيرفر', loading: 'جاري التحميل...', empty: 'لا توجد بيانات', error: 'حدث خطأ', unauthorized: 'يجب تسجيل الدخول', blocked: 'الخدمة متوقفة مؤقتاً', price: 'السعر', players: 'اللاعبين', region: 'المنطقة', status: 'الحالة', actions: 'إجراءات', back: 'رجوع', submit: 'إرسال', cancel: 'إلغاء', plan: 'الخطة', serverName: 'اسم السيرفر', noActiveEntitlement: 'لا توجد صلاحية نشطة', requestId: 'رقم الطلب', createdAt: 'تاريخ الإنشاء' };
+    var en = { plans: 'Plans', myServers: 'My Servers', provision: 'Provision', serverDetails: 'Server Details', loading: 'Loading...', empty: 'No data', error: 'Error', unauthorized: 'Unauthorized', blocked: 'Service temporarily unavailable', price: 'Price', players: 'Players', region: 'Region', status: 'Status', actions: 'Actions', back: 'Back', submit: 'Submit', cancel: 'Cancel', plan: 'Plan', serverName: 'Server Name', noActiveEntitlement: 'No active entitlement', requestId: 'Request ID', createdAt: 'Created' };
+    return (typeof getLocale === 'function' && getLocale() === 'en') ? (en[key] || key) : (ar[key] || key);
+  }
+
+  function setState(patch) { Object.assign(state, patch); }
+
+  function el(id) { return document.getElementById(id); }
+
+  function showView(name) {
+    state.view = name;
+    state.error = null;
+    if (name === 'plans' && !state.plans.length) loadPlans();
+    else if (name === 'my-servers' && !state.servers.length) loadMyServers();
+    renderGameHostingPage();
+  }
+
+  function card(html) { return '<div class="card" style="margin:10px 0;padding:14px">' + html + '</div>'; }
+
+  function badge(status) {
+    var color = status === 'active' ? 'green' : status === 'approved' ? 'green' : status === 'pending' ? 'yellow' : status === 'rejected' ? 'red' : status === 'cancelled' ? 'red' : status === 'blocked' ? 'red' : status === 'provisioning' ? 'yellow' : status === 'running' ? 'green' : status === 'stopped' ? 'blue' : status === 'terminated' ? 'red' : status === 'error' ? 'red' : 'blue';
+    return '<span class="badge badge-' + color + '">' + escapeHtml(status) + '</span>';
+  }
+
+  function lifecycleActionsFor(status) {
+    if (!status) return [];
+    var s = String(status).toLowerCase();
+    if (s === 'terminated') return [];
+    var actions = [];
+    if (s === 'pending' || s === 'stopped') actions.push('start');
+    if (s === 'running') actions.push('stop');
+    actions.push('terminate');
+    return actions;
+  }
+
+  async function loadPlans() {
+    setState({ loading: true, error: null });
+    renderGameHostingPage();
+    try {
+      var res = await backendApi.gameHosting.plans.list();
+      if (!res || !res.ok) throw new Error(res && res.body && res.body.message ? res.body.message : 'Failed to load plans');
+      setState({ plans: res.body.data || [], loading: false });
+    } catch (err) {
+      setState({ error: err.message || 'Failed to load plans', loading: false });
+    }
+    renderGameHostingPage();
+  }
+
+  async function loadMyServers() {
+    setState({ loading: true, error: null });
+    renderGameHostingPage();
+    try {
+      var res = await backendApi.gameHosting.servers.list();
+      if (!res || !res.ok) throw new Error(res && res.body && res.body.message ? res.body.message : 'Failed to load servers');
+      setState({ servers: res.body.data || [], loading: false });
+    } catch (err) {
+      setState({ error: err.message || 'Failed to load servers', loading: false });
+    }
+    renderGameHostingPage();
+  }
+
+  async function submitProvision(planId) {
+    if (ghModuleSubmitting) return;
+    ghModuleSubmitting = true;
+    var regionInput = el('ghRegion');
+    var serverNameInput = el('ghServerName');
+    var region = regionInput ? regionInput.value.trim() : '';
+    var serverName = serverNameInput ? serverNameInput.value.trim() : '';
+    if (!region) { showToast('يرجى اختيار المنطقة', 'error'); ghModuleSubmitting = false; return; }
+    if (!serverName) { showToast('يرجى إدخال اسم السيرفر', 'error'); ghModuleSubmitting = false; return; }
+    setState({ loading: true, error: null });
+    renderGameHostingPage();
+    try {
+      var res = await backendApi.gameHosting.provisioningRequests.create({ planId: planId, region: region, serverName: serverName });
+      if (!res || !res.ok) throw new Error(res && res.body && res.body.message ? res.body.message : 'Provisioning failed');
+      showToast('تم إرسال طلب التوفير بنجاح', 'success');
+      showView('my-servers');
+      await loadMyServers();
+    } catch (err) {
+      setState({ error: err.message || 'Provisioning failed', loading: false });
+      renderGameHostingPage();
+    }
+    ghModuleSubmitting = false;
+  }
+  var ghModuleSubmitting = false;
+
+  async function loadServerDetail(serverId) {
+    setState({ loading: true, error: null, selectedServer: null });
+    renderGameHostingPage();
+    try {
+      var res = await backendApi.gameHosting.servers.getById(serverId);
+      if (!res || !res.ok) throw new Error(res && res.body && res.body.message ? res.body.message : 'Failed to load server');
+      setState({ selectedServer: res.body.data || null, loading: false });
+    } catch (err) {
+      setState({ error: err.message || 'Failed to load server', loading: false });
+    }
+    renderGameHostingPage();
+  }
+
+  async function lifecycleAction(serverId, action, targetStatus, confirmMessage) {
+    if (state.lifecycleLoading) return;
+    if (confirmMessage && !confirm(confirmMessage)) return;
+    setState({ lifecycleLoading: action, error: null });
+    renderGameHostingPage();
+    try {
+      var res;
+      if (action === 'start') res = await backendApi.gameHosting.servers.start(serverId);
+      else if (action === 'stop') res = await backendApi.gameHosting.servers.stop(serverId);
+      else if (action === 'terminate') res = await backendApi.gameHosting.servers.terminate(serverId);
+      if (!res || !res.ok) {
+        var msg = res && res.body && res.body.message ? res.body.message : ('Failed to ' + action);
+        if (res && res.status === 404) msg = 'Server not found or not owned';
+        else if (res && res.status === 401) msg = 'Unauthorized';
+        else if (res && res.status === 403) msg = 'Forbidden';
+        throw new Error(msg);
+      }
+      showToast((action === 'terminate' ? 'Termination' : action.charAt(0).toUpperCase() + action.slice(1)) + ' requested', 'success');
+      await loadServerDetail(serverId);
+    } catch (err) {
+      setState({ error: err.message || ('Failed to ' + action), lifecycleLoading: null });
+      renderGameHostingPage();
+    }
+  }
+
+  function renderGameHostingPage() {
+    var root = el('gameHostingRoot');
+    if (!root) return;
+    if (!USE_BACKEND) { root.innerHTML = '<div class="alert alert-info">Game Hosting requires backend mode.</div>'; return; }
+
+    var html = '<div class="card" style="padding:10px;margin-bottom:12px">';
+    html += '<button class="btn btn-sm ' + (state.view === 'plans' ? 'btn-accent' : 'btn-outline') + '" onclick="showView(\'plans\')">📋 ' + t('plans') + '</button>';
+    html += '<button class="btn btn-sm ' + (state.view === 'my-servers' ? 'btn-accent' : 'btn-outline') + '" onclick="showView(\'my-servers\')">🖥 ' + t('myServers') + '</button>';
+    html += '</div>';
+
+    if (state.loading) { root.innerHTML = html + '<div class="alert alert-info">' + t('loading') + '</div>'; return; }
+    if (state.error) { root.innerHTML = html + '<div class="alert alert-error">' + escapeHtml(state.error) + '</div>'; return; }
+
+    if (state.view === 'plans') renderPlansView(root, html);
+    else if (state.view === 'provision') renderProvisionView(root, html);
+    else if (state.view === 'my-servers') renderMyServersView(root, html);
+    else if (state.view === 'server-details') renderServerDetailsView(root, html);
+    else root.innerHTML = html + '<div class="alert alert-info">' + t('empty') + '</div>';
+  }
+
+  function renderPlansView(root, toolbar) {
+    var plans = state.plans || [];
+    var html = toolbar;
+    if (!plans.length) { root.innerHTML = html + '<div class="empty-state">' + t('empty') + '</div>'; return; }
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px">';
+    plans.forEach(function(plan) {
+      html += '<div class="card" style="padding:12px">';
+      html += '<div style="font-weight:700;font-size:.95rem">' + escapeHtml(plan.name || plan.gameTitle || 'Plan') + '</div>';
+      html += '<div style="font-size:.82rem;color:var(--text2)">' + escapeHtml(plan.gameTitle || '') + '</div>';
+      html += '<div style="margin-top:8px;font-size:.85rem">' + t('price') + ': <strong>' + escapeHtml(String(plan.pricePerMonth != null ? plan.pricePerMonth : '-')) + '</strong></div>';
+      html += '<div style="font-size:.85rem">' + t('players') + ': ' + escapeHtml(String(plan.maxPlayers != null ? plan.maxPlayers : '-')) + '</div>';
+      html += '<div style="margin-top:8px">' + badge(plan.status) + '</div>';
+      html += '<button class="btn btn-accent btn-sm" style="margin-top:10px;width:100%" onclick="state.selectedPlan=' + escapeHtml(plan.id) + ';showView(\'provision\')">' + t('provision') + '</button>';
+      html += '</div>';
+    });
+    html += '</div>';
+    root.innerHTML = html;
+  }
+
+  function renderProvisionView(root, toolbar) {
+    var plan = (state.plans || []).find(function(p) { return p.id === state.selectedPlan; }) || null;
+    if (!plan) { showView('plans'); return; }
+    var html = toolbar;
+    html += '<div class="card" style="padding:14px;max-width:520px">';
+    html += '<div style="font-weight:700;font-size:1rem;margin-bottom:8px">' + escapeHtml(plan.name || plan.gameTitle || 'Plan') + '</div>';
+    html += '<div style="font-size:.85rem;color:var(--text2);margin-bottom:12px">' + t('plan') + ': ' + escapeHtml(plan.id) + '</div>';
+    html += '<label style="display:block;font-size:.82rem;margin-bottom:6px">' + t('serverName') + '</label>';
+    html += '<input id="ghServerName" class="search-input" style="width:100%;margin-bottom:10px" placeholder="' + t('serverName') + '">';
+    html += '<label style="display:block;font-size:.82rem;margin-bottom:6px">' + t('region') + '</label>';
+    html += '<select id="ghRegion" class="search-input" style="width:100%;margin-bottom:14px"><option value="eu-west">eu-west</option><option value="us-east">us-east</option><option value="me-south">me-south</option></select>';
+    html += '<button id="ghProvisionBtn" class="btn btn-accent" style="width:100%" onclick="submitProvision(\'' + escapeHtml(plan.id) + '\')">' + t('submit') + '</button>';
+    html += '<button class="btn btn-outline btn-sm" style="width:100%;margin-top:8px" onclick="showView(\'plans\')">' + t('back') + '</button>';
+    html += '</div>';
+    root.innerHTML = html;
+  }
+
+  function renderMyServersView(root, toolbar) {
+    var servers = state.servers || [];
+    var html = toolbar;
+    if (!servers.length) { root.innerHTML = html + '<div class="empty-state">' + t('empty') + '</div>'; return; }
+    html += '<div class="table-actions"><button class="btn btn-outline btn-sm" onclick="loadMyServers()">🔄 Refresh</button></div>';
+    html += '<div style="overflow:auto">';
+    html += '<table style="width:100%;border-collapse:collapse;font-size:.85rem">';
+    html += '<thead><tr><th style="text-align:right">' + t('serverName') + '</th><th>' + t('status') + '</th><th>' + t('region') + '</th><th>' + t('actions') + '</th></tr></thead>';
+    html += '<tbody>';
+    servers.forEach(function(srv) {
+      html += '<tr style="border-bottom:1px solid var(--border)">';
+      html += '<td style="padding:8px 4px">' + escapeHtml(srv.serverName || srv.id) + '</td>';
+      html += '<td style="padding:8px 4px">' + badge(srv.status) + '</td>';
+      html += '<td style="padding:8px 4px">' + escapeHtml(srv.region || '-') + '</td>';
+      html += '<td style="padding:8px 4px"><button class="btn btn-sm btn-outline" onclick="loadServerDetail(\'' + escapeHtml(srv.id) + '\');showView(\'server-details\')">📋</button></td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+    root.innerHTML = html;
+  }
+
+  function renderServerDetailsView(root, toolbar) {
+    var srv = state.selectedServer;
+    if (!srv) { showView('my-servers'); return; }
+    var html = toolbar;
+    html += '<div class="card" style="padding:14px;max-width:640px">';
+    html += '<div style="font-weight:700;font-size:1rem;margin-bottom:8px">' + escapeHtml(srv.serverName || srv.id) + '</div>';
+    html += '<div style="font-size:.85rem;color:var(--text2);margin-bottom:10px">' + t('serverName') + ': ' + escapeHtml(srv.serverName || '-') + '</div>';
+    html += '<div style="font-size:.85rem;color:var(--text2);margin-bottom:10px">' + t('region') + ': ' + escapeHtml(srv.region || '-') + '</div>';
+    html += '<div style="font-size:.85rem;color:var(--text2);margin-bottom:10px">' + t('status') + ': ' + badge(srv.status) + '</div>';
+    html += '<div style="font-size:.82rem;color:var(--text2);margin-bottom:10px">' + t('plan') + ': ' + escapeHtml(srv.planId || '-') + '</div>';
+    if (srv.provider && srv.provider.status === 'BLOCKED') {
+      html += '<div class="alert alert-warning" style="margin:10px 0;font-size:.82rem">⚠️ ' + t('blocked') + '</div>';
+    }
+    var actions = lifecycleActionsFor(srv.status);
+    if (actions.length) {
+      html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">';
+      actions.forEach(function(action) {
+        if (state.lifecycleLoading === action) {
+          html += '<button class="btn btn-sm btn-outline" disabled>' + t('loading') + '</button>';
+        } else if (action === 'terminate') {
+          html += '<button class="btn btn-sm btn-danger" onclick="lifecycleAction(\'' + escapeHtml(srv.id) + '\',\'terminate\',\'terminated\',\'تأكيد إنهاء السيرفر؟ هذا الإجراء لا يمكن التراجع عنه.\')">🗑 ' + t('cancel') + ' / Terminate</button>';
+        } else if (action === 'start') {
+          html += '<button class="btn btn-sm btn-green" onclick="lifecycleAction(\'' + escapeHtml(srv.id) + '\',\'start\',\'provisioning\')">▶ Start</button>';
+        } else if (action === 'stop') {
+          html += '<button class="btn btn-sm btn-outline" onclick="lifecycleAction(\'' + escapeHtml(srv.id) + '\',\'stop\',\'stopped\')">⏹ Stop</button>';
+        }
+      });
+      html += '</div>';
+    }
+    html += '<button class="btn btn-outline btn-sm" style="margin-top:12px;width:100%" onclick="showView(\'my-servers\')">' + t('back') + '</button>';
+    html += '</div>';
+    root.innerHTML = html;
+  }
+
+  window.showView = showView;
+  window.loadMyServers = loadMyServers;
+  window.loadServerDetail = loadServerDetail;
+  window.submitProvision = submitProvision;
+  window.lifecycleAction = lifecycleAction;
+  window.state = state;
+})();
+
+function renderGameHostingPage() {
+  if (typeof showView === 'function') showView('plans');
+}
 </script>
 </body>
 </html>
-
 

@@ -1,0 +1,18 @@
+{
+  "devices": [
+    {
+      "id": "364bc100-ee67-4b3b-a3e1-88268d5584ba",
+      "tenant_id": "t1",
+      "branch_id": "b1",
+      "platform": "ps5",
+      "model": "x",
+      "serial": null,
+      "display_name": "y",
+      "network_address": "1.2.3.4",
+      "status": "available",
+      "pricing_profile_id": null,
+      "createdAt": "2026-09-07T23:25:59.850Z",
+      "updatedAt": "2026-09-07T23:25:59.850Z"
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ProductImage } from "./ProductImage";
 import { cn } from "@/lib/utils";
+import { uiLang } from "@/lib/format";
 
 interface Props {
   /** Real image URL(s) from the API — the current catalog exposes one imageUrl. */
@@ -37,7 +38,7 @@ export function ProductGallery({ images, alt, brand, ratio = "aspect-square" }: 
               key={src}
               type="button"
               onClick={() => setActive(i)}
-              aria-label={`صورة ${i + 1}`}
+              aria-label={uiLang() === "en" ? `Image ${i + 1}` : `صورة ${i + 1}`}
               className={cn(
                 "btn-focus w-16 shrink-0 overflow-hidden rounded-lg border-2 transition-colors sm:w-20",
                 i === active ? "border-primary" : "border-border hover:border-primary/40"

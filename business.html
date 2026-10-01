@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-omni-section="business">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -62,7 +62,9 @@
     .pricing-note { text-align: center; font-size: 12px; color: var(--muted); margin-top: 12px; }
     @media (max-width: 880px) { .biz-grid { grid-template-columns: 1fr; } .pricing-grid { grid-template-columns: 1fr; } }
 
-    /* Section lockdown — student services are honest Coming Soon (not clickable). */
+    /* Section lockdown styles — kept for any section still held as an honest
+       Coming Soon. Student Services & Printing is now an active section: the
+       student cards below are real links into student.html. */
     .pricing-card--soon { opacity: 0.85; }
     .pricing-card--soon:hover { transform: none; box-shadow: var(--shadow); }
     .soon-badge { display: inline-block; align-self: flex-start; margin-bottom: 8px; padding: 3px 10px; border-radius: 999px; background: rgba(249, 115, 22, 0.15); color: #c2410c; font-size: 12px; font-weight: 800; border: 1px solid rgba(249, 115, 22, 0.3); }
@@ -91,6 +93,9 @@
     }
     .tiktok-feed__cta:hover { transform: translateY(-1px); box-shadow: 0 10px 26px rgba(0,100,255,0.35); }
   </style>
+  <link rel="stylesheet" href="platform/omni-design.css">
+  <script src="platform/omni-i18n.js"></script>
+  <script src="platform/i18n/business.dict.js"></script>
 </head>
 <body>
   <header class="site-header">
@@ -100,6 +105,7 @@
       <nav class="platform-nav" aria-label="Breadcrumb">
         <a href="platform.html">← Platform Home</a>
       </nav>
+      <div class="site-lang" data-omni-lang-slot></div>
     </div>
   </header>
 
@@ -194,20 +200,18 @@
         <p class="pricing-sub">Print shop orders, cost calculator, and student monthly passes.</p>
       </div>
       <div class="pricing-grid">
-        <article class="pricing-card pricing-card--soon" aria-disabled="true">
-          <span class="soon-badge">Coming Soon</span>
+        <article class="pricing-card" style="cursor:pointer" onclick="window.location.href='student.html'">
           <h3>Print Shop</h3>
           <p class="plan-tagline">Calculate multi-page printing costs and submit orders online.</p>
           <div class="plan-action" style="margin-top:auto">
-            <button class="btn-primary" style="width:100%" type="button" disabled>Open Print Shop →</button>
+            <button class="btn-primary" style="width:100%" type="button" onclick="window.location.href='student.html'">Open Print Shop →</button>
           </div>
         </article>
-        <article class="pricing-card pricing-card--soon" aria-disabled="true">
-          <span class="soon-badge">Coming Soon</span>
+        <article class="pricing-card" style="cursor:pointer" onclick="window.location.href='student.html'">
           <h3>Student Passes</h3>
           <p class="plan-tagline">Track monthly and weekly student passes with amounts and status.</p>
           <div class="plan-action" style="margin-top:auto">
-            <button class="btn-primary" style="width:100%" type="button" disabled>Manage Passes →</button>
+            <button class="btn-primary" style="width:100%" type="button" onclick="window.location.href='student.html'">Manage Passes →</button>
           </div>
         </article>
       </div>
@@ -457,20 +461,9 @@
       loadPricing();
 
       // ---------- TikTok Reels / Shorts ----------
-      var tiktokLoaded = false;
-
-      function ensureTikTokScript() {
-        if (tiktokLoaded) return Promise.resolve();
-        return new Promise(function (resolve) {
-          var s = document.createElement('script');
-          s.src = 'https://www.tiktok.com/embed.js';
-          s.async = true;
-          s.defer = true;
-          s.onload = function () { tiktokLoaded = true; resolve(); };
-          s.onerror = function () { resolve(); };
-          document.head.appendChild(s);
-        });
-      }
+      // No third-party TikTok embed.js loader here any more: each card embeds
+      // TikTok's own Embed Player iframe directly (see renderEmbedCard), so no
+      // remote script is fetched, injected, or awaited.
 
       async function loadTikTokFeed() {
         var host = document.getElementById('tiktok-feed-host');
@@ -488,29 +481,63 @@
             host.innerHTML = renderFallback();
             return;
           }
-          await ensureTikTokScript();
-          host.innerHTML = embeds.map(function (item) {
-            if (item.fallback || !item.embed_html) {
-              return '<a class="tiktok-feed__fallback" href="' + escapeHtml(item.url) + '" target="_blank" rel="noopener">' +
-                '<div style="font-size:28px">🎵</div>' +
-                '<div style="font-weight:800;font-size:14px">' + escapeHtml(item.title || 'Check out our TikTok') + '</div>' +
-                '<div style="font-size:12px;color:var(--muted)">@' + escapeHtml(item.author_name || '') + '</div>' +
-                '<span class="tiktok-feed__cta">Open TikTok →</span>' +
-              '</a>';
-            }
-            return '<div class="tiktok-feed__card">' + item.embed_html + '</div>';
-          }).join('');
+          // SECURITY: the upstream oEmbed `embed_html` is third-party markup
+          // and is deliberately NOT injected here. It is ignored, and each
+          // card instead embeds TikTok's documented Embed Player iframe
+          // (https://www.tiktok.com/player/v1/{post_id}) built from the
+          // video id, so no remote HTML is ever written into the DOM.
+          host.textContent = '';
+          embeds.forEach(function (item) {
+            host.appendChild(renderEmbedCard(item));
+          });
         } catch (e) {
           host.innerHTML = renderFallback();
         }
       }
 
+      // Builds one card. The iframe src is derived from a numeric post id
+      // only, so the attribute can never carry attacker-controlled markup.
+      function renderEmbedCard(item) {
+        var card = document.createElement('div');
+        card.className = 'tiktok-feed__card';
+        var postId = extractPostId(item.url);
+        if (!postId) {
+          card.className = 'tiktok-feed__fallback';
+          var link = document.createElement('a');
+          link.href = item.url;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.textContent = 'Open on TikTok';
+          card.appendChild(link);
+          return card;
+        }
+        var frame = document.createElement('iframe');
+        frame.src = 'https://www.tiktok.com/player/v1/' + postId + '?controls=1&progress_bar=1';
+        frame.title = item.title || 'TikTok video';
+        frame.loading = 'lazy';
+        frame.setAttribute('allow', 'encrypted-media; picture-in-picture; fullscreen');
+        frame.setAttribute('allowfullscreen', '');
+        frame.setAttribute('referrerpolicy', 'no-referrer');
+        card.appendChild(frame);
+        return card;
+      }
+
+      // Accepts only a bare numeric post id out of a tiktok.com video URL.
+      function extractPostId(url) {
+        var m = /\/video\/(\d+)/.exec(String(url || ''));
+        return m ? m[1] : null;
+      }
+
+      // The account identity now comes from the backend. A hardcoded handle
+      // here would be a second source of truth that drifts from the
+      // OAuth-authorized account, so the fallback points at the Reels surface
+      // instead of guessing a username.
       function renderFallback() {
-        return '<a class="tiktok-feed__fallback" href="https://www.tiktok.com/@' + escapeHtml('YOUR_TIKTOK_USERNAME_HERE') + '" target="_blank" rel="noopener">' +
+        return '<a class="tiktok-feed__fallback" href="reels.html" >' +
           '<div style="font-size:28px">🎵</div>' +
-          '<div style="font-weight:800;font-size:14px">Check out our TikTok</div>' +
-          '<div style="font-size:12px;color:var(--muted)">@YOUR_TIKTOK_USERNAME_HERE</div>' +
-          '<span class="tiktok-feed__cta">Open TikTok →</span>' +
+          '<div style="font-weight:800;font-size:14px">TikTok Reels</div>' +
+          '<div style="font-size:12px;color:var(--muted)">Open the OmniStore Reels feed</div>' +
+          '<span class="tiktok-feed__cta">Open Reels →</span>' +
         '</a>';
       }
 

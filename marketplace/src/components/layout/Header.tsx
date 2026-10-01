@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Loader2, Search as SearchIcon, ShoppingCart, Store, User } from "lucide-react";
+import { Loader2, Menu, Search as SearchIcon, ShoppingCart, Store, User } from "lucide-react";
 import { useCartCount } from "@/stores/cart";
 import { useMarketUI } from "@/stores/marketUI";
-import { formatCount } from "@/lib/format";
+import { formatCount, uiLang } from "@/lib/format";
 import { categoryLabel } from "@/lib/mapper";
+import { MobileNav } from "./MobileNav";
 
 interface Props {
   onOpenCart: () => void;
@@ -23,6 +25,7 @@ export function Header({ onOpenCart }: Props) {
   const navigate = useNavigate();
   const location = useLocation();
   const onHome = location.pathname === "/";
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const handleSearch = (v: string) => {
     ui.setQuery(v);
@@ -35,6 +38,7 @@ export function Header({ onOpenCart }: Props) {
   };
 
   return (
+    <>
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/95 backdrop-blur-md">
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-3 sm:h-16 sm:gap-3 sm:px-6 lg:px-8">
         {/* Logo */}
@@ -52,6 +56,18 @@ export function Header({ onOpenCart }: Props) {
         <div className="min-w-0 flex-1 sm:max-w-xl md:max-w-2xl">
           <HeaderSearch value={ui.query} onChange={handleSearch} loading={ui.fetching} />
         </div>
+
+        {/* Menu — mobile drawer holds shop/orders/platform (nav is md+) */}
+        <button
+          type="button"
+          onClick={() => setMenuOpen(true)}
+          aria-label="القائمة"
+          aria-expanded={menuOpen}
+          aria-controls="mobile-nav-menu"
+          className="btn-focus grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-card text-foreground shadow-sm transition-colors hover:border-primary/30 hover:text-primary md:hidden"
+        >
+          <Menu className="h-5 w-5" aria-hidden />
+        </button>
 
         {/* Account — icon on mobile, text link on md+ (nav) */}
         <Link
@@ -74,18 +90,25 @@ export function Header({ onOpenCart }: Props) {
             حسابي
           </Link>
           <a
-            href="https://omnistoreerp.com"
+            href="/"
             className="btn-focus rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-secondary hover:text-foreground"
           >
             OmniStore ERP
           </a>
         </nav>
 
+        {/* Language switcher — rendered by platform/omni-i18n.js */}
+        <div data-omni-lang-slot />
+
         {/* Cart — always visible */}
         <button
           type="button"
           onClick={onOpenCart}
-          aria-label={`السلة، ${formatCount(count)} عنصر`}
+          aria-label={
+            uiLang() === "en"
+              ? `Cart, ${formatCount(count)} items`
+              : `السلة، ${formatCount(count)} عنصر`
+          }
           className="btn-focus relative inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-3 text-sm font-semibold text-foreground shadow-sm transition-colors hover:border-primary/30 hover:text-primary sm:h-11"
         >
           <ShoppingCart className="h-5 w-5" aria-hidden />
@@ -142,6 +165,12 @@ export function Header({ onOpenCart }: Props) {
         </div>
       )}
     </header>
+    {/* Outside the header: its backdrop-filter would otherwise become the
+        containing block for the fixed-position drawer. */}
+    <div id="mobile-nav-menu">
+      <MobileNav open={menuOpen} onClose={() => setMenuOpen(false)} />
+    </div>
+    </>
   );
 }
 
@@ -161,7 +190,9 @@ function HeaderSearch({ value, onChange, loading }: { value: string; onChange: (
         onChange={(e) => onChange(e.target.value)}
         placeholder="ابحث عن جهاز، ماركة، أو موديل..."
         aria-label="بحث في المتجر"
-        className="btn-focus h-10 w-full rounded-xl border border-border bg-card ps-4 pe-10 text-[14px] text-foreground shadow-sm transition-colors placeholder:text-muted-foreground hover:border-primary/30 focus-visible:border-primary/50 sm:h-11 sm:text-[15px]"
+        className={`btn-focus h-10 w-full rounded-xl border border-border bg-card pe-10 text-[14px] text-foreground shadow-sm transition-colors placeholder:text-muted-foreground hover:border-primary/30 focus-visible:border-primary/50 sm:h-11 sm:text-[15px] ${
+          value ? "ps-9" : "ps-4"
+        }`}
       />
       {value && (
         <button

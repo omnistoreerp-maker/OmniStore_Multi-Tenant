@@ -106,7 +106,28 @@ window.MK_API = (function () {
     ghCreateEntitlement: (p) => ghReq('POST', '/entitlements', p),
     ghUpdateEntitlement: (id, p) => ghReq('PUT', '/entitlements/' + encodeURIComponent(id), p),
     ghDeleteEntitlement: (id) => ghReq('DELETE', '/entitlements/' + encodeURIComponent(id)),
-    ghAuditLog: (q) => ghReq('GET', '/audit-log?' + new URLSearchParams(q || {}).toString())
+    ghAuditLog: (q) => ghReq('GET', '/audit-log?' + new URLSearchParams(q || {}).toString()),
+    // Game Hosting subscription orders (storefront checkout pipeline).
+    // The server resolves every price; the client never sends a price.
+    ghQuote: (planId, billingPeriod) => ghReq('GET', '/orders/quote?' + new URLSearchParams({
+      planId: planId || '',
+      billingPeriod: billingPeriod || '1m'
+    }).toString()),
+    ghMyOrders: (q) => ghReq('GET', '/orders?' + new URLSearchParams(q || {}).toString()),
+    ghOrder: (id) => ghReq('GET', '/orders/' + encodeURIComponent(id)),
+    ghCreateOrder: (p) => ghReq('POST', '/orders', p),
+    ghPayOrder: (id) => ghReq('POST', '/orders/' + encodeURIComponent(id) + '/pay', {}),
+    ghProvisionOrder: (id) => ghReq('POST', '/orders/' + encodeURIComponent(id) + '/provision', {}),
+    ghRenewOrder: (id, p) => ghReq('POST', '/orders/' + encodeURIComponent(id) + '/renew', p || {}),
+    ghSuspendOrder: (id, p) => ghReq('POST', '/orders/' + encodeURIComponent(id) + '/suspend', p || {}),
+    ghResumeOrder: (id) => ghReq('POST', '/orders/' + encodeURIComponent(id) + '/resume', {}),
+    ghTerminateOrder: (id, p) => ghReq('POST', '/orders/' + encodeURIComponent(id) + '/terminate', p || {}),
+    ghOrderProviderStatus: (id) => ghReq('GET', '/orders/' + encodeURIComponent(id) + '/provider-status'),
+    // Operator-only hosting administration.
+    ghAdminOverview: (q) => ghReq('GET', '/admin/overview?' + new URLSearchParams(q || {}).toString()),
+    ghAdminRetryProvisioning: (id) => ghReq('POST', '/admin/orders/' + encodeURIComponent(id) + '/retry-provisioning', {}),
+    ghAdminRefund: (id, p) => ghReq('POST', '/admin/orders/' + encodeURIComponent(id) + '/refund', p || {}),
+    ghAdminExpireSweep: () => ghReq('POST', '/admin/expiry-sweep', {})
   };
 })();
 

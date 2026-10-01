@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-omni-section="support">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Support Requests — OmniStore ERP</title>
+  <meta name="theme-color" content="#f8fbff">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/digitronics-icon-192.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="platform/platform.css">
+  <style>
+    :root {
+      --radius: 14px;
+      --space: 14px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Cairo', system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: linear-gradient(135deg, #f8fbff 0%, #edf5ff 45%, #eef2ff 100%);
+      color: #0f172a;
+      min-height: 100vh;
+      padding: calc(16px + env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+    }
+    .container { max-width: 960px; margin: 0 auto; }
+    .page-header {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 18px;
+    }
+    .page-header h1 { margin: 0; font-size: 1.25rem; }
+    .back-link {
+      display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 999px;
+      background: rgba(15,23,42,0.06); color: #0f172a; text-decoration: none; font-weight: 700; font-size: 13px;
+    }
+    .card {
+      background: rgba(255,255,255,0.78); border: 1px solid rgba(15,23,42,0.08); border-radius: var(--radius);
+      box-shadow: 0 10px 28px rgba(15,23,42,0.08); padding: 16px; margin-bottom: 14px;
+      backdrop-filter: blur(18px) saturate(160%); -webkit-backdrop-filter: blur(18px) saturate(160%);
+    }
+    .card h2 { margin: 0 0 10px; font-size: 1.05rem; }
+    .card .sub { margin: 0 0 12px; color: #64748b; font-size: 13px; }
+    .form-group { margin-bottom: 12px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 6px; color: #334155; }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%; padding: 10px 12px; border: 1px solid rgba(15,23,42,0.10); border-radius: 10px; font-size: 14px; background: #fff; font-family: inherit; outline: none;
+    }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: #6366f1; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 14px; border-radius: 10px; border: 0; font-family: inherit; font-size: 14px; font-weight: 800; cursor: pointer;
+    }
+    .btn-primary { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; box-shadow: 0 6px 20px rgba(99,102,241,0.25); }
+    .btn-success { background: linear-gradient(135deg, #10b981, #059669); color: #fff; box-shadow: 0 6px 20px rgba(16,185,129,0.25); }
+    .btn-warn { background: rgba(245,158,11,0.12); color: #b45309; border: 1px solid rgba(245,158,11,0.3); }
+    .btn-outline { background: rgba(15,23,42,0.05); color: #0f172a; border: 1px solid rgba(15,23,42,0.10); }
+    .btn-sm { padding: 7px 10px; font-size: 12px; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .status-badge {
+      display: inline-block; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 800; white-space: nowrap;
+    }
+    .st-open { background: rgba(59,130,246,0.12); color: #1d4ed8; border: 1px solid rgba(59,130,246,0.25); }
+    .st-progress { background: rgba(139,92,246,0.12); color: #6d28d9; border: 1px solid rgba(139,92,246,0.25); }
+    .st-released { background: rgba(16,185,129,0.14); color: #047857; border: 1px solid rgba(16,185,129,0.3); }
+    .st-resolved { background: rgba(16,185,129,0.12); color: #047857; border: 1px solid rgba(16,185,129,0.25); }
+    .st-blocked { background: rgba(245,158,11,0.12); color: #b45309; border: 1px solid rgba(245,158,11,0.25); }
+    .st-closed { background: rgba(100,116,139,0.12); color: #334155; border: 1px solid rgba(100,116,139,0.25); }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 8px 10px; text-align: right; border-bottom: 1px solid rgba(15,23,42,0.06); }
+    th { color: #64748b; font-weight: 700; font-size: 11px; text-transform: uppercase; }
+    tbody tr { cursor: pointer; }
+    tbody tr:hover { background: rgba(99,102,241,0.05); }
+    tr.selected { background: rgba(99,102,241,0.08); }
+    .empty { text-align: center; color: #64748b; padding: 18px; font-size: 13px; }
+    .detail-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; margin: 10px 0; }
+    .detail-meta .kv { background: rgba(15,23,42,0.03); border: 1px solid rgba(15,23,42,0.06); border-radius: 10px; padding: 8px 10px; }
+    .detail-meta .kv b { display: block; font-size: 11px; color: #64748b; font-weight: 700; margin-bottom: 2px; }
+    .detail-meta .kv span { font-size: 13px; font-weight: 700; word-break: break-word; }
+    .timeline-note { font-size: 12px; color: #64748b; margin-top: 8px; }
+    .toast {
+      position: fixed; bottom: 18px; left: 18px; right: 18px; padding: 12px 14px; border-radius: 12px; background: #0f172a; color: #f8fafc; font-family: inherit; font-size: 14px; font-weight: 600; z-index: 9999; border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    }
+    .toast.error { background: #7f1d1d; }
+    .login-hint {
+      background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); border-radius: 10px;
+      padding: 12px 14px; font-size: 13px; color: #92400e; font-weight: 700; margin-bottom: 14px; display: none;
+    }
+    @media (max-width: 640px) {
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+      th, td { padding: 6px 8px; font-size: 12px; }
+    }
+  </style>
+  <link rel="stylesheet" href="platform/omni-design.css">
+  <script src="platform/omni-i18n.js"></script>
+  <script src="platform/i18n/support.dict.js"></script>
+</head>
+<body>
+  <div class="container">
+    <div class="page-header">
+      <h1>🛟 Support Requests</h1>
+      <div class="header-side">
+        <a class="back-link" href="index.html">← Back</a>
+        <div data-omni-lang-slot></div>
+      </div>
+    </div>
+
+    <div id="loginHint" class="login-hint">
+      ⚠️ يجب تسجيل الدخول من النظام أولاً — افتح <a href="index.html">index.html</a> وسجّل الدخول، ثم عد لهذه الصفحة.
+    </div>
+
+    <!-- New Support Request -->
+    <section class="card" aria-labelledby="new-h">
+      <h2 id="new-h">➕ طلب دعم جديد</h2>
+      <p class="sub">أرسل طلب دعم فني أو اقتراح — يصل مباشرة لفريق التطوير مع رقم متابعة.</p>
+      <div class="grid-2">
+        <div class="form-group">
+          <label>العنوان <span style="color:#ef4444">*</span></label>
+          <input id="reqTitle" type="text" maxlength="200" placeholder="مثال: الفواتير لا تُحفظ بعد التعديل">
+        </div>
+        <div class="form-group">
+          <label>النظام</label>
+          <select id="reqProduct">
+            <option value="ERP">نظام ERP</option>
+            <option value="MARKETPLACE">Marketplace</option>
+            <option value="GAME_HOSTING">Game Hosting</option>
+            <option value="PLATFORM">Platform</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>الوصف <span style="color:#ef4444">*</span></label>
+        <textarea id="reqDescription" rows="4" maxlength="5000" placeholder="اشرح المشكلة بالتفصيل: ماذا حدث؟ ماذا كنت تتوقع؟ خطوات إعادة الإنتاج إن أمكن."></textarea>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label>النوع</label>
+          <select id="reqType">
+            <option value="BUG">🐞 عطل (Bug)</option>
+            <option value="CHANGE">🔧 تعديل (Change)</option>
+            <option value="FEATURE">✨ ميزة جديدة (Feature)</option>
+            <option value="FEEDBACK">💬 ملاحظة (Feedback)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>الأهمية</label>
+          <select id="reqPriority">
+            <option value="P2">P2 — عادي</option>
+            <option value="P1">P1 — مهم</option>
+            <option value="P3">P3 — منخفض</option>
+            <option value="P0">P0 — حرج (النظام متوقف)</option>
+          </select>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary" type="button" onclick="submitRequest()">إرسال الطلب</button>
+        <button class="btn btn-outline" type="button" onclick="loadRequests()">تحديث القائمة</button>
+      </div>
+    </section>
+
+    <!-- Requests list -->
+    <section class="card" aria-labelledby="list-h">
+      <div class="page-header" style="padding:0;margin-bottom:10px">
+        <h2 id="list-h" style="margin:0">📋 طلباتي</h2>
+        <div class="actions" style="margin:0">
+          <input id="reqSearch" type="search" placeholder="بحث..." oninput="renderRequests()" style="padding:8px 10px;border-radius:8px;border:1px solid rgba(15,23,42,0.10);background:#fff;font-size:13px;width:170px">
+        </div>
+      </div>
+      <div id="requestsTable" class="table-wrap"></div>
+    </section>
+
+    <!-- Request detail -->
+    <section class="card" id="detailCard" aria-labelledby="detail-h" style="display:none">
+      <h2 id="detail-h">🔎 تفاصيل الطلب</h2>
+      <div id="detailBody"></div>
+    </section>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var API = '/api/v1/customer';
+
+      var STATUS_CLASS = {
+        'NEW': 'st-open', 'TRIAGED': 'st-open', 'APPROVED': 'st-progress',
+        'IN_PROGRESS': 'st-progress', 'READY_FOR_TEST': 'st-progress', 'TESTED': 'st-progress',
+        'READY_FOR_RELEASE': 'st-progress', 'RELEASED': 'st-released', 'READY_FOR_CUSTOMER_VERIFICATION': 'st-released',
+        'RESOLVED': 'st-resolved', 'BLOCKED': 'st-blocked', 'NEEDS_EVIDENCE': 'st-blocked',
+        'REOPENED': 'st-open', 'REJECTED': 'st-closed', 'CANCELLED': 'st-closed'
+      };
+      var STATUS_AR = {
+        'NEW': 'تم الاستلام', 'TRIAGED': 'قيد المراجعة', 'APPROVED': 'معتمد — مجدول للتنفيذ',
+        'IN_PROGRESS': 'قيد التنفيذ', 'READY_FOR_TEST': 'جاهز للاختبار الداخلي', 'TESTED': 'تم الاختبار — تجهيز الإصدار',
+        'READY_FOR_RELEASE': 'تجهيز الإصدار', 'RELEASED': 'صدر — يرجى التحقق', 'READY_FOR_CUSTOMER_VERIFICATION': 'صدر — يرجى التحقق',
+        'RESOLVED': 'تم الحل ✓', 'BLOCKED': 'متوقف مؤقتاً', 'REJECTED': 'غير مقبول', 'CANCELLED': 'ملغي',
+        'REOPENED': 'أُعيد فتحه', 'NEEDS_EVIDENCE': 'معلومات إضافية مطلوبة'
+      };
+      var TYPE_AR = { 'BUG': 'عطل', 'CHANGE': 'تعديل', 'FEATURE': 'ميزة', 'FEEDBACK': 'ملاحظة' };
+      var PRODUCT_AR = { 'ERP': 'ERP', 'MARKETPLACE': 'Marketplace', 'GAME_HOSTING': 'Game Hosting', 'PLATFORM': 'Platform' };
+
+      var requests = [];
+      var selectedId = null;
+
+      function toast(message, isError) {
+        var el = document.createElement('div');
+        el.className = 'toast' + (isError ? ' error' : '');
+        el.textContent = message;
+        document.body.appendChild(el);
+        setTimeout(function () { el.remove(); }, 3500);
+      }
+
+      function getToken() {
+        try { return localStorage.getItem('access_token') || ''; } catch (_) { return ''; }
+      }
+
+      async function apiCall(method, path, body) {
+        var token = getToken();
+        var opts = { method: method, headers: { 'Content-Type': 'application/json', Accept: 'application/json' } };
+        if (token) opts.headers['Authorization'] = 'Bearer ' + token;
+        if (body && method !== 'GET') opts.body = JSON.stringify(body);
+        var res = await fetch(API + path, opts);
+        var json = null;
+        try { json = await res.json(); } catch (_) {}
+        if (!res.ok) throw new Error((json && json.message) || ('HTTP ' + res.status));
+        return json.data;
+      }
+
+      function esc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+      }
+
+      function fmtDate(iso) {
+        if (!iso) return '—';
+        try { return new Date(iso).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' }); }
+        catch (_) { return String(iso).slice(0, 10); }
+      }
+
+      function statusBadge(status) {
+        var cls = STATUS_CLASS[status] || 'st-open';
+        var label = STATUS_AR[status] || status;
+        return '<span class="status-badge ' + cls + '">' + esc(label) + '</span>';
+      }
+
+      window.submitRequest = async function () {
+        var title = document.getElementById('reqTitle').value.trim();
+        var description = document.getElementById('reqDescription').value.trim();
+        if (!title) { toast('العنوان مطلوب', true); return; }
+        if (!description) { toast('الوصف مطلوب', true); return; }
+        var data = {
+          title: title,
+          description: description,
+          type: document.getElementById('reqType').value,
+          priority: document.getElementById('reqPriority').value,
+          product: document.getElementById('reqProduct').value
+        };
+        try {
+          var result = await apiCall('POST', '/requests', data);
+          toast('تم إنشاء الطلب برقم ' + ((result.request && (result.request.customerRequestNumber || result.request.id)) || '') + ' ✅');
+          document.getElementById('reqTitle').value = '';
+          document.getElementById('reqDescription').value = '';
+          await loadRequests();
+        } catch (e) {
+          toast(e.message || 'فشل إنشاء الطلب', true);
+        }
+      };
+
+      window.loadRequests = async function () {
+        try {
+          var data = await apiCall('GET', '/requests');
+          requests = Array.isArray(data && data.requests) ? data.requests : [];
+          document.getElementById('loginHint').style.display = 'none';
+          renderRequests();
+        } catch (e) {
+          if (e.message && e.message.indexOf('401') !== -1 || e.message === 'Unauthorized') {
+            document.getElementById('loginHint').style.display = 'block';
+          }
+          document.getElementById('requestsTable').innerHTML = '<div class="empty">تعذر تحميل الطلبات: ' + esc(e.message) + '</div>';
+        }
+      };
+
+      window.renderRequests = function () {
+        var q = (document.getElementById('reqSearch').value || '').trim().toLowerCase();
+        var rows = requests.filter(function (r) {
+          if (!q) return true;
+          return String(r.title || '').toLowerCase().indexOf(q) !== -1 ||
+            String(r.customerRequestNumber || r.id || '').toLowerCase().indexOf(q) !== -1;
+        });
+        var host = document.getElementById('requestsTable');
+        if (!rows.length) {
+          host.innerHTML = '<div class="empty">' + (requests.length ? 'لا نتائج مطابقة للبحث' : 'لا توجد طلبات بعد — أنشئ طلبك الأول') + '</div>';
+          return;
+        }
+        var html = '<table><thead><tr>' +
+          '<th>الرقم</th><th>العنوان</th><th>النوع</th><th>النظام</th><th>الحالة</th><th>آخر تحديث</th>' +
+          '</tr></thead><tbody>';
+        rows.forEach(function (r) {
+          var id = String(r.id || '');
+          html += '<tr class="' + (id === selectedId ? 'selected' : '') + '" onclick="selectRequest(\'' + esc(id) + '\')">' +
+            '<td><b>' + esc(r.customerRequestNumber || id.slice(0, 12)) + '</b></td>' +
+            '<td>' + esc(r.title || '') + '</td>' +
+            '<td>' + esc(TYPE_AR[r.type] || r.type || '') + '</td>' +
+            '<td>' + esc(PRODUCT_AR[r.product] || r.product || '') + '</td>' +
+            '<td>' + statusBadge(r.status) + '</td>' +
+            '<td>' + fmtDate(r.updatedAt || r.createdAt) + '</td>' +
+            '</tr>';
+        });
+        html += '</tbody></table>';
+        host.innerHTML = html;
+      };
+
+      window.selectRequest = async function (id) {
+        selectedId = id;
+        renderRequests();
+        try {
+          var data = await apiCall('GET', '/requests/' + encodeURIComponent(id));
+          renderDetail(data.request || {}, data);
+          document.getElementById('detailCard').style.display = 'block';
+          document.getElementById('detailCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } catch (e) {
+          toast(e.message || 'تعذر تحميل التفاصيل', true);
+        }
+      };
+
+      function renderDetail(r, data) {
+        var verifiable = r.status === 'READY_FOR_CUSTOMER_VERIFICATION';
+        var reopenable = r.status === 'RESOLVED';
+        var verificationNote = verifiable
+          ? '<div class="timeline-note">✅ تم إصدار الحل — يرجى تجربته ثم تأكيد النتيجة:</div>' +
+            '<div class="actions">' +
+            '<button class="btn btn-success btn-sm" type="button" onclick="verifyRequest(\'' + esc(r.id) + '\', \'CONFIRMED\')">✓ تم الحل بنجاح</button>' +
+            '<button class="btn btn-warn btn-sm" type="button" onclick="verifyRequest(\'' + esc(r.id) + '\', \'FAILED\')">✗ المشكلة مستمرة</button>' +
+            '</div>'
+          : '';
+        var reopenNote = reopenable
+          ? '<div class="actions"><button class="btn btn-warn btn-sm" type="button" onclick="reopenRequest(\'' + esc(r.id) + '\')">↩ إعادة فتح الطلب</button></div>'
+          : '';
+        var auditCount = data && Array.isArray(data.audit) ? data.audit.length : 0;
+        document.getElementById('detailBody').innerHTML =
+          '<div class="detail-meta">' +
+          '<div class="kv"><b>رقم الطلب</b><span>' + esc(r.customerRequestNumber || r.id) + '</span></div>' +
+          '<div class="kv"><b>الحالة</b><span>' + statusBadge(r.status) + '</span></div>' +
+          '<div class="kv"><b>النوع</b><span>' + esc(TYPE_AR[r.type] || r.type || '—') + '</span></div>' +
+          '<div class="kv"><b>النظام</b><span>' + esc(PRODUCT_AR[r.product] || r.product || '—') + '</span></div>' +
+          '<div class="kv"><b>الأهمية</b><span>' + esc(r.priority || '—') + '</span></div>' +
+          '<div class="kv"><b>أُنشئ في</b><span>' + fmtDate(r.createdAt) + '</span></div>' +
+          '<div class="kv"><b>آخر تحديث</b><span>' + fmtDate(r.updatedAt) + '</span></div>' +
+          '</div>' +
+          '<div class="form-group"><label>الوصف</label><div style="font-size:13px;line-height:1.7;white-space:pre-wrap">' + esc(r.description || '—') + '</div></div>' +
+          (r.resolution ? '<div class="form-group"><label>الحل</label><div style="font-size:13px;line-height:1.7;white-space:pre-wrap;background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.2);border-radius:10px;padding:10px">' + esc(r.resolution) + '</div></div>' : '') +
+          '<div class="timeline-note">سجل التحديثات: ' + auditCount + ' حدث — الحالة الحالية: ' + esc(STATUS_AR[r.status] || r.status || '—') + '</div>' +
+          verificationNote + reopenNote;
+      }
+
+      window.verifyRequest = async function (id, result) {
+        var note = result === 'FAILED' ? (window.prompt('اشرح ما الذي لم يعمل (اختياري):') || '') : '';
+        try {
+          await apiCall('POST', '/requests/' + encodeURIComponent(id) + '/verify', { result: result, note: note });
+          toast(result === 'CONFIRMED' ? 'شكراً — تم تأكيد الحل ✅' : 'تم تسجيل استمرار المشكلة وإعادة فتح الطلب');
+          await selectRequest(id);
+          await loadRequests();
+        } catch (e) {
+          toast(e.message || 'فشل تسجيل التحقق', true);
+        }
+      };
+
+      window.reopenRequest = async function (id) {
+        var note = window.prompt('سبب إعادة الفتح (اختياري):') || '';
+        try {
+          await apiCall('POST', '/requests/' + encodeURIComponent(id) + '/reopen', { note: note });
+          toast('تم إعادة فتح الطلب');
+          await selectRequest(id);
+          await loadRequests();
+        } catch (e) {
+          toast(e.message || 'فشل إعادة الفتح', true);
+        }
+      };
+
+      // Boot
+      if (!getToken()) {
+        document.getElementById('loginHint').style.display = 'block';
+      }
+      loadRequests();
+    })();
+  </script>
+</body>
+</html>

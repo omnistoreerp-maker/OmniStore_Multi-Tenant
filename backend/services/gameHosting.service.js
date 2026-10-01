@@ -117,9 +117,12 @@ function _validateServerForCreate(data) {
   if (data.planId !== undefined && typeof data.planId !== 'string') errors.push('planId must be a string');
   if (data.serverName === undefined || String(data.serverName).trim() === '') errors.push('serverName is required');
   if (data.serverName !== undefined && typeof data.serverName !== 'string') errors.push('serverName must be a string');
-  if (data.region !== undefined && typeof data.region !== 'string') errors.push('region must be a string');
-  if (data.status !== undefined && !['pending', 'provisioning', 'running', 'stopped', 'terminated', 'error'].includes(data.status)) {
-    errors.push('status must be one of pending, provisioning, running, stopped, terminated, error');
+  if (data.region !== undefined && data.region !== null && typeof data.region !== 'string') errors.push('region must be a string');
+  if (data.providerInfo !== undefined && (data.providerInfo === null || typeof data.providerInfo !== 'object' || Array.isArray(data.providerInfo))) {
+    errors.push('providerInfo must be an object');
+  }
+  if (data.status !== undefined && !['pending', 'provisioning', 'running', 'stopped', 'suspended', 'terminated', 'error'].includes(data.status)) {
+    errors.push('status must be one of pending, provisioning, running, stopped, suspended, terminated, error');
   }
   return errors;
 }
@@ -135,9 +138,12 @@ function _validateServerForUpdate(data) {
   if (data.serverName !== undefined && (typeof data.serverName !== 'string' || String(data.serverName).trim() === '')) {
     errors.push('serverName must be a non-empty string');
   }
-  if (data.region !== undefined && typeof data.region !== 'string') errors.push('region must be a string');
-  if (data.status !== undefined && !['pending', 'provisioning', 'running', 'stopped', 'terminated', 'error'].includes(data.status)) {
-    errors.push('status must be one of pending, provisioning, running, stopped, terminated, error');
+  if (data.region !== undefined && data.region !== null && typeof data.region !== 'string') errors.push('region must be a string');
+  if (data.providerInfo !== undefined && (data.providerInfo === null || typeof data.providerInfo !== 'object' || Array.isArray(data.providerInfo))) {
+    errors.push('providerInfo must be an object');
+  }
+  if (data.status !== undefined && !['pending', 'provisioning', 'running', 'stopped', 'suspended', 'terminated', 'error'].includes(data.status)) {
+    errors.push('status must be one of pending, provisioning, running, stopped, suspended, terminated, error');
   }
   return errors;
 }
@@ -265,6 +271,7 @@ async function listServers({ query, tenantContext } = {}) {
   if (query && query.status) servers = servers.filter((s) => String(s.status) === String(query.status));
   if (query && query.planId) servers = servers.filter((s) => String(s.planId) === String(query.planId));
   if (query && query.customerId) servers = servers.filter((s) => String(s.customerId) === String(query.customerId));
+  if (query && query.orderId) servers = servers.filter((s) => String(s.orderId || '') === String(query.orderId));
   return servers;
 }
 
@@ -299,6 +306,8 @@ async function createServer({ data, tenantContext } = {}) {
     region: data.region || null,
     status: data.status || 'pending',
     customerId: data.customerId || null,
+    orderId: data.orderId || null,
+    providerInfo: data.providerInfo || null,
     createdAt: now,
     updatedAt: now
   };
@@ -327,6 +336,7 @@ async function updateServer({ id, data, tenantContext } = {}) {
   if (data.planId !== undefined) db.servers[idx].planId = String(data.planId).trim();
   if (data.serverName !== undefined) db.servers[idx].serverName = String(data.serverName).trim();
   if (data.region !== undefined) db.servers[idx].region = data.region || null;
+  if (data.providerInfo !== undefined) db.servers[idx].providerInfo = data.providerInfo;
   if (data.status !== undefined) db.servers[idx].status = data.status;
   if (data.customerId !== undefined) db.servers[idx].customerId = data.customerId || null;
   db.servers[idx].updatedAt = new Date().toISOString();

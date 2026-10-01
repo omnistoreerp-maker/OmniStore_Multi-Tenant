@@ -11,13 +11,27 @@ interface Props {
 }
 
 /**
+ * Catalog `imageUrl` scheme allowlist: http(s), protocol-relative and plain
+ * relative paths are safe in an <img src>; any other explicit scheme
+ * (javascript:, data:, blob:, vbscript:, ...) is rejected up front.
+ */
+function isSafeImageSrc(value?: string): boolean {
+  if (!value) return false;
+  const v = value.trim();
+  if (!v) return false;
+  if (/^https?:\/\//i.test(v) || v.startsWith("//")) return true;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(v)) return false;
+  return !v.startsWith("\\");
+}
+
+/**
  * Real product image if the catalog provides one, otherwise a tasteful
  * neutral SVG placeholder — never a fabricated "product photograph".
  * object-contain keeps the original proportions (no stretching/cropping).
  */
 export function ProductImage({ src, alt, brand, className, ratio = "aspect-[4/3]" }: Props) {
   const [failed, setFailed] = useState(false);
-  const showImage = src && !failed;
+  const showImage = isSafeImageSrc(src) && !failed;
 
   return (
     <div
