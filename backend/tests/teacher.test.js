@@ -538,14 +538,13 @@ describe('STU-3 teacher routes — authorization and tenant isolation', () => {
     const caps = await request(app).get(`${BASE}/capabilities`).set('Authorization', `Bearer ${ownerA()}`);
     expect(caps.body.data.find(c => c.key === 'teachers').implemented).toBe(true);
     expect(caps.body.data.find(c => c.key === 'students').implemented).toBe(true);
-    // STU-5 implements programs and courses, STU-7 implements enrollments and
-    // STU-8 implements attendance; scheduling remains explicitly unimplemented.
-    for (const key of ['programs', 'courses', 'enrollments', 'attendance']) {
+    // STU-5 implements programs and courses, STU-7 implements enrollments,
+    // STU-8 implements attendance and STU-9 implements scheduling. Scheduling
+    // derives the teacher from the Class; it never stores a teacher copy.
+    for (const key of ['programs', 'courses', 'enrollments', 'attendance', 'scheduling']) {
       expect(caps.body.data.find(c => c.key === key).implemented).toBe(true);
     }
-    for (const key of ['scheduling']) {
-      expect(caps.body.data.find(c => c.key === key).implemented).toBe(false);
-    }
+    expect(caps.body.data.find(c => c.key === 'scheduling').phase).toBe('STU-9');
 
     const students = await request(app).get(`${BASE}/students`).set('Authorization', `Bearer ${ownerA()}`);
     expect(students.statusCode).toBe(200);

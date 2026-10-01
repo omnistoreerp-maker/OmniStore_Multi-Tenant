@@ -217,6 +217,12 @@ const enrollmentRoutes = require('./routes/enrollment.routes');
 // course, program, teacher or center reference and introduces no tenant
 // hierarchy.
 const attendanceRoutes = require('./routes/attendance.routes');
+// STU-9 Education Scheduling (Device 2). Tenth Education router on the same
+// prefix; the Education routers declare disjoint literal paths. A scheduled
+// session is one Class, one day, one time range, so it stores no teacher,
+// course, program, center, student or enrollment reference and introduces no
+// tenant hierarchy.
+const schedulingRoutes = require('./routes/scheduling.routes');
 const shiftManagementRoutes = require('./routes/shiftManagement.routes');
 const onlineStoreRoutes = require('./routes/onlineStore.routes');
 const loyaltyRoutes = require('./routes/loyalty.routes');
@@ -385,6 +391,7 @@ app.use('/api/v1/tenant/education', courseRoutes);
 app.use('/api/v1/tenant/education', classRoutes);
 app.use('/api/v1/tenant/education', enrollmentRoutes);
 app.use('/api/v1/tenant/education', attendanceRoutes);
+app.use('/api/v1/tenant/education', schedulingRoutes);
 app.use('/api/v1/tenant/shifts', shiftManagementRoutes);
 app.use('/api/v1/tenant/online-store', onlineStoreRoutes);
 

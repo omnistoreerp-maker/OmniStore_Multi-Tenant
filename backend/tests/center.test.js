@@ -577,14 +577,13 @@ describe('STU-4 center routes — authorization and tenant isolation', () => {
     expect(caps.body.data.find(c => c.key === 'centers').implemented).toBe(true);
     expect(caps.body.data.find(c => c.key === 'students').implemented).toBe(true);
     expect(caps.body.data.find(c => c.key === 'teachers').implemented).toBe(true);
-    // STU-5 implements programs and courses, STU-7 implements enrollments and
-    // STU-8 implements attendance; scheduling remains explicitly unimplemented.
-    for (const key of ['programs', 'courses', 'enrollments', 'attendance']) {
+    // STU-5 implements programs and courses, STU-7 implements enrollments,
+    // STU-8 implements attendance and STU-9 implements scheduling. Every
+    // Education capability is now implemented, so none is asserted pending.
+    for (const key of ['programs', 'courses', 'enrollments', 'attendance', 'scheduling']) {
       expect(caps.body.data.find(c => c.key === key).implemented).toBe(true);
     }
-    for (const key of ['scheduling']) {
-      expect(caps.body.data.find(c => c.key === key).implemented).toBe(false);
-    }
+    expect(caps.body.data.find(c => c.key === 'scheduling').phase).toBe('STU-9');
 
     expect((await request(app).get(`${BASE}/students`).set('Authorization', `Bearer ${ownerA()}`)).statusCode).toBe(200);
     expect((await request(app).get(`${BASE}/teachers`).set('Authorization', `Bearer ${ownerA()}`)).statusCode).toBe(200);

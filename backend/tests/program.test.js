@@ -587,12 +587,10 @@ describe('STU-5 program routes — authorization and tenant isolation', () => {
   test('REGRESSION: the earlier Education routes are not shadowed', async () => {
     const caps = await request(app).get(`${BASE}/capabilities`).set('Authorization', `Bearer ${ownerA()}`);
     expect(caps.body.data.find(c => c.key === 'programs').implemented).toBe(true);
-    for (const key of ['students', 'teachers', 'centers', 'enrollments', 'attendance']) {
+    for (const key of ['students', 'teachers', 'centers', 'enrollments', 'attendance', 'scheduling']) {
       expect(caps.body.data.find(c => c.key === key).implemented).toBe(true);
     }
-    for (const key of ['scheduling']) {
-      expect(caps.body.data.find(c => c.key === key).implemented).toBe(false);
-    }
+    expect(caps.body.data.find(c => c.key === 'scheduling').phase).toBe('STU-9');
 
     expect((await request(app).get(`${BASE}/students`).set('Authorization', `Bearer ${ownerA()}`)).statusCode).toBe(200);
     expect((await request(app).get(`${BASE}/teachers`).set('Authorization', `Bearer ${ownerA()}`)).statusCode).toBe(200);

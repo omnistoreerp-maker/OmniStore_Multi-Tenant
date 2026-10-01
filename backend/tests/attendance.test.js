@@ -1775,12 +1775,14 @@ describe('STU-8 attendance routes — authorization, tenant isolation and the da
 
   // --- REGRESSION ---------------------------------------------------------------
 
-  test('REGRESSION: attendance is implemented and scheduling is still not', async () => {
+  test('REGRESSION: attendance stays implemented at STU-8 while scheduling advances', async () => {
     const caps = await get('/capabilities', ownerA());
     expect(caps.statusCode).toBe(200);
+    // STU-9 flipped `scheduling`; STU-8's own status is unchanged, and the
+    // attendance contract is deliberately independent of scheduling.
     expect(caps.body.data.find(c => c.key === 'attendance').implemented).toBe(true);
     expect(caps.body.data.find(c => c.key === 'attendance').phase).toBe('STU-8');
-    expect(caps.body.data.find(c => c.key === 'scheduling').implemented).toBe(false);
+    expect(caps.body.data.find(c => c.key === 'scheduling').implemented).toBe(true);
     expect(caps.body.data.find(c => c.key === 'scheduling').phase).toBe('STU-9');
   });
 
@@ -1790,7 +1792,11 @@ describe('STU-8 attendance routes — authorization, tenant isolation and the da
     }
   });
 
-  test('REGRESSION: no scheduling route was introduced', async () => {
+  // STU-8 deliberately introduced no session-shaped sub-resource under
+  // attendance. STU-9 added scheduling as its OWN entity, and did not reach back
+  // into attendance, so these paths are still absent and attendance still keys
+  // only on (tenant, enrollment, date).
+  test('REGRESSION: attendance exposes no session-shaped sub-resource', async () => {
     for (const path of ['/schedule', '/schedules', '/sessions', '/attendance/sessions']) {
       expect((await get(path, ownerA())).statusCode).toBe(404);
     }
