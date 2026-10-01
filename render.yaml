@@ -20,8 +20,31 @@ services:
       # (sync: false keeps it out of this file).
       - key: JWT_SECRET
         sync: false
+      # Runtime tenant security — EXPLICIT, fail-closed. Production defaults
+      # are already fail-closed in backend/config/index.js (unset = ON in
+      # production); these explicit values make the posture visible here and
+      # immune to config drift. AUTH_REQUIRED was previously "false", which
+      # left every /api/v1 business route open. Setting it to "true" does NOT
+      # break onboarding: the public bootstrap endpoints
+      # (/api/v1/platform-public/onboarding/provision, /api/v1/companies
+      # list, /api/v1/auth/login, /api/v1/market/*, health) are mounted
+      # BEFORE the auth gate by design.
       - key: AUTH_REQUIRED
-        value: "false"
+        value: "true"
+      # Tenant isolation (all six) — reads filtered, writes stamped, entity/
+      # sales/purchases cross-tenant access rejected server-side.
+      - key: ENABLE_TENANT_RESOLUTION
+        value: "true"
+      - key: ENABLE_TENANT_METADATA
+        value: "true"
+      - key: ENABLE_TENANT_FILTERING
+        value: "true"
+      - key: ENABLE_TENANT_ENTITY_ISOLATION
+        value: "true"
+      - key: ENABLE_TENANT_SALES_ISOLATION
+        value: "true"
+      - key: ENABLE_TENANT_PURCHASES_ISOLATION
+        value: "true"
       # Tenant / multi-company features (Phase F user management needs them)
       - key: ENABLE_MULTI_COMPANY_LOGIN
         value: "true"

@@ -55,8 +55,24 @@ if (process.env.LOG_FILE) {
   info.push('LOG_FILE not set (stdout logging only)');
 }
 
-// Auth posture
-info.push(`AUTH_REQUIRED=${process.env.AUTH_REQUIRED === 'true' ? 'true (routes protected)' : 'false (legacy open mode)'}`);
+// Auth posture (production defaults fail-closed: unset = ON in production)
+const authOn = process.env.AUTH_REQUIRED !== undefined ? process.env.AUTH_REQUIRED === 'true' : isProduction;
+info.push(`AUTH_REQUIRED=${authOn ? 'true (routes protected)' : 'false (legacy open mode)'}`);
+if (isProduction && !authOn) warnings.push('AUTH_REQUIRED is explicitly false in production: business routes are OPEN (required only during first-Owner bootstrap)');
+const isolationFlags = [
+  'ENABLE_TENANT_RESOLUTION',
+  'ENABLE_TENANT_METADATA',
+  'ENABLE_TENANT_FILTERING',
+  'ENABLE_TENANT_ENTITY_ISOLATION',
+  'ENABLE_TENANT_SALES_ISOLATION',
+  'ENABLE_TENANT_PURCHASES_ISOLATION'
+];
+const isolationOff = isolationFlags.filter((name) => {
+  const effective = process.env[name] !== undefined ? process.env[name] === 'true' : isProduction;
+  return !effective;
+});
+info.push(`tenant isolation: ${isolationOff.length === 0 ? 'ON (all 6 flags)' : 'OFF -> ' + isolationOff.join(', ')}`);
+if (isProduction && isolationOff.length) warnings.push('Tenant isolation disabled in production via explicit override: ' + isolationOff.join(', '));
 info.push(`CORS_ORIGINS=${process.env.CORS_ORIGINS ? 'restricted allowlist' : 'open (legacy default)'}`);
 info.push(`RATE_LIMIT_MAX=${process.env.RATE_LIMIT_MAX || '1000'}`);
 

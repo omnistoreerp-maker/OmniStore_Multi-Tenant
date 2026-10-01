@@ -334,6 +334,13 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/server.js',
     'backend/tests/monetag.boundary.test.js',
     'platform/tests/section-lockdown.test.cjs',
+    // Runtime tenant security cycle: fail-closed production config +
+    // explicit render.yaml posture + diagnostics + tests.
+    'backend/config/index.js',
+    'backend/scripts/checkEnv.js',
+    'backend/.env.example',
+    'backend/tests/productionConfig.test.js',
+    'render.yaml',
     // Pre-existing local WIP from earlier candidate work — carried across
     // branches, deliberately never staged by this change set:
     'backend/data/platformPublic.json',
@@ -344,7 +351,9 @@ check('working-tree diff touches only intended platform files', () => {
     'platform/tests/section-lockdown.test.cjs',
     'CANDIDATE_HANDOFF_20260920.md',
     'docs/REAL_REPOSITORY_RECONCILIATION.md',
-    'docs/TEABLE_AGENT_RECONCILIATION.md'
+    'docs/TEABLE_AGENT_RECONCILIATION.md',
+    // Runtime tenant security cycle: the Digitronics full E2E proof.
+    'backend/tests/digitronicsOnboarding.e2e.test.js'
   ]);
   const git = (args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' }).stdout.split('\n').map((s) => s.trim()).filter(Boolean);
   const modified = git(['diff', '--name-only', 'HEAD']);
