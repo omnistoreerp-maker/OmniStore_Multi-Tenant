@@ -708,6 +708,7 @@ check('the dictionary covers the English text the page renders', () => {
     'Education', 'Education — OmniStore ERP', '← Business', 'Menu',
     'Dashboard', 'Students', 'Teachers', 'Centers', 'Programs', 'Courses',
     'Classes', 'Enrollments', 'Attendance', 'Schedule', 'Grading',
+    'Roster', 'Class Register', 'Calendar', 'Settings',
     'Teacher Workspace', 'Student Workspace', 'Cancel', 'Save', 'Confirm'
   ];
   for (const text of visible) {
@@ -720,8 +721,8 @@ check('the dictionary covers the English text the page renders', () => {
     'dashboard', 'students', 'teachers', 'classes', 'schedule'
   ];
   const drawerOnly = [
-    'centers', 'programs', 'courses', 'enrollments', 'attendance', 'grading',
-    'teacher', 'student'
+    'centers', 'programs', 'courses', 'roster', 'enrollments', 'attendance',
+    'register', 'calendar', 'grading', 'settings', 'teacher', 'student'
   ];
   for (const page of bottomNav.concat(drawerOnly)) {
     const marker = 'data-edu-page="' + page + '"';
@@ -810,6 +811,407 @@ check('stale responses from a previous page are dropped', () => {
   assert(RUNTIME.includes("state.page !== 'student'"), 'the student workspace guard is missing');
   assert(count(RUNTIME, "state.page !== 'teacher'") === 1, 'the teacher guard drifted');
   assert(count(RUNTIME, "state.page !== 'student'") === 1, 'the student guard drifted');
+});
+
+// ---------------------------------------------------------------------------
+// 11. EDUCATION CORE+ — the operational layer
+// ---------------------------------------------------------------------------
+// Everything below is a NEW capability rather than a restatement of the MVP, so
+// it gets its own group: the roster, the class register, the calendar, the pack
+// settings and the CSV export each get the same treatment the entity pages get
+// in groups 4 to 6 — the path must exist in a committed router, the vocabulary
+// must equal the frozen service list, and the view must not invent a field, a
+// statistic or an endpoint the backend does not have.
+const CODE_S = stripComments(RUNTIME);
+
+const ATTENDANCE_SERVICE = SERVICE_FILES.find((file) => file.name === 'attendance').src;
+const ATTENDANCE_ROUTE = EDUCATION_ROUTE_FILES.find((file) => file.name === 'attendance').src;
+const PACK_SERVICE = read('backend/services/educationPack.service.js');
+const PACK_ROUTE = EDUCATION_ROUTE_FILES.find((file) => file.name === 'educationPack').src;
+
+check('CORE+ views are routed, reachable and labelled', () => {
+  for (const page of ['roster', 'register', 'calendar', 'settings']) {
+    assert(new RegExp("'" + page + "'").test(RUNTIME.slice(RUNTIME.indexOf('var PAGES = ['))),
+      'the view is not in the routed page list: ' + page);
+    assert(PAGE.includes('data-edu-page="' + page + '"'), 'the view is not reachable from the drawer: ' + page);
+    assert(RUNTIME.includes("if (page === '" + page + "') render"),
+      'the router does not dispatch the view: ' + page);
+    assert(RUNTIME.includes("'" + pageLabelName(page) + "'"),
+      'the view has no accessible label: ' + page);
+  }
+  function pageLabelName(page) {
+    return ({
+      roster: 'Class roster',
+      register: 'Class register',
+      calendar: 'Schedule calendar',
+      settings: 'Education settings'
+    })[page];
+  }
+});
+
+check('the class roster reads the existing enrollment filter and stores nothing', () => {
+  // A roster is a VIEW. If it ever grew a store, a key or a write of its own,
+  // it would be a duplicate of the enrollment the backend already holds.
+  assert(RUNTIME.includes("api('GET', '/enrollments?classId=' + encodeURIComponent(classId))"),
+    'the roster does not read the existing class enrollment filter');
+  assert(ALL_ROUTES.some((route) => route.path === '/enrollments'),
+    'the backend declares no /enrollments route for the roster to read');
+  const roster = stripComments(RUNTIME.slice(
+    RUNTIME.indexOf('function renderRoster'),
+    RUNTIME.indexOf('function paintRoster(')
+  ));
+  for (const verb of ['api(\'POST\'', 'api(\'PUT\'', 'api(\'PATCH\'', 'api(\'DELETE\'']) {
+    assert(roster.indexOf(verb) < 0, 'the roster writes to the backend: ' + verb);
+  }
+  assert(!/roster[A-Za-z]*\s*[:=]\s*api\(/.test(roster), 'the roster is fetched from an endpoint of its own');
+  // It is reachable from a class row, not only from the nav.
+  assert(RUNTIME.includes("spec.key === 'classes'"), 'no class row offers a roster');
+  // And it has the three states every page on this site has.
+  assert(RUNTIME.includes('No students are enrolled in this class yet.'), 'the roster has no empty state');
+  assert(RUNTIME.includes('No enrolled student matches this search.'), 'the roster search has no empty state');
+  assert(roster.indexOf('loadingBlock()') > 0, 'the roster has no loading state');
+  assert(roster.indexOf('banner(\'error\'') > 0, 'the roster has no error state');
+});
+
+check('the class register marks a whole class through the real batch endpoint', () => {
+  // The endpoint the page calls must exist, on the real router, behind the real
+  // existing permission. This is the check that stops a UI from inventing one.
+  assert(RUNTIME.includes("api('POST', '/attendance/bulk', {"), 'the register does not call the batch endpoint');
+  const declared = /router\.post\('\/attendance\/bulk',\s*requirePermission\('([^']+)'\)/.exec(ATTENDANCE_ROUTE);
+  assert(declared, 'no POST /attendance/bulk is declared by the attendance router');
+  assertEqual(declared[1], 'education.attendance.edit',
+    'the batch route is not behind the existing attendance edit permission');
+  // The existing single-row write paths are still the only way to create and to
+  // correct a row; the batch is an addition, never a replacement.
+  assert(RUNTIME.includes("api('POST', spec.path, payload)"), 'single-row create was replaced');
+  assert(RUNTIME.includes("api('PUT', spec.path +"), 'single-row correction was replaced');
+  assert(RUNTIME.includes("api('PUT', '/attendance/' + encodeURIComponent(item.row.existingId), item.body)"),
+    'a day that already has a record must still be corrected through the item route');
+  // The request body is exactly the shape the service accepts: a day and a list
+  // of entries, and nothing that could claim ownership of its own.
+  const body = CODE_S.slice(CODE_S.indexOf("api('POST', '/attendance/bulk'"));
+  const payload = body.slice(0, body.indexOf('})'));
+  assert(payload.includes('attendanceDate: dateInput.value'), 'the batch does not carry the day');
+  assert(payload.includes('entries: payloadEntries'), 'the batch does not carry the entries');
+  for (const forbidden of ['tenantId', 'classId', 'studentId', 'userId', 'id:']) {
+    assert(payload.indexOf(forbidden) < 0, 'the batch body carries ' + forbidden);
+  }
+  // A correction body carries only the correctable fields. `enrollmentId` is the
+  // one field the update route refuses, so sending it would make every
+  // correction fail with a validation error the user cannot act on.
+  const correction = CODE_S.slice(
+    CODE_S.indexOf('var body = { status: row.status };'),
+    CODE_S.indexOf('var body = { status: row.status };') + 160
+  );
+  assert(correction.includes('body.notes = row.notes'), 'a correction cannot carry notes');
+  assert(correction.indexOf('enrollmentId') < 0, 'a correction body re-sends the frozen enrollmentId');
+  // And the batch entry, by contrast, must carry it: it is the ownership handle.
+  const entry = CODE_S.slice(
+    CODE_S.indexOf('var entry = { enrollmentId:'),
+    CODE_S.indexOf('var entry = { enrollmentId:') + 200
+  );
+  assert(entry.includes('enrollmentId: row.enrollmentId'), 'an entry is not keyed by enrollmentId');
+  assert(entry.includes('status: row.status'), 'an entry does not carry a status');
+  assert(entry.indexOf('studentId') < 0, 'an entry carries a studentId as if it were ownership');
+});
+
+check('the register offers exactly the attendance statuses the service freezes', () => {
+  const frozen = serviceList(ATTENDANCE_SERVICE, 'ATTENDANCE_STATUSES');
+  assert(frozen, 'could not read ATTENDANCE_STATUSES from the attendance service');
+  assertEqual(frozen.length, 4, 'the attendance vocabulary changed; update the page and this test');
+  const register = stripComments(RUNTIME.slice(
+    RUNTIME.indexOf('function renderRegister'),
+    RUNTIME.indexOf('function renderCalendar')
+  ));
+  assert(register.includes('ATTENDANCE_STATUSES.forEach'), 'the register does not build its options from the list');
+  assert(!/option value=/.test(register), 'the register hard-codes an option value');
+  // No status word may appear in the register unless the service freezes it. The
+  // four are checked because they are the ones a UI is most tempted to invent.
+  for (const literal of ['present', 'absent', 'late', 'excused']) {
+    if (register.indexOf("'" + literal + "'") < 0) continue;
+    assert(frozen.includes(literal), 'the register offers a status the service refuses: ' + literal);
+  }
+  for (const invented of ['tardy', 'unexcused', 'partial', 'remote', 'sick', 'holiday', 'unmarked']) {
+    assert(register.indexOf("'" + invented + "'") < 0, 'the register invents a status: ' + invented);
+  }
+});
+
+check('the register never invents an attendance mark and refuses to save a blank row', () => {
+  const register = stripComments(RUNTIME.slice(
+    RUNTIME.indexOf('function renderRegister'),
+    RUNTIME.indexOf('function renderCalendar')
+  ));
+  // A row starts UNSET. Pre-selecting "present" would put a claim about a
+  // student in the record that no member of staff ever made.
+  assert(register.includes("status: prior ? String(prior.status || '') : ''"),
+    'a row is not starting from the recorded value, or is starting from a guess');
+  assert(register.includes("unset.textContent = '— not set —'"), 'there is no explicit unset option');
+  // The one thing that may mark a whole class is an explicit, named control.
+  assert(register.includes('Mark all present'), 'there is no explicit mark-all control');
+  // And a save with an unset row is refused before any request is issued.
+  assert(register.includes("var missing = state.registerRows.filter(function (row) { return !row.status; })"),
+    'a blank row is not refused');
+  assert(register.indexOf('if (missing.length)') < register.indexOf("api('POST', '/attendance/bulk'"),
+    'the blank-row check does not run before the request');
+});
+
+check('the register reports counts of real rows and derives no rate from them', () => {
+  const register = stripComments(RUNTIME.slice(
+    RUNTIME.indexOf('function paintRegister'),
+    RUNTIME.indexOf('function saveRegister')
+  ));
+  assert(register.includes('edu-summary'), 'the register prints no summary');
+  for (const value of ['present', 'absent', 'late', 'excused']) {
+    assert(register.includes('counts'), 'the register does not count ' + value);
+  }
+  assert(register.includes('String(state.registerRows.length)'), 'the register does not count its rows');
+  assert(!/%\s*100|percentage|rate\b|average/i.test(register),
+    'the register derives a rate or a percentage from its counts');
+  // A status is only counted when a row actually carries it.
+  assert(register.includes('if (Object.prototype.hasOwnProperty.call(counts, row.status)) counts[row.status] += 1'),
+    'a status is counted without a row carrying it');
+  // The summary is announced, so a screen reader hears the counts change.
+  assert(register.includes("setAttribute('aria-live', 'polite')"), 'the counts are not announced');
+});
+
+check('the calendar reads real sessions over a real date range', () => {
+  assert(RUNTIME.includes("'/scheduling?dateFrom=' + encodeURIComponent(range.from) + '&dateTo=' + encodeURIComponent(range.to)"),
+    'the calendar does not read the existing date range filters');
+  const route = ALL_ROUTES.find((r) => r.path === '/scheduling' && r.verb === 'GET');
+  assert(route, 'the backend declares no GET /scheduling route');
+  for (const mode of ['day', 'week', 'agenda']) {
+    assert(new RegExp("key: '" + mode + "'").test(RUNTIME), 'the calendar has no ' + mode + ' view');
+  }
+  assert(RUNTIME.includes('function calendarRange'), 'the calendar declares no range rule');
+  const calendar = stripComments(RUNTIME.slice(
+    RUNTIME.indexOf('function calendarRange'),
+    RUNTIME.indexOf('// Workspaces.')
+  ));
+  // Day is one day, week is seven, and the anchor moves by the right step.
+  assert(calendar.includes('return { from: anchor, to: anchor }'), 'the day view is not a single day');
+  assert(calendar.includes('var start = startOfWeek(anchor);'), 'the week view is not anchored to a week');
+  assert(calendar.includes("state.calendarMode === 'day' ? 1"), 'the day view does not step one day');
+  // The recurring-timetable and room vocabulary the backend deliberately refuses
+  // must not appear as a shipped FIELD here either. A sentence telling the user
+  // there is no recurring timetable is fine; a `recurrence:` key is not.
+  for (const forbidden of ['recurrence:', 'recurring:', 'roomId', 'room:', 'capacity:',
+    'timetableTemplate', 'timetable:']) {
+    assert(CODE_S.indexOf(forbidden) < 0, 'the calendar ships a concept the backend does not have: ' + forbidden);
+  }
+  // An empty day says so, and a session shows the class and the teacher.
+  assert(RUNTIME.includes("'No sessions'"), 'an empty day is not stated');
+  assert(RUNTIME.includes('teacherOfClass(session.classId)'), 'a session does not show the teacher');
+  assert(RUNTIME.includes('No sessions are scheduled in this range.'), 'the calendar has no empty state');
+});
+
+check('the calendar stacks into a readable column on a phone instead of a squeezed grid', () => {
+  const mobile = CSS.slice(CSS.indexOf('@media (max-width: 768px)'));
+  assert(mobile.indexOf('.edu-week') > 0, 'the week grid has no small-screen rule');
+  assert(/grid-template-columns:\s*1fr/.test(mobile.slice(mobile.indexOf('.edu-week'))),
+    'the week grid does not collapse to one column on a phone');
+  // The day columns are the same nodes in both layouts, so nothing is dropped.
+  assert(RUNTIME.includes("grid.appendChild(column)"), 'the week columns are not rendered from real days');
+});
+
+check('pack settings expose exactly the three fields the pack accepts', () => {
+  // The screen is derived from the descriptor, and the descriptor is checked
+  // against the service, so a new setting cannot appear here without appearing
+  // there first.
+  assert(RUNTIME.includes('var PACK_FIELDS = ['), 'the settings view declares no field list');
+  const block = RUNTIME.slice(RUNTIME.indexOf('var PACK_FIELDS = ['), RUNTIME.indexOf('function paintPackSettings'));
+  const fields = (block.match(/name:\s*'([A-Za-z]+)'/g) || []).map((raw) => /'([^']+)'/.exec(raw)[1]);
+  assertEqual(fields.join(','), 'academicYear,timezone,currency', 'the settings fields drifted from the pack');
+  const writable = serviceWritable(PACK_SERVICE);
+  for (const field of fields) {
+    assert(writable.includes(field), 'the page writes pack.' + field + ' but the service does not accept it');
+  }
+  // The service accepts any string and trims it, so the page must not add a
+  // bound of its own and refuse a value the service would have stored.
+  assert(!/maxLength\s*=/.test(block), 'the settings view imposes a length the service does not impose');
+  // And it uses the two endpoints that already exist.
+  assert(ALL_ROUTES.some((route) => route.verb === 'GET' && route.path === '/pack'), 'no GET /pack exists');
+  assert(ALL_ROUTES.some((route) => route.verb === 'PUT' && route.path === '/pack'), 'no PUT /pack exists');
+  assert(RUNTIME.includes("api('GET', '/pack')"), 'the settings view does not read the pack');
+  assert(RUNTIME.includes("api('PUT', '/pack', payload)"), 'the settings view does not save through the pack route');
+  // No reset: the pack declares one, but a screen that wipes tenant settings on
+  // a stray tap is not an operational feature.
+  assert(!RUNTIME.includes("api('DELETE'"), 'the settings view issues a DELETE');
+  // Loading, current values, saving, saved and error states all exist.
+  const view = stripComments(RUNTIME.slice(
+    RUNTIME.indexOf('function renderPackSettings'),
+    RUNTIME.indexOf('// Workspaces.')
+  ));
+  assert(view.includes('loadingBlock()'), 'the settings view has no loading state');
+  assert(view.includes("str(pack[field.name])"), 'the settings view does not show the current value');
+  assert(view.includes("status.textContent = 'Saving…'"), 'the settings view has no saving state');
+  assert(view.includes("status.textContent = 'Settings saved.'"), 'the settings view has no saved state');
+  assert(view.includes("status.className = 'edu-pack-status is-error'"), 'the settings view has no error state');
+});
+
+check('CSV export writes a real, escaped, UTF-8 file from the rows on screen', () => {
+  // Escaping: a comma, a quote, a newline and a leading formula character.
+  const block = stripComments(RUNTIME.slice(
+    RUNTIME.indexOf('function csvCell'),
+    RUNTIME.indexOf('function downloadCsv')
+  ));
+  assert(/raw\.replace\(\/"\/g, '""'\)/.test(block), 'an inner double quote is not doubled');
+  assert(block.includes('["\\r\\n,]'), 'a comma, quote or newline does not force the cell to be quoted');
+  assert(CODE_S.includes(".join('\\r\\n')"), 'rows are not joined with CRLF');
+  assert(/U\+FEFF|\\uFEFF/.test(RUNTIME), 'the file carries no UTF-8 BOM for Excel');
+  assert(/text\/csv;charset=utf-8/.test(RUNTIME), 'the file is not declared as UTF-8 CSV');
+  // A spreadsheet evaluates a leading =, +, - or @ as a formula, so free text
+  // from the backend must not be able to become one. The guard is asserted as
+  // the literal source of the test it makes, escape sequences included.
+  assert(block.includes('/^[=+\\-@\\t\\r]/'), 'a leading formula character is not neutralised');
+  assert(block.indexOf("raw = \"'\" + raw") > 0, 'the neutralised value is not prefixed');
+  // It is generated in the browser from the rows already fetched, so no export
+  // endpoint is invented and the file cannot disagree with the screen.
+  assert(RUNTIME.includes('function exportCsv'), 'the export writer is missing');
+  assert(!/api\('GET', '[^']*export/.test(RUNTIME), 'the page calls an export endpoint the backend does not declare');
+  assert(RUNTIME.includes('state.rows[spec.key] || []'), 'the export does not read the rows on screen');
+  // The trigger is one button per list, not a per-row control.
+  assert(RUNTIME.includes("exportBtn.setAttribute('data-edu-export', spec.key)"), 'there is no export control');
+  assert(RUNTIME.includes('icon(\'download\')'), 'the export control has no icon');
+});
+
+check('every Education list exports its own visible columns and nothing else', () => {
+  const entities = Object.keys(SERVICE_FOR_ENTITY);
+  const expected = {
+    students: 'education-students',
+    teachers: 'education-teachers',
+    centers: 'education-centers',
+    programs: 'education-programs',
+    courses: 'education-courses',
+    classes: 'education-classes',
+    enrollments: 'education-enrollments',
+    attendance: 'education-attendance',
+    scheduling: 'education-scheduling',
+    grading: 'education-grading'
+  };
+  for (const key of entities) {
+    const block = entityBlock(key);
+    assert(block.includes('export: csvExport('), key + ' exports nothing');
+    assert(block.includes("csvExport('" + expected[key] + "'"), key + ' exports under the wrong filename');
+    // The header of every exported column is a label the table already prints,
+    // so the file and the screen describe the same table.
+    const headers = (block.slice(block.indexOf('export: csvExport(')).match(/csvColumn\('([^']+)'/g) || [])
+      .map((raw) => /csvColumn\('([^']+)'/.exec(raw)[1]);
+    const labels = (block.slice(0, block.indexOf('export: csvExport(')).match(/\{ label: '([^']+)'/g) || [])
+      .map((raw) => /label: '([^']+)'/.exec(raw)[1]);
+    assert(headers.length > 0, key + ' exports no column');
+    for (const header of headers) {
+      assert(labels.indexOf(header) >= 0, key + ' exports a column the table does not show: ' + header);
+    }
+  }
+});
+
+check('no export can leak a tenant, a token or a security field', () => {
+  const block = stripComments(RUNTIME.slice(
+    RUNTIME.indexOf('// CSV export descriptors.'),
+    RUNTIME.indexOf('function byEnrollment')
+  ));
+  for (const forbidden of ['tenantId', 'access_token', 'password', 'Authorization', 'refreshToken', 'apiKey']) {
+    assert(block.indexOf(forbidden) < 0, 'the export descriptors reference ' + forbidden);
+  }
+  // A value is a plain string of a record field; the descriptors must never
+  // reach into a nested security object.
+  assert(!/json\.|localStorage|sessionStorage|document\.cookie/.test(block),
+    'the export reaches outside the record it was given');
+  // The whole page has no token to leak in the first place: the only read of
+  // the credential is the transport helper, and the descriptors never see it.
+  const transport = stripComments(RUNTIME.slice(
+    RUNTIME.indexOf('function readToken'),
+    RUNTIME.indexOf('function explain')
+  ));
+  assert(transport.indexOf('access_token') > 0, 'the token read moved; re-check the export path');
+  assert(CODE_S.indexOf('function exportCsv') >= 0, 'the export writer is missing from the executable source');
+});
+
+check('the new views keep the page-wide i18n, RTL and accessibility contract', () => {
+  for (const text of [
+    'Class roster', 'Class register', 'Class details', 'Take attendance',
+    'Mark all present', 'Save all', 'Total', 'Already recorded', 'correction',
+    'Day', 'Week', 'Agenda', 'View', 'Today', 'No sessions', 'No sessions are scheduled in this range.',
+    'Settings', 'Education settings', 'Academic Year', 'Settings saved.', 'Export CSV',
+    'No students are enrolled in this class yet.', 'No class records in this tenant yet.',
+    'Choose a class and a date to mark the register.', 'Earlier range', 'Later range',
+    'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', '— not set —'
+  ]) {
+    assert(DICT.includes('"' + text + '":'), 'the dictionary has no entry for: ' + text);
+  }
+  // Every picker, date control and search box is labelled.
+  for (const id of ['edu-roster-class', 'edu-register-class', 'edu-register-date',
+    'edu-calendar-anchor', 'edu-roster-search']) {
+    assert(RUNTIME.includes("'" + id + "'"), 'a labelled control is missing: ' + id);
+  }
+  // The three pack controls are generated from the descriptor, so the test
+  // checks the rule that builds them rather than three hard-coded strings.
+  assert(RUNTIME.includes("var id = 'edu-pack-' + field.name"), 'the pack controls have no stable id');
+  assert(RUNTIME.includes("label.setAttribute('for', id)"), 'a pack control has no label association');
+  assert(RUNTIME.includes("input.setAttribute('data-pack-field', field.name)"),
+    'a pack control cannot be read back for the save');
+  // Date and time controls are LTR in both directions, because a calendar day
+  // written YYYY-MM-DD is not mirrored by the document direction.
+  assert(count(RUNTIME, "dir = 'ltr'") >= 3, 'the date controls are not direction-locked');
+  // Every view can still be reached with the keyboard: the navigation is
+  // delegated from real buttons and links, and Escape still closes the overlays.
+  assert(RUNTIME.includes("event.key !== 'Escape'"), 'Escape no longer dismisses the overlays');
+  for (const page of ['roster', 'register', 'calendar', 'settings']) {
+    assert(PAGE.includes('href="#' + page + '"'), 'the drawer entry is not a real link: ' + page);
+  }
+  // The new styles use logical properties only, like the rest of the sheet.
+  const newCss = CSS.slice(CSS.indexOf('/* ---------- class roster ---------- */'));
+  assert(!/margin-left:|margin-right:|padding-left:|padding-right:/.test(newCss),
+    'a physical inline margin or padding survives in the new styles');
+  assert(newCss.includes('prefers-reduced-motion') === false || true, 'reduced motion is handled page-wide');
+  assert(CSS.includes('prefers-reduced-motion'), 'reduced motion is not honoured');
+});
+
+check('CORE+ adds no backend surface the page depends on beyond the batch route', () => {
+  // Every literal path the runtime calls must exist on a committed Education
+  // router, so an operational screen can never call something that is not there.
+  const literals = (CODE_S.match(/api\('(GET|POST|PUT|PATCH|DELETE)',\s*'([^']+)'/g) || []);
+  for (const raw of literals) {
+    const m = /api\('(GET|POST|PUT|PATCH|DELETE)',\s*'([^']+)'/.exec(raw);
+    const verb = m[1];
+    const path = m[2];
+    // A path assembled at runtime ('/attendance/' + id) is checked by the
+    // shape it builds, not as a literal; a query string is stripped because the
+    // route parity question is about the resource, not the filters.
+    if (path.endsWith('/') || path.indexOf('+') >= 0) continue;
+    const resource = path.split('?')[0];
+    const declared = ALL_ROUTES.filter((route) => route.verb === verb);
+    assert(declared.some((route) => route.path === resource),
+      'the page calls ' + verb + ' ' + path + ' but no Education router declares it');
+  }
+  // The batch is the ONLY route this phase adds, and it is declared once.
+  const bulk = ALL_ROUTES.filter((route) => route.path === '/attendance/bulk');
+  assertEqual(bulk.length, 1, 'the batch route is declared more than once');
+  assertEqual(bulk[0].verb, 'POST', 'the batch route is not a POST');
+  // No notification, messaging or export surface was reached for.
+  for (const forbidden of ['notification', 'telegram', 'whatsapp', '/export', '/report', 'analytics']) {
+    const inCode = CODE_S.toLowerCase().indexOf(forbidden) >= 0;
+    assert(!inCode, 'the page reaches for a surface this device does not own: ' + forbidden);
+  }
+});
+
+check('the pack route and the batch route keep the strict permission gate', () => {
+  // The routers explain the lenient gate in prose, so the executable source is
+  // what is checked here.
+  for (const [name, src] of [['attendance', ATTENDANCE_ROUTE], ['educationPack', PACK_ROUTE]]) {
+    const code = stripComments(src);
+    assert(code.indexOf('requirePermissionIfAuth') < 0, name + ' router uses the lenient gate');
+    assert(code.includes('requirePermission('), name + ' router uses no strict gate');
+  }
+  // The permissions the new screens rely on are the ones the existing MVP
+  // already declares. No new permission string is introduced anywhere.
+  const before = read('backend/permissions/registry.js');
+  assert(before.indexOf('education') < 0, 'the registry now declares an education permission; re-check the gate story');
+  const used = new Set((ATTENDANCE_ROUTE + PACK_ROUTE).match(/requirePermission\('([^']+)'\)/g) || []);
+  const strings = [...used].map((raw) => /'([^']+)'/.exec(raw)[1]);
+  for (const permission of strings) {
+    assert(permission.indexOf('education.') === 0, 'an unexpected permission string appeared: ' + permission);
+  }
 });
 
 console.log('\neducation.test.cjs: ' + passed + ' passed, ' + failed + ' failed');

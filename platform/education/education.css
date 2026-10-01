@@ -780,6 +780,215 @@
   clip: rect(0, 0, 0, 0);
 }
 
+/* ---------- class roster ---------- */
+
+.edu-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 18px 0 8px;
+}
+
+.edu-section-head .edu-section-title {
+  margin: 0;
+}
+
+.edu-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.edu-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.02);
+}
+
+.edu-detail-label {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.edu-detail-value {
+  font-size: 13px;
+  color: #0f172a;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- class register ---------- */
+
+.edu-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.edu-summary-item {
+  display: flex;
+  flex-direction: column;
+  min-width: 84px;
+  padding: 8px 12px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.02);
+}
+
+.edu-summary-label {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: capitalize;
+  color: #64748b;
+}
+
+.edu-summary-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.edu-select-inline {
+  min-width: 130px;
+}
+
+/* ---------- schedule calendar ---------- */
+
+.edu-seg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.edu-seg-label {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.edu-btn.is-active {
+  border-color: #0d9488;
+  background: rgba(13, 148, 136, 0.12);
+  color: #0f766e;
+}
+
+.edu-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.edu-week-day {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.02);
+  min-width: 0;
+}
+
+.edu-day-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.edu-day-weekday {
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.edu-day-date {
+  font-size: 10px;
+  color: #64748b;
+}
+
+.edu-day-empty {
+  margin: 0;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.edu-session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.edu-session {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border-inline-start: 3px solid #0d9488;
+  background: rgba(13, 148, 136, 0.07);
+  font-size: 12px;
+  min-width: 0;
+}
+
+.edu-session-time {
+  font-size: 11px;
+  color: #0f766e;
+}
+
+.edu-session-class,
+.edu-session-teacher,
+.edu-session-notes {
+  overflow-wrap: anywhere;
+}
+
+.edu-session-teacher {
+  color: #475569;
+}
+
+.edu-session-notes {
+  color: #64748b;
+}
+
+/* ---------- pack settings ---------- */
+
+.edu-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.edu-pack-status {
+  min-height: 18px;
+  margin: 0;
+  font-size: 12px;
+  color: #475569;
+}
+
+.edu-pack-status.is-saved {
+  color: #047857;
+}
+
+.edu-pack-status.is-error {
+  color: #b91c1c;
+}
+
 /* ---------- responsive ---------- */
 
 @media (max-width: 768px) {
@@ -799,6 +1008,26 @@
 
   .edu-dist-label {
     width: 84px;
+  }
+
+  /* A seven-column grid is unreadable on a phone, so the SAME day columns
+   * stack into a single readable column. Nothing is dropped: the week view
+   * becomes a vertical agenda rather than a squeezed timetable. */
+  .edu-week {
+    grid-template-columns: 1fr;
+  }
+
+  .edu-week-day {
+    padding: 6px 8px;
+  }
+
+  .edu-summary-item {
+    min-width: 68px;
+    padding: 6px 10px;
+  }
+
+  .edu-form-grid {
+    grid-template-columns: 1fr;
   }
 }
 
