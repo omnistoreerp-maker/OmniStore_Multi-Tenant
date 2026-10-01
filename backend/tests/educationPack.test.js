@@ -182,11 +182,12 @@ describe('STU-1 educationPack.service — trusted tenant + fail closed', () => {
 
   test('capability manifest never advertises an unimplemented Education entity', () => {
     const caps = service.listCapabilities();
-    // STU-2 flipped 'students', STU-3 flipped 'teachers'; everything STU-4
-    // and later must still report false so the manifest never overstates the
-    // surface.
+    // STU-2 flipped 'students', STU-3 flipped 'teachers', STU-4 flipped
+    // 'centers'; everything after it must still report false so the manifest
+    // never overstates the surface.
     expect(caps.find(c => c.key === 'students').implemented).toBe(true);
     expect(caps.find(c => c.key === 'teachers').implemented).toBe(true);
+    expect(caps.find(c => c.key === 'centers').implemented).toBe(true);
     const stillPending = ['programs', 'enrollments', 'attendance', 'scheduling'];
     for (const key of stillPending) {
       const cap = caps.find(c => c.key === key);
@@ -320,12 +321,13 @@ describe('STU-1 /api/v1/tenant/education — authorization and isolation over HT
     const res = await request(app).get(`${BASE}/capabilities`).set('Authorization', `Bearer ${ownerA()}`);
     expect(res.statusCode).toBe(200);
     const keys = res.body.data.map(c => c.key);
-    expect(keys).toEqual(expect.arrayContaining(['pack', 'students', 'teachers']));
-    // STU-2 flipped `students`, STU-3 flipped `teachers`; the STU-4+
-    // capabilities stay explicitly unimplemented so the manifest never
-    // overstates the surface.
+    expect(keys).toEqual(expect.arrayContaining(['pack', 'students', 'teachers', 'centers']));
+    // STU-2 flipped `students`, STU-3 flipped `teachers`, STU-4 flipped
+    // `centers`; the capabilities after it stay explicitly unimplemented so
+    // the manifest never overstates the surface.
     expect(res.body.data.find(c => c.key === 'students').implemented).toBe(true);
     expect(res.body.data.find(c => c.key === 'teachers').implemented).toBe(true);
+    expect(res.body.data.find(c => c.key === 'centers').implemented).toBe(true);
     for (const key of ['programs', 'enrollments', 'attendance', 'scheduling']) {
       expect(res.body.data.find(c => c.key === key).implemented).toBe(false);
     }

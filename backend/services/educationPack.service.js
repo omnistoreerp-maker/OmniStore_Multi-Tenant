@@ -62,10 +62,11 @@ const CAPABILITIES = Object.freeze([
   { key: 'pack', implemented: true, phase: 'STU-1', description: 'Tenant-scoped Education foundation settings.' },
   { key: 'students', implemented: true, phase: 'STU-2', description: 'Tenant-scoped Student records.' },
   { key: 'teachers', implemented: true, phase: 'STU-3', description: 'Tenant-scoped Teacher directory. Operational records only; no payroll or portal.' },
-  { key: 'programs', implemented: false, phase: 'STU-4', description: 'Programs and Centers. Not implemented.' },
-  { key: 'enrollments', implemented: false, phase: 'STU-5', description: 'Enrollment. Not implemented.' },
-  { key: 'attendance', implemented: false, phase: 'STU-6', description: 'Attendance. Not implemented.' },
-  { key: 'scheduling', implemented: false, phase: 'STU-7', description: 'Timetable and scheduling. Not implemented.' }
+  { key: 'centers', implemented: true, phase: 'STU-4', description: 'Tenant-scoped Education Center directory. Operational entities inside the existing tenant; not a tenant, company, or billing account.' },
+  { key: 'programs', implemented: false, phase: 'STU-5', description: 'Programs. Not implemented.' },
+  { key: 'enrollments', implemented: false, phase: 'STU-6', description: 'Enrollment. Not implemented.' },
+  { key: 'attendance', implemented: false, phase: 'STU-7', description: 'Attendance. Not implemented.' },
+  { key: 'scheduling', implemented: false, phase: 'STU-8', description: 'Timetable and scheduling. Not implemented.' }
 ]);
 
 // EXPLICIT WRITE WHITELIST. A key absent from this object can never be

@@ -198,6 +198,7 @@ const studentServicesPackRoutes = require('./routes/studentServicesPack.routes')
 const educationPackRoutes = require('./routes/educationPack.routes');
 const studentRoutes = require('./routes/student.routes');
 const teacherRoutes = require('./routes/teacher.routes');
+const centerRoutes = require('./routes/center.routes');
 const shiftManagementRoutes = require('./routes/shiftManagement.routes');
 const onlineStoreRoutes = require('./routes/onlineStore.routes');
 const loyaltyRoutes = require('./routes/loyalty.routes');
@@ -353,6 +354,10 @@ app.use('/api/v1/tenant/education', studentRoutes);
 // STU-3 Teacher records (Device 2). Third router on the same prefix; the
 // three Education routers declare disjoint literal paths.
 app.use('/api/v1/tenant/education', teacherRoutes);
+// STU-4 Education Centers (Device 2). Fourth router on the same prefix; the
+// Education routers declare disjoint literal paths. A Center lives inside the
+// existing tenant, so no tenant hierarchy is introduced here.
+app.use('/api/v1/tenant/education', centerRoutes);
 app.use('/api/v1/tenant/shifts', shiftManagementRoutes);
 app.use('/api/v1/tenant/online-store', onlineStoreRoutes);
 
