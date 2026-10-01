@@ -189,6 +189,108 @@ describe('STU-5 course.service — trusted tenant + required Program reference',
     expect(service.getCourse(A, created.id).programId).toBe(programA.id);
   });
 
+  // --- PARENT INTEGRITY (STU-5 audit fix) -----------------------------------
+  //
+  // Invariant: a Course ALWAYS has a valid, non-archived, same-tenant Program.
+  // `programId` may be REASSIGNED but never CLEARED. These tests pin that a
+  // rejected update never mutates the stored parent, which is the exact defect
+  // the read-only audit found.
+
+  describe('PARENT INTEGRITY: programId can be reassigned but never cleared', () => {
+    let programA;
+    let programB;
+    let course;
+
+    beforeEach(() => {
+      programA = programs.createProgram(A, { name: 'Track A' });
+      programB = programs.createProgram(A, { name: 'Track B' });
+      course = service.createCourse(A, { programId: programA.id, name: 'Grammar' });
+    });
+
+    const assertParentIntact = () => {
+      expect(service.getCourse(A, course.id).programId).toBe(programA.id);
+      // The Course must still be reachable through its parent listing.
+      const underParent = service.listCourses(A, { programId: programA.id });
+      expect(underParent.map(c => c.id)).toContain(course.id);
+    };
+
+    test('an OMITTED programId preserves the existing parent', () => {
+      const updated = service.updateCourse(A, course.id, { name: 'Updated Course' });
+      expect(updated.programId).toBe(programA.id);
+      expect(updated.name).toBe('Updated Course');
+      assertParentIntact();
+    });
+
+    test('a valid same-tenant Program reassignment is preserved', () => {
+      const updated = service.updateCourse(A, course.id, { programId: programB.id });
+      expect(updated.programId).toBe(programB.id);
+      expect(service.listCourses(A, { programId: programB.id }).map(c => c.id)).toContain(course.id);
+    });
+
+    test('an empty-string programId is rejected and does not mutate the parent', () => {
+      expect(() => service.updateCourse(A, course.id, { programId: '' }))
+        .toThrow('programId cannot be cleared');
+      assertParentIntact();
+    });
+
+    test('a null programId is rejected and does not mutate the parent', () => {
+      expect(() => service.updateCourse(A, course.id, { programId: null }))
+        .toThrow('programId cannot be cleared');
+      assertParentIntact();
+    });
+
+    test('a whitespace-only programId is rejected and does not mutate the parent', () => {
+      expect(() => service.updateCourse(A, course.id, { programId: '   ' }))
+        .toThrow('programId cannot be cleared');
+      assertParentIntact();
+    });
+
+    test('an undefined programId is rejected and does not mutate the parent', () => {
+      expect(() => service.updateCourse(A, course.id, { programId: undefined }))
+        .toThrow('programId cannot be cleared');
+      assertParentIntact();
+    });
+
+    test('a cross-tenant Program is rejected and does not mutate the parent', () => {
+      const foreign = programs.createProgram(B, { name: 'Foreign Track' });
+      expect(() => service.updateCourse(A, course.id, { programId: foreign.id }))
+        .toThrow('programId does not reference a Program in this tenant');
+      assertParentIntact();
+    });
+
+    test('a nonexistent Program is rejected and does not mutate the parent', () => {
+      expect(() => service.updateCourse(A, course.id, { programId: 'prg-does-not-exist' }))
+        .toThrow('programId does not reference a Program in this tenant');
+      assertParentIntact();
+    });
+
+    test('an archived Program is rejected and does not mutate the parent', () => {
+      programs.archiveProgram(A, programB.id);
+      expect(() => service.updateCourse(A, course.id, { programId: programB.id }))
+        .toThrow('programId must reference a non-archived Program');
+      assertParentIntact();
+    });
+
+    test('a foreign and a nonexistent Program remain indistinguishable on update', () => {
+      const foreign = programs.createProgram(B, { name: 'Foreign Track' });
+      const read = id => {
+        try { service.updateCourse(A, course.id, { programId: id }); } catch (e) { return e.message; }
+        return null;
+      };
+      expect(read(foreign.id)).toBe(read('prg-does-not-exist'));
+      assertParentIntact();
+    });
+
+    test('a stored Course can never be left without a program on disk', () => {
+      for (const bad of ['', null, undefined, '   ']) {
+        try { service.updateCourse(A, course.id, { programId: bad }); } catch (_) {}
+      }
+      const stored = readStore(dir, 'educationCourses').courses;
+      expect(stored).toHaveLength(1);
+      expect(stored[0].programId).toBe(programA.id);
+    });
+  });
+
   test('RELATIONSHIP: a failed parent check does not reserve the courseCode', () => {
     const programB = programs.createProgram(B, { name: 'Foreign Track' });
     expect(() => service.createCourse(A, { name: 'X', courseCode: 'C-100', programId: programB.id }))
@@ -582,6 +684,103 @@ describe('STU-5 course routes — authorization and tenant isolation', () => {
     expect(res.statusCode).toBe(400);
     expect(res.body.message).toMatch(/programId must reference a non-archived Program/);
     expect(readStore(dir, 'educationCourses')).toBeNull();
+  });
+
+  // --- PARENT INTEGRITY over HTTP (STU-5 audit fix) -------------------------
+  describe('PARENT INTEGRITY: PUT cannot clear the parent Program', () => {
+    let programA;
+    let programB;
+    let courseId;
+
+    beforeEach(async () => {
+      programA = await createProgramIn('Track A', ownerA());
+      programB = await createProgramIn('Track B', ownerA());
+      const created = await create({ name: 'Grammar', programId: programA.body.data.id }, ownerA());
+      expect(created.statusCode).toBe(201);
+      courseId = created.body.data.id;
+    });
+
+    const assertParentIntact = async () => {
+      const current = await request(app).get(`${BASE}/courses/${courseId}`).set('Authorization', `Bearer ${ownerA()}`);
+      expect(current.statusCode).toBe(200);
+      expect(current.body.data.programId).toBe(programA.body.data.id);
+      // Still reachable through the parent listing.
+      const underParent = await request(app)
+        .get(`${BASE}/courses?programId=${programA.body.data.id}`)
+        .set('Authorization', `Bearer ${ownerA()}`);
+      expect(underParent.body.data.map(c => c.id)).toContain(courseId);
+    };
+
+    const put = body => request(app)
+      .put(`${BASE}/courses/${courseId}`)
+      .set('Authorization', `Bearer ${ownerA()}`)
+      .send(body);
+
+    test('PUT with programId = "" answers 400 and preserves the parent', async () => {
+      const res = await put({ programId: '' });
+      expect(res.statusCode).toBe(400);
+      expect(res.body.message).toMatch(/programId cannot be cleared/);
+      await assertParentIntact();
+    });
+
+    test('PUT with programId = null answers 400 and preserves the parent', async () => {
+      const res = await put({ programId: null });
+      expect(res.statusCode).toBe(400);
+      expect(res.body.message).toMatch(/programId cannot be cleared/);
+      await assertParentIntact();
+    });
+
+    test('PUT with a whitespace-only programId answers 400 and preserves the parent', async () => {
+      const res = await put({ programId: '   ' });
+      expect(res.statusCode).toBe(400);
+      expect(res.body.message).toMatch(/programId cannot be cleared/);
+      await assertParentIntact();
+    });
+
+    test('PUT without programId succeeds and preserves the parent', async () => {
+      const res = await put({ name: 'Updated Course' });
+      expect(res.statusCode).toBe(200);
+      expect(res.body.data.programId).toBe(programA.body.data.id);
+      await assertParentIntact();
+    });
+
+    test('PUT with a valid same-tenant Program reassigns the parent', async () => {
+      const res = await put({ programId: programB.body.data.id });
+      expect(res.statusCode).toBe(200);
+      expect(res.body.data.programId).toBe(programB.body.data.id);
+    });
+
+    test('PUT with an archived Program answers 400 and preserves the parent', async () => {
+      await request(app).patch(`${BASE}/programs/${programB.body.data.id}/archive`)
+        .set('Authorization', `Bearer ${ownerA()}`);
+      const res = await put({ programId: programB.body.data.id });
+      expect(res.statusCode).toBe(400);
+      expect(res.body.message).toMatch(/programId must reference a non-archived Program/);
+      await assertParentIntact();
+    });
+
+    test('PUT with a cross-tenant Program answers 400 and preserves the parent', async () => {
+      const foreign = await createProgramIn('Foreign Track', ownerB());
+      const res = await put({ programId: foreign.body.data.id });
+      expect(res.statusCode).toBe(400);
+      expect(res.body.message).toMatch(/programId does not reference a Program in this tenant/);
+      await assertParentIntact();
+    });
+
+    test('PUT with a nonexistent Program answers 400 and preserves the parent', async () => {
+      const res = await put({ programId: 'prg-nope' });
+      expect(res.statusCode).toBe(400);
+      expect(res.body.message).toMatch(/programId does not reference a Program in this tenant/);
+      await assertParentIntact();
+    });
+
+    test('a foreign and a nonexistent Program remain indistinguishable over HTTP', async () => {
+      const foreign = await createProgramIn('Foreign Track', ownerB());
+      const foreignRes = await put({ programId: foreign.body.data.id });
+      const unknownRes = await put({ programId: 'prg-nope' });
+      expect(foreignRes.body.message).toBe(unknownRes.body.message);
+      await assertParentIntact();
+    });
   });
 
   test('RELATIONSHIP: archiving a Program preserves its Course (no cascade)', async () => {

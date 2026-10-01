@@ -210,6 +210,19 @@ function _validateCourse(data, forCreate) {
     }
   }
 
+  // The parent relationship may be REASSIGNED on update, but it can never be
+  // CLEARED. An explicitly supplied null / undefined / empty / whitespace-only
+  // programId is a client attempt to orphan the Course, so it is rejected here
+  // rather than silently written as programId: ''. A genuinely OMITTED
+  // programId is not an own property of `data` at all, so it never reaches this
+  // branch and the existing parent is preserved.
+  if (!forCreate && Object.prototype.hasOwnProperty.call(data, 'programId')) {
+    const pid = data.programId;
+    if (pid === null || pid === undefined || String(pid).trim() === '') {
+      errors.push('programId cannot be cleared');
+    }
+  }
+
   for (const [key, kind] of Object.entries(WRITABLE_FIELDS)) {
     const value = data[key];
     if (value === undefined || value === null) continue;
@@ -410,7 +423,11 @@ function updateCourse(tenantContext, id, input) {
   const idx = _findIndexByTenant(courses, id, tid);
   if (idx < 0) return null;
 
-  if (clean.programId) {
+  // Validated whenever the client SUPPLIED a programId. After
+  // _validateCourse, a supplied value is guaranteed non-empty, so an own
+  // property is the correct test here — a truthiness test would silently skip
+  // validation for any falsy value that slipped through.
+  if (Object.prototype.hasOwnProperty.call(clean, 'programId')) {
     _assertProgramInTenant(tid, clean.programId);
   }
   if (clean.courseCode) {
