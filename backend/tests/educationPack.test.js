@@ -198,6 +198,8 @@ describe('STU-1 educationPack.service — trusted tenant + fail closed', () => {
     // STU-9 closes the last Education capability, so nothing is pending.
     expect(caps.find(c => c.key === 'scheduling').implemented).toBe(true);
     expect(caps.find(c => c.key === 'scheduling').phase).toBe('STU-9');
+    expect(caps.find(c => c.key === 'grading').implemented).toBe(true);
+    expect(caps.find(c => c.key === 'grading').phase).toBe('STU-10');
     const stillPending = [];
     for (const key of stillPending) {
       const cap = caps.find(c => c.key === key);
@@ -331,17 +333,18 @@ describe('STU-1 /api/v1/tenant/education — authorization and isolation over HT
     const res = await request(app).get(`${BASE}/capabilities`).set('Authorization', `Bearer ${ownerA()}`);
     expect(res.statusCode).toBe(200);
     const keys = res.body.data.map(c => c.key);
-    expect(keys).toEqual(expect.arrayContaining(['pack', 'students', 'teachers', 'centers', 'programs', 'courses', 'classes', 'enrollments', 'attendance', 'scheduling']));
+    expect(keys).toEqual(expect.arrayContaining(['pack', 'students', 'teachers', 'centers', 'programs', 'courses', 'classes', 'enrollments', 'attendance', 'scheduling', 'grading']));
     // STU-2 flipped `students`, STU-3 flipped `teachers`, STU-4 flipped
     // `centers`, STU-5 flipped `programs` and `courses`, STU-6 flipped
     // `classes`, STU-7 flipped `enrollments`, STU-8 flipped `attendance` and
-    // STU-9 flipped `scheduling`. Every Education capability is implemented, so
-    // the manifest overstates nothing.
-    for (const key of ['students', 'teachers', 'centers', 'programs', 'courses', 'classes', 'enrollments', 'attendance', 'scheduling']) {
+    // STU-9 flipped `scheduling` and STU-10 flipped `grading`. Every Education
+    // capability is implemented, so the manifest overstates nothing.
+    for (const key of ['students', 'teachers', 'centers', 'programs', 'courses', 'classes', 'enrollments', 'attendance', 'scheduling', 'grading']) {
       expect(res.body.data.find(c => c.key === key).implemented).toBe(true);
     }
     expect(res.body.data.find(c => c.key === 'attendance').phase).toBe('STU-8');
     expect(res.body.data.find(c => c.key === 'scheduling').phase).toBe('STU-9');
+    expect(res.body.data.find(c => c.key === 'grading').phase).toBe('STU-10');
   });
 
   // --- Tenant isolation over HTTP ----------------------------------------

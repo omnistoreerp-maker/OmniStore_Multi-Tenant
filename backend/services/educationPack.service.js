@@ -50,9 +50,8 @@ const STORE_KEY = 'educationPack';
 //
 // This is a static descriptor of what the Education foundation DOES and DOES
 // NOT provide, returned by `listCapabilities()`. It is intentionally NOT a
-// data model: no shapes, no persistence, no CRUD. Every entry is explicitly
-// `implemented: false` because STU-1 ships none of them, and claiming otherwise
-// would misrepresent the surface to clients.
+// data model: no shapes, no persistence, no CRUD. Each entry declares the phase
+// that actually shipped it, so the manifest never overstates the surface.
 //
 // Staff capability permissions and future PORTAL actor permissions are
 // deliberately kept as separate concepts: a future Guardian must NOT receive
@@ -68,7 +67,8 @@ const CAPABILITIES = Object.freeze([
   { key: 'classes', implemented: true, phase: 'STU-6', description: 'Tenant-scoped Class directory. Requires a same-tenant non-archived Course and Teacher; Program and Center are derived through the Course. No enrollment, attendance, grading or scheduling.' },
   { key: 'enrollments', implemented: true, phase: 'STU-7', description: 'Tenant-scoped Student-to-Class enrollment. Immutable relationship with non-destructive withdrawal; no attendance, grading, scheduling or financial data.' },
   { key: 'attendance', implemented: true, phase: 'STU-8', description: 'Tenant-scoped daily attendance per enrollment. Immutable enrollment relationship; correctable date, status and notes; no grading, scheduling or financial data.' },
-  { key: 'scheduling', implemented: true, phase: 'STU-9', description: 'Tenant-scoped class sessions. One class, one day, one time range per record; immutable class relationship, correctable date, times and notes; no rooms, recurrence, grading or financial data.' }
+  { key: 'scheduling', implemented: true, phase: 'STU-9', description: 'Tenant-scoped class sessions. One class, one day, one time range per record; immutable class relationship, correctable date, times and notes; no rooms, recurrence, grading or financial data.' },
+  { key: 'grading', implemented: true, phase: 'STU-10', description: 'Tenant-scoped recorded grade per enrollment. One canonical bounded grade value with no scale, unit or conversion; immutable enrollment relationship, correctable grade, date and notes; no assessment, exam, transcript, certificate, ranking or financial data.' }
 ]);
 
 // EXPLICIT WRITE WHITELIST. A key absent from this object can never be

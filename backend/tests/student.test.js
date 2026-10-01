@@ -425,6 +425,8 @@ describe('STU-2 student routes — authorization and tenant isolation', () => {
     expect(caps.body.data.find(c => c.key === 'attendance').implemented).toBe(true);
     expect(caps.body.data.find(c => c.key === 'scheduling').implemented).toBe(true);
     expect(caps.body.data.find(c => c.key === 'scheduling').phase).toBe('STU-9');
+    expect(caps.body.data.find(c => c.key === 'grading').implemented).toBe(true);
+    expect(caps.body.data.find(c => c.key === 'grading').phase).toBe('STU-10');
 
     const students = await request(app).get(`${BASE}/students`).set('Authorization', `Bearer ${ownerA()}`);
     expect(students.statusCode).toBe(200);

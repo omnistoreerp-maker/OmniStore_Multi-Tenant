@@ -1484,12 +1484,14 @@ describe('STU-6 class routes — authorization and tenant isolation', () => {
   test('REGRESSION: the earlier Education routes are not shadowed', async () => {
     const caps = await request(app).get(`${BASE}/capabilities`).set('Authorization', `Bearer ${ownerA()}`);
     expect(caps.statusCode).toBe(200);
-    for (const key of ['students', 'teachers', 'centers', 'programs', 'courses', 'classes', 'enrollments', 'attendance', 'scheduling']) {
+    for (const key of ['students', 'teachers', 'centers', 'programs', 'courses', 'classes', 'enrollments', 'attendance', 'scheduling', 'grading']) {
       expect(caps.body.data.find(c => c.key === key).implemented).toBe(true);
     }
     expect(caps.body.data.find(c => c.key === 'scheduling').phase).toBe('STU-9');
+    expect(caps.body.data.find(c => c.key === 'grading').implemented).toBe(true);
+    expect(caps.body.data.find(c => c.key === 'grading').phase).toBe('STU-10');
 
-    for (const route of ['students', 'teachers', 'centers', 'programs', 'courses', 'classes', 'enrollments', 'attendance', 'scheduling']) {
+    for (const route of ['students', 'teachers', 'centers', 'programs', 'courses', 'classes', 'enrollments', 'attendance', 'scheduling', 'grading']) {
       expect((await request(app).get(`${BASE}/${route}`).set('Authorization', `Bearer ${ownerA()}`)).statusCode).toBe(200);
     }
     expect((await request(app).get(`${BASE}/pack`).set('Authorization', `Bearer ${ownerA()}`)).statusCode).toBe(200);

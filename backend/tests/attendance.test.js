@@ -1778,12 +1778,15 @@ describe('STU-8 attendance routes — authorization, tenant isolation and the da
   test('REGRESSION: attendance stays implemented at STU-8 while scheduling advances', async () => {
     const caps = await get('/capabilities', ownerA());
     expect(caps.statusCode).toBe(200);
-    // STU-9 flipped `scheduling`; STU-8's own status is unchanged, and the
-    // attendance contract is deliberately independent of scheduling.
+    // STU-9 flipped `scheduling` and STU-10 flipped `grading`; STU-8's own
+    // status is unchanged, and the attendance contract is deliberately
+    // independent of both.
     expect(caps.body.data.find(c => c.key === 'attendance').implemented).toBe(true);
     expect(caps.body.data.find(c => c.key === 'attendance').phase).toBe('STU-8');
     expect(caps.body.data.find(c => c.key === 'scheduling').implemented).toBe(true);
     expect(caps.body.data.find(c => c.key === 'scheduling').phase).toBe('STU-9');
+    expect(caps.body.data.find(c => c.key === 'grading').implemented).toBe(true);
+    expect(caps.body.data.find(c => c.key === 'grading').phase).toBe('STU-10');
   });
 
   test('REGRESSION: the earlier Education routes are not shadowed', async () => {

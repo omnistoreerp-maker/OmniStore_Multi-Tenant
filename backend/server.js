@@ -223,6 +223,11 @@ const attendanceRoutes = require('./routes/attendance.routes');
 // course, program, center, student or enrollment reference and introduces no
 // tenant hierarchy.
 const schedulingRoutes = require('./routes/scheduling.routes');
+// STU-10 Education Grading (Device 2). Eleventh Education router on the same
+// prefix; the Education routers declare disjoint literal paths. A grade is one
+// recorded outcome for one enrollment, so it stores no student, class, course,
+// program, center or teacher reference and introduces no tenant hierarchy.
+const gradingRoutes = require('./routes/grading.routes');
 const shiftManagementRoutes = require('./routes/shiftManagement.routes');
 const onlineStoreRoutes = require('./routes/onlineStore.routes');
 const loyaltyRoutes = require('./routes/loyalty.routes');
@@ -392,6 +397,7 @@ app.use('/api/v1/tenant/education', classRoutes);
 app.use('/api/v1/tenant/education', enrollmentRoutes);
 app.use('/api/v1/tenant/education', attendanceRoutes);
 app.use('/api/v1/tenant/education', schedulingRoutes);
+app.use('/api/v1/tenant/education', gradingRoutes);
 app.use('/api/v1/tenant/shifts', shiftManagementRoutes);
 app.use('/api/v1/tenant/online-store', onlineStoreRoutes);
 

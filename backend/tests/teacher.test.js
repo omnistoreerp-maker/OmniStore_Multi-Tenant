@@ -541,10 +541,12 @@ describe('STU-3 teacher routes — authorization and tenant isolation', () => {
     // STU-5 implements programs and courses, STU-7 implements enrollments,
     // STU-8 implements attendance and STU-9 implements scheduling. Scheduling
     // derives the teacher from the Class; it never stores a teacher copy.
-    for (const key of ['programs', 'courses', 'enrollments', 'attendance', 'scheduling']) {
+    for (const key of ['programs', 'courses', 'enrollments', 'attendance', 'scheduling', 'grading']) {
       expect(caps.body.data.find(c => c.key === key).implemented).toBe(true);
     }
     expect(caps.body.data.find(c => c.key === 'scheduling').phase).toBe('STU-9');
+    expect(caps.body.data.find(c => c.key === 'grading').implemented).toBe(true);
+    expect(caps.body.data.find(c => c.key === 'grading').phase).toBe('STU-10');
 
     const students = await request(app).get(`${BASE}/students`).set('Authorization', `Bearer ${ownerA()}`);
     expect(students.statusCode).toBe(200);
