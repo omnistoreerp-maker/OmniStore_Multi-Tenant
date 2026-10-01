@@ -577,12 +577,12 @@ describe('STU-4 center routes — authorization and tenant isolation', () => {
     expect(caps.body.data.find(c => c.key === 'centers').implemented).toBe(true);
     expect(caps.body.data.find(c => c.key === 'students').implemented).toBe(true);
     expect(caps.body.data.find(c => c.key === 'teachers').implemented).toBe(true);
-    // STU-5 implements programs and courses; enrollment, attendance and
-    // scheduling remain explicitly unimplemented.
-    for (const key of ['programs', 'courses']) {
+    // STU-5 implements programs and courses and STU-7 implements enrollments;
+    // attendance and scheduling remain explicitly unimplemented.
+    for (const key of ['programs', 'courses', 'enrollments']) {
       expect(caps.body.data.find(c => c.key === key).implemented).toBe(true);
     }
-    for (const key of ['enrollments', 'attendance', 'scheduling']) {
+    for (const key of ['attendance', 'scheduling']) {
       expect(caps.body.data.find(c => c.key === key).implemented).toBe(false);
     }
 
