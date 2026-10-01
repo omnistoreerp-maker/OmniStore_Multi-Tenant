@@ -60,7 +60,7 @@ const STORE_KEY = 'educationPack';
 // child. Portal access must be resource-scoped at the link level.
 const CAPABILITIES = Object.freeze([
   { key: 'pack', implemented: true, phase: 'STU-1', description: 'Tenant-scoped Education foundation settings.' },
-  { key: 'students', implemented: false, phase: 'STU-2', description: 'Student records. Not implemented.' },
+  { key: 'students', implemented: true, phase: 'STU-2', description: 'Tenant-scoped Student records.' },
   { key: 'teachers', implemented: false, phase: 'STU-3', description: 'Teacher records. Not implemented.' },
   { key: 'programs', implemented: false, phase: 'STU-4', description: 'Programs and Centers. Not implemented.' },
   { key: 'enrollments', implemented: false, phase: 'STU-5', description: 'Enrollment. Not implemented.' },

@@ -196,6 +196,7 @@ const tenantPaymentsRoutes = require('./routes/tenantPayments.routes');
 const tenantNotificationsRoutes = require('./routes/tenantNotifications.routes');
 const studentServicesPackRoutes = require('./routes/studentServicesPack.routes');
 const educationPackRoutes = require('./routes/educationPack.routes');
+const studentRoutes = require('./routes/student.routes');
 const shiftManagementRoutes = require('./routes/shiftManagement.routes');
 const onlineStoreRoutes = require('./routes/onlineStore.routes');
 const loyaltyRoutes = require('./routes/loyalty.routes');
@@ -344,6 +345,10 @@ app.use('/api/v1/tenant/student-services', studentServicesPackRoutes);
 // Student Services Pack router mounted directly above (which declares only
 // literal paths, so nothing here is shadowed in either direction).
 app.use('/api/v1/tenant/education', educationPackRoutes);
+// STU-2 Student records (Device 2). Shares the /tenant/education prefix with
+// the STU-1 pack router above; both declare disjoint literal paths, so
+// neither shadows the other.
+app.use('/api/v1/tenant/education', studentRoutes);
 app.use('/api/v1/tenant/shifts', shiftManagementRoutes);
 app.use('/api/v1/tenant/online-store', onlineStoreRoutes);
 

@@ -180,10 +180,13 @@ describe('STU-1 educationPack.service — trusted tenant + fail closed', () => {
     expect(Object.prototype.hasOwnProperty.call(service.WRITABLE_FIELDS, 'tenantId')).toBe(false);
   });
 
-  test('capability manifest advertises no implemented Education business entity', () => {
+  test('capability manifest never advertises an unimplemented Education entity', () => {
     const caps = service.listCapabilities();
-    const businessEntities = ['students', 'teachers', 'programs', 'enrollments', 'attendance', 'scheduling'];
-    for (const key of businessEntities) {
+    // STU-2 flipped 'students' to implemented; everything STU-3 and later
+    // must still report false so the manifest never overstates the surface.
+    expect(caps.find(c => c.key === 'students').implemented).toBe(true);
+    const stillPending = ['teachers', 'programs', 'enrollments', 'attendance', 'scheduling'];
+    for (const key of stillPending) {
       const cap = caps.find(c => c.key === key);
       expect(cap).toBeDefined();
       expect(cap.implemented).toBe(false);
@@ -316,7 +319,12 @@ describe('STU-1 /api/v1/tenant/education — authorization and isolation over HT
     expect(res.statusCode).toBe(200);
     const keys = res.body.data.map(c => c.key);
     expect(keys).toEqual(expect.arrayContaining(['pack', 'students']));
-    expect(res.body.data.find(c => c.key === 'students').implemented).toBe(false);
+    // STU-2 flipped `students` to implemented; the STU-3+ capabilities stay
+    // explicitly unimplemented so the manifest never overstates the surface.
+    expect(res.body.data.find(c => c.key === 'students').implemented).toBe(true);
+    for (const key of ['teachers', 'programs', 'enrollments', 'attendance', 'scheduling']) {
+      expect(res.body.data.find(c => c.key === key).implemented).toBe(false);
+    }
   });
 
   // --- Tenant isolation over HTTP ----------------------------------------

@@ -49,3 +49,6 @@ backend/data/reelsCache.json
 # STU-1 Education foundation: tenant-owned pack settings. Runtime store,
 # created on first write and never committed (same rule as the entries above).
 backend/data/educationPack.json
+# STU-2 Student records: tenant-owned runtime store, created on first write
+# and never committed.
+backend/data/educationStudents.json
