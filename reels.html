@@ -153,10 +153,15 @@
   (function () {
     'use strict';
 
-    // Only the public feed read is used here. /reels/status and /tiktok/*
-    // are platform-admin authenticated, so this page never calls them and
-    // never offers a connect action.
-    var API_FEED = '/api/v1/platform-public/reels';
+    // Only the public feed read is used here. /tiktok/reels-status and the
+    // rest of /tiktok/* are platform-admin authenticated, so this page never
+    // calls them and never offers a connect action.
+    //
+    // NAMESPACE: this feed is /tiktok-reels. It is NOT /reels — that route
+    // belongs to Master's tenant-scoped Reels media library and is consumed by
+    // media-reels.html, which reads a different response schema
+    // (data.reels/count vs this page's data.items/hasMore).
+    var API_FEED = '/api/v1/platform-public/tiktok-reels';
 
     var I18N = {
       en: {

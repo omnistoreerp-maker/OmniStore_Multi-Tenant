@@ -215,7 +215,7 @@ describe('TikTok connection authorization', () => {
     ['get', '/api/v1/platform-public/tiktok/connect'],
     ['get', '/api/v1/platform-public/tiktok/callback?code=abc&state=zz'],
     ['get', '/api/v1/platform-public/tiktok/status'],
-    ['get', '/api/v1/platform-public/reels/status'],
+    ['get', '/api/v1/platform-public/tiktok/reels-status'],
     ['post', '/api/v1/platform-public/tiktok/sync'],
     ['post', '/api/v1/platform-public/tiktok/disconnect']
   ];
@@ -251,7 +251,7 @@ describe('TikTok connection authorization', () => {
 
   test('the public feed itself stays readable without authentication', async () => {
     bootServer(CONFIGURED);
-    const res = await request(app).get('/api/v1/platform-public/reels');
+    const res = await request(app).get('/api/v1/platform-public/tiktok-reels');
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(Array.isArray(res.body.data.items)).toBe(true);
@@ -549,7 +549,7 @@ describe('List Videos discovery', () => {
 describe('Reels public API', () => {
   test('returns an empty feed when no account is connected', async () => {
     bootServer(CONFIGURED);
-    const res = await request(app).get('/api/v1/platform-public/reels');
+    const res = await request(app).get('/api/v1/platform-public/tiktok-reels');
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.data.items).toEqual([]);
@@ -574,7 +574,7 @@ describe('Reels public API', () => {
     );
     global.fetch = jest.fn();
 
-    const res = await request(app).get('/api/v1/platform-public/reels');
+    const res = await request(app).get('/api/v1/platform-public/tiktok-reels');
     expect(res.status).toBe(200);
     expect(res.body.data.items).toHaveLength(1);
     expect(res.body.data.account).toBe('tester');
@@ -586,7 +586,7 @@ describe('Reels public API', () => {
     bootServer(CONFIGURED);
     const connection = require('../services/tiktokConnection.service');
     connection.saveConnection({ access_token: 'act.TOKENSECRET', refresh_token: 'rft.TOKENSECRET', expires_in: 86400 }, { username: 'tester' });
-    const res = await request(app).get('/api/v1/platform-public/reels');
+    const res = await request(app).get('/api/v1/platform-public/tiktok-reels');
     const body = JSON.stringify(res.body);
     expect(body).not.toContain('TOKENSECRET');
     expect(body).not.toContain('access_token');
@@ -598,7 +598,7 @@ describe('Reels public API', () => {
     const auth = await bootAdminSession(CONFIGURED);
     const connection = require('../services/tiktokConnection.service');
     connection.saveConnection({ access_token: 'act.SECRET1', refresh_token: 'rft.SECRET2', expires_in: 86400 }, { username: 'tester' });
-    const res = await request(app).get('/api/v1/platform-public/reels/status').set(auth);
+    const res = await request(app).get('/api/v1/platform-public/tiktok/reels-status').set(auth);
     expect(res.status).toBe(200);
     expect(res.body.data.account.connected).toBe(true);
     expect(res.body.data.account.username).toBe('tester');
@@ -610,7 +610,7 @@ describe('Reels public API', () => {
 
   test('reels feed carries no tenant or company identifier', async () => {
     bootServer(CONFIGURED);
-    const res = await request(app).get('/api/v1/platform-public/reels');
+    const res = await request(app).get('/api/v1/platform-public/tiktok-reels');
     const body = JSON.stringify(res.body);
     expect(body).not.toContain('companyId');
     expect(body).not.toContain('tenantId');
@@ -642,5 +642,87 @@ describe('Reels public API', () => {
     expect(res.body.data.connected).toBe(false);
     expect(JSON.stringify(res.body)).not.toContain('GONE');
     expect(connection.isConnected()).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Namespace separation from Master's tenant-scoped Reels product.
+//
+// Master owns GET /api/v1/platform-public/reels (backend/routes/reels.routes.js
+// mounted in backend/server.js, page media-reels.html, schema data.reels/count).
+// This integration owns GET /api/v1/platform-public/tiktok-reels (page
+// reels.html, schema data.items/hasMore).
+//
+// The regression that matters: backend/routes/platformPublic.routes.js is
+// mounted BEFORE Master's reelsRoutes in backend/server.js, so ANY /reels
+// match registered in this router would answer the request first and silently
+// replace Master's tenant feed with a global, unauthenticated TikTok feed.
+// media-reels.html would then render empty (it reads data.reels) with no error,
+// because the TikTok response is still a 200 with success:true.
+//
+// These assertions hold both before and after the merge into Master: before it,
+// /reels is simply unmatched by this router; after it, /reels is served by
+// Master's router. In both cases it must never be the TikTok controller.
+// ---------------------------------------------------------------------------
+describe('Namespace separation from Master tenant Reels', () => {
+  const TIKTOK_PATH = '/api/v1/platform-public/tiktok-reels';
+  const MASTER_PATH = '/api/v1/platform-public/reels';
+
+  test('the TikTok feed serves the TikTok schema on its own path', async () => {
+    bootServer(CONFIGURED);
+    const res = await request(app).get(TIKTOK_PATH);
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(Array.isArray(res.body.data.items)).toBe(true);
+    expect(res.body.data).toHaveProperty('hasMore');
+    expect(res.body.data).toHaveProperty('nextCursor');
+    // Master\'s schema must never appear here, and vice versa.
+    expect(res.body.data).not.toHaveProperty('reels');
+    expect(res.body.data).not.toHaveProperty('count');
+  });
+
+  test('GET /reels is never answered by the TikTok controller', async () => {
+    bootServer(CONFIGURED);
+    const res = await request(app).get(MASTER_PATH);
+    const body = res.body || {};
+    // Whatever /reels returns (404 before the merge, Master\'s tenant feed
+    // after it), it must NOT be the TikTok payload.
+    const data = body.data || {};
+    expect(Array.isArray(data.items)).toBe(false);
+    expect(data).not.toHaveProperty('hasMore');
+    if (res.status === 200 && body.success === true) {
+      // Post-merge: Master\'s own schema is what answers.
+      expect(Array.isArray(data.reels)).toBe(true);
+      expect(data).toHaveProperty('count');
+    }
+  });
+
+  test('the TikTok public router registers no /reels route at all', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const src = fs.readFileSync(
+      path.join(__dirname, '..', 'routes', 'platformPublic.routes.js'),
+      'utf-8'
+    );
+    // A bare /reels GET would shadow Master\'s router outright.
+    expect(src).not.toMatch(/router\.get\('\/reels'/);
+    // And no /reels/* sub-path either: /reels/status used to live here.
+    expect(src).not.toMatch(/router\.(get|post|put|patch|delete)\('\/reels\//);
+    expect(src).toMatch(/router\.get\('\/tiktok-reels'/);
+    // The controller is the renamed TikTok one, not Master\'s.
+    expect(src).toContain("require('../controllers/tiktokReels.controller')");
+  });
+
+  test('no TikTok admin route lives under the /reels namespace', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const src = fs.readFileSync(
+      path.join(__dirname, '..', 'routes', 'platformPublic.routes.js'),
+      'utf-8'
+    );
+    for (const route of ['/tiktok/connect', '/tiktok/callback', '/tiktok/status', '/tiktok/reels-status', '/tiktok/sync', '/tiktok/disconnect']) {
+      expect(src).toContain("router." + (/sync|disconnect/.test(route) ? 'post' : 'get') + "('" + route + "'");
+    }
+    expect(src).not.toContain("router.get('/reels/status'");
   });
 });

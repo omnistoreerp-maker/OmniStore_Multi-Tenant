@@ -3,7 +3,7 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/platformPublic.controller');
 const tiktokCtrl = require('../controllers/tiktokFeed.controller');
-const reelsCtrl = require('../controllers/reels.controller');
+const reelsCtrl = require('../controllers/tiktokReels.controller');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
 const { error: errorResponse } = require('../utils/apiResponse');
@@ -53,9 +53,19 @@ router.get('/sections', ctrl.getSections);
 router.get('/pricing', ctrl.getPricing);
 router.get('/social-feed/tiktok', tiktokCtrl.getTikTokFeed);
 
-// Public Reels feed — display metadata only, no credentials. Global platform
-// content: no companyId, no tenant scope, no tenant credentials.
-router.get('/reels', reelsCtrl.getReels);
+// Public TikTok Reels feed — display metadata only, no credentials. Global
+// platform content: no companyId, no tenant scope, no tenant credentials.
+//
+// NAMESPACE: this feed lives under /tiktok-reels and never under /reels.
+// Master owns the tenant-scoped Reels media library at
+// /api/v1/platform-public/reels (backend/routes/reels.routes.js mounted in
+// backend/server.js). Claiming /reels here would shadow Master's router —
+// platformPublic.routes.js is mounted FIRST, so a /reels match in this file
+// answers the request and reelsRoutes never runs. The two products have
+// different schemas (Master returns data.reels/count, this returns
+// data.items/hasMore), so a shadow would silently empty Master’s
+// media-reels.html page. Keep the namespaces disjoint.
+router.get('/tiktok-reels', reelsCtrl.getReels);
 
 // ---------------------------------------------------------------------------
 // TikTok Display API connection — PLATFORM-ADMIN GATED.
@@ -70,13 +80,18 @@ router.get('/reels', reelsCtrl.getReels);
 // /tiktok/callback is gated too: the auth cookie is SameSite=Lax, so TikTok's
 // top-level GET redirect carries it. The controller additionally enforces the
 // single-use state bound to the admin who started the flow.
+//
+// Every admin route stays inside the /tiktok/* namespace. The feed-cache
+// diagnostic used to live at /reels/status, which collided with Master’s
+// tenant-scoped /reels router; it is now /tiktok/reels-status. /tiktok/status
+// is already the connection status, so the two diagnostics stay distinct.
 // ---------------------------------------------------------------------------
 const tiktokAdmin = [requireAuth, requirePlatformAdmin()];
 
 router.get('/tiktok/connect', tiktokAdmin, reelsCtrl.startOAuth);
 router.get('/tiktok/callback', tiktokAdmin, reelsCtrl.handleCallback);
 router.get('/tiktok/status', tiktokAdmin, reelsCtrl.getConnectionStatus);
-router.get('/reels/status', tiktokAdmin, reelsCtrl.getReelsStatus);
+router.get('/tiktok/reels-status', tiktokAdmin, reelsCtrl.getReelsStatus);
 router.post('/tiktok/sync', tiktokAdmin, reelsCtrl.triggerSync);
 router.post('/tiktok/disconnect', tiktokAdmin, reelsCtrl.disconnect);
 

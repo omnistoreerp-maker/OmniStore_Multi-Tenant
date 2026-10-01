@@ -42,5 +42,7 @@ backend/data/reels-*.json
 backend/data/reel-media/
 # TikTok Display API: holds server-side access/refresh tokens and the cached
 # public video metadata. Must never be committed.
+# reelsCache.json is listed by exact name because Master's reels-*.json pattern
+# does not match it; do not drop either entry.
 backend/data/tiktokConnection.json
 backend/data/reelsCache.json
