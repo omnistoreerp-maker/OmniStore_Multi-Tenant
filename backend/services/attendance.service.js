@@ -112,6 +112,11 @@ const WRITABLE_FIELDS = Object.freeze({
 // Maximum length applied to the notes field.
 const MAX_STRING_LEN = 160;
 
+// Upper bound on one batch. A single class register is the realistic case; the
+// bound exists so one request cannot rewrite the whole tenant's store, and it is
+// checked before any enrollment is resolved.
+const MAX_BATCH_ENTRIES = 500;
+
 // Strict calendar-date pattern. A timestamp, a localized format or a padded
 // variant is rejected rather than coerced.
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -188,6 +193,21 @@ class AttendanceConflictError extends Error {
   }
 }
 
+// Raised by the BATCH path when one or more requested rows already exist for
+// that (tenant, enrollment, day). It carries EVERY clash rather than the first,
+// so one rejected batch never hides the rest. The controller maps this to 409
+// with the repository's `{ code }` details convention plus the list.
+class AttendanceBulkConflictError extends Error {
+  constructor(attendanceDate, conflicts) {
+    super('attendance already recorded for ' + conflicts.length + ' enrollment(s) on ' + attendanceDate);
+    this.name = 'AttendanceBulkConflictError';
+    this.code = 'ATTENDANCE_CONFLICT';
+    this.attendanceDate = attendanceDate;
+    this.conflicts = conflicts;
+    this.conflict = true;
+  }
+}
+
 // Raised when the Enrollment reference cannot be resolved inside the trusted
 // tenant, or when a date falls outside the enrollment window. The controller
 // maps this to 400 with a `details` list.
@@ -218,6 +238,21 @@ function _writeStore(doc) {
     storageAdapter.write(STORE_KEY, doc);
   } catch (err) {
     logger.warn('attendance.service: failed to write store', err.message);
+  }
+}
+
+// The STRICT write used by the batch path. Unlike `_writeStore` it does not
+// swallow a failure: the store is a single JSON document, and the document
+// write is the ONLY atomic unit this storage architecture offers, so a batch
+// that cannot be persisted must be reported rather than silently lost. The
+// single-row paths keep the lenient behaviour they have always had, because
+// changing it would be an unrelated behavioural change to a shipped contract.
+function _writeStoreStrict(doc) {
+  const ok = storageAdapter.write(STORE_KEY, doc);
+  if (ok === false) {
+    const err = new Error('attendance store could not be written');
+    err.storageFailure = true;
+    throw err;
   }
 }
 
@@ -270,8 +305,6 @@ function _sanitizeWritable(payload) {
   return clean;
 }
 
-// Returns an array of human-readable errors, or an empty array when valid.
-// `forCreate` is true for create and false for the correction update.
 // A well-FORMATTED date is not automatically a real one: `2023-02-29` parses
 // happily and silently rolls over to March 1. The round-trip through ISO is the
 // only check that catches it without a calendar table.
@@ -281,19 +314,36 @@ function _isRealCalendarDate(value) {
   return new Date(ms).toISOString().slice(0, 10) === value;
 }
 
-function _validateAttendance(data, forCreate) {
+// Returns an array of human-readable errors, or an empty array when valid.
+//
+// `mode` selects which required fields apply and whether the immutable
+// relationship is refused, and nothing else — the format, vocabulary, bound and
+// security checks below are shared by all three callers on purpose, so the batch
+// path cannot drift from the single-row path:
+//   'create'  — a new row: enrollmentId, attendanceDate and status are required
+//               and the relationship is being established, not changed.
+//   'update'  — a correction: nothing is required, and a supplied enrollmentId is
+//               refused because the relationship is frozen.
+//   'entry'   — one row inside a batch: enrollmentId and status are required,
+//               the relationship is being established, and attendanceDate is
+//               NOT a per-entry field at all — the batch carries it once.
+function _validateAttendance(data, mode) {
   const errors = [];
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     return ['request body must be a JSON object'];
   }
 
-  if (forCreate) {
+  if (mode === 'create' || mode === 'entry') {
     if (data.enrollmentId === undefined || data.enrollmentId === null || String(data.enrollmentId).trim() === '') {
       errors.push('enrollmentId is required');
     }
+  }
+  if (mode === 'create') {
     if (data.attendanceDate === undefined || data.attendanceDate === null || String(data.attendanceDate).trim() === '') {
       errors.push('attendanceDate is required');
     }
+  }
+  if (mode === 'create' || mode === 'entry') {
     if (data.status === undefined || data.status === null || String(data.status).trim() === '') {
       errors.push('status is required');
     }
@@ -305,8 +355,15 @@ function _validateAttendance(data, forCreate) {
   // This is an OWN-PROPERTY check on the raw payload, not a truthiness test, so
   // null, undefined, '' and '   ' are all caught as attempts to change the
   // relationship rather than being mistaken for an omission.
-  if (!forCreate && Object.prototype.hasOwnProperty.call(data, 'enrollmentId')) {
+  if (mode === 'update' && Object.prototype.hasOwnProperty.call(data, 'enrollmentId')) {
     errors.push('enrollmentId cannot be changed');
+  }
+
+  // In a batch the day belongs to the envelope. An entry that carries its own
+  // date would be silently ignored by the writer, so it is refused outright
+  // rather than quietly dropped.
+  if (mode === 'entry' && Object.prototype.hasOwnProperty.call(data, 'attendanceDate')) {
+    errors.push('attendanceDate is set once for the whole batch, not per entry');
   }
 
   if (data.attendanceDate !== undefined && data.attendanceDate !== null && data.attendanceDate !== '') {
@@ -509,7 +566,7 @@ function getAttendance(tenantContext, id) {
 
 function createAttendance(tenantContext, input) {
   const tid = _requireTenantId(tenantContext);
-  const errors = _validateAttendance(input, true);
+  const errors = _validateAttendance(input, 'create');
   if (errors.length) throw _validationError(errors);
 
   const clean = _sanitizeWritable(input);
@@ -551,7 +608,7 @@ function createAttendance(tenantContext, input) {
 // enrollmentId, attendanceDate and createdAt.
 function updateAttendance(tenantContext, id, input) {
   const tid = _requireTenantId(tenantContext);
-  const errors = _validateAttendance(input, false);
+  const errors = _validateAttendance(input, 'update');
   if (errors.length) throw _validationError(errors);
 
   const clean = _sanitizeWritable(input);
@@ -595,16 +652,215 @@ function updateAttendance(tenantContext, id, input) {
   return { ...next };
 }
 
+// ---------------------------------------------------------------------------
+// BATCH — one register, one request.
+//
+// WHY THIS EXISTS, AND WHY IT IS SAFE.
+// A teacher marking a class of thirty students used to have to save thirty
+// times, and thirty saves can fail in the middle. This path records the whole
+// register in ONE request. It is deliberately NOT a new attendance model:
+//
+//   - The persisted record is the SAME record `createAttendance` writes, with
+//     the SAME fields, the SAME server-stamped tenantId and the SAME
+//     one-row-per-(tenant, enrollment, day) rule. There is no batch-only
+//     shape, no batch-only status and no batch-only field.
+//   - `entries[].enrollmentId` remains the ONLY ownership authority. The
+//     batch does not accept a `tenantId`, a `studentId` or a `classId` — a
+//     register of one class is expressed as the enrollment ids of that class,
+//     which is why there is nothing here that could claim authority a single
+//     create does not already have.
+//   - Every rule a single create enforces is enforced here, by CALLING the
+//     same helpers (`_validateAttendance`, `_assertEnrollmentInTenant`,
+//     `_assertNotFuture`, `_assertDateWithinWindow`, `_assertDateAvailable`).
+//     The batch adds no rule and relaxes none.
+//   - CORRECTIONS ARE NOT PART OF THIS PATH. An existing row is a typed
+//     409 ATTENDANCE_CONFLICT, exactly as a second single create is. A
+//     mis-marked register is still corrected through `updateAttendance`, so
+//     there is exactly one way to create a row and exactly one way to change
+//     one, and a batch can never overwrite a record silently.
+//
+// ATOMICITY. The Education store is ONE JSON document and `storageAdapter`
+// writes it with the repository's established whole-document primitive (temp
+// file plus rename, so a reader never observes a torn file). A single document
+// write is therefore the only atomic unit this architecture offers, and this
+// path uses exactly one of them:
+//   1. every entry is validated and every enrollment resolved and checked,
+//      accumulating ALL failures;
+//   2. every existing-row clash is collected into one typed conflict;
+//   3. only then is the new array built in memory and handed to a SINGLE
+//      `_writeStoreStrict`.
+// A refused batch therefore leaves the store byte-for-byte unchanged — there
+// is no code path that can persist a prefix of a batch, and a write that fails
+// at the storage layer is reported as a failure rather than swallowed. This is
+// NOT an invented transaction API: no new storage primitive, no lock, no
+// rollback journal, and no change to fileStore or storageAdapter. If the
+// storage engine ever gains real transactions, this path keeps working because
+// it only ever needs "all of it or none of it".
+function _validateBulk(payload) {
+  const errors = [];
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return ['request body must be a JSON object'];
+  }
+
+  // The batch envelope is checked with the SAME validator the single create
+  // uses, with `forCreate` false: the envelope has no enrollment relationship
+  // of its own, so a top-level `enrollmentId` is a refused attempt to address
+  // the whole batch by one enrollment, and every server-owned or derived field
+  // is refused by the same name list the single create uses.
+  for (const err of _validateAttendance(payload, 'update')) errors.push(err);
+
+  // `status` and `notes` belong to an entry, never to the envelope: an
+  // envelope-level status would be an attempt to stamp one outcome over a whole
+  // class, which is exactly the fabricated statistic this product forbids.
+  for (const key of ['status', 'notes']) {
+    if (Object.prototype.hasOwnProperty.call(payload, key)) {
+      errors.push(key + ' is only writable on an entry');
+    }
+  }
+
+  if (payload.attendanceDate === undefined || payload.attendanceDate === null ||
+      String(payload.attendanceDate).trim() === '') {
+    errors.push('attendanceDate is required');
+  }
+
+  if (!Array.isArray(payload.entries)) {
+    errors.push('entries must be an array');
+    return errors;
+  }
+  if (payload.entries.length === 0) {
+    errors.push('entries must contain at least one entry');
+    return errors;
+  }
+  if (payload.entries.length > MAX_BATCH_ENTRIES) {
+    errors.push('entries must contain at most ' + MAX_BATCH_ENTRIES + ' entries');
+    return errors;
+  }
+
+  // Each entry runs through the single-row validator verbatim; its messages are
+  // prefixed with the index so a rejected register names the offending row
+  // rather than only saying "something was wrong".
+  payload.entries.forEach((entry, index) => {
+    const at = 'entries[' + index + '].';
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      errors.push(at + 'entry must be a JSON object');
+      return;
+    }
+    for (const err of _validateAttendance(entry, 'entry')) {
+      errors.push(at + err.charAt(0).toLowerCase() + err.slice(1));
+    }
+  });
+
+  return errors;
+}
+
+function bulkCreateAttendance(tenantContext, payload) {
+  const tid = _requireTenantId(tenantContext);
+  const errors = _validateBulk(payload);
+  if (errors.length) throw _validationError(errors);
+
+  const attendanceDate = String(payload.attendanceDate).trim();
+
+  // A well-FORMATTED date is not automatically a real one, and a future day is
+  // not recordable. Both are checked once for the whole batch, because the date
+  // is a property of the batch, not of an entry.
+  if (!_isRealCalendarDate(attendanceDate)) {
+    throw _validationError(['attendanceDate must be a real calendar date']);
+  }
+  try {
+    _assertNotFuture(attendanceDate);
+  } catch (err) {
+    if (Array.isArray(err.validation)) throw _validationError(err.validation);
+    throw err;
+  }
+
+  const doc = _readStore();
+  const records = _attendance(doc);
+
+  // PHASE 1 — resolve and check EVERY entry, collecting all failures. Nothing
+  // is written here, so a foreign enrollment cannot leave a partial register.
+  const prepared = [];
+  const seen = new Set();
+  const failures = [];
+  payload.entries.forEach((entry, index) => {
+    const at = 'entries[' + index + '].';
+    const enrollmentId = String(entry.enrollmentId).trim();
+
+    if (seen.has(enrollmentId)) {
+      failures.push(at + 'enrollmentId is repeated in this batch');
+      return;
+    }
+    seen.add(enrollmentId);
+
+    let enrollment = null;
+    try {
+      enrollment = _assertEnrollmentInTenant(tid, enrollmentId);
+      _assertDateWithinWindow(enrollment, attendanceDate);
+    } catch (err) {
+      if (Array.isArray(err.validation)) {
+        err.validation.forEach((message) => failures.push(at + message));
+        return;
+      }
+      throw err;
+    }
+
+    prepared.push({
+      enrollmentId,
+      status: String(entry.status).trim(),
+      notes: typeof entry.notes === 'string' ? entry.notes.trim().slice(0, MAX_STRING_LEN) : ''
+    });
+  });
+
+  if (failures.length) throw _validationError(failures);
+
+  // PHASE 2 — every clash with an existing row, reported together. A batch
+  // never overwrites: the correction path is `updateAttendance`.
+  const conflicts = [];
+  prepared.forEach((row) => {
+    const clash = records.find(a =>
+      String(a.tenantId || '') === tid &&
+      String(a.enrollmentId || '') === row.enrollmentId &&
+      String(a.attendanceDate || '').trim() === attendanceDate
+    );
+    if (clash) conflicts.push({ enrollmentId: row.enrollmentId, attendanceId: clash.id });
+  });
+  if (conflicts.length) throw new AttendanceBulkConflictError(attendanceDate, conflicts);
+
+  // PHASE 3 — the single write. Every rule has already passed, so the array is
+  // built in full and persisted in one document write.
+  const now = _now();
+  const created = prepared.map(row => ({
+    id: _generateId('att'),
+    tenantId: tid,
+    enrollmentId: row.enrollmentId,
+    attendanceDate,
+    status: row.status,
+    notes: row.notes,
+    createdAt: now,
+    updatedAt: now
+  }));
+
+  _writeStoreStrict({ ...doc, attendance: records.concat(created) });
+
+  return {
+    attendanceDate,
+    count: created.length,
+    records: created.map(r => ({ ...r }))
+  };
+}
+
 module.exports = {
   listAttendance,
   getAttendance,
   createAttendance,
   updateAttendance,
+  bulkCreateAttendance,
   ATTENDANCE_STATUSES,
   WRITABLE_FIELDS,
   FORBIDDEN_FIELDS,
   LATER_PHASE_FIELDS,
+  MAX_BATCH_ENTRIES,
   AttendanceConflictError,
+  AttendanceBulkConflictError,
   ReferenceValidationError,
   STORE_KEY
 };

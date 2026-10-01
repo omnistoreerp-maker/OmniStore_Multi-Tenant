@@ -20,6 +20,13 @@
 // `enrollmentId` is immutable. Scheduling, Grading, Exams, Guardians,
 // Certificates, Billing, Payments, Tuition and Payroll are NOT declared.
 //
+// BATCH — `POST /attendance/bulk` records a whole class register in one
+// request. It is the SAME record, the SAME rules and the SAME trusted tenant as
+// `POST /attendance`, once per entry, and it never corrects: an
+// already-recorded day is a typed 409 and is still fixed through `PUT`. It adds
+// no tenant hierarchy, no authentication boundary, no RBAC boundary and no new
+// permission string.
+//
 // AUTHORIZATION — same deliberate choice as educationPack.routes,
 // student.routes, class.routes, course.routes and enrollment.routes.
 // STRICT `requirePermission`, NOT `requirePermissionIfAuth`.
@@ -39,6 +46,10 @@ const { requirePermission } = require('../middleware/authorize');
 router.get('/attendance', requirePermission('education.attendance.view'), asyncHandler(ctrl.listAttendance));
 router.get('/attendance/:id', requirePermission('education.attendance.view'), asyncHandler(ctrl.getAttendance));
 router.post('/attendance', requirePermission('education.attendance.edit'), asyncHandler(ctrl.createAttendance));
+// One register, one request. Declared AFTER the literal `/attendance` path and
+// before any `/:id` path it could ever shadow; it is a POST while `/:id` is only
+// ever a GET, so the two can never collide.
+router.post('/attendance/bulk', requirePermission('education.attendance.edit'), asyncHandler(ctrl.bulkCreateAttendance));
 router.put('/attendance/:id', requirePermission('education.attendance.edit'), asyncHandler(ctrl.updateAttendance));
 
 module.exports = router;

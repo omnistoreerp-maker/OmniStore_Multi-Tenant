@@ -122,9 +122,37 @@ function updateAttendance(req, res) {
   }
 }
 
+function bulkCreateAttendance(req, res) {
+  try {
+    const tenantId = _tenantIdOr400(req, res);
+    if (!tenantId) return;
+    // The batch path writes exactly the record `createAttendance` writes, one
+    // per entry, under the same trusted tenant and the same rules. It records a
+    // register; it never corrects one, so an already-recorded day is a typed 409
+    // rather than a silent overwrite. All validation completes before the
+    // single store write, so a refused batch persists nothing.
+    const result = attendanceService.bulkCreateAttendance({ tenantId }, req.body || {});
+    success(res, result, 'Attendance recorded', 201);
+  } catch (err) {
+    if (err && err.conflict === true) {
+      return error(res, err.message, 409, {
+        code: err.code,
+        attendanceDate: err.attendanceDate || null,
+        conflicts: Array.isArray(err.conflicts) ? err.conflicts : []
+      });
+    }
+    if (err && Array.isArray(err.validation)) {
+      return error(res, err.message, 400, { details: err.validation });
+    }
+    logger.error('attendance controller error:', err.message);
+    error(res, 'Failed to record attendance', 500);
+  }
+}
+
 module.exports = {
   listAttendance,
   getAttendance,
   createAttendance,
-  updateAttendance
+  updateAttendance,
+  bulkCreateAttendance
 };

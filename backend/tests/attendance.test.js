@@ -1858,3 +1858,654 @@ describe('STU-8 attendance routes — authorization, tenant isolation and the da
   });
 
 });
+
+// ---------------------------------------------------------------------------
+// 3. BATCH — one register, one request
+// ---------------------------------------------------------------------------
+// The batch path is an operational convenience, NOT a second attendance model,
+// so this suite holds it to the same four STU-8 contracts as a single create:
+// the same record shape, the same trusted tenant, the same enrollment window and
+// the same one-row-per-(tenant, enrollment, day) rule. On top of that it pins
+// the two properties that make it safe to trust: it never partially writes, and
+// it never overwrites.
+
+describe('EDUCATION CORE+ attendance bulk — one register, one request, all or nothing', () => {
+  let dir;
+  let service;
+  let enrollments;
+  let students;
+  let classes;
+  let courses;
+  let programs;
+  let teachers;
+  let storage;
+
+  beforeEach(() => {
+    jest.resetModules();
+    dir = makeTempDataDir('att-bulk-service');
+    process.env.DIGITRONICS_DATA_DIR = dir;
+    service = require('../services/attendance.service');
+    enrollments = require('../services/enrollment.service');
+    students = require('../services/student.service');
+    classes = require('../services/class.service');
+    courses = require('../services/course.service');
+    programs = require('../services/program.service');
+    teachers = require('../services/teacher.service');
+    storage = require('../repositories/storageAdapter');
+  });
+
+  afterEach(() => {
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}
+  });
+
+  const A = { tenantId: 'att-a' };
+  const B = { tenantId: 'att-b' };
+
+  // One class holding `count` distinct students, each ACTIVELY enrolled, all
+  // created today so today is inside every enrollment window.
+  const rosterIn = (ctx, count) => {
+    const program = programs.createProgram(ctx, { name: 'English Track' });
+    const course = courses.createCourse(ctx, { programId: program.id, name: 'Grammar 101' });
+    const teacher = teachers.createTeacher(ctx, { firstName: 'Ali', lastName: 'One' });
+    const klass = classes.createClass(ctx, { courseId: course.id, teacherId: teacher.id, name: 'A1' });
+    const rows = [];
+    for (let i = 0; i < count; i++) {
+      const student = students.createStudent(ctx, { firstName: 'Nadia', lastName: 'Student' + i });
+      const enrollment = enrollments.createEnrollment(ctx, { studentId: student.id, classId: klass.id });
+      rows.push({ student, enrollment });
+    }
+    return { program, course, teacher, klass, rows, classId: klass.id };
+  };
+
+  const entriesFor = (roster) => roster.rows.map((row, i) => ({
+    enrollmentId: row.enrollment.id,
+    status: i % 2 === 0 ? 'present' : 'late'
+  }));
+
+  const batch = (roster, extra) => Object.assign(
+    { attendanceDate: TODAY, entries: entriesFor(roster) },
+    extra || {}
+  );
+
+  const stored = () => {
+    const doc = storage.read('educationAttendance');
+    return Array.isArray(doc.attendance) ? doc.attendance : [];
+  };
+
+  // --- TENANT CONTEXT ---------------------------------------------------------
+
+  test('BULK: refuses to run without a trusted tenant', () => {
+    expect(() => service.bulkCreateAttendance(null, { attendanceDate: TODAY, entries: [] }))
+      .toThrow('Tenant context is required');
+    expect(() => service.bulkCreateAttendance({}, { attendanceDate: TODAY, entries: [] }))
+      .toThrow('Tenant context is required');
+    expect(() => service.bulkCreateAttendance({ tenantId: '' }, { attendanceDate: TODAY, entries: [] }))
+      .toThrow('Tenant context is required');
+  });
+
+  // --- THE HAPPY PATH ---------------------------------------------------------
+
+  test('BULK: a valid batch records every entry in one call', () => {
+    const roster = rosterIn(A, 5);
+    const result = service.bulkCreateAttendance(A, batch(roster));
+
+    expect(result.attendanceDate).toBe(TODAY);
+    expect(result.count).toBe(5);
+    expect(result.records).toHaveLength(5);
+
+    const rows = stored();
+    expect(rows).toHaveLength(5);
+    expect(rows.map(r => r.enrollmentId).sort()).toEqual(entriesFor(roster).map(e => e.enrollmentId).sort());
+    rows.forEach((row) => {
+      // The batch writes the SAME record a single create writes, tenant included.
+      expect(Object.keys(row).sort()).toEqual([
+        'attendanceDate', 'createdAt', 'enrollmentId', 'id', 'notes', 'status', 'tenantId', 'updatedAt'
+      ]);
+      expect(row.tenantId).toBe('att-a');
+      expect(row.attendanceDate).toBe(TODAY);
+      expect(row.notes).toBe('');
+    });
+    expect(new Set(rows.map(r => r.id)).size).toBe(5);
+  });
+
+  test('BULK: the written records are byte-identical in shape to a single create', () => {
+    const roster = rosterIn(A, 2);
+    const one = service.createAttendance(A, {
+      enrollmentId: roster.rows[0].enrollment.id, attendanceDate: TODAY, status: 'absent', notes: 'called'
+    });
+    const many = service.bulkCreateAttendance(A, {
+      attendanceDate: TODAY,
+      entries: [{ enrollmentId: roster.rows[1].enrollment.id, status: 'excused', notes: '  medical  ' }]
+    });
+
+    expect(Object.keys(many.records[0]).sort()).toEqual(Object.keys(one).sort());
+    // The batch trims notes exactly as the single create does.
+    expect(many.records[0].notes).toBe('medical');
+    expect(one.notes).toBe('called');
+  });
+
+  test('BULK: every documented status is accepted', () => {
+    const roster = rosterIn(A, 4);
+    const result = service.bulkCreateAttendance(A, {
+      attendanceDate: TODAY,
+      entries: roster.rows.map((row, i) => ({
+        enrollmentId: row.enrollment.id,
+        status: service.ATTENDANCE_STATUSES[i]
+      }))
+    });
+    expect(result.count).toBe(4);
+    expect(stored().map(r => r.status).sort())
+      .toEqual([...service.ATTENDANCE_STATUSES].sort());
+  });
+
+  // --- EMPTY AND MALFORMED ----------------------------------------------------
+
+  test('BULK: an empty batch is refused and writes nothing', () => {
+    rosterIn(A, 2);
+    expect(() => service.bulkCreateAttendance(A, { attendanceDate: TODAY, entries: [] }))
+      .toThrow('at least one entry');
+    expect(stored()).toEqual([]);
+  });
+
+  test('BULK: a malformed envelope is refused and writes nothing', () => {
+    const roster = rosterIn(A, 2);
+    for (const payload of [
+      null,
+      'not-an-object',
+      [],
+      { entries: entriesFor(roster) },
+      { attendanceDate: TODAY },
+      { attendanceDate: TODAY, entries: 'nope' },
+      { attendanceDate: TODAY, entries: [null] },
+      { attendanceDate: TODAY, entries: ['nope'] }
+    ]) {
+      expect(() => service.bulkCreateAttendance(A, payload)).toThrow();
+    }
+    expect(stored()).toEqual([]);
+  });
+
+  test('BULK: the batch is bounded', () => {
+    expect(service.MAX_BATCH_ENTRIES).toBe(500);
+    const roster = rosterIn(A, 1);
+    const tooMany = {
+      attendanceDate: TODAY,
+      entries: Array.from({ length: service.MAX_BATCH_ENTRIES + 1 }, () => ({
+        enrollmentId: roster.rows[0].enrollment.id, status: 'present'
+      }))
+    };
+    expect(() => service.bulkCreateAttendance(A, tooMany)).toThrow('at most 500 entries');
+    expect(stored()).toEqual([]);
+  });
+
+  // --- DATE -------------------------------------------------------------------
+
+  test('BULK: an invalid date is refused and writes nothing', () => {
+    const roster = rosterIn(A, 2);
+    for (const day of ['', 'today', '2026-1-1', '01-01-2026', '2026-01-01T00:00:00Z', '2023-02-29']) {
+      expect(() => service.bulkCreateAttendance(A, { attendanceDate: day, entries: entriesFor(roster) }))
+        .toThrow();
+    }
+    expect(stored()).toEqual([]);
+  });
+
+  test('BULK: a future date is refused and writes nothing', () => {
+    const roster = rosterIn(A, 2);
+    expect(() => service.bulkCreateAttendance(A, {
+      attendanceDate: dayOffset(1), entries: entriesFor(roster)
+    })).toThrow('future');
+    expect(stored()).toEqual([]);
+  });
+
+  // --- STATUS -----------------------------------------------------------------
+
+  test('BULK: an invalid status is refused by index and writes nothing', () => {
+    const roster = rosterIn(A, 3);
+    expect(() => service.bulkCreateAttendance(A, {
+      attendanceDate: TODAY,
+      entries: [
+        { enrollmentId: roster.rows[0].enrollment.id, status: 'present' },
+        { enrollmentId: roster.rows[1].enrollment.id, status: 'sick' },
+        { enrollmentId: roster.rows[2].enrollment.id, status: 'present' }
+      ]
+    })).toThrow('entries[1].status must be one of');
+    expect(stored()).toEqual([]);
+  });
+
+  test('BULK: a missing status is refused and writes nothing', () => {
+    const roster = rosterIn(A, 2);
+    expect(() => service.bulkCreateAttendance(A, {
+      attendanceDate: TODAY,
+      entries: [
+        { enrollmentId: roster.rows[0].enrollment.id, status: 'present' },
+        { enrollmentId: roster.rows[1].enrollment.id }
+      ]
+    })).toThrow('status is required');
+    expect(stored()).toEqual([]);
+  });
+
+  // --- DUPLICATES INSIDE THE BATCH --------------------------------------------
+
+  test('BULK: the same enrollment twice in one batch is refused and writes nothing', () => {
+    const roster = rosterIn(A, 2);
+    const shared = roster.rows[0].enrollment.id;
+    expect(() => service.bulkCreateAttendance(A, {
+      attendanceDate: TODAY,
+      entries: [
+        { enrollmentId: shared, status: 'present' },
+        { enrollmentId: shared, status: 'absent' }
+      ]
+    })).toThrow('repeated in this batch');
+    expect(stored()).toEqual([]);
+  });
+
+  // --- ALREADY-RECORDED DAYS --------------------------------------------------
+
+  test('BULK: an already-recorded day is a typed conflict and writes nothing', () => {
+    const roster = rosterIn(A, 3);
+    service.createAttendance(A, {
+      enrollmentId: roster.rows[0].enrollment.id, attendanceDate: TODAY, status: 'present'
+    });
+
+    let caught = null;
+    try {
+      service.bulkCreateAttendance(A, batch(roster));
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).not.toBeNull();
+    expect(caught.conflict).toBe(true);
+    expect(caught.code).toBe('ATTENDANCE_CONFLICT');
+    expect(caught.attendanceDate).toBe(TODAY);
+    expect(caught.conflicts).toHaveLength(1);
+    expect(caught.conflicts[0].enrollmentId).toBe(roster.rows[0].enrollment.id);
+    expect(caught.conflicts[0].attendanceId).toBeTruthy();
+
+    // The refusal changed nothing, including the row that already existed.
+    const rows = stored();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe('present');
+  });
+
+  test('BULK: a conflict never overwrites — the correction still goes through the update path', () => {
+    const roster = rosterIn(A, 2);
+    const created = service.createAttendance(A, {
+      enrollmentId: roster.rows[0].enrollment.id, attendanceDate: TODAY, status: 'present', notes: 'kept'
+    });
+    expect(() => service.bulkCreateAttendance(A, batch(roster))).toThrow();
+
+    const corrected = service.updateAttendance(A, created.id, { status: 'absent' });
+    expect(corrected.status).toBe('absent');
+    expect(corrected.notes).toBe('kept');
+    expect(corrected.enrollmentId).toBe(roster.rows[0].enrollment.id);
+    expect(stored()).toHaveLength(1);
+  });
+
+  // --- TENANT ISOLATION -------------------------------------------------------
+
+  test('BULK: a foreign enrollment is refused and the whole batch is abandoned', () => {
+    const mine = rosterIn(A, 3);
+    const theirs = rosterIn(B, 1);
+
+    expect(() => service.bulkCreateAttendance(A, {
+      attendanceDate: TODAY,
+      entries: [
+        { enrollmentId: mine.rows[0].enrollment.id, status: 'present' },
+        { enrollmentId: theirs.rows[0].enrollment.id, status: 'present' },
+        { enrollmentId: mine.rows[1].enrollment.id, status: 'present' }
+      ]
+    })).toThrow('entries[1].enrollmentId does not reference an Enrollment in this tenant');
+
+    // A foreign enrollment is indistinguishable from a missing one, and no part
+    // of the batch survives the refusal.
+    expect(stored()).toEqual([]);
+  });
+
+  test('BULK: an unknown enrollment id is refused exactly like a foreign one', () => {
+    const roster = rosterIn(A, 1);
+    expect(() => service.bulkCreateAttendance(A, {
+      attendanceDate: TODAY,
+      entries: [
+        { enrollmentId: roster.rows[0].enrollment.id, status: 'present' },
+        { enrollmentId: 'enr-does-not-exist', status: 'present' }
+      ]
+    })).toThrow('does not reference an Enrollment in this tenant');
+    expect(stored()).toEqual([]);
+  });
+
+  test('BULK: one tenant can never see or write another tenant rows', () => {
+    const mine = rosterIn(A, 2);
+    const theirs = rosterIn(B, 2);
+    service.bulkCreateAttendance(A, batch(mine));
+
+    expect(service.listAttendance(A, {})).toHaveLength(2);
+    expect(service.listAttendance(B, {})).toHaveLength(0);
+    // The same day is free in the other tenant, because uniqueness is per tenant.
+    expect(() => service.bulkCreateAttendance(B, {
+      attendanceDate: TODAY,
+      entries: theirs.rows.map(r => ({ enrollmentId: r.enrollment.id, status: 'absent' }))
+    })).not.toThrow();
+    expect(service.listAttendance(B, {})).toHaveLength(2);
+  });
+
+  // --- ATOMICITY --------------------------------------------------------------
+
+  test('ATOMICITY: a batch with any invalid entry persists NOTHING', () => {
+    const roster = rosterIn(A, 6);
+    const entries = entriesFor(roster);
+    entries[4].status = 'unknown-status';
+
+    expect(() => service.bulkCreateAttendance(A, { attendanceDate: TODAY, entries })).toThrow();
+    expect(stored()).toEqual([]);
+
+    // And the day is still free afterwards: the refusal reserved nothing.
+    expect(service.bulkCreateAttendance(A, { attendanceDate: TODAY, entries: entriesFor(roster) }).count)
+      .toBe(6);
+  });
+
+  test('ATOMICITY: a day outside the enrollment window rejects the whole batch', () => {
+    const roster = rosterIn(A, 2);
+    const doc = storage.read('educationEnrollments');
+    const opened = new Date(Date.now() - 40 * 86400000).toISOString();
+    storage.write('educationEnrollments', {
+      ...doc,
+      enrollments: doc.enrollments.map(e => ({ ...e, enrolledAt: opened, createdAt: opened }))
+    });
+
+    expect(() => service.bulkCreateAttendance(A, {
+      attendanceDate: dayOffset(-30), entries: entriesFor(roster)
+    })).not.toThrow();
+
+    // A day before the (re-dated) enrollment start still refuses the batch.
+    expect(() => service.bulkCreateAttendance(A, {
+      attendanceDate: dayOffset(-50),
+      entries: [{ enrollmentId: roster.rows[0].enrollment.id, status: 'present' }]
+    })).toThrow('before the enrollment period');
+    expect(stored()).toHaveLength(2);
+  });
+
+  test('ATOMICITY: a storage write that fails is reported, never swallowed', () => {
+    const roster = rosterIn(A, 2);
+    const spy = jest.spyOn(storage, 'write').mockReturnValue(false);
+    try {
+      expect(() => service.bulkCreateAttendance(A, batch(roster))).toThrow('could not be written');
+    } finally {
+      spy.mockRestore();
+    }
+    // Nothing is persisted when the single document write did not happen.
+    expect(stored()).toEqual([]);
+  });
+
+  // --- FIELD WHITELIST --------------------------------------------------------
+
+  test('BULK: no tenant, student, class or server-owned field is writable', () => {
+    const roster = rosterIn(A, 1);
+    const enrollmentId = roster.rows[0].enrollment.id;
+
+    // The envelope may not address a class or a tenant instead of enrollments.
+    expect(() => service.bulkCreateAttendance(A, {
+      attendanceDate: TODAY, entries: entriesFor(roster), tenantId: 'att-b'
+    })).toThrow('tenantId is not writable');
+    expect(() => service.bulkCreateAttendance(A, {
+      attendanceDate: TODAY, entries: entriesFor(roster), classId: roster.classId
+    })).toThrow('classId is not writable');
+    expect(() => service.bulkCreateAttendance(A, {
+      attendanceDate: TODAY, entries: entriesFor(roster), studentId: roster.rows[0].student.id
+    })).toThrow('studentId is not writable');
+    // Nor may a single enrollment address the whole batch.
+    expect(() => service.bulkCreateAttendance(A, {
+      attendanceDate: TODAY, entries: entriesFor(roster), enrollmentId
+    })).toThrow('enrollmentId cannot be changed');
+    // Nor may an envelope status stamp one outcome over the class.
+    expect(() => service.bulkCreateAttendance(A, {
+      attendanceDate: TODAY, entries: entriesFor(roster), status: 'present'
+    })).toThrow('status is only writable on an entry');
+
+    // An entry may not smuggle a derived reference either.
+    for (const extra of [
+      { studentId: roster.rows[0].student.id },
+      { classId: roster.classId },
+      { tenantId: 'att-b' },
+      { id: 'att-forged' },
+      { createdAt: '2020-01-01T00:00:00.000Z' },
+      { attendanceId: 'att-forged' }
+    ]) {
+      expect(() => service.bulkCreateAttendance(A, {
+        attendanceDate: TODAY,
+        entries: [{ enrollmentId, status: 'present', ...extra }]
+      })).toThrow('not writable');
+    }
+
+    expect(stored()).toEqual([]);
+  });
+
+  test('BULK: over-long notes are refused by index, never truncated silently', () => {
+    const roster = rosterIn(A, 1);
+    expect(() => service.bulkCreateAttendance(A, {
+      attendanceDate: TODAY,
+      entries: [{ enrollmentId: roster.rows[0].enrollment.id, status: 'present', notes: 'x'.repeat(161) }]
+    })).toThrow('entries[0].notes must be at most 160 characters');
+    expect(stored()).toEqual([]);
+  });
+
+  test('BULK: a prototype-pollution payload is refused', () => {
+    const roster = rosterIn(A, 1);
+    const payload = JSON.parse('{"attendanceDate":"' + TODAY + '","entries":[{"enrollmentId":"' +
+      roster.rows[0].enrollment.id + '","status":"present"}],"__proto__":{"admin":true}}');
+    expect(() => service.bulkCreateAttendance(A, payload)).toThrow('__proto__ is not allowed');
+    expect({}.admin).toBeUndefined();
+    expect(stored()).toEqual([]);
+  });
+
+  // --- BOUNDARY ---------------------------------------------------------------
+
+  test('BULK: the batch introduces no store, no field and no second attendance model', () => {
+    const roster = rosterIn(A, 2);
+    service.bulkCreateAttendance(A, batch(roster));
+
+    expect(listStores(dir)).toContain('educationAttendance.json');
+    expect(listStores(dir).filter(s => /attendance/i.test(s) && s !== 'educationAttendance.json')).toEqual([]);
+    const rows = stored();
+    rows.forEach((row) => {
+      expect(Object.keys(row).sort()).toEqual([
+        'attendanceDate', 'createdAt', 'enrollmentId', 'id', 'notes', 'status', 'tenantId', 'updatedAt'
+      ]);
+    });
+    // Still exactly one row per (tenant, enrollment, day).
+    const keys = rows.map(r => [r.tenantId, r.enrollmentId, r.attendanceDate].join('|'));
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  test('BULK: the list filters read a batched register exactly as they read single rows', () => {
+    const roster = rosterIn(A, 4);
+    service.bulkCreateAttendance(A, batch(roster));
+
+    expect(service.listAttendance(A, { attendanceDate: TODAY })).toHaveLength(4);
+    expect(service.listAttendance(A, { classId: roster.classId })).toHaveLength(4);
+    expect(service.listAttendance(A, { classId: 'class-other' })).toHaveLength(0);
+    expect(service.listAttendance(A, { studentId: roster.rows[0].student.id })).toHaveLength(1);
+    expect(service.listAttendance(A, { status: 'present' })).toHaveLength(2);
+    // An unknown status matches nothing rather than silently returning the tenant.
+    expect(service.listAttendance(A, { status: 'sick' })).toHaveLength(0);
+  });
+});
+
+describe('EDUCATION CORE+ attendance bulk routes — authorization, tenant isolation and all-or-nothing', () => {
+  const BASE = '/api/v1/tenant/education';
+  let app;
+  let jwt;
+  let dir;
+
+  beforeEach(() => {
+    dir = makeTempDataDir('att-bulk-http');
+    seed(dir, 'companies', companies);
+    seed(dir, 'users', { users: userRecords(bcrypt.hashSync('Pass#123', 10)) });
+    process.env.ENABLE_TENANT_CARRY = 'true';
+    app = startServer(dir, { AUTH_REQUIRED: 'true' }).app;
+    jwt = require('../utils/jwt');
+  });
+
+  afterEach(() => {
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}
+  });
+
+  const token = (username, tenantId, role) =>
+    jwt.signAccessToken({ id: 'u-owner', username, role, tenantId });
+
+  const ownerA = () => token('attOwner', 'att-a', 'Owner');
+  const ownerB = () => token('attOwner', 'att-b', 'Owner');
+  const managerA = () => token('attManager', 'att-a', 'Manager');
+  const clerkA = () => token('attClerk', 'att-a', 'Viewer');
+
+  const post = (path, tok) => request(app).post(`${BASE}${path}`)
+    .set('Authorization', `Bearer ${tok}`);
+
+  const get = (path, tok) => request(app).get(`${BASE}${path}`)
+    .set('Authorization', `Bearer ${tok}`);
+
+  // A class with `count` students, each ACTIVELY enrolled over HTTP.
+  const rosterOverHttp = async (tok, count, opts = {}) => {
+    const program = await post('/programs', tok).send({ name: 'English Track' });
+    const course = await post('/courses', tok).send({ name: 'Grammar 101', programId: program.body.data.id });
+    const teacher = await post('/teachers', tok).send({ firstName: 'Ali', lastName: opts.teacherLast || 'One' });
+    const klass = await post('/classes', tok).send({
+      courseId: course.body.data.id, teacherId: teacher.body.data.id, name: opts.className || 'A1'
+    });
+    const rows = [];
+    for (let i = 0; i < count; i++) {
+      const student = await post('/students', tok).send({ firstName: 'Nadia', lastName: 'Student' + i });
+      const enrollment = await post('/enrollments', tok)
+        .send({ studentId: student.body.data.id, classId: klass.body.data.id });
+      rows.push({ studentId: student.body.data.id, enrollmentId: enrollment.body.data.id });
+    }
+    return { classId: klass.body.data.id, rows };
+  };
+
+  const entriesFor = (roster) => roster.rows.map((row, i) => ({
+    enrollmentId: row.enrollmentId,
+    status: i % 2 === 0 ? 'present' : 'late'
+  }));
+
+  // --- AUTH -------------------------------------------------------------------
+
+  test('AUTH: the batch route is refused without a token', async () => {
+    const res = await request(app).post(`${BASE}/attendance/bulk`)
+      .send({ attendanceDate: TODAY, entries: [] });
+    expect(res.statusCode).toBe(401);
+  });
+
+  test('AUTHORIZATION: unregistered Attendance permissions fail closed on the batch route', async () => {
+    const roster = await rosterOverHttp(ownerA(), 2);
+    const res = await post('/attendance/bulk', clerkA())
+      .send({ attendanceDate: TODAY, entries: entriesFor(roster) });
+    expect(res.statusCode).toBe(403);
+    expect(['Insufficient role', 'Insufficient permission']).toContain(res.body.message);
+    expect(readStore(dir, 'educationAttendance')).toBeNull();
+  });
+
+  test('AUTHORIZATION: a Manager cannot record a register, and nothing is persisted', async () => {
+    const roster = await rosterOverHttp(ownerA(), 2);
+    const res = await post('/attendance/bulk', managerA())
+      .send({ attendanceDate: TODAY, entries: entriesFor(roster) });
+    expect(res.statusCode).toBe(403);
+    expect(readStore(dir, 'educationAttendance')).toBeNull();
+  });
+
+  // --- THE HAPPY PATH ---------------------------------------------------------
+
+  test('BULK over HTTP: a whole class register is recorded in one request', async () => {
+    const roster = await rosterOverHttp(ownerA(), 6);
+    const res = await post('/attendance/bulk', ownerA())
+      .send({ attendanceDate: TODAY, entries: entriesFor(roster) });
+
+    expect(res.statusCode).toBe(201);
+    expect(res.body.message).toBe('Attendance recorded');
+    expect(res.body.data.count).toBe(6);
+    expect(res.body.data.attendanceDate).toBe(TODAY);
+    expect(res.body.data.records).toHaveLength(6);
+    res.body.data.records.forEach((row) => expect(row.tenantId).toBe('att-a'));
+
+    const listed = await get(`/attendance?classId=${roster.classId}&attendanceDate=${TODAY}`, ownerA());
+    expect(listed.statusCode).toBe(200);
+    expect(listed.body.data).toHaveLength(6);
+  });
+
+  test('BULK over HTTP: an empty body is a 400 with a details list', async () => {
+    const res = await post('/attendance/bulk', ownerA()).send({});
+    expect(res.statusCode).toBe(400);
+    expect(Array.isArray(res.body.details.details)).toBe(true);
+    expect(res.body.details.details.join(' ')).toContain('entries must be an array');
+    expect(readStore(dir, 'educationAttendance')).toBeNull();
+  });
+
+  // --- TENANT ISOLATION OVER HTTP ---------------------------------------------
+
+  test('TENANT ISOLATION: another tenant enrollment cannot be recorded, and the batch is abandoned', async () => {
+    const mine = await rosterOverHttp(ownerA(), 3);
+    const theirs = await rosterOverHttp(ownerB(), 1);
+
+    const res = await post('/attendance/bulk', ownerA()).send({
+      attendanceDate: TODAY,
+      entries: [...entriesFor(mine), { enrollmentId: theirs.rows[0].enrollmentId, status: 'present' }]
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.details.details.join(' ')).toContain('does not reference an Enrollment in this tenant');
+    // All-or-nothing: the three valid entries were abandoned with the fourth.
+    expect(readStore(dir, 'educationAttendance')).toBeNull();
+    expect((await get('/attendance', ownerA())).body.data).toHaveLength(0);
+  });
+
+  // --- CONFLICT OVER HTTP -----------------------------------------------------
+
+  test('CONFLICT: an already-recorded day is a 409 with a typed code and the clashing rows', async () => {
+    const roster = await rosterOverHttp(ownerA(), 3);
+    await post('/attendance', ownerA())
+      .send({ enrollmentId: roster.rows[1].enrollmentId, attendanceDate: TODAY, status: 'present' });
+
+    const res = await post('/attendance/bulk', ownerA())
+      .send({ attendanceDate: TODAY, entries: entriesFor(roster) });
+
+    expect(res.statusCode).toBe(409);
+    expect(res.body.details.code).toBe('ATTENDANCE_CONFLICT');
+    expect(res.body.details.attendanceDate).toBe(TODAY);
+    expect(res.body.details.conflicts).toHaveLength(1);
+    expect(res.body.details.conflicts[0].enrollmentId).toBe(roster.rows[1].enrollmentId);
+
+    // Nothing was overwritten, and the other two students were not recorded.
+    const listed = await get('/attendance', ownerA());
+    expect(listed.body.data).toHaveLength(1);
+    expect(listed.body.data[0].status).toBe('present');
+  });
+
+  // --- ENVELOPE HONESTY OVER HTTP ---------------------------------------------
+
+  test('BOUNDARY: the envelope cannot carry a tenant, a class or a class-wide status', async () => {
+    const roster = await rosterOverHttp(ownerA(), 2);
+    for (const extra of [{ tenantId: 'att-b' }, { classId: roster.classId }, { status: 'present' }]) {
+      const res = await post('/attendance/bulk', ownerA())
+        .send({ attendanceDate: TODAY, entries: entriesFor(roster), ...extra });
+      expect(res.statusCode).toBe(400);
+    }
+    expect(readStore(dir, 'educationAttendance')).toBeNull();
+  });
+
+  // --- ROUTE PARITY -----------------------------------------------------------
+
+  test('ROUTE PARITY: the batch path does not shadow the single-record route', async () => {
+    // A GET on the literal batch path still resolves through `/attendance/:id`
+    // and reports an absent record, exactly as any unknown id does.
+    const res = await get('/attendance/bulk', ownerA());
+    expect(res.statusCode).toBe(404);
+    expect(res.body.message).toBe('Attendance not found');
+
+    // The single-record create and correction paths are unchanged.
+    const roster = await rosterOverHttp(ownerA(), 1);
+    const one = await post('/attendance', ownerA())
+      .send({ enrollmentId: roster.rows[0].enrollmentId, attendanceDate: TODAY, status: 'present' });
+    expect(one.statusCode).toBe(201);
+    const fixed = await request(app).put(`${BASE}/attendance/${one.body.data.id}`)
+      .set('Authorization', `Bearer ${ownerA()}`).send({ status: 'excused' });
+    expect(fixed.statusCode).toBe(200);
+    expect(fixed.body.data.status).toBe('excused');
+  });
+});
