@@ -538,7 +538,12 @@ describe('STU-3 teacher routes — authorization and tenant isolation', () => {
     const caps = await request(app).get(`${BASE}/capabilities`).set('Authorization', `Bearer ${ownerA()}`);
     expect(caps.body.data.find(c => c.key === 'teachers').implemented).toBe(true);
     expect(caps.body.data.find(c => c.key === 'students').implemented).toBe(true);
-    for (const key of ['programs', 'enrollments', 'attendance', 'scheduling']) {
+    // STU-5 implements programs and courses; enrollment, attendance and
+    // scheduling remain explicitly unimplemented.
+    for (const key of ['programs', 'courses']) {
+      expect(caps.body.data.find(c => c.key === key).implemented).toBe(true);
+    }
+    for (const key of ['enrollments', 'attendance', 'scheduling']) {
       expect(caps.body.data.find(c => c.key === key).implemented).toBe(false);
     }
 

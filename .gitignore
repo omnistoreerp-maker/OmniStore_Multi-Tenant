@@ -58,3 +58,7 @@ backend/data/educationTeachers.json
 # STU-4 Education Centers: tenant-owned runtime store, created on first write
 # and never committed.
 backend/data/educationCenters.json
+# STU-5 Programs and Courses: tenant-owned runtime stores, created on first
+# write and never committed.
+backend/data/educationPrograms.json
+backend/data/educationCourses.json
