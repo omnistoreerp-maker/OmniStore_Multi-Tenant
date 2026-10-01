@@ -43,14 +43,24 @@ async function _postForm(url, form) {
     if (value === undefined || value === null || value === '') continue;
     body.append(key, String(value));
   }
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Cache-Control': 'no-cache'
-    },
-    body: body.toString()
-  });
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      signal: AbortSignal.timeout(config.REQUEST_TIMEOUT_MS),
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Cache-Control': 'no-cache'
+      },
+      body: body.toString()
+    });
+  } catch (err) {
+    // Timeout, DNS failure, connection refused, etc. Surface as a bounded
+    // failure instead of throwing into the caller (the OAuth exchange path is
+    // not wrapped in try/catch by its callers).
+    logger.warn('tiktokDisplayApi: upstream request failed: ' + (err && err.message));
+    return { ok: false, status: 0, data: {}, network_error: true };
+  }
   const text = await res.text();
   let data = null;
   try { data = JSON.parse(text); } catch (_) {}
@@ -58,6 +68,15 @@ async function _postForm(url, form) {
 }
 
 function _tiktokError(result) {
+  if (result && result.network_error) {
+    return {
+      ok: false,
+      code: 'network_error',
+      message: 'Could not reach TikTok',
+      status: 0,
+      rateLimited: false
+    };
+  }
   const data = result.data || {};
   const err = data.error || {};
   return {
@@ -122,6 +141,7 @@ async function getAuthorizedAccount() {
   try {
     res = await fetch(config.USER_INFO_URL + '?fields=' + fields.join(','), {
       method: 'GET',
+      signal: AbortSignal.timeout(config.REQUEST_TIMEOUT_MS),
       headers: { Authorization: 'Bearer ' + token, Accept: 'application/json' }
     });
   } catch (err) {
@@ -235,6 +255,7 @@ async function listVideos(options) {
   try {
     res = await fetch(config.VIDEO_LIST_URL + '?fields=' + config.VIDEO_FIELDS.join(','), {
       method: 'POST',
+      signal: AbortSignal.timeout(config.REQUEST_TIMEOUT_MS),
       headers: {
         Authorization: 'Bearer ' + token,
         'Content-Type': 'application/json',

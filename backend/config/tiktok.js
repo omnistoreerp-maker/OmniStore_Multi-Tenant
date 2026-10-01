@@ -46,6 +46,12 @@ const VIDEO_LIST_DEFAULT_COUNT = 10;
 // error code rate_limit_exceeded.
 const RATE_LIMIT_PER_MINUTE = 600;
 
+// Outbound request timeout. TikTok's own docs warn that endpoints can stall
+// behind CDN edge; a hung upstream must never pin a request indefinitely.
+// Bounded and short enough that a single slow TikTok edge cannot block the
+// sync path. Node 24 supports AbortSignal.timeout() natively.
+const REQUEST_TIMEOUT_MS = 10000;
+
 // Fields OmniStore keeps for the Reels UI. Deliberately metadata-only: TikTok
 // exposes no playable media file through the Display API, so nothing here is
 // an MP4 URL and nothing is proxied or re-hosted by OmniStore.
@@ -141,6 +147,7 @@ module.exports = {
   VIDEO_LIST_MAX_COUNT,
   VIDEO_LIST_DEFAULT_COUNT,
   RATE_LIMIT_PER_MINUTE,
+  REQUEST_TIMEOUT_MS,
   VIDEO_FIELDS,
   isEnabled,
   isFullyConfigured,

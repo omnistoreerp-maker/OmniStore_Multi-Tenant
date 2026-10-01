@@ -553,7 +553,15 @@ describe('reels surface contracts', () => {
 
   test('platformPublic.routes.js carries no reels route (boundary preserved)', () => {
     const text = fs.readFileSync(path.join(__dirname, '..', 'routes', 'platformPublic.routes.js'), 'utf-8');
-    expect(/reels/i.test(text)).toBe(false);
+    // Boundary: platformPublic must never own a route under the bare /reels
+    // namespace — that is Master's tenant-scoped router. The TikTok Display
+    // feed lives under /tiktok-reels, a disjoint namespace, and is allowed.
+    // Match a route REGISTRATION (not the substring "reels", which would also
+    // match the /tiktok-reels path and its own comments).
+    expect(/router\.(get|post|put|patch|delete)\(\s*'\/reels\b/.test(text)).toBe(false);
+    expect(/router\.(get|post|put|patch|delete)\(\s*"[\/]reels\b/.test(text)).toBe(false);
+    // The TikTok namespace is present and distinct.
+    expect(/router\.(get|post|put|patch|delete)\(\s*'\/tiktok-reels'/.test(text)).toBe(true);
   });
 
   test('shipped player keeps the playback contract', () => {
