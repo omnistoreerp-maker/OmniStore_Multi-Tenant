@@ -67,7 +67,7 @@ const CAPABILITIES = Object.freeze([
   { key: 'courses', implemented: true, phase: 'STU-5', description: 'Tenant-scoped Course directory. Requires a same-tenant Program; Center is derived through the Program.' },
   { key: 'classes', implemented: true, phase: 'STU-6', description: 'Tenant-scoped Class directory. Requires a same-tenant non-archived Course and Teacher; Program and Center are derived through the Course. No enrollment, attendance, grading or scheduling.' },
   { key: 'enrollments', implemented: true, phase: 'STU-7', description: 'Tenant-scoped Student-to-Class enrollment. Immutable relationship with non-destructive withdrawal; no attendance, grading, scheduling or financial data.' },
-  { key: 'attendance', implemented: false, phase: 'STU-8', description: 'Attendance. Not implemented.' },
+  { key: 'attendance', implemented: true, phase: 'STU-8', description: 'Tenant-scoped daily attendance per enrollment. Immutable enrollment relationship; correctable date, status and notes; no grading, scheduling or financial data.' },
   { key: 'scheduling', implemented: false, phase: 'STU-9', description: 'Timetable and scheduling. Not implemented.' }
 ]);
 

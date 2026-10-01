@@ -211,6 +211,12 @@ const classRoutes = require('./routes/class.routes');
 // is the Student <-> Class relationship inside the existing tenant, so no
 // tenant hierarchy is introduced here.
 const enrollmentRoutes = require('./routes/enrollment.routes');
+// STU-8 Education Attendance (Device 2). Ninth Education router on the same
+// prefix; the Education routers declare disjoint literal paths. An Attendance
+// record is a daily fact about one Enrollment, so it stores no student, class,
+// course, program, teacher or center reference and introduces no tenant
+// hierarchy.
+const attendanceRoutes = require('./routes/attendance.routes');
 const shiftManagementRoutes = require('./routes/shiftManagement.routes');
 const onlineStoreRoutes = require('./routes/onlineStore.routes');
 const loyaltyRoutes = require('./routes/loyalty.routes');
@@ -378,6 +384,7 @@ app.use('/api/v1/tenant/education', programRoutes);
 app.use('/api/v1/tenant/education', courseRoutes);
 app.use('/api/v1/tenant/education', classRoutes);
 app.use('/api/v1/tenant/education', enrollmentRoutes);
+app.use('/api/v1/tenant/education', attendanceRoutes);
 app.use('/api/v1/tenant/shifts', shiftManagementRoutes);
 app.use('/api/v1/tenant/online-store', onlineStoreRoutes);
 

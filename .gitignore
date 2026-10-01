@@ -68,3 +68,6 @@ backend/data/educationClasses.json
 # STU-7 Enrollments: tenant-owned runtime store, created on first write and
 # never committed.
 backend/data/educationEnrollments.json
+# STU-8 Attendance: tenant-owned runtime store, created on first write and
+# never committed.
+backend/data/educationAttendance.json

@@ -419,10 +419,11 @@ describe('STU-2 student routes — authorization and tenant isolation', () => {
     const caps = await request(app).get(`${BASE}/capabilities`).set('Authorization', `Bearer ${ownerA()}`);
     expect(caps.statusCode).toBe(200);
     expect(caps.body.data.find(c => c.key === 'students').implemented).toBe(true);
-    // STU-7 flipped `enrollments`; the capabilities after it stay explicitly
-    // unimplemented so the manifest never overstates the surface.
+    // STU-7 flipped `enrollments` and STU-8 flipped `attendance`; scheduling stays
+    // explicitly unimplemented so the manifest never overstates the surface.
     expect(caps.body.data.find(c => c.key === 'enrollments').implemented).toBe(true);
-    for (const key of ['attendance', 'scheduling']) {
+    expect(caps.body.data.find(c => c.key === 'attendance').implemented).toBe(true);
+    for (const key of ['scheduling']) {
       expect(caps.body.data.find(c => c.key === key).implemented).toBe(false);
     }
 

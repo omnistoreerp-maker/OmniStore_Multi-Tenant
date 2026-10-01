@@ -193,7 +193,9 @@ describe('STU-1 educationPack.service — trusted tenant + fail closed', () => {
     expect(caps.find(c => c.key === 'courses').implemented).toBe(true);
     expect(caps.find(c => c.key === 'classes').implemented).toBe(true);
     expect(caps.find(c => c.key === 'enrollments').implemented).toBe(true);
-    const stillPending = ['attendance', 'scheduling'];
+    expect(caps.find(c => c.key === 'attendance').implemented).toBe(true);
+    expect(caps.find(c => c.key === 'attendance').phase).toBe('STU-8');
+    const stillPending = ['scheduling'];
     for (const key of stillPending) {
       const cap = caps.find(c => c.key === key);
       expect(cap).toBeDefined();
@@ -329,13 +331,13 @@ describe('STU-1 /api/v1/tenant/education — authorization and isolation over HT
     expect(keys).toEqual(expect.arrayContaining(['pack', 'students', 'teachers', 'centers', 'programs', 'courses', 'classes', 'enrollments']));
     // STU-2 flipped `students`, STU-3 flipped `teachers`, STU-4 flipped
     // `centers`, STU-5 flipped `programs` and `courses`, STU-6 flipped
-    // `classes` and STU-7 flipped `enrollments`; the capabilities after them
-    // stay explicitly unimplemented so the manifest never overstates the
-    // surface.
-    for (const key of ['students', 'teachers', 'centers', 'programs', 'courses', 'classes', 'enrollments']) {
+    // `classes`, STU-7 flipped `enrollments` and STU-8 flipped `attendance`;
+    // the capabilities after them stay explicitly unimplemented so the
+    // manifest never overstates the surface.
+    for (const key of ['students', 'teachers', 'centers', 'programs', 'courses', 'classes', 'enrollments', 'attendance']) {
       expect(res.body.data.find(c => c.key === key).implemented).toBe(true);
     }
-    for (const key of ['attendance', 'scheduling']) {
+    for (const key of ['scheduling']) {
       expect(res.body.data.find(c => c.key === key).implemented).toBe(false);
     }
   });
