@@ -1814,9 +1814,10 @@
       });
 
       var summary = el('div', 'edu-summary');
-      // The five figures are COUNTS of the rows above them and nothing else:
-      // the roster size and how many rows currently carry each status. No
-      // rate, share, ratio or average is derived from them anywhere.
+      // The six figures are COUNTS of the rows above them and nothing else: the
+      // roster size, how many rows currently carry each status, and how many of
+      // them already have a record for this day. No rate, share, ratio or
+      // average is derived from them anywhere.
       var headCount = el('div', 'edu-summary-item');
       headCount.appendChild(el('span', 'edu-summary-label', 'Total'));
       headCount.appendChild(el('span', 'edu-summary-value', String(state.registerRows.length)));

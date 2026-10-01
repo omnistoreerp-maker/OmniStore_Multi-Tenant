@@ -1167,6 +1167,46 @@ check('the new views keep the page-wide i18n, RTL and accessibility contract', (
   assert(CSS.includes('prefers-reduced-motion'), 'reduced motion is not honoured');
 });
 
+check('every human string the new views render has an Arabic entry', () => {
+  // The shared runtime translates by visible text, so a string the runtime
+  // renders as a text node and the dictionary does not carry stays English in
+  // Arabic mode. This walks the literals the four new views create and requires
+  // an entry for each. CSS class names and single-word status values that the
+  // page already translated in the MVP are covered by the entries above.
+  const roster = CODE_S.slice(CODE_S.indexOf('function renderRoster'), CODE_S.indexOf('function studentCodeOf'));
+  const register = CODE_S.slice(CODE_S.indexOf('function renderRegister'), CODE_S.indexOf('function renderCalendar'));
+  const calendar = CODE_S.slice(CODE_S.indexOf('function renderCalendar'), CODE_S.indexOf('function shiftCalendar'));
+  const settings = CODE_S.slice(CODE_S.indexOf('var PACK_FIELDS = ['), CODE_S.indexOf('function paintPackSettings'));
+
+  const candidates = [];
+  for (const block of [roster, register, calendar, settings]) {
+    // A literal built by concatenation is several dictionary keys, so the
+    // concatenation is marked first and each fragment is checked on its own.
+    const text = block.replace(/'\s*\+\s*'/g, '§');
+    for (const m of text.matchAll(/el\('[a-z0-9]+',\s*(?:null,\s*)?'([^']{2,})'/g)) candidates.push(m[1]);
+    for (const m of text.matchAll(/(?:banner|stateBlock)\('[a-z]+',\s*'([^']{2,})'/g)) candidates.push(m[1]);
+    for (const m of text.matchAll(/<th scope="col">([^<]+)<\/th>/g)) candidates.push(m[1]);
+    for (const m of text.matchAll(/(?:textContent|placeholder)\s*=\s*'([^']{2,})'/g)) candidates.push(m[1]);
+    for (const m of text.matchAll(/'(Mon|Tue|Wed|Thu|Fri|Sat|Sun)'/g)) candidates.push(m[1]);
+  }
+  const fragments = [];
+  for (const candidate of candidates) {
+    // The marker stands where the source concatenated two literals, and the
+    // shared runtime translates the CONCATENATED text node, so the marker is
+    // removed and the whole sentence is checked as one key — which is the
+    // convention the MVP banners already follow.
+    const value = String(candidate).split('§').join('').trim();
+    if (value.length >= 2) fragments.push(value);
+  }
+  const missing = [];
+  for (const value of fragments) {
+    if (value.indexOf('edu-') === 0) continue;
+    if (DICT.indexOf('"' + value + '":') >= 0) continue;
+    missing.push(value);
+  }
+  assertEqual(missing.length, 0, 'untranslated text in the new views: ' + missing.join(' | '));
+});
+
 check('CORE+ adds no backend surface the page depends on beyond the batch route', () => {
   // Every literal path the runtime calls must exist on a committed Education
   // router, so an operational screen can never call something that is not there.
