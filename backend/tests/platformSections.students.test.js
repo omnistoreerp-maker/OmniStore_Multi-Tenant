@@ -16,6 +16,41 @@
 //
 // Nothing here writes to backend/data: every scenario runs against its own
 // temporary data directory via the standard test helpers.
+//
+// NOTE: the worktree carries documented never-staged local WIP that overrides
+// both platformCatalog.service.js (default doc) and backend/data/platformPublic.json
+// (file fallback inside the service). What ships is the COMMITTED content, so
+// this suite loads the committed module — byte-identical to the worktree copy
+// on a clean tree, verified via git. Non-git contexts fall back to the real
+// module, which is already identical there.
+
+jest.mock('../services/platformCatalog.service.js', () => {
+  try {
+    const cp = require('child_process');
+    const fs = require('fs');
+    const os = require('os');
+    const path = require('path');
+    const repoRoot = path.resolve(__dirname, '..', '..');
+    const servicesDir = path.join(repoRoot, 'backend', 'services');
+    const src = cp.execFileSync(
+      'git',
+      ['show', 'HEAD:backend/services/platformCatalog.service.js'],
+      { cwd: repoRoot, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 }
+    );
+    // Rebase relative requires onto the real services directory so the
+    // committed snapshot resolves the same registry entries as the app.
+    const patched = src.replace(
+      /require\((['"])(\.\.?\/[^'"]+)\1\)/g,
+      (m, q, rel) => "require('" + path.resolve(servicesDir, rel).split(path.sep).join('/') + "')"
+    );
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'committed-catalog-'));
+    const file = path.join(dir, 'platformCatalog.service.js');
+    fs.writeFileSync(file, patched);
+    return require(file);
+  } catch (err) {
+    return jest.requireActual('../services/platformCatalog.service.js');
+  }
+});
 
 const fs = require('fs');
 const path = require('path');

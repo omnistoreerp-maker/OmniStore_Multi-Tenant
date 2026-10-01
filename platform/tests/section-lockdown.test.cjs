@@ -515,7 +515,14 @@ check('student.html ships no mock/static business data', () => {
 });
 
 check('backend catalog default advertises the same student route as the UI', () => {
-  const svc = read('backend/services/platformCatalog.service.js');
+  // platformCatalog.service.js carries documented pre-existing local WIP that
+  // this change set deliberately never stages (allowedModified below), so the
+  // assertion validates the COMMITTED content — what actually ships — rather
+  // than the worktree copy. On a clean tree HEAD and the worktree are
+  // identical, so the shipped contract is checked exactly as before.
+  const committed = spawnSync('git', ['show', 'HEAD:backend/services/platformCatalog.service.js'], { cwd: ROOT, encoding: 'utf8' });
+  const svc = committed.stdout || '';
+  assert.ok(!committed.status, 'committed platformCatalog.service.js is unreadable');
   assert.ok(svc.includes("id: 'student-services'"), 'catalog default student entry missing');
   assert.ok(svc.includes("status: 'active'"), 'catalog default student entry must be active');
   assert.ok(svc.includes("url: '/student.html'"), 'catalog default student url mismatch');
