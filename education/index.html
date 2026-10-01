@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-omni-section="students" class="edu-page">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title data-i18n="education_title">Education — OmniStore ERP</title>
+  <meta name="theme-color" content="#0d9488">
+  <meta name="description" content="Tenant-scoped Education management: students, teachers, centers, programs, courses, classes, enrollments, attendance, schedule and descriptive grading.">
+  <link rel="manifest" href="../manifest.json">
+  <link rel="icon" href="../icons/digitronics-icon-192.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../platform/platform.css">
+  <link rel="stylesheet" href="../platform/omni-design.css">
+  <link rel="stylesheet" href="../platform/education/education.css">
+</head>
+<body>
+  <div class="edu-container">
+    <header class="page-header">
+      <h1 data-i18n="education_title">Education</h1>
+      <div class="edu-header-side">
+        <button class="edu-hamburger" type="button" aria-label="Menu" aria-expanded="false" aria-controls="edu-drawer">
+          <span></span><span></span><span></span>
+        </button>
+        <a class="edu-back-link" href="../business.html" data-i18n="back_business">← Business</a>
+        <div data-omni-lang-slot></div>
+      </div>
+    </header>
+
+    <p class="edu-sr-only" id="edu-live" role="status" aria-live="polite" aria-atomic="true"></p>
+
+    <main id="edu-view" role="main"></main>
+
+    <div class="edu-toast-region" id="edu-toasts"></div>
+
+    <nav class="edu-bottom-nav" role="navigation" aria-label="Education navigation">
+      <button class="edu-nav-btn" type="button" data-edu-page="dashboard" data-i18n="nav_dashboard">
+        <svg class="edu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+        <span data-i18n="nav_dashboard">Dashboard</span>
+      </button>
+      <button class="edu-nav-btn" type="button" data-edu-page="students" data-i18n="nav_students">
+        <svg class="edu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span data-i18n="nav_students">Students</span>
+      </button>
+      <button class="edu-nav-btn" type="button" data-edu-page="teachers" data-i18n="nav_teachers">
+        <svg class="edu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m16 11 2 2 4-4"/></svg>
+        <span data-i18n="nav_teachers">Teachers</span>
+      </button>
+      <button class="edu-nav-btn" type="button" data-edu-page="classes" data-i18n="nav_classes">
+        <svg class="edu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M22 10 12 5 2 10l10 5 10-5Z"/><path d="M6 12v5c0 1.7 2.7 3 6 3s6-1.3 6-3v-5"/></svg>
+        <span data-i18n="nav_classes">Classes</span>
+      </button>
+      <button class="edu-nav-btn" type="button" data-edu-page="schedule" data-i18n="nav_schedule">
+        <svg class="edu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
+        <span data-i18n="nav_schedule">Schedule</span>
+      </button>
+    </nav>
+
+    <div class="edu-overlay" id="edu-overlay" aria-hidden="true"></div>
+
+    <nav class="edu-drawer" id="edu-drawer" role="navigation" aria-label="Education menu" aria-hidden="true">
+      <div class="edu-drawer-header">
+        <h2 data-i18n="education_title">Education</h2>
+      </div>
+      <div class="edu-drawer-body">
+        <a class="edu-nav-btn" href="#dashboard" data-edu-page="dashboard" data-i18n="nav_dashboard">Dashboard</a>
+        <a class="edu-nav-btn" href="#students" data-edu-page="students" data-i18n="nav_students">Students</a>
+        <a class="edu-nav-btn" href="#teachers" data-edu-page="teachers" data-i18n="nav_teachers">Teachers</a>
+        <a class="edu-nav-btn" href="#centers" data-edu-page="centers" data-i18n="nav_centers">Centers</a>
+        <a class="edu-nav-btn" href="#programs" data-edu-page="programs" data-i18n="nav_programs">Programs</a>
+        <a class="edu-nav-btn" href="#courses" data-edu-page="courses" data-i18n="nav_courses">Courses</a>
+        <a class="edu-nav-btn" href="#classes" data-edu-page="classes" data-i18n="nav_classes">Classes</a>
+        <a class="edu-nav-btn" href="#enrollments" data-edu-page="enrollments" data-i18n="nav_enrollments">Enrollments</a>
+        <a class="edu-nav-btn" href="#attendance" data-edu-page="attendance" data-i18n="nav_attendance">Attendance</a>
+        <a class="edu-nav-btn" href="#schedule" data-edu-page="schedule" data-i18n="nav_schedule">Schedule</a>
+        <a class="edu-nav-btn" href="#grading" data-edu-page="grading" data-i18n="nav_grading">Grading</a>
+        <hr class="edu-drawer-sep">
+        <a class="edu-nav-btn" href="#teacher" data-edu-page="teacher" data-i18n="nav_teacher_workspace">Teacher Workspace</a>
+        <a class="edu-nav-btn" href="#student" data-edu-page="student" data-i18n="nav_student_workspace">Student Workspace</a>
+      </div>
+    </nav>
+  </div>
+
+  <div class="edu-dialog-overlay" id="edu-form-overlay" role="dialog" aria-modal="true" aria-labelledby="edu-form-title" aria-hidden="true">
+    <div class="edu-dialog">
+      <div class="edu-dialog-header">
+        <h2 class="edu-dialog-title" id="edu-form-title">Education</h2>
+        <button class="edu-dialog-close" type="button" id="edu-form-close" aria-label="Close">&times;</button>
+      </div>
+      <form class="edu-dialog-body" id="edu-form" novalidate></form>
+      <div class="edu-dialog-footer">
+        <button class="edu-btn edu-btn-outline" type="button" id="edu-form-cancel" data-i18n="cancel">Cancel</button>
+        <button class="edu-btn edu-btn-primary" type="submit" form="edu-form" id="edu-form-submit" data-i18n="save">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="edu-dialog-overlay" id="edu-confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="edu-confirm-title" aria-hidden="true">
+    <div class="edu-dialog">
+      <div class="edu-dialog-header">
+        <h2 class="edu-dialog-title" id="edu-confirm-title">Confirm</h2>
+        <button class="edu-dialog-close" type="button" id="edu-confirm-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="edu-dialog-body">
+        <p id="edu-confirm-message"></p>
+      </div>
+      <div class="edu-dialog-footer">
+        <button class="edu-btn edu-btn-outline" type="button" id="edu-confirm-cancel" data-i18n="cancel">Cancel</button>
+        <button class="edu-btn edu-btn-primary" type="button" id="edu-confirm-ok" data-i18n="confirm">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../platform/omni-i18n.js"></script>
+  <script src="../platform/education/education.dict.js"></script>
+  <script src="../platform/education/education.js"></script>
+</body>
+</html>
