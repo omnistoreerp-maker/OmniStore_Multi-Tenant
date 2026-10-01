@@ -299,10 +299,37 @@ describe('Monetag Multitag — official Get-tag integration (platform.html)', ()
     expect(connectLine).toContain("'https://094kk.com'");
     expect(connectLine).not.toContain('*');
     expect((connectLine.match(/https:\/\//g) || []).length).toBe(7);
-    expect(SERVER_JS).toContain('frameSrc: ["\'none\'"]');
+    // Intentional TikTok change: frame-src allows ONLY the official TikTok
+    // Embed Player origin so reels.html can play videos on TikTok's own player.
+    // This is deliberately NOT weakened to "frame-src exists" — the exact
+    // allowlist, the absence of a bare wildcard, and the continued absence of
+    // 'self' and of any unrelated origin are all asserted. The Monetag chain
+    // still gains NO ability to frame anything.
+    const frameLine = (SERVER_JS.match(/frameSrc: \[[^\]]*\]/) || [])[0];
+    expect(frameLine).toBeTruthy();
+    expect(frameLine).toContain("'https://www.tiktok.com'");
+    expect(frameLine).not.toContain("'self'");
+    expect(frameLine).not.toContain("'none'");
+    expect(frameLine).not.toMatch(/(^|[^.\w])\*/);
+    expect((frameLine.match(/https:\/\//g) || []).length).toBe(1);
+    for (const blocked of [MONETAG_SCRIPT_ORIGIN, 'auqot.com', 'ekhay.com', 'b3mny.com', '6opo.com', 'my.rtmark.net', 'jmosl.com', '094kk.com', 'youtube.com', 'tiktokcdn.com']) {
+      expect(frameLine).not.toContain(blocked);
+    }
     expect(SERVER_JS).toContain('objectSrc: ["\'none\'"]');
     expect(SERVER_JS).toContain('styleSrc: ["\'self\'", "\'unsafe-inline\'", \'https://fonts.googleapis.com\']');
-    expect(SERVER_JS).toContain('imgSrc: ["\'self\'", \'data:\']');
+    // img-src keeps 'self' + data: and adds ONLY TikTok's two cover-CDN
+    // domains. Still no wildcard host and no unrelated external image origin.
+    const imgLine = (SERVER_JS.match(/imgSrc: \[[^\]]*\]/) || [])[0];
+    expect(imgLine).toBeTruthy();
+    expect(imgLine).toContain("'self'");
+    expect(imgLine).toContain("'data:'");
+    expect(imgLine).toContain("'https://*.tiktokcdn.com'");
+    expect(imgLine).toContain("'https://*.tiktokcdn-us.com'");
+    expect(imgLine).not.toMatch(/(^|[\s'"])\*(?=$|[\s'"(])/);
+    expect((imgLine.match(/https:\/\//g) || []).length).toBe(2);
+    for (const blocked of [MONETAG_SCRIPT_ORIGIN, 'auqot.com', 'ekhay.com', 'b3mny.com', '6opo.com', 'my.rtmark.net', 'jmosl.com', '094kk.com', 'fonts.gstatic.com']) {
+      expect(imgLine).not.toContain(blocked);
+    }
   });
 
   test('index.html (ERP surface) stays Monetag-free', () => {

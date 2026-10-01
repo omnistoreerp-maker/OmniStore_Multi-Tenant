@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="description" content="OmniStore Reels â€” public short-form video from the connected TikTok account." />
+  <title data-i18n="page_title">OmniStore Reels</title>
+  <link rel="stylesheet" href="platform/platform.css" />
+  <style>
+    /* Reels surface. Self-contained: it never loads into the ERP shell and
+       shares no runtime with index.html. */
+    .reels-wrap { max-width: 1100px; margin: 0 auto; padding: 28px 16px 60px; }
+    .reels-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 8px; }
+    .reels-title { margin: 0; font-size: 1.75rem; }
+    .reels-sub { margin: 4px 0 0; color: var(--muted); font-size: .95rem; }
+    .reels-account { font-size: .9rem; color: var(--muted); }
+    .reels-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+    .reels-btn {
+      font: inherit; font-size: .9rem; font-weight: 700;
+      padding: 10px 16px; border-radius: 12px;
+      border: 1px solid var(--border); background: var(--surface); color: var(--text);
+      cursor: pointer; min-height: 44px;
+    }
+    .reels-btn:hover { background: var(--surface2); }
+    .reels-btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+    .reels-btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .reels-btn[aria-busy="true"] { opacity: .6; cursor: progress; }
+
+    /* States */
+    .reels-state { padding: 48px 20px; text-align: center; color: var(--muted); }
+    .reels-state[hidden] { display: none; }
+    .reels-state h2 { margin: 0 0 8px; font-size: 1.15rem; color: var(--text); }
+    .reels-state p { margin: 0 0 16px; }
+
+    .skeleton-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+    .skeleton-card { height: 340px; border-radius: 16px; background: linear-gradient(100deg, var(--surface) 30%, var(--surface2) 50%, var(--surface) 70%); background-size: 200% 100%; animation: reels-shimmer 1.4s ease-in-out infinite; }
+    @keyframes reels-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+    /* Grid */
+    .reels-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+    .reel-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+      overflow: hidden; display: flex; flex-direction: column;
+    }
+    .reel-cover { position: relative; aspect-ratio: 9 / 16; background: #000; }
+    .reel-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .reel-duration {
+      position: absolute; inset-inline-end: 8px; bottom: 8px;
+      background: rgba(0,0,0,.75); color: #fff; font-size: .75rem; font-weight: 700;
+      padding: 3px 8px; border-radius: 999px;
+    }
+    .reel-body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+    .reel-title { margin: 0; font-size: .95rem; font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; }
+    .reel-date { font-size: .78rem; color: var(--muted); }
+    .reel-actions { display: flex; gap: 8px; margin-top: auto; }
+    .reel-actions .reels-btn { flex: 1; text-align: center; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
+
+    /* Player: created only after the user picks a video. */
+    .reel-player { margin-top: 20px; border: 1px solid var(--border); border-radius: 16px; overflow: hidden; background: #000; }
+    .reel-player[hidden] { display: none; }
+    .reel-player-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; background: var(--surface); color: var(--text); }
+    .reel-player-frame { width: 100%; aspect-ratio: 9 / 16; max-height: 78vh; border: 0; background: #000; }
+    .reel-player-note { padding: 10px 14px; font-size: .82rem; color: var(--muted); background: var(--surface); }
+
+    .visually-hidden {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+    }
+
+    /* Respect the OS reduced-motion setting: shimmer and transitions off. */
+    @media (prefers-reduced-motion: reduce) {
+      .skeleton-card { animation: none; }
+      * { transition: none !important; }
+    }
+
+    @media (max-width: 640px) {
+      .reels-wrap { padding: 18px 12px 48px; }
+      .reels-grid, .skeleton-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+      .reel-body { padding: 10px; }
+      .reel-title { font-size: .85rem; }
+    }
+  </style>
+</head>
+<body>
+  <a class="visually-hidden" href="#reels-main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="container">
+      <h1 data-i18n="page_title">OmniStore Reels</h1>
+      <nav class="platform-nav" aria-label="Breadcrumb">
+        <a href="platform.html" data-i18n="back_platform">â† Platform Home</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container reels-wrap" id="reels-main">
+    <div class="reels-head">
+      <div>
+        <h2 class="reels-title" data-i18n="feed_title">Latest videos</h2>
+        <p class="reels-sub" data-i18n="feed_subtitle">Public videos from the connected TikTok account, played on TikTok.</p>
+        <p class="reels-account" id="accountLine" data-i18n="account_unknown"></p>
+      </div>
+      <div class="reels-toolbar">
+        <button type="button" class="reels-btn" id="langBtn" data-i18n="lang_toggle">Ø§Ù„Ø¹Ø±Ø¨ÙŠØ©</button>
+        <button type="button" class="reels-btn" id="refreshBtn" data-i18n="action_refresh">Refresh</button>
+      </div>
+    </div>
+
+    <!-- Live region for state changes and card announcements -->
+    <p class="visually-hidden" id="liveRegion" role="status" aria-live="polite"></p>
+
+    <section id="loadingState" class="reels-state" aria-labelledby="loadingHeading">
+      <h2 id="loadingHeading" data-i18n="state_loading">Loadingâ€¦</h2>
+      <div class="skeleton-grid" aria-hidden="true">
+        <div class="skeleton-card"></div><div class="skeleton-card"></div>
+        <div class="skeleton-card"></div><div class="skeleton-card"></div>
+      </div>
+    </section>
+
+    <section id="emptyState" class="reels-state" hidden aria-labelledby="emptyHeading">
+      <h2 id="emptyHeading" data-i18n="state_empty">No videos yet</h2>
+      <p data-i18n="state_empty_sub">When the connected TikTok account publishes a public video, it will appear here.</p>
+    </section>
+
+    <section id="errorState" class="reels-state" hidden aria-labelledby="errorHeading">
+      <h2 id="errorHeading" data-i18n="state_error">Could not load reels</h2>
+      <p id="errorDetail" data-i18n="state_error_sub">Please try again shortly.</p>
+      <button type="button" class="reels-btn reels-btn-primary" id="retryBtn" data-i18n="action_retry">Try again</button>
+    </section>
+
+    <section id="notConnectedState" class="reels-state" hidden aria-labelledby="ncHeading">
+      <h2 id="ncHeading" data-i18n="state_not_connected">TikTok not connected</h2>
+      <p data-i18n="state_not_connected_sub">The OmniStore Reels feed is connected to a TikTok account by the platform administrator.</p>
+      <!-- No connect link: the TikTok connection is a platform-admin operation
+           and /tiktok/connect is authenticated. Visitors must never be offered
+           a way to authorize or swap the platform's global account. -->
+    </section>
+
+    <div id="reelsGrid" class="reels-grid"></div>
+
+    <section id="playerSection" class="reel-player" hidden aria-labelledby="playerHeading">
+      <div class="reel-player-head">
+        <strong id="playerHeading" data-i18n="now_playing">Now playing</strong>
+        <button type="button" class="reels-btn" id="closePlayerBtn" data-i18n="action_close">Close</button>
+      </div>
+      <div id="playerHost"></div>
+      <p class="reel-player-note" data-i18n="player_note">Playback is provided by TikTok inside its own player.</p>
+    </section>
+  </main>
+
+  <script>
+  (function () {
+    'use strict';
+
+    // Only the public feed read is used here. /reels/status and /tiktok/*
+    // are platform-admin authenticated, so this page never calls them and
+    // never offers a connect action.
+    var API_FEED = '/api/v1/platform-public/tiktok/reels';
+
+    var I18N = {
+      en: {
+        page_title: 'OmniStore Reels',
+        back_platform: 'â† Platform Home',
+        feed_title: 'Latest videos',
+        feed_subtitle: 'Public videos from the connected TikTok account, played on TikTok.',
+        lang_toggle: 'Ø§Ù„Ø¹Ø±Ø¨ÙŠØ©',
+        action_refresh: 'Refresh',
+        action_retry: 'Try again',
+        action_play: 'Play',
+        action_open: 'Open on TikTok',
+        action_close: 'Close',
+        state_loading: 'Loadingâ€¦',
+        state_empty: 'No videos yet',
+        state_empty_sub: 'When the connected TikTok account publishes a public video, it will appear here.',
+        state_error: 'Could not load reels',
+        state_error_sub: 'Please try again shortly.',
+        state_not_connected: 'TikTok not connected',
+        state_not_connected_sub: 'The Reels feed is connected to a TikTok account by the platform administrator.',
+        now_playing: 'Now playing',
+        player_note: 'Playback is provided by TikTok inside its own player.',
+        account_unknown: 'No TikTok account connected yet.',
+        account_label: 'TikTok account:',
+        card_label: 'Video posted',
+        duration_label: 'Duration',
+        loaded_announcement: 'Reels loaded. {n} videos available.',
+        empty_announcement: 'No videos available.',
+        error_announcement: 'Reels could not be loaded.'
+      },
+      ar: {
+        page_title: 'Ø±ÙŠÙ„Ø² OmniStore',
+        back_platform: 'â† Ø§Ù„Ø±Ø¦ÙŠØ³ÙŠØ©',
+        feed_title: 'Ø£Ø­Ø¯Ø« Ø§Ù„ÙÙŠØ¯ÙŠÙˆÙ‡Ø§Øª',
+        feed_subtitle: 'ÙÙŠØ¯ÙŠÙˆÙ‡Ø§Øª Ø¹Ø§Ù…Ø© Ù…Ù† Ø­Ø³Ø§Ø¨ TikTok Ø§Ù„Ù…ÙˆØµÙˆÙ„ØŒ ØªÙØ´ØºÙŽÙ‘Ù„ Ø¹Ù„Ù‰ TikTok.',
+        lang_toggle: 'English',
+        action_refresh: 'ØªØ­Ø¯ÙŠØ«',
+        action_retry: 'Ø¥Ø¹Ø§Ø¯Ø© Ø§Ù„Ù…Ø­Ø§ÙˆÙ„Ø©',
+        action_play: 'ØªØ´ØºÙŠÙ„',
+        action_open: 'ÙØªØ­ Ø¹Ù„Ù‰ TikTok',
+        action_close: 'Ø¥ØºÙ„Ø§Ù‚',
+        state_loading: 'Ø¬Ø§Ø±Ù Ø§Ù„ØªØ­Ù…ÙŠÙ„â€¦',
+        state_empty: 'Ù„Ø§ ØªÙˆØ¬Ø¯ ÙÙŠØ¯ÙŠÙˆÙ‡Ø§Øª Ø¨Ø¹Ø¯',
+        state_empty_sub: 'Ø¹Ù†Ø¯ Ù†Ø´Ø± Ø§Ù„Ø­Ø³Ø§Ø¨ Ø§Ù„Ù…ÙˆØµÙ„ Ù„ÙÙŠØ¯ÙŠÙˆ Ø¹Ø§Ù… Ø³ÙŠØ¸Ù‡Ø± Ù‡Ù†Ø§.',
+        state_error: 'ØªØ¹Ø°Ù‘Ø± ØªØ­Ù…ÙŠÙ„ Ø§Ù„Ø±ÙŠÙ„Ø²',
+        state_error_sub: 'ÙŠØ±Ø¬Ù‰ Ø§Ù„Ù…Ø­Ø§ÙˆÙ„Ø© Ø¨Ø¹Ø¯ Ù‚Ù„ÙŠÙ„.',
+        state_not_connected: 'Ø­Ø³Ø§Ø¨ TikTok ØºÙŠØ± Ù…ÙˆØµÙˆÙ„',
+        state_not_connected_sub: 'ÙŠØªÙ… Ø±Ø¨Ø· Ù‚Ø³Ù… Ø§Ù„Ø±ÙŠÙ„Ø² Ø¨Ø­Ø³Ø§Ø¨ TikTok Ø¨ÙˆØ§Ø³Ø·Ø© Ù…Ø³Ø¤ÙˆÙ„ Ø§Ù„Ù…Ù†ØµØ©.',
+        now_playing: 'Ù‚ÙŠØ¯ Ø§Ù„ØªØ´ØºÙŠÙ„',
+        player_note: 'Ø§Ù„ØªØ´ØºÙŠÙ„ ÙŠØªÙ… Ø¯Ø§Ø®Ù„ Ù…Ø´ØºÙ‘Ù„ TikTok Ø§Ù„Ø®Ø§Øµ.',
+        account_unknown: 'Ù„Ù… ÙŠØªÙ… Ø±Ø¨Ø· Ø­Ø³Ø§Ø¨ TikTok Ø¨Ø¹Ø¯.',
+        account_label: 'Ø­Ø³Ø§Ø¨ TikTok:',
+        card_label: 'ÙÙŠØ¯ÙŠÙˆ Ù…Ù†Ø´ÙˆØ±',
+        duration_label: 'Ø§Ù„Ù…Ø¯Ø©',
+        loaded_announcement: 'ØªÙ… ØªØ­Ù…ÙŠÙ„ Ø§Ù„Ø±ÙŠÙ„Ø². {n} ÙÙŠØ¯ÙŠÙˆ Ù…ØªØ§Ø­.',
+        empty_announcement: 'Ù„Ø§ ØªÙˆØ¬Ø¯ ÙÙŠØ¯ÙŠÙˆÙ‡Ø§Øª Ù…ØªØ§Ø­Ø©.',
+        error_announcement: 'ØªØ¹Ø°Ù‘Ø± ØªØ­Ù…ÙŠÙ„ Ø§Ù„Ø±ÙŠÙ„Ø².'
+      }
+    };
+
+    var _lang = 'en';
+    try {
+      var saved = localStorage.getItem('omnistore_reels_lang');
+      if (saved === 'en' || saved === 'ar') _lang = saved;
+    } catch (e) { /* storage unavailable */ }
+
+    function t(key) {
+      var table = I18N[_lang] || I18N.en;
+      return table[key] || I18N.en[key] || key;
+    }
+
+    function interpolate(str, values) {
+      return String(str).replace(/\{(\w+)\}/g, function (m, name) {
+        return Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : m;
+      });
+    }
+
+    var grid = document.getElementById('reelsGrid');
+    var loadingState = document.getElementById('loadingState');
+    var emptyState = document.getElementById('emptyState');
+    var errorState = document.getElementById('errorState');
+    var notConnectedState = document.getElementById('notConnectedState');
+    var errorDetail = document.getElementById('errorDetail');
+    var accountLine = document.getElementById('accountLine');
+    var liveRegion = document.getElementById('liveRegion');
+    var playerSection = document.getElementById('playerSection');
+    var playerHost = document.getElementById('playerHost');
+    var refreshBtn = document.getElementById('refreshBtn');
+    var retryBtn = document.getElementById('retryBtn');
+    var closePlayerBtn = document.getElementById('closePlayerBtn');
+    var langBtn = document.getElementById('langBtn');
+
+    function announce(message) {
+      liveRegion.textContent = message;
+    }
+
+    function showOnly(state) {
+      [loadingState, emptyState, errorState, notConnectedState].forEach(function (el) {
+        el.hidden = el !== state;
+      });
+    }
+
+    function applyLang() {
+      document.documentElement.lang = _lang;
+      document.documentElement.dir = _lang === 'ar' ? 'rtl' : 'ltr';
+      document.title = t('page_title');
+      var nodes = document.querySelectorAll('[data-i18n]');
+      for (var i = 0; i < nodes.length; i += 1) {
+        nodes[i].textContent = t(nodes[i].getAttribute('data-i18n'));
+      }
+    }
+
+    function formatDuration(seconds) {
+      var total = Math.max(0, Math.floor(Number(seconds) || 0));
+      var m = Math.floor(total / 60);
+      var s = total % 60;
+      return m + ':' + (s < 10 ? '0' + s : String(s));
+    }
+
+    function formatDate(iso) {
+      if (!iso) return '';
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return '';
+      try {
+        return d.toLocaleDateString(_lang === 'ar' ? 'ar-EG' : 'en-US', {
+          year: 'numeric', month: 'short', day: 'numeric'
+        });
+      } catch (e) {
+        return iso.slice(0, 10);
+      }
+    }
+
+    // Video ids from the Display API are decimal strings. Every value that
+    // reaches the DOM is either assigned through textContent or validated
+    // before being used as a URL â€” no upstream HTML is ever injected.
+    function isNumericId(value) {
+      return /^\d+$/.test(String(value || ''));
+    }
+
+    function playerUrl(item) {
+      // Documented Embed Player URL. Built from the post id only, so the src
+      // can never carry injected markup. Fallback to share_url when the id is
+      // not in the expected numeric form.
+      if (isNumericId(item.id)) return 'https://www.tiktok.com/player/v1/' + encodeURIComponent(item.id) + '?controls=1&progress_bar=1';
+      return '';
+    }
+
+    function clearPlayer() {
+      playerHost.textContent = '';
+      playerSection.hidden = true;
+    }
+
+    function openPlayer(item) {
+      var src = playerUrl(item);
+      if (!src) {
+        window.open(item.shareUrl, '_blank', 'noopener,noreferrer');
+        return;
+      }
+      // The iframe is created HERE, on user interaction, not eagerly for every
+      // card. A feed of N cards therefore costs one third-party document, not N.
+      clearPlayer();
+      var frame = document.createElement('iframe');
+      frame.className = 'reel-player-frame';
+      frame.src = src;
+      frame.title = item.title || t('card_label');
+      frame.loading = 'lazy';
+      frame.setAttribute('allow', 'encrypted-media; picture-in-picture; fullscreen');
+      frame.setAttribute('allowfullscreen', '');
+      frame.setAttribute('referrerpolicy', 'no-referrer');
+      playerHost.appendChild(frame);
+      playerSection.hidden = false;
+      playerSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      announce(item.title || t('now_playing'));
+    }
+
+    function buildCard(item) {
+      var card = document.createElement('article');
+      card.className = 'reel-card';
+
+      var cover = document.createElement('div');
+      cover.className = 'reel-cover';
+      if (item.coverImage) {
+        var img = document.createElement('img');
+        img.src = item.coverImage;
+        img.alt = '';
+        img.loading = 'lazy';
+        img.decoding = 'async';
+        cover.appendChild(img);
+      }
+      if (item.duration) {
+        var dur = document.createElement('span');
+        dur.className = 'reel-duration';
+        dur.textContent = formatDuration(item.duration);
+        dur.setAttribute('aria-label', t('duration_label') + ' ' + formatDuration(item.duration));
+        cover.appendChild(dur);
+      }
+      card.appendChild(cover);
+
+      var body = document.createElement('div');
+      body.className = 'reel-body';
+
+      var heading = document.createElement('h3');
+      heading.className = 'reel-title';
+      heading.textContent = item.title || item.description || t('card_label');
+      body.appendChild(heading);
+
+      if (item.createdAt) {
+        var date = document.createElement('span');
+        date.className = 'reel-date';
+        date.textContent = formatDate(item.createdAt);
+        body.appendChild(date);
+      }
+
+      var actions = document.createElement('div');
+      actions.className = 'reel-actions';
+
+      var play = document.createElement('button');
+      play.type = 'button';
+      play.className = 'reels-btn reels-btn-primary';
+      play.textContent = t('action_play');
+      play.setAttribute('aria-label', t('action_play') + ': ' + heading.textContent);
+      play.addEventListener('click', function () { openPlayer(item); });
+      actions.appendChild(play);
+
+      if (item.shareUrl) {
+        var open = document.createElement('a');
+        open.className = 'reels-btn';
+        open.href = item.shareUrl;
+        open.target = '_blank';
+        open.rel = 'noopener noreferrer';
+        open.textContent = t('action_open');
+        open.setAttribute('aria-label', t('action_open') + ': ' + heading.textContent);
+        actions.appendChild(open);
+      }
+
+      body.appendChild(actions);
+      card.appendChild(body);
+      return card;
+    }
+
+    function render(items) {
+      grid.textContent = '';
+      for (var i = 0; i < items.length; i += 1) {
+        grid.appendChild(buildCard(items[i]));
+      }
+    }
+
+    function renderAccount(payload) {
+      var account = (payload && payload.account) || null;
+      if (account) {
+        accountLine.textContent = t('account_label') + ' ' + account;
+      } else {
+        accountLine.textContent = t('account_unknown');
+      }
+    }
+
+    function load() {
+      showOnly(loadingState);
+      grid.textContent = '';
+      refreshBtn.setAttribute('aria-busy', 'true');
+
+      fetch(API_FEED, { headers: { Accept: 'application/json' } })
+        .then(function (res) {
+          if (!res.ok) throw new Error('http_' + res.status);
+          return res.json();
+        })
+        .then(function (body) {
+          refreshBtn.removeAttribute('aria-busy');
+          if (!body || !body.success) throw new Error('invalid_response');
+          var data = body.data || {};
+          renderAccount(data.account);
+
+          if (data.connected === false) {
+            showOnly(notConnectedState);
+            announce(t('state_not_connected'));
+            return;
+          }
+          var items = Array.isArray(data.items) ? data.items : [];
+          if (!items.length) {
+            showOnly(emptyState);
+            announce(t('empty_announcement'));
+            return;
+          }
+          showOnly(null);
+          render(items);
+          announce(interpolate(t('loaded_announcement'), { n: items.length }));
+        })
+        .catch(function () {
+          refreshBtn.removeAttribute('aria-busy');
+          errorDetail.textContent = t('state_error_sub');
+          showOnly(errorState);
+          announce(t('error_announcement'));
+        });
+    }
+
+    refreshBtn.addEventListener('click', load);
+    retryBtn.addEventListener('click', load);
+    closePlayerBtn.addEventListener('click', function () {
+      clearPlayer();
+      announce('');
+    });
+    langBtn.addEventListener('click', function () {
+      _lang = _lang === 'en' ? 'ar' : 'en';
+      try { localStorage.setItem('omnistore_reels_lang', _lang); } catch (e) { /* ignore */ }
+      applyLang();
+    });
+
+    // Keyboard navigation: arrow keys move focus between cards, Escape closes
+    // the player. Cards are real buttons/links so tab order already works.
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && !playerSection.hidden) {
+        clearPlayer();
+        return;
+      }
+      if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+      var focusable = grid.querySelectorAll('button, a[href]');
+      if (!focusable.length) return;
+      var current = Array.prototype.indexOf.call(focusable, document.activeElement);
+      if (current === -1) return;
+      var delta = event.key === 'ArrowRight' ? 1 : -1;
+      var next = focusable[current + delta];
+      if (next) { event.preventDefault(); next.focus(); }
+    });
+
+    applyLang();
+    load();
+  })();
+  </script>
+</body>
+</html>
