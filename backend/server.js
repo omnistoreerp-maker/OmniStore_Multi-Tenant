@@ -195,6 +195,7 @@ const tenantOnboardingRoutes = require('./routes/tenantOnboarding.routes');
 const tenantPaymentsRoutes = require('./routes/tenantPayments.routes');
 const tenantNotificationsRoutes = require('./routes/tenantNotifications.routes');
 const studentServicesPackRoutes = require('./routes/studentServicesPack.routes');
+const educationPackRoutes = require('./routes/educationPack.routes');
 const shiftManagementRoutes = require('./routes/shiftManagement.routes');
 const onlineStoreRoutes = require('./routes/onlineStore.routes');
 const loyaltyRoutes = require('./routes/loyalty.routes');
@@ -338,6 +339,11 @@ app.use('/api/v1/reports', validateResource('reports'), reportsRoutes);
 app.use('/api/v1/users', validateResource('users'), usersRoutes);
 app.use('/api/v1/loyalty', validateResource('loyalty'), loyaltyRoutes);
 app.use('/api/v1/tenant/student-services', studentServicesPackRoutes);
+// STU-1 Education foundation (Device 2). Additive, distinct prefix: no
+// overlap with ERP, Market, Game Hosting, TikTok/Reels, Platform Home, or the
+// Student Services Pack router mounted directly above (which declares only
+// literal paths, so nothing here is shadowed in either direction).
+app.use('/api/v1/tenant/education', educationPackRoutes);
 app.use('/api/v1/tenant/shifts', shiftManagementRoutes);
 app.use('/api/v1/tenant/online-store', onlineStoreRoutes);
 

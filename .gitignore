@@ -46,3 +46,6 @@ backend/data/reel-media/
 # does not match it; do not drop either entry.
 backend/data/tiktokConnection.json
 backend/data/reelsCache.json
+# STU-1 Education foundation: tenant-owned pack settings. Runtime store,
+# created on first write and never committed (same rule as the entries above).
+backend/data/educationPack.json
