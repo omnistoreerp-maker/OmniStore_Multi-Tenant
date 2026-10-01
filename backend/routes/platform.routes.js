@@ -2,8 +2,9 @@
 
 const router = require('express').Router();
 const ctrl = require('../controllers/platform.controller');
+const ccCtrl = require('../controllers/platformControlCenter.controller');
 const { requireAuth } = require('../middleware/auth');
-const { requirePlatformAdmin } = require('../middleware/platformAuth');
+const { requirePlatformAdmin, requirePlatformPermission } = require('../middleware/platformAuth');
 
 // Any authenticated client may keep its own presence alive.
 router.post('/presence/heartbeat', requireAuth, ctrl.heartbeat);
@@ -34,10 +35,14 @@ router.put('/licenses', admin, ctrl.setLicense);
 router.get('/integrations', admin, ctrl.listIntegrations);
 router.put('/integrations', admin, ctrl.setIntegration);
 
-router.get('/audit', admin, ctrl.listAudit);
+router.get('/audit', requireAuth, requirePlatformPermission('platform.audit.view'), ctrl.listAudit);
 
-router.get('/admins', admin, ctrl.listAdmins);
-router.post('/admins', admin, ctrl.grantAdmin);
-router.delete('/admins/:username', admin, ctrl.revokeAdmin);
+// Platform team management (reuses the existing /admins resource). Reads need
+// platform.team.view (MASTER_OWNER + PLATFORM_ADMIN); every mutation requires
+// platform.team.manage (MASTER_OWNER only). Server-authoritative throughout.
+router.get('/admins', requireAuth, requirePlatformPermission('platform.team.view'), ccCtrl.listTeam);
+router.post('/admins', requireAuth, requirePlatformPermission('platform.team.manage'), ccCtrl.addTeamMember);
+router.patch('/admins/:username', requireAuth, requirePlatformPermission('platform.team.manage'), ccCtrl.updateTeamMember);
+router.delete('/admins/:username', requireAuth, requirePlatformPermission('platform.team.manage'), ccCtrl.removeTeamMember);
 
 module.exports = router;

@@ -5485,6 +5485,9 @@ document.addEventListener('DOMContentLoaded', function() {
         <button class="btn btn-outline btn-sm platform-tab" role="tab" data-ptab="integrations" aria-selected="false" aria-controls="platformTabBody" onclick="platformTab('integrations',this)">🔑 التكاملات</button>
         <button class="btn btn-outline btn-sm platform-tab" role="tab" data-ptab="audit" aria-selected="false" aria-controls="platformTabBody" onclick="platformTab('audit',this)">📝 سجل المنصة</button>
         <button class="btn btn-outline btn-sm platform-tab" role="tab" data-ptab="admins" aria-selected="false" aria-controls="platformTabBody" onclick="platformTab('admins',this)">🛡️ مشرفو المنصة</button>
+        <button class="btn btn-outline btn-sm platform-tab" role="tab" data-ptab="dashboard" aria-selected="false" aria-controls="platformTabBody" onclick="platformTab('dashboard',this)">📊 لوحة المعلومات</button>
+        <button class="btn btn-outline btn-sm platform-tab" role="tab" data-ptab="diagnostics" aria-selected="false" aria-controls="platformTabBody" onclick="platformTab('diagnostics',this)">🩺 التشخيص</button>
+        <button class="btn btn-outline btn-sm platform-tab" role="tab" data-ptab="content" aria-selected="false" aria-controls="platformTabBody" onclick="platformTab('content',this)">📚 المحتوى</button>
       </div>
       <div class="pm-search-bar" id="pmSearchBar" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
         <input id="pmSearchInput" type="search" placeholder="بحث…" aria-label="بحث في القسم الحالي" style="flex:1;min-width:200px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:8px 12px;color:var(--text);font-family:inherit;font-size:0.85rem;outline:none">
@@ -11820,8 +11823,18 @@ const backendApi = {
     setIntegration: (data) => USE_BACKEND ? backendApi._fetch('PUT', '/platform/integrations', data) : null,
     audit: (limit) => USE_BACKEND ? backendApi._fetch('GET', '/platform/audit' + (limit ? '?limit=' + encodeURIComponent(limit) : '')) : null,
     admins: () => USE_BACKEND ? backendApi._fetch('GET', '/platform/admins') : null,
-    grantAdmin: (username, platformRole) => USE_BACKEND ? backendApi._fetch('POST', '/platform/admins', { username, platformRole }) : null,
-    revokeAdmin: (username) => USE_BACKEND ? backendApi._fetch('DELETE', '/platform/admins/' + encodeURIComponent(username)) : null
+    grantAdmin: (username, platformRole, displayName) => USE_BACKEND ? backendApi._fetch('POST', '/platform/admins', { username, platformRole, displayName }) : null,
+    updateAdmin: (username, data) => USE_BACKEND ? backendApi._fetch('PATCH', '/platform/admins/' + encodeURIComponent(username), data) : null,
+    revokeAdmin: (username) => USE_BACKEND ? backendApi._fetch('DELETE', '/platform/admins/' + encodeURIComponent(username)) : null,
+    // Platform Control Center — every call is authorized SERVER-SIDE by the
+    // caller's platform permission; hiding these in the UI is never the gate.
+    access: () => USE_BACKEND ? backendApi._fetch('GET', '/platform/control-center/access') : null,
+    controlDashboard: () => USE_BACKEND ? backendApi._fetch('GET', '/platform/control-center/dashboard') : null,
+    diagnostics: () => USE_BACKEND ? backendApi._fetch('GET', '/platform/control-center/diagnostics') : null,
+    permissionMatrix: () => USE_BACKEND ? backendApi._fetch('GET', '/platform/control-center/matrix') : null,
+    content: () => USE_BACKEND ? backendApi._fetch('GET', '/platform/control-center/catalog') : null,
+    createContent: (data) => USE_BACKEND ? backendApi._fetch('POST', '/platform/control-center/catalog', data) : null,
+    updateContent: (id, data) => USE_BACKEND ? backendApi._fetch('PATCH', '/platform/control-center/catalog/' + encodeURIComponent(id), data) : null
   },
   auth: {
     login: (username, password, company) => USE_BACKEND ? backendApi._fetch('POST', '/auth/login', (company ? { username, password, company } : { username, password })) : null,
@@ -14443,15 +14456,71 @@ async function enterProvisionedCompany() {
 // platform admin store (requirePlatformAdmin) — the frontend only hides the UI.
 let platformRole = null;
 let platformTabCurrent = 'companies';
+// Server-resolved platform permissions (role defaults + owner-set overrides),
+// fetched from /platform/control-center/access. Used ONLY to decide which
+// navigation to RENDER — every API call is still authorized server-side, so
+// hiding a tab is never the security gate.
+let platformPermissions = [];
+
+function ccCan(perm) {
+  return platformPermissions.includes('*') || platformPermissions.includes(perm);
+}
+
+// Which control-center tab requires which platform permission. This must mirror
+// the server-side route guards so the UI never promises a surface the API
+// denies (the API enforces it regardless).
+const PLATFORM_TAB_PERMISSION = {
+  dashboard: 'platform.dashboard.view',
+  companies: 'platform.companies.view',
+  users: 'platform.users.view',
+  presence: 'platform.users.view',
+  licenses: 'platform.licenses.view',
+  integrations: 'platform.integrations.view',
+  audit: 'platform.audit.view',
+  admins: 'platform.team.view',
+  diagnostics: 'platform.diagnostics.view',
+  content: 'catalog.read'
+};
+
+function applyPlatformNavigation() {
+  Object.keys(PLATFORM_TAB_PERMISSION).forEach(tab => {
+    const btn = document.querySelector('.platform-tab[data-ptab="' + tab + '"]');
+    if (btn) btn.style.display = ccCan(PLATFORM_TAB_PERMISSION[tab]) ? '' : 'none';
+  });
+}
 
 function refreshPlatformRole() {
-  if (!USE_BACKEND || !backendApi || !backendApi.platform) return Promise.resolve(false);
+  if (!USE_BACKEND || !backendApi || !backendApi.platform) {
+    platformPermissions = [];
+    return Promise.resolve(false);
+  }
+  // Navigation hydration must never break identity refresh: guard both the
+  // access fetch and the nav applier so this function stays self-contained.
+  const applyNav = () => {
+    if (typeof applyPlatformNavigation === 'function') applyPlatformNavigation();
+  };
   return backendApi.platform.me().then(res => {
     platformRole = (res && res.success && res.data && res.data.platformRole) ? res.data.platformRole : null;
     const nav = document.getElementById('platformMasterNav');
     if (nav) nav.style.display = platformRole ? '' : 'none';
-    return !!platformRole;
-  }).catch(() => { platformRole = null; return false; });
+    if (!platformRole) {
+      platformPermissions = [];
+      applyNav();
+      return false;
+    }
+    const fetchAccess = (typeof backendApi.platform.access === 'function')
+      ? backendApi.platform.access().then(acc => {
+          platformPermissions = (acc && acc.success && acc.data && Array.isArray(acc.data.permissions))
+            ? acc.data.permissions : [];
+        }).catch(() => { platformPermissions = []; })
+      : Promise.resolve();
+    return fetchAccess.then(() => { applyNav(); return true; });
+  }).catch(() => {
+    platformRole = null;
+    platformPermissions = [];
+    applyNav();
+    return false;
+  });
 }
 
 function platformSessionId() {
@@ -14522,6 +14591,9 @@ function platformTab(tab, button) {
   else if (tab === 'integrations') loadPlatformIntegrations();
   else if (tab === 'audit') loadPlatformAudit();
   else if (tab === 'admins') loadPlatformAdmins();
+  else if (tab === 'dashboard') loadPlatformControlDashboard();
+  else if (tab === 'diagnostics') loadPlatformDiagnostics();
+  else if (tab === 'content') loadPlatformContent();
 }
 
 // ----------------- search / filter (client-side only) -----------------
@@ -14532,7 +14604,9 @@ const pmSearchPlaceholders = {
   licenses: 'بحث بالشركة أو الخطة…',
   integrations: 'بحث بالشركة أو المزود…',
   audit: 'بحث بالإجراء أو المعرّف…',
-  admins: 'بحث بالـ Username…'
+  admins: 'بحث بالـ Username…',
+  content: 'بحث في المحتوى…',
+  diagnostics: 'بحث في الأخطاء…'
 };
 const pmSearchable = {
   companies: c => [c.name, c.id, c.plan].join(' '),
@@ -14541,7 +14615,9 @@ const pmSearchable = {
   licenses: l => [l.companyName, l.tenantId, l.plan, l.status].join(' '),
   integrations: i => [i.companyName, i.tenantId, i.provider, i.masked].join(' '),
   audit: e => [e.action, e.userId, e.resource, e.resourceId, e.timestamp].join(' '),
-  admins: a => [a.username, a.platformRole, a.createdAt, a.updatedAt].join(' ')
+  admins: a => [a.username, a.platformRole, a.status, a.createdAt, a.updatedAt].join(' '),
+  content: e => [e.title, e.type, e.status, e.body].join(' '),
+  diagnostics: e => [e.message, e.level, e.route, e.status].join(' ')
 };
 let pmCurrentFilter = '';
 let pmCurrentData = null;
@@ -14593,6 +14669,8 @@ function pmReRenderCurrentTab() {
   else if (t === 'integrations') loadPlatformIntegrations();
   else if (t === 'audit') loadPlatformAudit();
   else if (t === 'admins') loadPlatformAdmins();
+  else if (t === 'diagnostics') loadPlatformDiagnostics();
+  else if (t === 'content') loadPlatformContent();
 }
 
 function pmResetSearch() {
@@ -15226,37 +15304,47 @@ async function loadPlatformAdmins() {
       platformBody('<div class="table-container"><div class="table-header"><div class="table-title">🛡️ مشرفو المنصة</div></div>' + pmEmptyState('🔍', 'لا توجد نتائج مطابقة', 'جرّب كلمة بحث مختلفة.') + '</div>');
       return;
     }
-    const isMasterOwner = (platformRole === 'MASTER_OWNER');
-    const headerActions = isMasterOwner
-      ? '<button class="btn btn-accent btn-sm" onclick="platformGrantAdminModal()">➕ إسناد مشرف جديد</button>'
-      : '<span style="font-size:0.78rem;color:var(--text2)">عرض فقط — صلاحية MASTER_OWNER مطلوبة للتعديل</span>';
+    const canManage = ccCan('platform.team.manage');
+    const headerActions = canManage
+      ? '<button class="btn btn-accent btn-sm" onclick="platformGrantAdminModal()">➕ إضافة عضو فريق</button>'
+      : '<span style="font-size:0.78rem;color:var(--text2)">عرض فقط — صلاحية إدارة الفريق مطلوبة للتعديل</span>';
+    const roleLabel = {
+      MASTER_OWNER: '👑 MASTER_OWNER',
+      PLATFORM_ADMIN: '🛡️ PLATFORM_ADMIN',
+      DEVELOPER: '👨‍💻 DEVELOPER',
+      DATA_ENTRY: '📝 DATA_ENTRY'
+    };
     const rows = list.map(a => {
       const role = String(a.platformRole || 'PLATFORM_ADMIN');
-      const roleBadge = role === 'MASTER_OWNER'
-        ? '<span class="badge badge-red">👑 MASTER_OWNER</span>'
-        : '<span class="badge badge-blue">🛡️ PLATFORM_ADMIN</span>';
+      const disabled = String(a.status || 'active') === 'disabled';
+      const badgeColor = role === 'MASTER_OWNER' ? 'badge-red'
+        : role === 'DATA_ENTRY' ? 'badge-green' : 'badge-blue';
+      const roleBadge = `<span class="badge ${badgeColor}">${escapeHtml(roleLabel[role] || role)}</span>`;
+      const statusBadge = disabled
+        ? '<span class="badge badge-red">معطّل</span>'
+        : '<span class="badge badge-green">نشط</span>';
       const isSelf = String(a.username || '').toLowerCase() === String((typeof currentUser !== 'undefined' && currentUser && currentUser.username) || '').toLowerCase();
-      const isMaster = role === 'MASTER_OWNER';
-      let actions = '';
-      if (isMasterOwner && !isMaster && !isSelf) {
-        actions = `<button class="btn btn-danger btn-sm" onclick="platformRevokeAdmin('${escapeHtml(a.username)}')">إلغاء الصلاحية</button>`;
+      const isOwner = role === 'MASTER_OWNER';
+      let actions = '<span style="color:var(--muted);font-size:0.78rem">—</span>';
+      if (canManage && !isSelf && !isOwner) {
+        actions =
+          `<button class="btn btn-outline btn-sm" onclick="platformChangeMemberRole('${escapeHtml(a.username)}','${escapeHtml(role)}')">تغيير الدور</button>` +
+          `<button class="btn btn-outline btn-sm" onclick="platformToggleMemberStatus('${escapeHtml(a.username)}','${disabled ? 'active' : 'disabled'}')">${disabled ? 'تفعيل' : 'تعطيل'}</button>` +
+          `<button class="btn btn-danger btn-sm" onclick="platformRevokeAdmin('${escapeHtml(a.username)}')">إزالة</button>`;
       } else if (isSelf) {
         actions = '<span style="color:var(--muted);font-size:0.78rem">— أنت</span>';
-      } else if (isMaster) {
-        actions = '<span style="color:var(--muted);font-size:0.78rem">— محمي</span>';
-      } else {
-        actions = '<span style="color:var(--muted);font-size:0.78rem">—</span>';
       }
       return `<tr>
         <td style="direction:ltr">${escapeHtml(a.username)}</td>
         <td>${roleBadge}</td>
+        <td>${statusBadge}</td>
         <td>${a.createdAt ? new Date(a.createdAt).toLocaleString('ar-EG') : '—'}</td>
         <td>${a.updatedAt ? new Date(a.updatedAt).toLocaleString('ar-EG') : '—'}</td>
         <td><div style="display:flex;gap:4px;flex-wrap:wrap">${actions}</div></td>
       </tr>`;
     }).join('');
-    platformBody(`<div class="table-container"><div class="table-header"><div class="table-title">🛡️ مشرفو المنصة</div>${headerActions}</div>
-      <div class="overflow-x"><table class="data-table"><thead><tr><th>Username</th><th>الدور</th><th>تاريخ الإسناد</th><th>آخر تحديث</th><th>إجراءات</th></tr></thead><tbody>${rows}</tbody></table></div></div>`);
+    platformBody(`<div class="table-container"><div class="table-header"><div class="table-title">🛡️ فريق المنصة</div>${headerActions}</div>
+      <div class="overflow-x"><table class="data-table"><thead><tr><th>Username</th><th>الدور</th><th>الحالة</th><th>تاريخ الإسناد</th><th>آخر تحديث</th><th>إجراءات</th></tr></thead><tbody>${rows}</tbody></table></div></div>`);
   } catch (e) {
     platformBody('<div style="color:var(--red)">تعذر التحميل: ' + escapeHtml(e && e.message ? e.message : 'خطأ') + '</div>');
   }
@@ -15266,7 +15354,7 @@ function platformGrantAdminModal() {
   const form = document.createElement('div');
   form.style.cssText = 'line-height:1.8';
   form.innerHTML =
-    '<div style="margin-top:4px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);font-size:0.85rem">سيتم منح المستخدم صلاحية <b>PLATFORM_ADMIN</b> على الخادم. الـ username يجب أن يكون لمستخدم موجود فعلاً في النظام.</div>' +
+    '<div style="margin-top:4px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);font-size:0.85rem">سيتم إضافة المستخدم إلى فريق المنصة على الخادم. الـ username يجب أن يكون لمستخدم موجود فعلاً في النظام.</div>' +
     '<div style="margin-top:12px">' +
       '<label style="display:block;font-size:0.82rem;color:var(--text2);margin-bottom:6px">Username المستخدم</label>' +
       '<input id="pmAdminUsername" type="text" autocomplete="off" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:var(--text);font-family:inherit;font-size:0.95rem;outline:none;direction:ltr" />' +
@@ -15274,20 +15362,24 @@ function platformGrantAdminModal() {
     '<div style="margin-top:10px">' +
       '<label style="display:block;font-size:0.82rem;color:var(--text2);margin-bottom:6px">الدور</label>' +
       '<select id="pmAdminRole" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-family:inherit;font-size:0.9rem">' +
-        '<option value="PLATFORM_ADMIN" selected>PLATFORM_ADMIN</option>' +
+        '<option value="PLATFORM_ADMIN" selected>PLATFORM_ADMIN — تشغيل وعمليات</option>' +
+        '<option value="DEVELOPER">DEVELOPER — تشخيص تقني</option>' +
+        '<option value="DATA_ENTRY">DATA_ENTRY — إدخال بيانات</option>' +
       '</select>' +
-      '<div style="font-size:0.78rem;color:var(--muted);margin-top:4px">MASTER_OWNER لا يمكن إسناده من الواجهة — يُسند من إعدادات الخادم فقط.</div>' +
+      '<div style="font-size:0.78rem;color:var(--muted);margin-bottom:6px">MASTER_OWNER لا يمكن إسناده من الواجهة — يُسند من إعدادات الخادم فقط.</div>' +
+      '<div style="font-size:0.78rem;color:var(--muted);margin-top:4px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface2)">الصلاحيات تُفرض على الخادم وفق الدور، والتعديل يُسجَّل في سجل التدقيق.</div>' +
     '</div>';
   const modal = pmOpenModal({
-    title: 'إسناد مشرف منصة جديد',
+    title: 'إضافة عضو فريق المنصة',
     body: form,
-    primaryLabel: 'منح الصلاحية',
+    primaryLabel: 'إضافة العضو',
     primaryClass: 'btn-primary',
     onPrimary: async () => {
       const u = String((form.querySelector('#pmAdminUsername') || {}).value || '').trim();
       if (!u) { showToast('الـ username مطلوب', 'error'); return false; }
+      const role = (form.querySelector('#pmAdminRole') || {}).value || 'PLATFORM_ADMIN';
       try {
-        const res = await backendApi.platform.grantAdmin(u, 'PLATFORM_ADMIN');
+        const res = await backendApi.platform.grantAdmin(u, role);
         if (res && res.success) {
           showToast('✅ تم إسناد صلاحية المشرف', 'success');
           await loadPlatformAdmins();
@@ -15304,10 +15396,10 @@ function platformGrantAdminModal() {
 function platformRevokeAdmin(username) {
   const body = '<div style="line-height:1.8">' +
     '<div>المستخدم: <b style="direction:ltr;display:inline-block">' + escapeHtml(username) + '</b></div>' +
-    '<div style="margin-top:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);font-size:0.85rem">⚠️ سيتم سحب صلاحية <b>PLATFORM_ADMIN</b> من المستخدم ولن يستطيع الوصول إلى مركز التحكم بعد ذلك. لا تُحذف بيانات المستخدم نفسه.</div>' +
+    '<div style="margin-top:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);font-size:0.85rem">⚠️ سيتم سحب عضوية المنصة من المستخدم ولن يستطيع الوصول إلى مركز التحكم بعد ذلك. لا تُحذف بيانات المستخدم نفسه.</div>' +
   '</div>';
   pmOpenModal({
-    title: 'سحب صلاحية مشرف منصة',
+    title: 'إزالة عضو فريق المنصة',
     body,
     primaryLabel: 'تأكيد السحب',
     primaryClass: 'btn-danger',
@@ -15324,6 +15416,255 @@ function platformRevokeAdmin(username) {
           return false;
         }
       } catch (e) { showToast('تعذر السحب', 'error'); return false; }
+    }
+  });
+}
+
+// ================= PLATFORM CONTROL CENTER (لوحة تحكم المنصة) =================
+// Real metrics only: an unavailable source renders as "غير متاح" instead of an
+// invented number. Authorization for every call is enforced server-side.
+function ccVal(v) {
+  return (v === undefined || v === null || v === '') ? 'غير متاح' : String(v);
+}
+function ccCard(icon, label, value, color) {
+  return '<div class="stat-card ' + (color || 'blue') + '">' +
+    '<div class="stat-icon">' + icon + '</div>' +
+    '<div class="stat-value">' + escapeHtml(ccVal(value)) + '</div>' +
+    '<div class="stat-label">' + escapeHtml(label) + '</div></div>';
+}
+function ccErr(msg) {
+  platformBody('<div style="color:var(--red);font-size:0.88rem">' + escapeHtml(msg || 'تعذر التحميل') + '</div>');
+}
+function ccDeny() {
+  platformBody('<div class="table-container">' + pmEmptyState('🔒', 'صلاحية غير كافية', 'لا تملك صلاحية عرض هذا القسم وفق مصفوفة الصلاحيات في الخادم.') + '</div>');
+}
+function ccTd(v) { return '<td>' + escapeHtml(ccVal(v)) + '</td>'; }
+
+async function loadPlatformControlDashboard() {
+  platformBody('<div style="color:var(--text2);font-size:0.85rem">⏳ جاري تحميل لوحة المعلومات…</div>');
+  if (!ccCan('platform.dashboard.view')) { ccDeny(); return; }
+  try {
+    const res = await backendApi.platform.controlDashboard();
+    if (!res) return ccErr('تعذر الاتصال بالخادم');
+    if (!(res.success && res.data)) return ccErr(res.message || 'تعذر تحميل لوحة المعلومات');
+    const d = res.data;
+    const b = (d.businesses && d.businesses.total !== undefined) ? d.businesses : null;
+    const u = (d.users && d.users.total !== undefined) ? d.users : null;
+    const l = (d.licenses && d.licenses.total !== undefined) ? d.licenses : null;
+    const services = Array.isArray(d.activeServices)
+      ? d.activeServices.map(s => '<li>' + escapeHtml(s.title || s.id || '') + '</li>').join('')
+      : '<li>غير متاح</li>';
+    platformBody(
+      '<div class="table-container">' +
+        '<div class="table-header"><div class="table-title">📊 صحة المنصة</div>' +
+        '<span style="font-size:0.75rem;color:var(--text2)">' + escapeHtml(d.generatedAt || '') + '</span></div>' +
+        '<div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">' +
+          ccCard('🏢', 'إجمالي الشركات', b ? b.total : null, 'blue') +
+          ccCard('✅', 'الشركات النشطة', b ? b.active : null, 'green') +
+          ccCard('⛔', 'الشركات الموقوفة', b ? b.suspended : null, 'red') +
+          ccCard('👥', 'إجمالي المستخدمين', u ? u.total : null, 'purple') +
+          ccCard('🟢', 'المتصلون الآن', u ? u.online : null, 'green') +
+          ccCard('📦', 'طلبات اليوم', d.orders ? d.orders.today : null, 'yellow') +
+          ccCard('🎫', 'التراخيص النشطة', l ? l.active : null, 'blue') +
+          ccCard('⏳', 'تنتهي قريبًا', l ? l.expiringSoon : null, 'orange') +
+          ccCard('🛡️', 'إجمالي سجل المنصة', d.security ? d.security.auditEntries : null, 'blue') +
+          ccCard('⚠️', 'أخطاء مفتوحة', d.security ? d.security.openErrors : null, 'red') +
+        '</div>' +
+      '</div>' +
+      '<div class="table-container" style="margin-top:12px">' +
+        '<div class="table-header"><div class="table-title">🧩 الخدمات النشطة</div></div>' +
+        '<ul style="margin:0;padding-inline-start:18px;line-height:1.9;font-size:0.88rem">' + services + '</ul>' +
+      '</div>' +
+      '<div class="table-container" style="margin-top:12px">' +
+        '<div class="table-header"><div class="table-title">⚙️ حالة النظام</div></div>' +
+        '<table class="data-table"><tbody>' +
+          '<tr><th>الحالة</th>' + ccTd(d.system && d.system.status) + '</tr>' +
+          '<tr><th>مدة التشغيل (ث)</th>' + ccTd(d.system && d.system.uptimeSeconds) + '</tr>' +
+          '<tr><th>بيئة التشغيل</th>' + ccTd(d.system && d.system.node) + '</tr>' +
+          '<tr><th>الذاكرة (MB)</th>' + ccTd(d.system && d.system.memoryRssMb) + '</tr>' +
+        '</tbody></table>' +
+      '</div>'
+    );
+  } catch (e) { ccErr('تعذر تحميل لوحة المعلومات'); }
+}
+
+async function loadPlatformDiagnostics() {
+  platformBody('<div style="color:var(--text2);font-size:0.85rem">⏳ جاري تحميل التشخيص…</div>');
+  if (!ccCan('platform.diagnostics.view')) { ccDeny(); return; }
+  try {
+    const res = await backendApi.platform.diagnostics();
+    if (!res) return ccErr('تعذر الاتصال بالخادم');
+    if (!(res.success && res.data)) return ccErr(res.message || 'تعذر تحميل التشخيص');
+    const d = res.data;
+    const health = d.health || {};
+    const checks = health.checks || {};
+    const keys = Object.keys(checks);
+    const checkRows = keys.length ? keys.map(k => {
+      const c = checks[k] || {};
+      const ok = c.status === 'ok';
+      return '<tr><td>' + escapeHtml(k) + '</td><td>' +
+        (ok ? '<span class="badge badge-green">سليم</span>'
+            : '<span class="badge badge-red">' + escapeHtml(c.status || 'خطأ') + '</span>') +
+        '</td><td>' + escapeHtml(c.detail || '—') + '</td></tr>';
+    }).join('') : '<tr><td colspan="3" style="text-align:center;color:var(--text2)">غير متاح</td></tr>';
+    const build = d.build || {};
+    const errs = (d.errors && d.errors.recent) || [];
+    const errRows = errs.length
+      ? errs.map(e => '<tr>' + ccTd(e.lastSeen) + ccTd(e.level) + ccTd(e.message) + ccTd(e.occurrences) + ccTd(e.status) + '</tr>').join('')
+      : '<tr><td colspan="5" style="text-align:center;color:var(--text2)">لا توجد أخطاء مسجّلة</td></tr>';
+    platformBody(
+      '<div class="table-container">' +
+        '<div class="table-header"><div class="table-title">🩺 حالة المكوّنات</div>' +
+        '<span style="font-size:0.75rem;color:var(--text2)">' + escapeHtml(health.status || 'غير متاح') + '</span></div>' +
+        '<table class="data-table"><thead><tr><th>المكوّن</th><th>الحالة</th><th>التفاصيل</th></tr></thead>' +
+        '<tbody>' + checkRows + '</tbody></table>' +
+      '</div>' +
+      '<div class="table-container" style="margin-top:12px">' +
+        '<div class="table-header"><div class="table-title">📦 هوية الإصدار</div></div>' +
+        '<table class="data-table"><tbody>' +
+          '<tr><th>الإصدار</th>' + ccTd(build.version) + '</tr>' +
+          '<tr><th>Commit</th><td style="direction:ltr">' + escapeHtml(ccVal(build.commitSha)) + '</td></tr>' +
+          '<tr><th>البيئة</th>' + ccTd(build.environment) + '</tr>' +
+          '<tr><th>تاريخ الإصدار</th>' + ccTd(build.releaseDate) + '</tr>' +
+        '</tbody></table>' +
+      '</div>' +
+      '<div class="table-container" style="margin-top:12px">' +
+        '<div class="table-header"><div class="table-title">⚠️ الأخطاء التقنية الأخيرة</div></div>' +
+        '<table class="data-table"><thead><tr><th>آخر ظهور</th><th>المستوى</th><th>الرسالة</th><th>التكرار</th><th>الحالة</th></tr></thead>' +
+        '<tbody>' + errRows + '</tbody></table>' +
+      '</div>'
+    );
+  } catch (e) { ccErr('تعذر تحميل التشخيص'); }
+}
+
+
+async function loadPlatformContent() {
+  platformBody('<div style="color:var(--text2);font-size:0.85rem">⏳ جاري تحميل المحتوى…</div>');
+  if (!ccCan('catalog.read')) { ccDeny(); return; }
+  try {
+    const res = await backendApi.platform.content();
+    if (!res) return ccErr('تعذر الاتصال بالخادم');
+    if (!(res.success && res.data)) return ccErr(res.message || 'تعذر تحميل المحتوى');
+    const all = res.data.entries || [];
+    const list = pmFilterList('content', all);
+    pmUpdateSearchCount(list.length, all.length);
+    const canCreate = ccCan('catalog.create');
+    const canUpdate = ccCan('catalog.update');
+    const head =
+      '<div class="table-header"><div class="table-title">📚 محتوى المنصة</div>' +
+      (canCreate ? '<button class="btn btn-accent btn-sm" onclick="platformNewContentModal()">➕ إضافة محتوى</button>'
+                 : '<span style="font-size:0.78rem;color:var(--text2)">عرض فقط — صلاحية الإضافة غير متاحة</span>') +
+      '</div>';
+    if (!all.length) { platformBody('<div class="table-container">' + head + pmEmptyState('📚', 'لا يوجد محتوى بعد', 'ابدأ بإضافة عنصر محتوى جديد من زر الإضافة.') + '</div>'); return; }
+    if (!list.length) { platformBody('<div class="table-container">' + head + pmEmptyState('🔍', 'لا توجد نتائج مطابقة', 'جرّب كلمة بحث مختلفة.') + '</div>'); return; }
+    const rows = list.map(e => {
+      const statusBadge = e.status === 'published' ? '<span class="badge badge-green">منشور</span>'
+        : e.status === 'draft' ? '<span class="badge badge-yellow">مسودة</span>'
+        : '<span class="badge badge-blue">' + escapeHtml(e.status || '—') + '</span>';
+      let actions = '<span style="color:var(--muted);font-size:0.78rem">—</span>';
+      if (canUpdate && e.status !== 'published') {
+        actions = '<button class="btn btn-accent btn-sm" onclick="platformSetContentStatus(\'' + escapeHtml(e.id) + '\',\'published\')">نشر</button>';
+      } else if (canUpdate && e.status === 'published') {
+        actions = '<button class="btn btn-outline btn-sm" onclick="platformSetContentStatus(\'' + escapeHtml(e.id) + '\',\'draft\')">إخفاء</button>';
+      }
+      return '<tr><td>' + escapeHtml(e.title || '') + '</td><td>' + escapeHtml(e.type || '') + '</td><td>' +
+        statusBadge + '</td><td>' + escapeHtml(e.body || '—') + '</td><td>' +
+        escapeHtml(e.updatedAt ? new Date(e.updatedAt).toLocaleString('ar-EG') : '—') + '</td><td>' + actions + '</td></tr>';
+    }).join('');
+    platformBody('<div class="table-container">' + head +
+      '<div class="table-container"><table class="data-table"><thead><tr>' +
+      '<th>العنوان</th><th>النوع</th><th>الحالة</th><th>المحتوى</th><th>آخر تحديث</th><th>إجراءات</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table></div></div>');
+  } catch (e) { ccErr('تعذر تحميل المحتوى'); }
+}
+
+function platformNewContentModal() {
+  const form = document.createElement('div');
+  form.innerHTML =
+    '<div class="form-group"><label>العنوان</label><input id="ccTitle" placeholder="عنوان المحتوى"></div>' +
+    '<div class="form-group"><label>النوع</label><select id="ccType" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:8px 12px;color:var(--text)">' +
+      '<option value="feature">ميزة</option><option value="highlight">إبراز</option><option value="banner">بانر</option><option value="faq">أسئلة شائعة</option>' +
+    '</select></div>' +
+    '<div class="form-group"><label>المحتوى</label><textarea id="ccBody" rows="4" placeholder="نص المحتوى..."></textarea></div>';
+  const modal = pmOpenModal({
+    title: 'إضافة محتوى جديد',
+    body: form,
+    primaryLabel: 'حفظ',
+    primaryClass: 'btn-primary',
+    onPrimary: async () => {
+      const title = String((form.querySelector('#ccTitle') || {}).value || '').trim();
+      if (!title) { showToast('العنوان مطلوب', 'error'); return false; }
+      const body = String((form.querySelector('#ccBody') || {}).value || '').trim();
+      const type = (form.querySelector('#ccType') || {}).value || 'feature';
+      try {
+        const res = await backendApi.platform.createContent({ title, type, body });
+        if (res && res.success) {
+          showToast('✅ تم حفظ المحتوى', 'success');
+          await loadPlatformContent();
+          modal.close();
+        } else { showToast((res && res.message) || 'تعذر الحفظ', 'error'); return false; }
+      } catch (e) { showToast('تعذر الحفظ', 'error'); return false; }
+    }
+  });
+}
+
+async function platformSetContentStatus(id, status) {
+  try {
+    const res = await backendApi.platform.updateContent(id, { status });
+    if (res && res.success) { showToast('✅ تم تحديث الحالة', 'success'); await loadPlatformContent(); }
+    else showToast((res && res.message) || 'تعذر التحديث', 'error');
+  } catch (e) { showToast('تعذر التحديث', 'error'); }
+}
+
+function platformChangeMemberRole(username, currentRole) {
+  const roles = ['MASTER_OWNER', 'PLATFORM_ADMIN', 'DEVELOPER', 'DATA_ENTRY'];
+  const form = document.createElement('div');
+  form.style.cssText = 'line-height:1.8';
+  form.innerHTML =
+    '<div>المستخدم: <b style="direction:ltr;display:inline-block">' + escapeHtml(username) + '</b></div>' +
+    '<div style="margin-top:12px"><label style="display:block;font-size:0.82rem;color:var(--text2);margin-bottom:6px">الدور الجديد</label>' +
+    '<select id="ccNewRole" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:var(--text);font-family:inherit;font-size:0.95rem">' +
+    roles.map(r => '<option value="' + r + '"' + (r === currentRole ? ' selected' : '') + '>' + r + '</option>').join('') +
+    '</select></div>' +
+    '<div style="margin-top:12px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);font-size:0.85rem">يُطبَّق التغيير على الخادم ويُسجَّل في سجل التدقيق. الدور يحدد الصلاحيات تلقائيًا.</div>';
+  const modal = pmOpenModal({
+    title: 'تغيير دور عضو الفريق',
+    body: form,
+    primaryLabel: 'حفظ التغيير',
+    primaryClass: 'btn-primary',
+    onPrimary: async () => {
+      const role = (form.querySelector('#ccNewRole') || {}).value;
+      if (!role || role === currentRole) { showToast('لم يتغير الدور', 'error'); return false; }
+      try {
+        const res = await backendApi.platform.updateAdmin(username, { platformRole: role });
+        if (res && res.success) { showToast('✅ تم تغيير الدور', 'success'); await loadPlatformAdmins(); modal.close(); }
+        else { showToast((res && res.message) || 'تعذر تغيير الدور', 'error'); return false; }
+      } catch (e) { showToast('تعذر تغيير الدور', 'error'); return false; }
+    }
+  });
+}
+
+function platformToggleMemberStatus(username, nextStatus) {
+  const disabling = nextStatus === 'disabled';
+  const body = '<div style="line-height:1.8">' +
+    '<div>المستخدم: <b style="direction:ltr;display:inline-block">' + escapeHtml(username) + '</b></div>' +
+    '<div style="margin-top:10px;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--surface2);font-size:0.85rem">' +
+    (disabling
+      ? '⚠️ سيتم تعطيل عضوية المنصة وفقدان هذا المستخدم لأي وصول إلى مركز التحكم فورًا (لا تُحذف بيانات المستخدم).'
+      : 'سيتم إعادة تفعيل عضوية المنصة لهذا المستخدم.') +
+    '</div></div>';
+  pmOpenModal({
+    title: disabling ? 'تعطيل عضو فريق' : 'تفعيل عضو فريق',
+    body,
+    primaryLabel: disabling ? 'تأكيد التعطيل' : 'تأكيد التفعيل',
+    primaryClass: disabling ? 'btn-danger' : 'btn-primary',
+    danger: disabling,
+    onPrimary: async ({ close }) => {
+      try {
+        const res = await backendApi.platform.updateAdmin(username, { status: nextStatus });
+        if (res && res.success) { showToast('✅ تم التحديث', 'success'); await loadPlatformAdmins(); close(); }
+        else { showToast((res && res.message) || 'تعذر التحديث', 'error'); return false; }
+      } catch (e) { showToast('تعذر التحديث', 'error'); return false; }
     }
   });
 }

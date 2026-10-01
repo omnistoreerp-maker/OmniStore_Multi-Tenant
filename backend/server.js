@@ -191,6 +191,7 @@ const customerRequestRoutes = require('./routes/customerRequest.routes');
 const internalChangeCenterRoutes = require('./routes/internalChangeCenter.routes');
 const platformIntegrationRoutes = require('./routes/platformIntegration.routes');
 const platformAdminRoutes = require('./routes/platformAdmin.routes');
+const platformControlCenterRoutes = require('./routes/platformControlCenter.routes');
 const tenantExtensionsRoutes = require('./routes/tenantExtensions.routes');
 const tenantOnboardingRoutes = require('./routes/tenantOnboarding.routes');
 const tenantPaymentsRoutes = require('./routes/tenantPayments.routes');
@@ -216,6 +217,11 @@ app.use('/api/v1/update', updateRoutes);
 // Phase 33 — Master Control Center. Mounted before the optional AUTH_REQUIRED
 // guard so platform scope is enforced exclusively by requirePlatformAdmin.
 app.use('/api/v1/platform', platformRoutes);
+// Platform Control Center — role-aware internal console (dashboard, team,
+// diagnostics, content catalog). Every route is server-authorized by the
+// granular platform permission middleware; authorization is never taken from
+// query/body/headers. Separate from every tenant scope.
+app.use('/api/v1/platform/control-center', platformControlCenterRoutes);
 // Tenant Onboarding Wizard — guided setup + one-click demo data.
 app.use('/api/v1/tenant/onboarding', tenantOnboardingRoutes);
 // Public platform homepage — read-only catalog, no auth required.
