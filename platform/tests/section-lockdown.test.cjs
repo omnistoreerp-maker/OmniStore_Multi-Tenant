@@ -647,6 +647,9 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/services/platformAdmin.service.js',
     'backend/tests/controlCenterSecurity.test.js',
   'backend/services/platformControlCenter.service.js',
+    // Audit header-style alias sanitization cycle: normalized-key matcher in
+    // audit.service.js plus the focused regression coverage for it.
+    'backend/tests/controlCenterSecurityFixes.test.js'
   ]);
   const allowedUntracked = new Set([
   'backend/tests/controlCenterSecurityFixes.test.js',

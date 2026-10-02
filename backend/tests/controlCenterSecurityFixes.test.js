@@ -99,19 +99,35 @@ describe('A. AUDIT_SANITIZATION — behavioural coverage', () => {
   });
 
   test('nested and aliased forms are redacted too', () => {
-    // NOTE: main@9cbd82f's sanitizer has no normalized-key matcher, so header-
-    // style aliases such as `X-API-Key` are NOT covered by it (closing that gap
-    // requires backend/services/audit.service.js, outside this change's scope).
-    // These assertions therefore cover the nested/array recursion and the
-    // underscore aliases that the current sanitizer DOES guarantee.
+    // Header-style spellings (X-API-Key, X-Auth-Token) and separator variants
+    // are now covered by the normalized-key matcher in audit.service.js, along
+    // with the pre-existing nested/array recursion and underscore aliases.
     auditService.record({
       userId: 'u1', action: 'SEC_FIX_SELFTEST_3', entity: 'tests', entityId: 'san3',
-      changes: { after: { nested: { deep: { cookie: 'VAL_deep_cookie' } }, list: [{ jwt: 'VAL_list_jwt' }, { access_token: 'VAL_nested_at' }] } }
+      changes: { after: {
+        nested: { deep: { cookie: 'VAL_deep_cookie' } },
+        list: [{ jwt: 'VAL_list_jwt' }, { access_token: 'VAL_nested_at' }],
+        'X-API-Key': 'VAL_xapikey',
+        'X-Auth-Token': 'VAL_xauthtoken',
+        'API-Key': 'VAL_sep_apikey'
+      } }
     });
     const raw = fs.readFileSync(auditLogPath, 'utf8');
     expect(raw).not.toContain('VAL_deep_cookie');
     expect(raw).not.toContain('VAL_list_jwt');
     expect(raw).not.toContain('VAL_nested_at');
+    expect(raw).not.toContain('VAL_xapikey');
+    expect(raw).not.toContain('VAL_xauthtoken');
+    expect(raw).not.toContain('VAL_sep_apikey');
+    const log = JSON.parse(raw);
+    const entry = (log.entries || []).find(e => e && e.action === 'SEC_FIX_SELFTEST_3');
+    expect(entry).toBeDefined();
+    const after = entry.changes.after;
+    expect(after.nested.deep.cookie).toBe('[REDACTED]');
+    expect(after.list[0].jwt).toBe('[REDACTED]');
+    expect(after['X-API-Key']).toBe('[REDACTED]');
+    expect(after['X-Auth-Token']).toBe('[REDACTED]');
+    expect(after['API-Key']).toBe('[REDACTED]');
   });
 
   test('actor attribution survives sanitization', () => {

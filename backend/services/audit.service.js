@@ -95,8 +95,34 @@ const SENSITIVE_KEYS = new Set([
   'idtoken'
 ]);
 
+// Header-style aliases of secrets ALREADY listed in SENSITIVE_KEYS above
+// (X-API-Key, X-Auth-Token, X-Access-Token…), matched on their separator-
+// stripped lowercase form. No new secret classes are introduced here — only
+// spelling variants of the canonical keys the audit trail already promises
+// never to store.
+const SENSITIVE_KEY_ALIASES = new Set([
+  'xapikey',
+  'xauthtoken',
+  'xaccesstoken',
+  'xrefreshtoken',
+  'xsessiontoken',
+  'xcsrftoken',
+  'xjwt',
+  'xjsonwebtoken',
+  'xauthorization',
+  'proxyauthorization'
+]);
+
 function _isSensitiveKey(key) {
-  return SENSITIVE_KEYS.has(String(key).toLowerCase());
+  const lower = String(key).toLowerCase();
+  // Fast path: exact canonical match keeps its historical behaviour.
+  if (SENSITIVE_KEYS.has(lower)) return true;
+  // Separator-insensitive match for header-style spellings (X-API-Key,
+  // access_token, session.secret…). Every SENSITIVE_KEYS entry normalizes to
+  // a lowercase-alphanumeric form that is itself in the set, so this can only
+  // ADD spelling variants of existing canonical keys — never new classes.
+  const normalized = lower.replace(/[^a-z0-9]/g, '');
+  return SENSITIVE_KEYS.has(normalized) || SENSITIVE_KEY_ALIASES.has(normalized);
 }
 
 // Recursive clone-and-redact: any sensitive property value becomes
