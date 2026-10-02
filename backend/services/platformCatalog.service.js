@@ -80,6 +80,19 @@ function _defaultDoc() {
         url: '/student.html',
         icon: 'fa-graduation-cap'
       },
+      {
+        // Education (STU-1 to STU-10). Live in the branch: the 22 education.*
+        // permissions are registered, so advertising it is honest. The entry
+        // grants nothing — the Education API stays tenant-scoped and
+        // permission-gated exactly as before, so an operator without an
+        // education.* grant still gets 403 from the route itself.
+        id: 'education',
+        title: 'Education',
+        description: 'Tenant-scoped Education management: students, teachers, centers, programs, courses, classes, enrollments, attendance, schedule and grading.',
+        status: 'active',
+        url: '/education/index.html',
+        icon: 'fa-school'
+      },
 {
         id: 'game-hosting',
         title: 'Game Hosting',

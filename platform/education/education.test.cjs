@@ -698,11 +698,20 @@ check('the education page reaches no surface this device does not own', () => {
   for (const foreign of ['marketplace', 'market.html', 'reels', 'tiktok', 'monetag', 'sw.js', 'DigiTronics_v5']) {
     assert(PAGE.indexOf(foreign) < 0, 'the Education page references a foreign surface: ' + foreign);
   }
-  // Master owns the section catalog and the Platform Home nav. Adding an
-  // Education entry there is not this device's call.
+  // Master owns the section catalog and the Platform Home nav. While Education
+  // was dark this device asserted it had never touched them. The Master
+  // discoverability cycle has since added the Education entry, so the boundary
+  // is now: Platform Home advertises Education and ONLY Education, through the
+  // real entry route, and Education itself still reaches no foreign surface.
   const platformHtml = read('platform.html');
-  assert(platformHtml.indexOf('education/index.html') < 0 && platformHtml.indexOf('/education/') < 0,
-    'Platform Home navigation was modified; that surface is Master-owned');
+  assert(platformHtml.indexOf('education/index.html') >= 0,
+    'Platform Home no longer advertises the Education entry');
+  const eduLinks = platformHtml.match(/(?:src|href)\s*=\s*["'][^"']*education[^"']*["']/gi) || [];
+  assertEqual(eduLinks.length, 3, 'Platform Home must carry exactly the 3 Education nav links, got: ' + eduLinks.join(' '));
+  for (const link of eduLinks) {
+    assert(link.includes('/education/index.html'),
+      'Platform Home must link the real Education entry only: ' + link);
+  }
 });
 
 check('the dictionary registers through the shared i18n runtime and defines no second one', () => {
