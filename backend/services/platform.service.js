@@ -21,6 +21,7 @@ const CompanyService = require('./company.service');
 const auditService = require('./audit.service');
 const presenceService = require('./presence.service');
 const platformAdmin = require('./platformAdmin.service');
+const platformRegistry = require('../permissions/platformRegistry');
 
 const COMPANY_STORE = 'companies';
 const LICENSE_STORE = 'licenses';
@@ -275,9 +276,53 @@ function _isLastOwnerInAnyTenant(target) {
   return false;
 }
 
+// ---- platform authorization helpers (official permission architecture) ----
+// The actor's reach comes from platformRegistry (role defaults UNION per-member
+// additive overrides), resolved server-side from the platform store. Unknown or
+// disabled members resolve to null and are denied everything.
+
+function _actorHasPlatformPermission(actor, permission) {
+  const uname = String((actor && actor.username) || '').trim().toLowerCase();
+  if (!uname) return false;
+  const role = platformAdmin.platformRoleFor(uname); // fail-closed
+  if (!role) return false;
+  const member = platformAdmin.memberFor(uname);
+  const overrides = member && Array.isArray(member.permissions) ? member.permissions : [];
+  return platformRegistry.hasPlatformPermission(role, permission, overrides);
+}
+
+// A user holding the Owner role in ANY bound tenant is a tenant Owner.
+function _isTenantOwner(user) {
+  if (!user) return false;
+  for (const tenantId of _boundTenants(user)) {
+    const role = user.tenantRoles && user.tenantRoles[tenantId] ? user.tenantRoles[tenantId] : user.role;
+    if (role === 'Owner') return true;
+  }
+  return false;
+}
+
+// Tenant-Owner account lifecycle (reset / disable / enable / force-logout) is
+// security-critical: it requires `platform.security.manage` (MASTER_OWNER-only
+// in the official registry; explicit per-member overrides respected).
+// PLATFORM_ADMIN / DEVELOPER / DATA_ENTRY are denied even though they pass the
+// legacy requirePlatformAdmin surface for ordinary users. LAST_OWNER_PROTECTION
+// stays an ADDITIONAL layer applied afterwards for MASTER_OWNER actors.
+function _denyTenantOwnerManagement(actor, target) {
+  if (!_isTenantOwner(target)) return null;
+  if (_actorHasPlatformPermission(actor, 'platform.security.manage')) return null;
+  return {
+    error: 'Managing a tenant Owner account requires platform.security.manage',
+    status: 403,
+    code: 'OWNER_MANAGEMENT_FORBIDDEN'
+  };
+}
+
 function disableUser(actor, userId) {
   const target = usersService.getById(userId);
   if (!target) return { error: 'User not found', status: 404 };
+  // Role gate FIRST: tenant-Owner targets need platform.security.manage.
+  const denied = _denyTenantOwnerManagement(actor, target);
+  if (denied) return denied;
   if (_isLastOwnerInAnyTenant(target)) {
     return { error: 'Cannot disable the last Owner of a tenant', status: 409, code: 'LAST_OWNER_PROTECTION' };
   }
@@ -294,6 +339,8 @@ function disableUser(actor, userId) {
 function enableUser(actor, userId) {
   const target = usersService.getById(userId);
   if (!target) return { error: 'User not found', status: 404 };
+  const denied = _denyTenantOwnerManagement(actor, target);
+  if (denied) return denied;
   if (String(target.status || 'active').toLowerCase() !== 'disabled') {
     return { user: usersService.sanitizeUser(target), already: true };
   }
@@ -306,6 +353,8 @@ function enableUser(actor, userId) {
 function forceLogout(actor, userId) {
   const target = usersService.getById(userId);
   if (!target) return { error: 'User not found', status: 404 };
+  const denied = _denyTenantOwnerManagement(actor, target);
+  if (denied) return denied;
   const bump = usersService.bumpTokenVersion(userId);
   if (bump.error) return { error: bump.error, status: 400 };
   // Also drop their presence heartbeats so the dashboard shows them offline.
@@ -326,6 +375,8 @@ function resetUserPassword(actor, userId, newPassword) {
   }
   const target = usersService.getById(userId);
   if (!target) return { error: 'User not found', status: 404 };
+  const denied = _denyTenantOwnerManagement(actor, target);
+  if (denied) return denied;
   const updated = usersService.update(userId, { password: newPassword });
   if (updated.error) return { error: updated.error, status: 400 };
   const bump = usersService.bumpTokenVersion(userId);
@@ -439,6 +490,15 @@ function listPlatformAdmins() {
 }
 
 function grantPlatformAdmin(actor, username, platformRole) {
+  // Defence in depth: the HTTP path is already gated by platform.team.manage;
+  // the service refuses non-holders too (server-side, permission-model based).
+  if (!_actorHasPlatformPermission(actor, 'platform.team.manage')) {
+    return {
+      error: 'platform.team.manage is required to grant platform roles',
+      status: 403,
+      code: 'PLATFORM_PERMISSION_DENIED'
+    };
+  }
   const result = platformAdmin.grant(username, platformRole);
   if (result.error) return { error: result.error, status: 400 };
   _audit(actor, 'PLATFORM_ADMIN_GRANTED', 'platform-admins', result.username, {
@@ -448,6 +508,13 @@ function grantPlatformAdmin(actor, username, platformRole) {
 }
 
 function revokePlatformAdmin(actor, username) {
+  if (!_actorHasPlatformPermission(actor, 'platform.team.manage')) {
+    return {
+      error: 'platform.team.manage is required to revoke platform roles',
+      status: 403,
+      code: 'PLATFORM_PERMISSION_DENIED'
+    };
+  }
   const result = platformAdmin.revoke(username);
   if (result.error) return { error: result.error, status: 400 };
   _audit(actor, 'PLATFORM_ADMIN_REVOKED', 'platform-admins', username, { username });

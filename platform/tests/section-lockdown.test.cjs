@@ -634,7 +634,18 @@ check('working-tree diff touches only intended platform files', () => {
     // TikTok controller, public page and route namespace.
     'reels.html',
     'backend/controllers/tiktokReels.controller.js',
-    'nginx.conf'
+    'nginx.conf',
+    // Control Center hardening cycle (reapplied onto the Education-integrated
+    // main): server-authoritative Control Center reads, Platform admin
+    // role/permission enforcement, tamper-evident audit chain, plus the
+    // regression suite that pins all of it. backend/server.js is already
+    // allowed above by the Multitag entry and is hardened in place here.
+    'backend/controllers/platform.controller.js',
+    'backend/controllers/platformAdmin.controller.js',
+    'backend/services/audit.service.js',
+    'backend/services/platform.service.js',
+    'backend/services/platformAdmin.service.js',
+    'backend/tests/controlCenterSecurity.test.js'
   ]);
   const allowedUntracked = new Set([
     'platform/tests/section-lockdown.test.cjs',

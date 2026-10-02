@@ -62,26 +62,33 @@ function memberFor(username) {
   return _load().find(a => a && _normalizeUsername(a.username) === uname) || null;
 }
 
-// Active platform member of ANY platform role.
+// Active member of an OFFICIAL platform role (unknown/disabled -> false).
 function isPlatformAdmin(username) {
-  const entry = memberFor(username);
-  return !!entry && _isActive(entry);
+  return !!platformRoleFor(username);
 }
 
 // Active member's platform role, or null. A disabled/removed member resolves to
-// null so authorization gates reject them.
+// null so authorization gates reject them. A stored role that is missing or
+// not part of the OFFICIAL registry (hand-edited/injected store entries) also
+// resolves to null — unknown roles FAIL CLOSED, never fall back to a default
+// access level. Valid official roles (MASTER_OWNER, PLATFORM_ADMIN, DEVELOPER,
+// DATA_ENTRY) resolve exactly as stored.
 function platformRoleFor(username) {
   const entry = memberFor(username);
   if (!entry || !_isActive(entry)) return null;
-  return entry.platformRole || 'PLATFORM_ADMIN';
+  const role = platformRegistry.normalizeRole(entry.platformRole);
+  if (!platformRegistry.isPlatformRole(role)) return null;
+  return role;
 }
 
 // Effective platform permissions for an authenticated username (server-side).
+// Fail-closed: a member without a valid official role gets the empty set.
 function resolvePermissionsFor(username) {
+  const role = platformRoleFor(username);
+  if (!role) return [];
   const entry = memberFor(username);
-  if (!entry || !_isActive(entry)) return [];
-  const role = entry.platformRole || 'PLATFORM_ADMIN';
-  return platformRegistry.resolvePermissions(role, entry.permissions);
+  const overrides = entry && Array.isArray(entry.permissions) ? entry.permissions : [];
+  return platformRegistry.resolvePermissions(role, overrides);
 }
 
 function listAdmins() {

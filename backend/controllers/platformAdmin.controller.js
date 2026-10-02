@@ -5,6 +5,7 @@ const logger = require('../utils/logger');
 const addonService = require('../services/tenantAddons.service');
 const feeService = require('../services/tenantTransactionFees.service');
 const domainService = require('../services/tenantCustomDomains.service');
+const companyService = require('../services/company.service');
 
 function _actor(req) {
   return req.user ? { id: req.user.id, username: req.user.username } : null;
@@ -24,8 +25,14 @@ async function listAddons(req, res) {
 
 async function upsertAddon(req, res) {
   try {
+    const tenantId = String(req.params.tenantId || '').trim();
+    // API-boundary tenant validation: an add-on may only ever be persisted for
+    // a company that actually exists (never auto-create for unknown tenants).
+    if (!companyService.getCompany(tenantId)) {
+      return error(res, 'Invalid tenant or addon key', 400);
+    }
     const { addon_key, status, expires_at } = req.body || {};
-    const record = await addonService.upsertAddonForTenant(req.params.tenantId, addon_key, status, expires_at);
+    const record = await addonService.upsertAddonForTenant(tenantId, addon_key, status, expires_at);
     if (!record) return error(res, 'Invalid tenant or addon key', 400);
     success(res, record, 'Add-on saved');
   } catch (err) {
