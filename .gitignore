@@ -39,3 +39,17 @@ backend/data/marketCustomers.json
 backend/data/gameHostingOrders.json
 backend/data/reels-*.json
 backend/data/reel-media/
+
+# Education module: tenant-owned runtime stores, created on first write and
+# never committed. Same rule as the entries above.
+backend/data/educationPack.json
+backend/data/educationStudents.json
+backend/data/educationTeachers.json
+backend/data/educationCenters.json
+backend/data/educationPrograms.json
+backend/data/educationCourses.json
+backend/data/educationClasses.json
+backend/data/educationEnrollments.json
+backend/data/educationAttendance.json
+backend/data/educationScheduling.json
+backend/data/educationGrading.json

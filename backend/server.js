@@ -183,6 +183,20 @@ const tenantOnboardingRoutes = require('./routes/tenantOnboarding.routes');
 const tenantPaymentsRoutes = require('./routes/tenantPayments.routes');
 const tenantNotificationsRoutes = require('./routes/tenantNotifications.routes');
 const studentServicesPackRoutes = require('./routes/studentServicesPack.routes');
+// Education module (Device 2), STU-1 to STU-10. Eleven routers on one additive
+// prefix that no other router claims; every one declares only literal paths,
+// so no Education router can shadow another or be shadowed.
+const educationPackRoutes = require('./routes/educationPack.routes');
+const studentRoutes = require('./routes/student.routes');
+const teacherRoutes = require('./routes/teacher.routes');
+const centerRoutes = require('./routes/center.routes');
+const programRoutes = require('./routes/program.routes');
+const courseRoutes = require('./routes/course.routes');
+const classRoutes = require('./routes/class.routes');
+const enrollmentRoutes = require('./routes/enrollment.routes');
+const attendanceRoutes = require('./routes/attendance.routes');
+const schedulingRoutes = require('./routes/scheduling.routes');
+const gradingRoutes = require('./routes/grading.routes');
 const shiftManagementRoutes = require('./routes/shiftManagement.routes');
 const onlineStoreRoutes = require('./routes/onlineStore.routes');
 const loyaltyRoutes = require('./routes/loyalty.routes');
@@ -326,6 +340,21 @@ app.use('/api/v1/reports', validateResource('reports'), reportsRoutes);
 app.use('/api/v1/users', validateResource('users'), usersRoutes);
 app.use('/api/v1/loyalty', validateResource('loyalty'), loyaltyRoutes);
 app.use('/api/v1/tenant/student-services', studentServicesPackRoutes);
+// Education module. Additive and dark: these routers declare no catalog entry,
+// no navigation and no permission registration yet, so nothing here is
+// discoverable from the platform. Access stays fail-closed at the permission
+// gate until the permission group is registered.
+app.use('/api/v1/tenant/education', educationPackRoutes);
+app.use('/api/v1/tenant/education', studentRoutes);
+app.use('/api/v1/tenant/education', teacherRoutes);
+app.use('/api/v1/tenant/education', centerRoutes);
+app.use('/api/v1/tenant/education', programRoutes);
+app.use('/api/v1/tenant/education', courseRoutes);
+app.use('/api/v1/tenant/education', classRoutes);
+app.use('/api/v1/tenant/education', enrollmentRoutes);
+app.use('/api/v1/tenant/education', attendanceRoutes);
+app.use('/api/v1/tenant/education', schedulingRoutes);
+app.use('/api/v1/tenant/education', gradingRoutes);
 app.use('/api/v1/tenant/shifts', shiftManagementRoutes);
 app.use('/api/v1/tenant/online-store', onlineStoreRoutes);
 
