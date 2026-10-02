@@ -120,7 +120,7 @@ function disableUser(req, res) {
 function enableUser(req, res) {
   try {
     const result = platform.enableUser(_actor(req), req.params.id);
-    if (result.error) return error(res, result.error, result.status || 500);
+    if (result.error) return error(res, result.error, result.status || 500, result.code ? { code: result.code } : null);
     success(res, result, 'User enabled');
   } catch (err) {
     logger.error('platform.enableUser error:', err.message);
@@ -131,7 +131,7 @@ function enableUser(req, res) {
 function forceLogout(req, res) {
   try {
     const result = platform.forceLogout(_actor(req), req.params.id);
-    if (result.error) return error(res, result.error, result.status || 500);
+    if (result.error) return error(res, result.error, result.status || 500, result.code ? { code: result.code } : null);
     success(res, result, 'User signed out');
   } catch (err) {
     logger.error('platform.forceLogout error:', err.message);
@@ -143,7 +143,7 @@ function resetPassword(req, res) {
   try {
     const { newPassword } = req.body || {};
     const result = platform.resetUserPassword(_actor(req), req.params.id, newPassword);
-    if (result.error) return error(res, result.error, result.status || 500);
+    if (result.error) return error(res, result.error, result.status || 500, result.code ? { code: result.code } : null);
     success(res, result, 'Password reset successfully');
   } catch (err) {
     logger.error('platform.resetPassword error:', err.message);

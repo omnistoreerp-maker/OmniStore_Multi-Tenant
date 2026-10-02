@@ -369,18 +369,44 @@ const PRIVATE_PREFIXES = [
   'backend', '.git', '.github', '.freebuff', '.vercel', '.vscode',
   'node_modules', 'releases', 'release', 'backups', 'archive', 'database',
   'deploy', 'docs', 'documentation', 'tests', 'test-results',
-  'customerrollout', 'supabase', 'coverage', 'dist', 'build'
+  'customerrollout', 'supabase', 'coverage', 'dist', 'build',
+  // Root-level manifests/dotfiles are server internals, never frontend assets.
+  '.env', 'package.json', 'package-lock.json'
 ];
 // Scratch/dev files at the repo root that must never be served.
 const PRIVATE_FILE_PATTERNS = ['diffnames.txt', 'diffstat.txt', 'PHASE72_DISCOVERY.txt', '.bak', '.log', '.tmp'];
+// Deny EVERY path whose decoded+normalized form lands in the private tree,
+// and run this BEFORE express.static. The guard used to inspect only the raw
+// first path segment, so plain (/x/../backend/server.js), dot-segment
+// (/./backend/server.js) and percent-encoded (/foo%2f..%2fbackend%2fserver.js)
+// traversals passed the check and were served by static path resolution.
+// Resolution order here mirrors serve-static: decode once, collapse '.'/'..',
+// then evaluate the private prefixes, private file patterns and — as defence
+// in depth — require the resolved target to stay inside the frontend root.
 function frontendPrivateGuard(req, res, next) {
-  const decoded = decodeURIComponent(req.path || '/');
-  const first = decoded.replace(/^\/+/, '').split('/')[0] || '';
-  if (first && PRIVATE_PREFIXES.includes(first.toLowerCase())) {
+  let decoded;
+  try {
+    decoded = decodeURIComponent(req.path || '/');
+  } catch (e) {
+    // Malformed percent-encoding: fail closed rather than guess.
     return res.status(403).end();
   }
-  const lower = decoded.toLowerCase();
+  const normalized = path.posix.normalize(decoded.replace(/\\/g, '/'));
+  if (!normalized.startsWith('/')) return res.status(403).end();
+  const rel = normalized.replace(/^\/+/, '');
+  const segments = rel.split('/').filter((s) => s !== '' && s !== '.');
+  // A surviving '..' would escape the frontend root — never serve it.
+  if (segments.some((s) => s === '..')) return res.status(403).end();
+  const first = (segments[0] || '').toLowerCase();
+  if (first && PRIVATE_PREFIXES.includes(first)) {
+    return res.status(403).end();
+  }
+  const lower = rel.toLowerCase();
   if (PRIVATE_FILE_PATTERNS.some((p) => lower.includes(p.toLowerCase()))) {
+    return res.status(403).end();
+  }
+  const target = path.resolve(FRONTEND_ROOT, rel);
+  if (target !== FRONTEND_ROOT && !target.startsWith(FRONTEND_ROOT + path.sep)) {
     return res.status(403).end();
   }
   next();

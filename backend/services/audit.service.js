@@ -67,6 +67,8 @@ const SENSITIVE_KEYS = new Set([
   'token',
   'accesstoken',
   'refreshtoken',
+  'access_token',
+  'refresh_token',
   'apikey',
   'apikeyhash',
   'keyhash',
@@ -75,7 +77,22 @@ const SENSITIVE_KEYS = new Set([
   'totp',
   'totpsecret',
   'verificationcode',
-  'clientsecret'
+  'clientsecret',
+  'authorization',
+  'auth',
+  'bearer',
+  'bearertoken',
+  'credential',
+  'credentials',
+  'session',
+  'sessionid',
+  'sessiontoken',
+  'sessionsecret',
+  'cookie',
+  'privatekey',
+  'signingkey',
+  'jwt',
+  'idtoken'
 ]);
 
 function _isSensitiveKey(key) {
