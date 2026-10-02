@@ -102,16 +102,26 @@ function listAdmins() {
 
 // Full team listing for the Control Center (includes status + overrides).
 function listMembers() {
-  return _load().map(a => ({
-    username: a.username,
-    platformRole: a.platformRole || 'PLATFORM_ADMIN',
-    status: String(a.status || 'active').toLowerCase(),
-    displayName: a.displayName || null,
-    permissions: Array.isArray(a.permissions) ? a.permissions.slice() : [],
-    addedBy: a.addedBy || null,
-    createdAt: a.createdAt || null,
-    updatedAt: a.updatedAt || null
-  }));
+  return _load().map(a => {
+    // Fail closed at materialization: a missing, null, empty or off-registry
+    // stored role is NEVER collapsed into a privileged default. Only a
+    // canonical official role is preserved verbatim; anything else is reported
+    // as 'UNKNOWN' so downstream (e.g. _memberView) resolves an EMPTY
+    // permission set. This does not alter the authorization read path
+    // (platformRoleFor / isPlatformAdmin), which already fails closed.
+    const normalized = platformRegistry.normalizeRole(a.platformRole);
+    const role = platformRegistry.isPlatformRole(normalized) ? normalized : 'UNKNOWN';
+    return {
+      username: a.username,
+      platformRole: role,
+      status: String(a.status || 'active').toLowerCase(),
+      displayName: a.displayName || null,
+      permissions: Array.isArray(a.permissions) ? a.permissions.slice() : [],
+      addedBy: a.addedBy || null,
+      createdAt: a.createdAt || null,
+      updatedAt: a.updatedAt || null
+    };
+  });
 }
 
 // Seed from the environment ONLY when the store has no entries yet.

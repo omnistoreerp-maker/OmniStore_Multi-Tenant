@@ -107,9 +107,14 @@ function dashboard() {
 
 // ---- team management ----
 function _memberView(member) {
-  const role = member.platformRole || 'PLATFORM_ADMIN';
+  // Fail closed: a stored role that is missing, empty or not part of the official
+  // platform registry is reported as UNKNOWN and resolves to the EMPTY permission
+  // set. It never falls back to a privileged role such as PLATFORM_ADMIN.
+  const normalized = platformRegistry.normalizeRole(member.platformRole);
+  const role = platformRegistry.isPlatformRole(normalized) ? normalized : 'UNKNOWN';
   return Object.assign({}, member, {
-    effectivePermissions: platformRegistry.resolvePermissions(role, member.permissions)
+    platformRole: role,
+    effectivePermissions: role === 'UNKNOWN' ? [] : platformRegistry.resolvePermissions(role, member.permissions)
   });
 }
 

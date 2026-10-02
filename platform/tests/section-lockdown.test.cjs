@@ -645,9 +645,11 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/services/audit.service.js',
     'backend/services/platform.service.js',
     'backend/services/platformAdmin.service.js',
-    'backend/tests/controlCenterSecurity.test.js'
+    'backend/tests/controlCenterSecurity.test.js',
+  'backend/services/platformControlCenter.service.js',
   ]);
   const allowedUntracked = new Set([
+  'backend/tests/controlCenterSecurityFixes.test.js',
     'platform/tests/section-lockdown.test.cjs',
     'backend/tests/platformSections.students.test.js',
     // Support activation cycle: operator workflow tests.
@@ -693,9 +695,51 @@ check('working-tree diff touches only intended platform files', () => {
   for (const file of modified) {
     assert.ok(allowedModified.has(file), 'unexpected modified file: ' + file);
   }
+  // Explicit Control Center security backend allowlist. Membership uses Set.has()
+  // only: no wildcard, no startsWith('backend/') prefix acceptance, no branch-name
+  // or commit-message exemption, no skip and no conditional bypass.
+  const BACKEND_ALLOWLIST = new Set([
+    'backend/server.js',
+    'backend/tests/monetag.boundary.test.js',
+    'backend/tests/platformPublic.test.js',
+    'backend/tests/platformSections.students.test.js',
+    'backend/services/platformCatalog.service.js',
+    'backend/services/customerRequest.service.js',
+    'backend/controllers/internalChangeCenter.controller.js',
+    'backend/routes/internalChangeCenter.routes.js',
+    'backend/data/platformPublic.json',
+    'backend/controllers/platform.controller.js',
+    'backend/controllers/platformAdmin.controller.js',
+    'backend/services/audit.service.js',
+    'backend/services/platform.service.js',
+    'backend/services/platformAdmin.service.js',
+    'backend/services/platformControlCenter.service.js',
+    'backend/tests/controlCenterSecurity.test.js',
+    'backend/tests/controlCenterSecurityFixes.test.js'
+  ]);
+  // Negative boundaries: these must NEVER appear in a working-tree diff or be added.
+  const FORBIDDEN_NEVER_TOUCHED = ['.env','nginx.conf','sw.js','package.json','package-lock.json','platform/monetag.js'];
+  const FORBIDDEN_PREFIXES = ['backend/data/','marketplace/'];
+  for (const file of modified) {
+    if (file === 'backend' || file.startsWith('backend/')) {
+      assert.ok(BACKEND_ALLOWLIST.has(file), 'modified backend file is not in the explicit backend allowlist: ' + file);
+    }
+    for (const p of FORBIDDEN_PREFIXES) {
+      assert.ok(!file.startsWith(p), p + ' must never be modified: ' + file);
+    }
+    for (const f of FORBIDDEN_NEVER_TOUCHED) {
+      assert.notStrictEqual(file, f, f + ' must never be modified');
+    }
+  }
   const untracked = git(['ls-files', '--others', '--exclude-standard']);
   for (const file of untracked) {
     assert.ok(allowedUntracked.has(file), 'unexpected untracked file: ' + file);
+    for (const p of FORBIDDEN_PREFIXES) {
+      assert.ok(!file.startsWith(p), p + ' must never be added: ' + file);
+    }
+    for (const f of FORBIDDEN_NEVER_TOUCHED) {
+      assert.notStrictEqual(file, f, f + ' must never be added');
+    }
   }
 });
 
