@@ -52,6 +52,8 @@ const PROHIBITED_ZONES = ['11857331', '11912374'];
 // Media / Reels ships active with the public reels feed.
 // Support graduated to active in the Support activation cycle
 // (support.html + customer request API + operator workflow).
+// Education graduated to active in the Education permissions cycle
+// (education/index.html + the tenant-scoped Education API).
 // Game Hosting stays locked per the owner correction cycle:
 // coming-soon with url:null, and it stays inside lockedIds.
 const LOCKED_IDS = ['game-hosting'];
@@ -60,7 +62,8 @@ const ACTIVE_ROUTES = {
   'business-services': '/business.html',
   'student-services': '/student.html',
   'media-reels': '/media-reels.html',
-  'support': '/support.html'
+  'support': '/support.html',
+  'education': '/education/index.html'
 };
 
 let passed = 0;
@@ -120,6 +123,41 @@ check('platform.html student links are active links, never locked or soon-badged
     assert.ok(!link.includes('is-soon'), 'student link must not carry the soon lock: ' + link);
     assert.ok(!link.includes('aria-disabled'), 'student link must not be disabled: ' + link);
     assert.ok(link.includes('data-i18n="nav_students'), 'student link must stay translatable: ' + link);
+  }
+});
+
+check('platform.js fallback catalog exposes education as an active section', () => {
+  const m = PLATFORM_JS.match(/id:\s*'education'[^}]+\}/);
+  assert.ok(m, 'education entry missing from DEFAULT_SECTIONS');
+  assert.ok(m[0].includes("status: 'active'"), 'education fallback must be active');
+  assert.ok(m[0].includes("url: '/education/index.html'"), 'education fallback must open /education/index.html');
+});
+
+check('platform.js i18n labels cover education in en and ar', () => {
+  for (const key of ['nav_education', 'nav_education_short', 'section_education']) {
+    assert.ok(count(PLATFORM_JS, key) >= 2, key + ' i18n must exist in en and ar');
+  }
+  // Arabic must be real Arabic, never the English label copied into the ar map.
+  assert.ok(/nav_education:\s*'[^']*[\u0600-\u06FF]/.test(PLATFORM_JS), 'ar nav_education must be Arabic');
+  assert.ok(/nav_education_short:\s*'[^']*[\u0600-\u06FF]/.test(PLATFORM_JS), 'ar nav_education_short must be Arabic');
+  assert.ok(/section_education:\s*'[^']*[\u0600-\u06FF]/.test(PLATFORM_JS), 'ar section_education must be Arabic');
+});
+
+check('platform.html advertises education from all three nav spots', () => {
+  assert.strictEqual(count(PLATFORM_HTML, 'href="/education/index.html"'), 3,
+    'expected exactly 3 education links (top/footer/bottom), got ' + count(PLATFORM_HTML, 'href="/education/index.html"'));
+  assert.strictEqual(count(PLATFORM_HTML, 'class="glass-nav-link" href="/education/index.html"'), 1, 'top nav education link missing');
+  assert.strictEqual(count(PLATFORM_HTML, '<a href="/education/index.html" data-i18n="nav_education_short">'), 1, 'footer education link missing');
+  assert.strictEqual(count(PLATFORM_HTML, 'class="bottom-nav-link" href="/education/index.html"'), 1, 'mobile bottom nav education link missing');
+});
+
+check('platform.html education links are active links, never locked or soon-badged', () => {
+  const links = PLATFORM_HTML.match(/<a[^>]*href="\/education\/index\.html"[^>]*>/g) || [];
+  assert.strictEqual(links.length, 3, 'expected 3 education anchors');
+  for (const link of links) {
+    assert.ok(!link.includes('is-soon'), 'education link must not carry the soon lock: ' + link);
+    assert.ok(!link.includes('aria-disabled'), 'education link must not be disabled: ' + link);
+    assert.ok(link.includes('data-i18n="nav_education'), 'education link must stay translatable: ' + link);
   }
 });
 

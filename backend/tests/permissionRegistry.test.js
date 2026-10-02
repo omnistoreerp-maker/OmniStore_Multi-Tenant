@@ -106,7 +106,7 @@ describe('role ranks', () => {
 describe('registry structure', () => {
   test('groups() exposes only enforceable groups', () => {
     const all = registry.groups().flatMap(g => g.permissions);
-    expect(registry.groups().length).toBe(16);
+    expect(registry.groups().length).toBe(17);
     expect(all).toContain('sales.view');
     expect(all).toContain('users.permissions.view');
     expect(all).not.toContain('sales.refund');
@@ -132,6 +132,81 @@ describe('registry structure', () => {
     const known = registry.knownRoles();
     for (const role of ['Owner', 'Admin', 'Manager', 'Cashier', 'Technician', 'WarehouseSales', 'Sales', 'Support', 'Viewer']) {
       expect(known).toContain(role);
+    }
+  });
+});
+
+// Education registration is deliberately dark: the group is registered so the
+// names are KNOWN to the registry, but no operator role is granted them by
+// default and nothing makes them discoverable in the Platform shell.
+const EDUCATION_PERMISSIONS = [
+  'education.attendance.view', 'education.attendance.edit',
+  'education.centers.view', 'education.centers.edit',
+  'education.classes.view', 'education.classes.edit',
+  'education.courses.view', 'education.courses.edit',
+  'education.enrollments.view', 'education.enrollments.edit',
+  'education.grading.view', 'education.grading.edit',
+  'education.pack.view', 'education.pack.edit',
+  'education.programs.view', 'education.programs.edit',
+  'education.scheduling.view', 'education.scheduling.edit',
+  'education.students.view', 'education.students.edit',
+  'education.teachers.view', 'education.teachers.edit'
+];
+
+describe('education permission group', () => {
+  test('education exists exactly once as an enforceable group', () => {
+    const matches = registry.groups().filter(g => g.group === 'education');
+    expect(matches).toHaveLength(1);
+  });
+
+  test('education exposes exactly 11 view/edit permission pairs', () => {
+    const perms = registry.groups().find(g => g.group === 'education').permissions;
+    expect(perms).toHaveLength(22);
+
+    const resources = perms.map(p => p.split('.')[1]);
+    expect(new Set(resources).size).toBe(11);
+
+    for (const resource of resources) {
+      expect(perms).toContain(`education.${resource}.view`);
+      expect(perms).toContain(`education.${resource}.edit`);
+    }
+  });
+
+  test('all 22 education permission names are registered and enforceable', () => {
+    expect(EDUCATION_PERMISSIONS).toHaveLength(22);
+    const registered = registry.groups().flatMap(g => g.permissions);
+    for (const permission of EDUCATION_PERMISSIONS) {
+      expect(registered).toContain(permission);
+      expect(registry.isKnown(permission)).toBe(true);
+      expect(registry.isEnforceable(permission)).toBe(true);
+    }
+  });
+
+  test('the group registers no wildcard education permission', () => {
+    const perms = registry.groups().find(g => g.group === 'education').permissions;
+    expect(perms.some(p => p.includes('*'))).toBe(false);
+    expect(perms).not.toContain('education.all');
+  });
+
+  test('unregistered education permissions stay unknown and unenforceable', () => {
+    expect(registry.isKnown('education.fake.view')).toBe(false);
+    expect(registry.isEnforceable('education.fake.view')).toBe(false);
+    expect(registry.normalizePermission('education.fake.view')).toBe('education.fake.view');
+  });
+
+  test('only privileged roles carry education permissions by default', () => {
+    for (const role of ['Owner', 'Admin']) {
+      const baseline = registry.getRoleBaseline(role);
+      for (const permission of EDUCATION_PERMISSIONS) {
+        expect(baseline).toContain(permission);
+      }
+    }
+  });
+
+  test('no operator or unknown role inherits education permissions', () => {
+    for (const role of ['Manager', 'BranchManager', 'Cashier', 'Technician', 'WarehouseSales', 'Viewer', 'Sales', 'Support', 'Sudo']) {
+      const baseline = registry.getRoleBaseline(role);
+      expect(baseline.filter(p => p.startsWith('education.'))).toEqual([]);
     }
   });
 });

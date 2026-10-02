@@ -30,11 +30,13 @@
       nav_market: 'Market',
       nav_business: 'Business Solutions',
       nav_students: 'Student Services',
+      nav_education: 'Education',
       nav_game: 'Game Hosting',
       nav_app: 'Open Application',
       nav_market_short: 'Market',
       nav_business_short: 'Business',
       nav_students_short: 'Students',
+      nav_education_short: 'Education',
       nav_game_short: 'Games',
       nav_app_short: 'App',
       nav_soon: 'Soon',
@@ -60,6 +62,7 @@
       section_game_hosting: 'Game Hosting',
       section_media_reels: 'Media / Reels',
       section_support: 'Support',
+      section_education: 'Education',
       visitors_now_label: 'Visitors Now',
       registered_users_label: 'Registered Users',
       registered_users_hint: 'Accounts on the platform',
@@ -94,11 +97,13 @@
       nav_market: 'السوق',
       nav_business: 'حلول الأعمال',
       nav_students: 'خدمات الطلاب',
+      nav_education: 'التعليم',
       nav_game: 'استضافة الألعاب',
       nav_app: 'Open Application',
       nav_market_short: 'الماركت',
       nav_business_short: 'الأعمال',
       nav_students_short: 'الطلاب',
+      nav_education_short: 'التعليم',
       nav_game_short: 'الألعاب',
       nav_app_short: 'التطبيق',
       nav_soon: 'قريباً',
@@ -124,6 +129,7 @@
       section_game_hosting: 'استضافة الألعاب',
       section_media_reels: 'الوسائط / الريلز',
       section_support: 'الدعم الفني',
+      section_education: 'التعليم',
       visitors_now_label: 'الزوار الآن',
       registered_users_label: 'المستخدمون المسجلون',
       registered_users_hint: 'حسابات على المنصة',
@@ -258,13 +264,19 @@
   // release and opens the shipped /media-reels.html player.
   // Support is active: the support center ships support.html backed by the
   // customer request API and the platform-admin operator workflow.
+  // Education is active as well: the tenant-scoped Education module ships with
+  // this release (students, teachers, centers, programs, courses, classes,
+  // enrollments, attendance, schedule, grading) and its 22 education.*
+  // permissions are registered. Discoverability here grants no access — every
+  // Education route still enforces requirePermission per route.
   const SECTION_LOCK_POLICY = {
     active: {
       'marketplace': '/marketplace/',
       'business-services': '/business.html',
       'student-services': '/student.html',
       'media-reels': '/media-reels.html',
-      'support': '/support.html'
+      'support': '/support.html',
+      'education': '/education/index.html'
     },
     lockedIds: ['game-hosting']
   };
@@ -276,7 +288,8 @@
     { id: 'student-services', title: 'Student Services & Printing', description: 'Print shop orders, cost calculator, and student monthly passes.', status: 'active', url: '/student.html', icon: 'fa-graduation-cap' },
     { id: 'game-hosting', title: 'Game Hosting', description: 'Host and manage game sessions and catalogs.', status: 'coming-soon', url: null, icon: 'fa-gamepad' },
     { id: 'media-reels', title: 'Media / Reels', description: 'Media content and reels sharing.', status: 'active', url: '/media-reels.html', icon: 'fa-film' },
-    { id: 'support', title: 'Support', description: 'Customer support center — requests, replies and status tracking.', status: 'active', url: '/support.html', icon: 'fa-life-ring' }
+    { id: 'support', title: 'Support', description: 'Customer support center — requests, replies and status tracking.', status: 'active', url: '/support.html', icon: 'fa-life-ring' },
+    { id: 'education', title: 'Education', description: 'Tenant-scoped Education management: students, teachers, centers, programs, courses, classes, enrollments, attendance, schedule and grading.', status: 'active', url: '/education/index.html', icon: 'fa-school' }
   ];
 
   function applySectionPolicy(list) {

@@ -29,6 +29,7 @@
     'خدمات الأعمال': 'Business Services',
     'خدمات الطلاب': 'Student Services',
     'شريط الوصول السريع': 'Quick access bar',
+    'التعليم': 'Education',
     'صلاحيات دقيقة': 'Fine-grained RBAC',
     'طلبات البيع المسجلة اليوم': 'Sales orders placed today',
     'طلبات اليوم': 'Orders Today',
@@ -45,6 +46,7 @@
   });
   OmniLang.registerDict('en', {
     'Core Modules': 'الوحدات الأساسية',
+    'Education': 'التعليم',
     'Highlights': 'أبرز المميزات',
     'Live': 'مباشر',
     'Platform Activity': 'نشاط المنصة',
