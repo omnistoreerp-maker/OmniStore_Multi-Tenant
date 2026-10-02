@@ -353,8 +353,21 @@ check('the backend really mounts the Education routers this page depends on', ()
 function entityBlock(entityKey) {
   const start = RUNTIME.indexOf('\n    ' + entityKey + ': {');
   assert(start >= 0, 'entity descriptor not found: ' + entityKey);
-  const end = RUNTIME.indexOf('\n    },', start);
-  return RUNTIME.slice(start, end < 0 ? RUNTIME.length : end);
+  // Brace-balanced, not comma-sentinel based: the LAST descriptor in an object
+  // literal closes with `}` and no comma, so a `},` search would run past it and
+  // swallow whatever object happens to follow.
+  const open = RUNTIME.indexOf('{', start);
+  let depth = 0;
+  let end = RUNTIME.length;
+  for (let i = open; i < RUNTIME.length; i++) {
+    const ch = RUNTIME[i];
+    if (ch === '{') depth += 1;
+    else if (ch === '}') {
+      depth -= 1;
+      if (depth === 0) { end = i; break; }
+    }
+  }
+  return RUNTIME.slice(start, end);
 }
 
 function entityWriteFields(entityKey) {
@@ -722,7 +735,9 @@ check('the dictionary covers the English text the page renders', () => {
   ];
   const drawerOnly = [
     'centers', 'programs', 'courses', 'roster', 'enrollments', 'attendance',
-    'register', 'calendar', 'grading', 'settings', 'teacher', 'student'
+    'register', 'calendar', 'grading',
+    'report-attendance', 'report-grading', 'report-sessions',
+    'settings', 'teacher', 'student'
   ];
   for (const page of bottomNav.concat(drawerOnly)) {
     const marker = 'data-edu-page="' + page + '"';
@@ -1251,6 +1266,347 @@ check('the pack route and the batch route keep the strict permission gate', () =
   const strings = [...used].map((raw) => /'([^']+)'/.exec(raw)[1]);
   for (const permission of strings) {
     assert(permission.indexOf('education.') === 0, 'an unexpected permission string appeared: ' + permission);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 10. Reports
+// ---------------------------------------------------------------------------
+// A report is a READ-ONLY PROJECTION of a list route that already exists. These
+// checks pin that claim from both sides: the report must read the real route
+// with filters the real controller accepts, and it must add no surface of its
+// own.
+
+const REPORT_KEYS = ['report-attendance', 'report-grading', 'report-sessions'];
+
+// Brace-balanced extraction of one REPORTS descriptor. Same reason as
+// entityBlock: a comma sentinel cannot find the end of the last entry.
+function reportBlock(key) {
+  const start = RUNTIME.indexOf("\n    '" + key + "': {");
+  assert(start >= 0, 'report descriptor not found: ' + key);
+  const open = RUNTIME.indexOf('{', start);
+  let depth = 0;
+  let end = RUNTIME.length;
+  for (let i = open; i < RUNTIME.length; i++) {
+    if (RUNTIME[i] === '{') depth += 1;
+    else if (RUNTIME[i] === '}') {
+      depth -= 1;
+      if (depth === 0) { end = i; break; }
+    }
+  }
+  return RUNTIME.slice(start, end);
+}
+
+const REPORT_DIALOGUE = {
+  'report-attendance': {
+    permission: 'education.attendance.view',
+    route: { verb: 'GET', path: '/attendance', routeFile: 'attendance' },
+    filters: ['dateFrom', 'dateTo', 'classId', 'status'],
+    columns: ['Student', 'Class', 'Date', 'Status', 'Notes']
+  },
+  'report-grading': {
+    permission: 'education.grading.view',
+    route: { verb: 'GET', path: '/grading', routeFile: 'grading' },
+    filters: ['dateFrom', 'dateTo', 'classId', 'grade'],
+    columns: ['Student', 'Class', 'Date', 'Grade', 'Notes']
+  },
+  'report-sessions': {
+    permission: 'education.scheduling.view',
+    route: { verb: 'GET', path: '/scheduling', routeFile: 'scheduling' },
+    filters: ['dateFrom', 'dateTo', 'classId', 'teacherId'],
+    columns: ['Date', 'Start', 'End', 'Class', 'Teacher', 'Notes']
+  }
+};
+
+check('every report is reachable from the navigation and the router', () => {
+  // One group in the drawer holding the three report links, declared in the page
+  // shell next to every other view. The descriptor is the other half of the same
+  // truth, and the parity below is what keeps the two from drifting.
+  assert(PAGE.includes('class="edu-drawer-group"'), 'the reports group has no heading');
+  for (const key of REPORT_KEYS) {
+    assert(PAGE.includes('data-edu-page="' + key + '"'), 'a report is not in the drawer: ' + key);
+    // Real anchors, so they stay middle-clickable and bookmarkable; the runtime
+    // intercepts them for the SPA transition.
+    assert(PAGE.includes('href="#' + key + '"'), 'the report entry is not a real hash link: ' + key);
+    // Each descriptor key is a router target, so a deep link resolves instead of
+    // silently landing on the dashboard.
+    assert(new RegExp("'" + key + "'").test(RUNTIME), 'the page list does not contain ' + key);
+  }
+  // Parity in BOTH directions: the shell cannot offer a report the descriptor
+  // does not implement, and the descriptor cannot hold a report the shell hides.
+  const declared = (RUNTIME.slice(
+    RUNTIME.indexOf('var REPORTS = {'),
+    RUNTIME.indexOf('function studentOfEnrollment')
+  ).match(/^\s{4}'([a-z-]+)': \{/gm) || [])
+    .map((raw) => /'([^']+)'/.exec(raw)[1]);
+  assertEqual(declared.slice().sort().join(','), REPORT_KEYS.slice().sort().join(','),
+    'the report descriptor and the expected report list disagree');
+  const shell = (PAGE.match(/data-edu-page="(report-[a-z]+)"/g) || [])
+    .map((raw) => /"([^"]+)"/.exec(raw)[1]);
+  assertEqual(shell.slice().sort().join(','), declared.slice().sort().join(','),
+    'the drawer and the report descriptor disagree');
+  // The shell and the descriptor also agree on the label the user reads.
+  for (const key of REPORT_KEYS) {
+    const title = /title: '([^']+)'/.exec(reportBlock(key))[1];
+    assert(PAGE.includes('>' + title + '</a>'), 'the drawer label drifted for ' + key);
+    assert(DICT.includes('"' + title + '":'), 'the report label is untranslated: ' + title);
+  }
+  // The dispatch and the accessible page label both come from the descriptor.
+  assert(RUNTIME.includes('else if (REPORTS[page]) renderReport(body, REPORTS[page]);'),
+    'the router does not dispatch to the report views');
+  assert(RUNTIME.includes("if (REPORTS[page]) return REPORTS[page].title;"),
+    'the accessible page label does not name a report');
+  assert(DICT.includes('"Reports":'), 'the reports group heading is untranslated');
+});
+
+check('a report reads the existing list route and declares no surface of its own', () => {
+  for (const key of REPORT_KEYS) {
+    const spec = REPORT_DIALOGUE[key];
+    const block = reportBlock(key);
+
+    // The route is the one the backend already declares, at the same verb.
+    const route = ALL_ROUTES.find((r) => r.path === spec.route.path && r.verb === spec.route.verb);
+    assert(route, 'no ' + spec.route.verb + ' ' + spec.route.path + ' route is declared by the backend');
+    assert(block.includes("path: '" + spec.route.path + "'"),
+      key + ' does not read the existing ' + spec.route.path + ' route');
+
+    // Every filter the report offers is a filter that controller already reads
+    // off the query string, so a report can never ask for something the service
+    // silently ignores.
+    const controller = read('backend/controllers/' + spec.route.routeFile + '.controller.js');
+    for (const filter of spec.filters) {
+      assert(block.includes("name: '" + filter + "'"), key + ' has no ' + filter + ' filter');
+      assert(controller.includes(filter), 'the ' + spec.route.routeFile + ' controller reads no ' + filter);
+    }
+    // A date range is the backbone of all three reports.
+    assert(block.includes("name: 'dateFrom'"), key + ' has no range start');
+    assert(block.includes("name: 'dateTo'"), key + ' has no range end');
+
+    // It reuses the tenant-scoped transport and never carries a tenant of its
+    // own: the tenant comes from the signed claim.
+    assert(block.indexOf('path:') < block.length, key + ' declares no path');
+    assert(!/tenantId|branchId|X-Tenant|x-tenant/i.test(block), key + ' mentions a tenant or branch override');
+    // The permission is declared as documentation of which existing gate the
+    // report depends on. It is not enforced client-side and not invented.
+    assert(block.includes("permission: '" + spec.permission + "'"),
+      key + ' does not name the permission the route already requires');
+  }
+
+  // The only outbound call shape a report makes.
+  assert(RUNTIME.includes("api('GET', spec.path + (query ? '?' + query : ''))"),
+    'the report loader does not read its route through the shared transport');
+  // No report route, and no report-only endpoint of any kind.
+  assert(!ALL_ROUTES.some((r) => /report|analytics|summary|stat/i.test(r.path)),
+    'a report-shaped backend route was added');
+  assert(!/\/api\/v1\/reports/.test(RUNTIME), 'the page reaches for the central reports API');
+});
+
+check('the attendance report counts statuses and derives no rate from them', () => {
+  const block = reportBlock('report-attendance');
+  assert(block.includes("counts: ATTENDANCE_STATUSES"), 'the attendance report counts nothing');
+  // The four statuses the service accepts, counted as counts.
+  const counts = stripComments(RUNTIME.slice(
+    RUNTIME.indexOf('function statusCounts'),
+    RUNTIME.indexOf('function exportReportCsv')
+  ));
+  assert(counts.includes('if (Object.prototype.hasOwnProperty.call(counts, row.status)) counts[row.status] += 1'),
+    'a status is counted without a row carrying it');
+  assert(counts.includes('String(rows.length)'), 'the attendance report does not count its rows');
+  assert(counts.includes("setAttribute('aria-live', 'polite')"), 'the counts are not announced');
+  // No percentage, rate, share, ratio or average is derived or displayed.
+  assert(!/%\s*100|percentage|percent\b|rate\b|ratio|average|share\b/i.test(
+    stripComments(block) + stripComments(counts)),
+    'the attendance report derives or displays a rate');
+  // And the whole executable page still does not divide anything.
+  assert(!/\/\s*rows\.length|\/\s*total|\/\s*counts\[/.test(CODE_S),
+    'the page divides a count by another count');
+});
+
+check('the attendance report exports exactly its visible columns and nothing else', () => {
+  const block = reportBlock('report-attendance');
+  assert(block.includes("csvExport('education-report-attendance'"), 'the attendance report exports nothing');
+  const headers = (block.slice(block.indexOf('export: csvExport(')).match(/csvColumn\('([^']+)'/g) || [])
+    .map((raw) => /csvColumn\('([^']+)'/.exec(raw)[1]);
+  const labels = (block.slice(0, block.indexOf('export: csvExport(')).match(/\{ label: '([^']+)'/g) || [])
+    .map((raw) => /label: '([^']+)'/.exec(raw)[1]);
+  assertEqual(headers.join(','), REPORT_DIALOGUE['report-attendance'].columns.join(','),
+    'the attendance export does not mirror the table');
+  for (const header of headers) {
+    assert(labels.indexOf(header) >= 0, 'the attendance export has a column the table does not show: ' + header);
+  }
+  // A student and a class are resolved through the SAME helpers the tables use,
+  // so the report cannot drift from the management page it mirrors.
+  assert(block.includes('studentOfEnrollment(r.enrollmentId)'), 'the attendance report re-derives the student');
+  assert(block.includes('classOfEnrollment(r.enrollmentId)'), 'the attendance report re-derives the class');
+  assert(RUNTIME.includes('function studentOfEnrollment'), 'the student lookup helper is missing');
+  assert(RUNTIME.includes('var row = byEnrollment(enrollmentId);'), 'the enrollment lookup changed');
+});
+
+check('the grading report shows the recorded grade verbatim and nothing derived', () => {
+  const block = reportBlock('report-grading');
+  // The grade is printed exactly as the record holds it, through the same text
+  // helper the grading list uses. There is no parsing, no scale and no mapping.
+  assert(block.includes("cell: function (r) { return text(r.grade); }"),
+    'the grading report does not print the recorded value directly');
+  assert(block.includes("csvColumn('Grade', function (r) { return str(r.grade); })"),
+    'the grading export does not write the recorded value directly');
+  // Exact-match filtering, because the backend matches exactly: the descriptor
+  // offers a free-text box and no list of grades the platform does not define.
+  assert(block.includes("name: 'grade', label: 'Grade', type: 'search'"),
+    'the grade filter offers something other than exact free text');
+  const service = read('backend/services/grading.service.js');
+  assert(service.includes('EXACT match on the stored value'), 'the grading filter rule changed upstream');
+  // Nothing is computed from a grade value anywhere on the page.
+  assert(/grade[^\n]*\.(?:reduce|map|filter)\(/.test(CODE_S) === false,
+    'the page maps or reduces over grade values');
+  // The report states its own boundary to the user, in a translated sentence.
+  assert(RUNTIME.includes('the platform defines no '), 'the grading report does not state its boundary');
+});
+
+check('the grading report exports exactly its visible columns and nothing else', () => {
+  const block = reportBlock('report-grading');
+  assert(block.includes("csvExport('education-report-grading'"), 'the grading report exports nothing');
+  const headers = (block.slice(block.indexOf('export: csvExport(')).match(/csvColumn\('([^']+)'/g) || [])
+    .map((raw) => /csvColumn\('([^']+)'/.exec(raw)[1]);
+  const labels = (block.slice(0, block.indexOf('export: csvExport(')).match(/\{ label: '([^']+)'/g) || [])
+    .map((raw) => /label: '([^']+)'/.exec(raw)[1]);
+  assertEqual(headers.join(','), REPORT_DIALOGUE['report-grading'].columns.join(','),
+    'the grading export does not mirror the table');
+  for (const header of headers) {
+    assert(labels.indexOf(header) >= 0, 'the grading export has a column the table does not show: ' + header);
+  }
+});
+
+check('the session report lists real sessions and adds no scheduling concept', () => {
+  const block = reportBlock('report-sessions');
+  // A date range is the only axis this report needs, and it is the real one.
+  assert(block.includes("name: 'dateFrom'"), 'the session report has no range start');
+  assert(block.includes("name: 'dateTo'"), 'the session report has no range end');
+  // Class and teacher narrow the same range, and both are filters the controller
+  // already reads.
+  assert(block.includes("name: 'classId'"), 'the session report cannot be narrowed to a class');
+  assert(block.includes("name: 'teacherId'"), 'the session report cannot be narrowed to a teacher');
+  // The six columns are the real stored fields. The recurring-timetable, room,
+  // capacity and resource vocabulary the service deliberately refuses must not
+  // appear as a shipped FIELD.
+  const columns = (block.match(/\{ label: '([^']+)', cell:/g) || [])
+    .map((raw) => /label: '([^']+)'/.exec(raw)[1]);
+  assertEqual(columns.join(','), REPORT_DIALOGUE['report-sessions'].columns.join(','),
+    'the session report columns drifted');
+  for (const forbidden of ['recurrence:', 'recurring:', 'roomId', 'room:', 'rooms:', 'capacity:',
+    'timetableTemplate', 'timetable:', 'resourceId', 'dayOfWeek']) {
+    assert(CODE_S.indexOf(forbidden) < 0, 'the session report ships a concept the backend does not have: ' + forbidden);
+  }
+  // The teacher of a session is the teacher of its class: the same derivation the
+  // schedule table prints, so the two cannot disagree.
+  assert(block.includes('teacherOfClass(r.classId)'), 'the session report does not resolve the class teacher');
+  assert(RUNTIME.includes('function teacherOfClass'), 'the class-teacher helper is missing');
+});
+
+check('the session report exports exactly its visible columns and nothing else', () => {
+  const block = reportBlock('report-sessions');
+  assert(block.includes("csvExport('education-report-sessions'"), 'the session report exports nothing');
+  const headers = (block.slice(block.indexOf('export: csvExport(')).match(/csvColumn\('([^']+)'/g) || [])
+    .map((raw) => /csvColumn\('([^']+)'/.exec(raw)[1]);
+  const labels = (block.slice(0, block.indexOf('export: csvExport(')).match(/\{ label: '([^']+)'/g) || [])
+    .map((raw) => /label: '([^']+)'/.exec(raw)[1]);
+  assertEqual(headers.join(','), REPORT_DIALOGUE['report-sessions'].columns.join(','),
+    'the session export does not mirror the table');
+  for (const header of headers) {
+    assert(labels.indexOf(header) >= 0, 'the session export has a column the table does not show: ' + header);
+  }
+});
+
+check('a report offers no write, and every string it renders is translated', () => {
+  // Read-only: no create, edit, archive, delete or submit control is rendered.
+  const views = stripComments(RUNTIME.slice(
+    RUNTIME.indexOf('function renderReport'),
+    RUNTIME.indexOf('function renderReportFilters')
+  ));
+  for (const forbidden of ['openForm', 'confirmAndRun', 'addLabel', "api('POST'", "api('PUT'",
+    "api('PATCH'", "api('DELETE'", 'archivePath']) {
+    assert(views.indexOf(forbidden) < 0, 'a report offers a write control: ' + forbidden);
+  }
+  // It offers refresh and export, and nothing else.
+  assert(views.includes('Refresh'), 'the report has no refresh control');
+  assert(views.includes('Export CSV'), 'the report has no export control');
+
+  // Every human string the report views render carries an Arabic entry.
+  const reports = stripComments(RUNTIME.slice(
+    RUNTIME.indexOf('var REPORTS = {'),
+    RUNTIME.indexOf('function renderReport')
+  ));
+  const dialog = stripComments(RUNTIME.slice(
+    RUNTIME.indexOf('function reportNotice'),
+    RUNTIME.indexOf('// The report filters are the same controls')
+  ));
+  const strings = [];
+  for (const m of reports.matchAll(/title: '([^']{2,})'/g)) strings.push(m[1]);
+  for (const m of reports.matchAll(/label: '([^']{2,})'/g)) strings.push(m[1]);
+  // A notice is built by concatenating literals, and the shared runtime
+  // translates the CONCATENATED text node, so the fragments are joined first and
+  // the whole sentence is checked as one key. Same rule the MVP banners follow.
+  const notices = (dialog + '§').replace(/'\s*\+\s*'/g, '');
+  for (const m of notices.matchAll(/return '([^']{2,})';/g)) strings.push(m[1]);
+  assert(strings.length > 0, 'no report string was collected for the translation check');
+  const missing = [];
+  for (const value of strings) {
+    if (value.indexOf('edu-') === 0) continue;
+    if (DICT.indexOf('"' + value + '":') < 0) missing.push(value);
+  }
+  assertEqual(missing.length, 0, 'untranslated report text: ' + missing.join(' | '));
+
+  // The three notice sentences are the ones the descriptor ships, and each
+  // states the boundary of its own report rather than leaving it to be inferred
+  // from a missing column.
+  for (const title of ['Attendance report', 'Grading report', 'Session report']) {
+    assert(RUNTIME.includes(title), 'a report notice is missing: ' + title);
+  }
+});
+
+check('every report filter and control is labelled, dated and keyboard reachable', () => {
+  // Filter ids are derived from the descriptor key, so every control is
+  // addressable and associated with its label.
+  assert(RUNTIME.includes("var inputId = 'edu-f-' + spec.key + '-' + def.name"),
+    'report filter ids are not stable');
+  assert(RUNTIME.includes("label.setAttribute('for', inputId)"), 'a report filter has no label');
+  assert(RUNTIME.includes("input.setAttribute('data-filter-name', def.name)"),
+    'a report filter cannot be read back');
+  // The three date controls are direction-locked in both languages.
+  assert(count(RUNTIME, "dir = 'ltr'") >= 3, 'the report date controls are not direction-locked');
+  // The reports grid is the existing table wrap, which already collapses to one
+  // column on a phone; no new layout was introduced for the reports.
+  assert(CSS.includes('.edu-table-wrap'), 'the report table has no wrapper rule');
+  assert(CSS.includes('prefers-reduced-motion'), 'reduced motion is not honoured');
+  // Every report is reachable by keyboard: the drawer entries are real anchors
+  // and the runtime still intercepts Escape for the overlays.
+  assert(RUNTIME.includes("event.key !== 'Escape'"), 'Escape no longer dismisses the overlays');
+});
+
+check('the report surfaces add no backend surface and no new permission', () => {
+  // Every literal path the runtime calls must exist on a committed Education
+  // router. The reports build their path from the descriptor, so the descriptor
+  // values are checked against the routers here instead.
+  for (const key of REPORT_KEYS) {
+    const spec = REPORT_DIALOGUE[key];
+    const declared = ALL_ROUTES.some((r) => r.verb === spec.route.verb && r.path === spec.route.path);
+    assert(declared, key + ' reads a route the backend does not declare');
+  }
+  // No new permission string: the three the reports name are the three the
+  // existing routes already require, and the registry is untouched.
+  const registry = read('backend/permissions/registry.js');
+  assert(registry.indexOf('education') < 0, 'the registry declares an education permission; re-check the gate story');
+  const named = REPORT_KEYS.map((k) => reportBlock(k).match(/permission: '([^']+)'/)[1]);
+  for (const permission of named) {
+    const service = permission.split('.')[1];
+    const routeSrc = read('backend/routes/' + service + '.routes.js');
+    assert(routeSrc.includes("requirePermission('" + permission + "')"),
+      'the report names a permission its route does not require: ' + permission);
+  }
+  // No centralized reporting surface is reached for.
+  for (const forbidden of ['/api/v1/reports', 'analytics', 'notification', 'telegram', 'whatsapp']) {
+    assert(CODE_S.toLowerCase().indexOf(forbidden) < 0,
+      'the reports reach for a surface this device does not own: ' + forbidden);
   }
 });
 

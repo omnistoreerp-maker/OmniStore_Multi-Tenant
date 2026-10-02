@@ -702,6 +702,19 @@
   gap: 4px;
 }
 
+/* A non-interactive label that groups the report links under one heading in
+   the drawer. It carries no interaction, so it is a span and not a button. */
+.edu-drawer-group {
+  display: block;
+  padding-inline-start: 12px;
+  padding-block-end: 2px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
 .edu-drawer-sep {
   margin: 8px 0;
   border: none;

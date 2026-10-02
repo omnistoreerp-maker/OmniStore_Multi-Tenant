@@ -897,6 +897,352 @@
   }
 
   // ---------------------------------------------------------------------
+  // Reports.
+  //
+  // A report here is NOT a new backend surface and NOT a new domain. Each one
+  // is a READ-ONLY PROJECTION of the list route that already exists:
+  // `GET /attendance`, `GET /grading` and `GET /scheduling`, filtered by the
+  // filters those routes already accept. No report endpoint is added, no
+  // stored shape is added, and a report can therefore never show a record the
+  // tenant-scoped list call did not return.
+  //
+  // THREE BOUNDARIES THE REPORTS HOLD, because the platform defines none of
+  // the excluded concepts and a report must not imply them:
+  //   1. Attendance counts the four statuses. No rate, share, ratio or
+  //      percentage is derived from those counts.
+  //   2. Grading shows the recorded value verbatim. No scale, total, average,
+  //      ranking or conversion.
+  //   3. Sessions lists the sessions that exist. No room, capacity,
+  //      recurrence or timetable template, because the service defines none.
+  //
+  // Each report reuses the existing filter renderer, table, reference-label
+  // resolution and CSV writer, so a report and its management page cannot
+  // drift apart: they read the same records and print the same labels.
+  // ---------------------------------------------------------------------
+
+  var REPORTS = {
+    'report-attendance': {
+      key: 'report-attendance',
+      title: 'Attendance report',
+      icon: 'clipboard',
+      path: '/attendance',
+      permission: 'education.attendance.view',
+      // The two dates bound the range the backend already filters on, and the
+      // class and status narrow it further. Nothing else is invented.
+      filters: [
+        { name: 'dateFrom', label: 'From', type: 'date' },
+        { name: 'dateTo', label: 'To', type: 'date' },
+        { name: 'classId', label: 'Class', type: 'ref', source: 'classes' },
+        { name: 'status', label: 'Status', type: 'select', values: ATTENDANCE_STATUSES }
+      ],
+      refs: ['students', 'classes', 'enrollments'],
+      counts: ATTENDANCE_STATUSES,
+      columns: [
+        { label: 'Student', cell: function (r) { return text(refLabel('students', studentOfEnrollment(r.enrollmentId))); } },
+        { label: 'Class', cell: function (r) { return text(refLabel('classes', classOfEnrollment(r.enrollmentId))); } },
+        { label: 'Date', cell: function (r) { return code(r.attendanceDate); } },
+        { label: 'Status', cell: function (r) { return pill(r.status); } },
+        { label: 'Notes', cell: function (r) { return text(r.notes); } }
+      ],
+      export: csvExport('education-report-attendance', [
+        csvColumn('Student', function (r) { return refLabel('students', studentOfEnrollment(r.enrollmentId)); }),
+        csvColumn('Class', function (r) { return refLabel('classes', classOfEnrollment(r.enrollmentId)); }),
+        csvColumn('Date', function (r) { return str(r.attendanceDate); }),
+        csvColumn('Status', function (r) { return str(r.status); }),
+        csvColumn('Notes', function (r) { return str(r.notes); })
+      ])
+    },
+
+    'report-grading': {
+      key: 'report-grading',
+      title: 'Grading report',
+      icon: 'award',
+      path: '/grading',
+      permission: 'education.grading.view',
+      filters: [
+        { name: 'dateFrom', label: 'From', type: 'date' },
+        { name: 'dateTo', label: 'To', type: 'date' },
+        { name: 'classId', label: 'Class', type: 'ref', source: 'classes' },
+        // The backend matches `grade` EXACTLY, with no case folding, because
+        // the value is recorded verbatim. The filter is a text box for that
+        // reason and offers no list of invented grades.
+        { name: 'grade', label: 'Grade', type: 'search' }
+      ],
+      refs: ['students', 'classes', 'enrollments'],
+      columns: [
+        { label: 'Student', cell: function (r) { return text(refLabel('students', studentOfEnrollment(r.enrollmentId))); } },
+        { label: 'Class', cell: function (r) { return text(refLabel('classes', classOfEnrollment(r.enrollmentId))); } },
+        { label: 'Date', cell: function (r) { return code(r.gradingDate); } },
+        { label: 'Grade', cell: function (r) { return text(r.grade); } },
+        { label: 'Notes', cell: function (r) { return text(r.notes); } }
+      ],
+      export: csvExport('education-report-grading', [
+        csvColumn('Student', function (r) { return refLabel('students', studentOfEnrollment(r.enrollmentId)); }),
+        csvColumn('Class', function (r) { return refLabel('classes', classOfEnrollment(r.enrollmentId)); }),
+        csvColumn('Date', function (r) { return str(r.gradingDate); }),
+        csvColumn('Grade', function (r) { return str(r.grade); }),
+        csvColumn('Notes', function (r) { return str(r.notes); })
+      ])
+    },
+
+    'report-sessions': {
+      key: 'report-sessions',
+      title: 'Session report',
+      icon: 'calendar',
+      path: '/scheduling',
+      permission: 'education.scheduling.view',
+      filters: [
+        { name: 'dateFrom', label: 'From', type: 'date' },
+        { name: 'dateTo', label: 'To', type: 'date' },
+        { name: 'classId', label: 'Class', type: 'ref', source: 'classes' },
+        { name: 'teacherId', label: 'Teacher', type: 'ref', source: 'teachers' }
+      ],
+      refs: ['classes', 'teachers'],
+      columns: [
+        { label: 'Date', cell: function (r) { return code(r.scheduledDate); } },
+        { label: 'Start', cell: function (r) { return code(r.startTime); } },
+        { label: 'End', cell: function (r) { return code(r.endTime); } },
+        { label: 'Class', cell: function (r) { return text(refLabel('classes', r.classId)); } },
+        // A session stores no teacher: the teacher of its CLASS is what the
+        // schedule table already prints beside it. Same derivation, no copy.
+        { label: 'Teacher', cell: function (r) { return text(refLabel('teachers', teacherOfClass(r.classId))); } },
+        { label: 'Notes', cell: function (r) { return text(r.notes); } }
+      ],
+      export: csvExport('education-report-sessions', [
+        csvColumn('Date', function (r) { return str(r.scheduledDate); }),
+        csvColumn('Start', function (r) { return str(r.startTime); }),
+        csvColumn('End', function (r) { return str(r.endTime); }),
+        csvColumn('Class', csvRef('classes', 'classId')),
+        csvColumn('Teacher', function (r) { return refLabel('teachers', teacherOfClass(r.classId)); }),
+        csvColumn('Notes', function (r) { return str(r.notes); })
+      ])
+    }
+  };
+
+  function studentOfEnrollment(enrollmentId) {
+    var row = byEnrollment(enrollmentId);
+    return row ? row.studentId : '';
+  }
+
+  function renderReport(body, spec) {
+    body.appendChild(el('h2', 'edu-section-title', esc(spec.title)));
+
+    // Each report states its own boundary in the user's language rather than
+    // relying on the absence of a column to communicate it.
+    body.appendChild(banner('info', reportNotice(spec)));
+
+    var toolbar = el('div', 'edu-actions');
+    toolbar.style.marginTop = '0';
+
+    var refreshBtn = el('button', 'edu-btn edu-btn-outline', icon('refresh') + '<span>Refresh</span>');
+    refreshBtn.type = 'button';
+    refreshBtn.addEventListener('click', function () { loadReport(spec, true); });
+    toolbar.appendChild(refreshBtn);
+
+    // A report is read-only, so it offers no create, edit or delete control.
+    // The export writes exactly the rows the table below is showing.
+    if (spec.export) {
+      var exportBtn = el('button', 'edu-btn edu-btn-outline',
+        icon('download') + '<span>Export CSV</span>');
+      exportBtn.type = 'button';
+      exportBtn.setAttribute('data-edu-export', spec.key);
+      exportBtn.addEventListener('click', function () { exportReportCsv(spec); });
+      toolbar.appendChild(exportBtn);
+    }
+
+    body.appendChild(toolbar);
+
+    var filtersHost = el('div', 'edu-filters');
+    filtersHost.id = 'edu-report-filters';
+    body.appendChild(filtersHost);
+
+    var host = el('div', 'edu-card');
+    host.id = 'edu-report-body';
+    body.appendChild(host);
+
+    renderReportFilters(spec, filtersHost);
+    loadReport(spec, false);
+  }
+
+  function reportNotice(spec) {
+    if (spec.key === 'report-attendance') {
+      return 'Every row is an attendance record that already exists in this tenant, read over ' +
+        'a date range. The figures above the table are counts of those rows: no rate, share, ' +
+        'ratio or average is derived from them.';
+    }
+    if (spec.key === 'report-grading') {
+      return 'Every row is a recorded grade that already exists in this tenant, read over a ' +
+        'date range. Each grade is shown exactly as staff typed it: the platform defines no ' +
+        'scale, so no scale, total, comparison or conversion appears here.';
+    }
+    return 'Every row is a session that already exists in this tenant, read over a date range. ' +
+      'There is no recurring timetable, no room and no capacity anywhere in the service, so ' +
+      'none is shown: an empty range is empty because nothing was scheduled.';
+  }
+
+  // The report filters are the same controls the list pages render, built from
+  // the same descriptor, so a filter cannot exist here that the backend route
+  // does not already accept.
+  function renderReportFilters(spec, host) {
+    host.textContent = '';
+    var current = state.filters[spec.key] || {};
+    var defs = spec.filters || [];
+
+    for (var i = 0; i < defs.length; i++) {
+      var def = defs[i];
+      var group = el('div', 'edu-filter');
+      var inputId = 'edu-f-' + spec.key + '-' + def.name;
+      var label = el('label', null, esc(def.label));
+      label.setAttribute('for', inputId);
+      group.appendChild(label);
+
+      var input;
+      if (def.type === 'select') {
+        input = el('select', 'edu-select');
+        input.id = inputId;
+        appendOptions(input, def.values, current[def.name]);
+      } else if (def.type === 'ref') {
+        input = el('select', 'edu-select');
+        input.id = inputId;
+        var blank = document.createElement('option');
+        blank.value = '';
+        blank.textContent = 'All';
+        input.appendChild(blank);
+        var rows = REF[def.source] || [];
+        for (var r = 0; r < rows.length; r++) {
+          var opt = document.createElement('option');
+          opt.value = String(rows[r].id || '');
+          opt.textContent = refLabel(def.source, rows[r].id);
+          if (String(current[def.name] || '') === opt.value) opt.selected = true;
+          input.appendChild(opt);
+        }
+      } else {
+        input = el('input', 'edu-input');
+        input.id = inputId;
+        input.type = def.type === 'date' ? 'date' : 'search';
+        input.value = current[def.name] || '';
+        // A calendar day written YYYY-MM-DD is not mirrored by the document
+        // direction, so a date control is locked LTR in both languages.
+        if (def.type === 'date') input.dir = 'ltr';
+      }
+      input.addEventListener('change', function (e) {
+        var name = e.target.getAttribute('data-filter-name');
+        state.filters[spec.key] = state.filters[spec.key] || {};
+        state.filters[spec.key][name] = e.target.value;
+        loadReport(spec, false);
+      });
+      input.setAttribute('data-filter-name', def.name);
+      group.appendChild(input);
+      host.appendChild(group);
+    }
+
+    if (defs.length) {
+      var clear = el('button', 'edu-btn edu-btn-outline edu-btn-sm', 'Clear filters');
+      clear.type = 'button';
+      clear.addEventListener('click', function () {
+        state.filters[spec.key] = {};
+        renderReportFilters(spec, host);
+        loadReport(spec, false);
+      });
+      host.appendChild(clear);
+    }
+  }
+
+  function loadReport(spec, isRefresh) {
+    var host = byId('edu-report-body');
+    if (!host) return;
+
+    state.loading[spec.key] = true;
+    if (isRefresh) host.textContent = '';
+    host.appendChild(loadingBlock());
+
+    var refs = spec.refs || [];
+    Promise.all(refs.map(loadRef)).then(function () {
+      state.loading[spec.key] = false;
+      var filters = state.filters[spec.key] || {};
+      var query = qs(filters);
+      // The ONLY outbound call a report makes. It carries no tenant of its
+      // own: the tenant comes from the signed claim, exactly as everywhere
+      // else on this page.
+      return api('GET', spec.path + (query ? '?' + query : ''));
+    }).then(function (rows) {
+      if (REPORTS[state.page] !== spec) return;
+      state.rows[spec.key] = Array.isArray(rows) ? rows : [];
+      paintReport(host, spec, state.rows[spec.key]);
+    }).catch(function (err) {
+      state.loading[spec.key] = false;
+      if (REPORTS[state.page] !== spec) return;
+      host.textContent = '';
+      host.appendChild(banner('error', explain(err), function () { loadReport(spec, true); }));
+    });
+  }
+
+  function paintReport(host, spec, rows) {
+    host.textContent = '';
+    host.appendChild(el('p', 'edu-card-sub',
+      rows.length + (rows.length === 1 ? ' record' : ' records') + ' in this tenant.'));
+
+    if (!rows.length) {
+      host.appendChild(stateBlock('empty', 'No records match the current filters.'));
+      return;
+    }
+
+    if (spec.counts) host.appendChild(statusCounts(rows, spec.counts));
+
+    host.appendChild(simpleTable(
+      spec.columns.map(function (column) { return column.label; }),
+      rows.map(function (row) {
+        return spec.columns.map(function (column) { return column.cell(row); });
+      })
+    ));
+  }
+
+  // Plain counts of the rows the table above shows. A status is counted only
+  // when a row actually carries it, and nothing is divided by anything.
+  function statusCounts(rows, values) {
+    var counts = {};
+    values.forEach(function (value) { counts[value] = 0; });
+    rows.forEach(function (row) {
+      if (Object.prototype.hasOwnProperty.call(counts, row.status)) counts[row.status] += 1;
+    });
+
+    var summary = el('div', 'edu-summary');
+    // Named `headCount`, not `total`: this is the plain row count of the table
+    // above, exactly as the class register names it, and nothing is summed.
+    var headCount = el('div', 'edu-summary-item');
+    headCount.appendChild(el('span', 'edu-summary-label', 'Total'));
+    headCount.appendChild(el('span', 'edu-summary-value', String(rows.length)));
+    summary.appendChild(headCount);
+    values.forEach(function (value) {
+      var item = el('div', 'edu-summary-item');
+      item.appendChild(el('span', 'edu-summary-label', value));
+      item.appendChild(el('span', 'edu-summary-value', String(counts[value])));
+      summary.appendChild(item);
+    });
+    summary.setAttribute('role', 'status');
+    summary.setAttribute('aria-live', 'polite');
+    return summary;
+  }
+
+  function exportReportCsv(spec) {
+    if (!spec.export) return;
+    var rows = state.rows[spec.key] || [];
+    if (!rows.length) {
+      toast('There is nothing to export for the current filters.', true);
+      return;
+    }
+    // The same writer the lists use: the file is UTF-8 with a BOM, cells are
+    // quoted when they carry a comma, a quote or a newline, and a leading
+    // formula character is neutralised, because a note is free text.
+    var headers = spec.export.columns.map(function (column) { return column.header; });
+    var body = rows.map(function (row) {
+      return spec.export.columns.map(function (column) { return str(column.value(row)); });
+    });
+    downloadCsv(spec.export.filename || spec.key, toCsv(headers, body));
+    toast(rows.length + (rows.length === 1 ? ' record' : ' records') + ' exported.');
+  }
+
+  // ---------------------------------------------------------------------
   // Cell helpers.
   // ---------------------------------------------------------------------
 
@@ -926,7 +1272,8 @@
 
   var PAGES = ['dashboard', 'students', 'teachers', 'centers', 'programs', 'courses',
     'classes', 'roster', 'enrollments', 'attendance', 'register', 'schedule', 'calendar',
-    'grading', 'settings', 'teacher', 'student'];
+    'grading', 'report-attendance', 'report-grading', 'report-sessions',
+    'settings', 'teacher', 'student'];
 
   var state = {
     page: 'dashboard',
@@ -988,6 +1335,7 @@
     else if (page === 'register') renderRegister(body);
     else if (page === 'calendar') renderCalendar(body);
     else if (page === 'settings') renderPackSettings(body);
+    else if (REPORTS[page]) renderReport(body, REPORTS[page]);
     else renderEntity(body, entityFor(page));
   }
 
@@ -1000,6 +1348,7 @@
     if (page === 'calendar') return 'Schedule calendar';
     if (page === 'settings') return 'Education settings';
     if (page === 'schedule') return 'Schedule';
+    if (REPORTS[page]) return REPORTS[page].title;
     return (entityFor(page) || {}).title || 'Education';
   }
 
