@@ -78,7 +78,7 @@ function getCompanyDetails(req, res) {
 function suspendCompany(req, res) {
   try {
     const result = platform.suspendCompany(_actor(req), req.params.id);
-    if (result.error) return error(res, result.error, result.status || 500);
+    if (result.error) return error(res, result.error, result.status || 500, result.code ? { code: result.code } : null);
     success(res, result, 'Company suspended');
   } catch (err) {
     logger.error('platform.suspendCompany error:', err.message);
@@ -89,7 +89,7 @@ function suspendCompany(req, res) {
 function activateCompany(req, res) {
   try {
     const result = platform.activateCompany(_actor(req), req.params.id);
-    if (result.error) return error(res, result.error, result.status || 500);
+    if (result.error) return error(res, result.error, result.status || 500, result.code ? { code: result.code } : null);
     success(res, result, 'Company activated');
   } catch (err) {
     logger.error('platform.activateCompany error:', err.message);
@@ -120,7 +120,7 @@ function disableUser(req, res) {
 function enableUser(req, res) {
   try {
     const result = platform.enableUser(_actor(req), req.params.id);
-    if (result.error) return error(res, result.error, result.status || 500);
+    if (result.error) return error(res, result.error, result.status || 500, result.code ? { code: result.code } : null);
     success(res, result, 'User enabled');
   } catch (err) {
     logger.error('platform.enableUser error:', err.message);
@@ -131,7 +131,7 @@ function enableUser(req, res) {
 function forceLogout(req, res) {
   try {
     const result = platform.forceLogout(_actor(req), req.params.id);
-    if (result.error) return error(res, result.error, result.status || 500);
+    if (result.error) return error(res, result.error, result.status || 500, result.code ? { code: result.code } : null);
     success(res, result, 'User signed out');
   } catch (err) {
     logger.error('platform.forceLogout error:', err.message);
@@ -143,7 +143,7 @@ function resetPassword(req, res) {
   try {
     const { newPassword } = req.body || {};
     const result = platform.resetUserPassword(_actor(req), req.params.id, newPassword);
-    if (result.error) return error(res, result.error, result.status || 500);
+    if (result.error) return error(res, result.error, result.status || 500, result.code ? { code: result.code } : null);
     success(res, result, 'Password reset successfully');
   } catch (err) {
     logger.error('platform.resetPassword error:', err.message);
@@ -172,7 +172,7 @@ function listLicenses(req, res) {
 function setLicense(req, res) {
   try {
     const result = platform.setLicense(_actor(req), req.body || {});
-    if (result.error) return error(res, result.error, result.status || 500);
+    if (result.error) return error(res, result.error, result.status || 500, result.code ? { code: result.code } : null);
     success(res, result, 'License saved');
   } catch (err) {
     logger.error('platform.setLicense error:', err.message);
@@ -192,7 +192,7 @@ function listIntegrations(req, res) {
 function setIntegration(req, res) {
   try {
     const result = platform.setIntegration(_actor(req), req.body || {});
-    if (result.error) return error(res, result.error, result.status || 500);
+    if (result.error) return error(res, result.error, result.status || 500, result.code ? { code: result.code } : null);
     success(res, result, 'Integration saved');
   } catch (err) {
     logger.error('platform.setIntegration error:', err.message);
@@ -221,7 +221,7 @@ function listAdmins(req, res) {
 function grantAdmin(req, res) {
   try {
     const result = platform.grantPlatformAdmin(_actor(req), req.body && req.body.username, req.body && req.body.platformRole);
-    if (result.error) return error(res, result.error, result.status || 500);
+    if (result.error) return error(res, result.error, result.status || 500, result.code ? { code: result.code } : null);
     success(res, result, 'Platform admin granted');
   } catch (err) {
     logger.error('platform.grantAdmin error:', err.message);
@@ -232,7 +232,7 @@ function grantAdmin(req, res) {
 function revokeAdmin(req, res) {
   try {
     const result = platform.revokePlatformAdmin(_actor(req), req.params.username);
-    if (result.error) return error(res, result.error, result.status || 500);
+    if (result.error) return error(res, result.error, result.status || 500, result.code ? { code: result.code } : null);
     success(res, result, 'Platform admin revoked');
   } catch (err) {
     logger.error('platform.revokeAdmin error:', err.message);

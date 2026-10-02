@@ -401,17 +401,60 @@ const PRIVATE_PREFIXES = [
   'customerrollout', 'supabase', 'coverage', 'dist', 'build'
 ];
 // Scratch/dev files at the repo root that must never be served.
-const PRIVATE_FILE_PATTERNS = ['diffnames.txt', 'diffstat.txt', 'PHASE72_DISCOVERY.txt', '.bak', '.log', '.tmp'];
+const PRIVATE_FILE_PATTERNS = ['diffnames.txt', 'diffstat.txt', 'phase72_discovery.txt', '.bak', '.log', '.tmp'];
+// Repo-root manifests are never public assets. Like PRIVATE_PREFIXES these are
+// matched ANCHORED to the static root, never against nested route segments.
+const ROOT_PRIVATE_FILES = ['package.json', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', 'server.js'];
+// Fully decode until stable so double-encoded traversal (%252e%252e) cannot slip
+// past. A malformed escape sequence fails CLOSED (the raw segment is kept and
+// therefore still has to pass the root-anchored checks below).
+function _fullyDecode(value) {
+  let out = String(value || '');
+  for (let i = 0; i < 5; i++) {
+    let next;
+    try { next = decodeURIComponent(out); } catch (e) { break; }
+    if (next === out) break;
+    out = next;
+  }
+  return out;
+}
+// Canonicalize a request path against FRONTEND_ROOT: backslashes are separators
+// on some stacks, '.'/'..' segments are resolved, and climbing above the static
+// root is recorded as an escape.
+function _canonicalSegments(rawPath) {
+  const decoded = _fullyDecode(rawPath).replace(/\\/g, '/');
+  const segments = [];
+  let escaped = false;
+  for (const seg of decoded.split('/')) {
+    if (seg === '' || seg === '.') continue;
+    if (seg === '..') {
+      if (segments.length === 0) escaped = true;
+      else segments.pop();
+      continue;
+    }
+    segments.push(seg);
+  }
+  return { segments, escaped };
+}
 function frontendPrivateGuard(req, res, next) {
-  const decoded = decodeURIComponent(req.path || '/');
-  const first = decoded.replace(/^\/+/, '').split('/')[0] || '';
-  if (first && PRIVATE_PREFIXES.includes(first.toLowerCase())) {
-    return res.status(403).end();
+  const { segments, escaped } = _canonicalSegments(req.path || '/');
+  // A path that climbs above FRONTEND_ROOT is a traversal attempt.
+  if (escaped) return res.status(403).end();
+  // Dotted names (.env, .git, .npmrc) are never public assets. This is a
+  // structural rule about dotted segments, applied at any depth.
+  for (const seg of segments) {
+    if (seg.startsWith('.') && seg !== '.well-known') return res.status(403).end();
   }
-  const lower = decoded.toLowerCase();
-  if (PRIVATE_FILE_PATTERNS.some((p) => lower.includes(p.toLowerCase()))) {
-    return res.status(403).end();
-  }
+  const root = (segments[0] || '').toLowerCase();
+  if (!root) return next();
+  // PRIVATE_PREFIXES and PRIVATE_FILE_PATTERNS describe directories/files that
+  // live AT the static root, so they are matched ANCHORED to the root segment
+  // only. A nested route segment that merely shares one of those names (for
+  // example /api/v1/tenant/education/attendance/:id/archive) is NOT a private
+  // root and must reach its real route handler instead of a blanket 403.
+  if (PRIVATE_PREFIXES.includes(root)) return res.status(403).end();
+  if (PRIVATE_FILE_PATTERNS.includes(root)) return res.status(403).end();
+  if (segments.length === 1 && ROOT_PRIVATE_FILES.includes(root)) return res.status(403).end();
   next();
 }
 function platformHomeIndex(req, res, next) {

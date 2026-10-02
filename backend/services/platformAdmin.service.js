@@ -63,31 +63,51 @@ function memberFor(username) {
 }
 
 // Active platform member of ANY platform role.
+// Active member of an OFFICIAL platform role (unknown/disabled -> false).
+// Fail closed: an entry whose stored role is missing or not part of the official
+// platform registry must never count as a platform admin.
 function isPlatformAdmin(username) {
-  const entry = memberFor(username);
-  return !!entry && _isActive(entry);
+  return !!platformRoleFor(username);
 }
 
-// Active member's platform role, or null. A disabled/removed member resolves to
-// null so authorization gates reject them.
+// Canonical role resolution for stored membership. A role that is missing,
+// empty, or NOT in the official platform registry resolves to null — never to
+// a privileged default. An unrecognised role must never become a bypass.
+function _canonicalStoredRole(entry) {
+  if (!entry) return null;
+  const role = platformRegistry.normalizeRole(entry.platformRole);
+  return platformRegistry.isPlatformRole(role) ? role : null;
+}
+
+// Display role for listings. Unknown stored roles are shown as UNKNOWN so the
+// Control Center UI never renders a fabricated privileged role.
+function _displayRole(entry) {
+  return _canonicalStoredRole(entry) || 'UNKNOWN';
+}
+
+// Active member's platform role, or null. A disabled/removed member — and a
+// member whose stored role is not a canonical platform role — resolves to null
+// so authorization gates reject them (fail closed).
 function platformRoleFor(username) {
   const entry = memberFor(username);
   if (!entry || !_isActive(entry)) return null;
-  return entry.platformRole || 'PLATFORM_ADMIN';
+  return _canonicalStoredRole(entry);
 }
 
 // Effective platform permissions for an authenticated username (server-side).
+// An unknown role yields the EMPTY permission set, never an invented grant.
 function resolvePermissionsFor(username) {
   const entry = memberFor(username);
   if (!entry || !_isActive(entry)) return [];
-  const role = entry.platformRole || 'PLATFORM_ADMIN';
+  const role = _canonicalStoredRole(entry);
+  if (!role) return [];
   return platformRegistry.resolvePermissions(role, entry.permissions);
 }
 
 function listAdmins() {
   return _load().map(a => ({
     username: a.username,
-    platformRole: a.platformRole || 'PLATFORM_ADMIN',
+    platformRole: _displayRole(a),
     createdAt: a.createdAt || null,
     updatedAt: a.updatedAt || null
   }));
@@ -97,7 +117,7 @@ function listAdmins() {
 function listMembers() {
   return _load().map(a => ({
     username: a.username,
-    platformRole: a.platformRole || 'PLATFORM_ADMIN',
+    platformRole: _displayRole(a),
     status: String(a.status || 'active').toLowerCase(),
     displayName: a.displayName || null,
     permissions: Array.isArray(a.permissions) ? a.permissions.slice() : [],
@@ -178,7 +198,7 @@ function _sanitizeOverrides(permissions) {
 function _publicMember(entry) {
   return {
     username: entry.username,
-    platformRole: entry.platformRole || 'PLATFORM_ADMIN',
+    platformRole: _displayRole(entry),
     status: String(entry.status || 'active').toLowerCase(),
     displayName: entry.displayName || null,
     permissions: Array.isArray(entry.permissions) ? entry.permissions.slice() : [],

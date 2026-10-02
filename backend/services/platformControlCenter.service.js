@@ -107,9 +107,12 @@ function dashboard() {
 
 // ---- team management ----
 function _memberView(member) {
-  const role = member.platformRole || 'PLATFORM_ADMIN';
+  // An unknown stored role is reported as UNKNOWN and resolves to the EMPTY
+  // permission set — it never inherits a privileged role by default.
+  const normalized = platformRegistry.normalizeRole(member.platformRole);
+  const role = platformRegistry.isPlatformRole(normalized) ? normalized : 'UNKNOWN';
   return Object.assign({}, member, {
-    effectivePermissions: platformRegistry.resolvePermissions(role, member.permissions)
+    effectivePermissions: role === 'UNKNOWN' ? [] : platformRegistry.resolvePermissions(role, member.permissions)
   });
 }
 

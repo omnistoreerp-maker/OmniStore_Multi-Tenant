@@ -75,11 +75,47 @@ const SENSITIVE_KEYS = new Set([
   'totp',
   'totpsecret',
   'verificationcode',
-  'clientsecret'
+  'clientsecret',
+  // Credential-bearing headers/fields. These turn up in request bodies and
+  // would otherwise be persisted verbatim in the audit trail.
+  'authorization',
+  'proxyauthorization',
+  'cookie',
+  'setcookie',
+  'cookies',
+  'jwt',
+  'idtoken',
+  'session',
+  'sessionid',
+  'sessionsecret',
+  'sessiontoken',
+  'bearertoken',
+  'auth',
+  'authtoken',
+  'xapikey',
+  'xauthtoken',
+  'xaccesstoken',
+  'privatekey',
+  'passphrase',
+  'credential',
+  'credentials',
+  'cred',
+  'bearer',
+  'signingkey',
+  'signaturekey',
+  'clientkey'
 ]);
 
+// Canonical sensitive-field matching. Exact set membership first, then a
+// normalized comparison so aliases such as `X-API-Key`, `auth_token`,
+// `access-token` and `access_token` are all caught.
+function _normalizedKey(key) {
+  return String(key).toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
 function _isSensitiveKey(key) {
-  return SENSITIVE_KEYS.has(String(key).toLowerCase());
+  if (SENSITIVE_KEYS.has(String(key).toLowerCase())) return true;
+  return SENSITIVE_KEYS.has(_normalizedKey(key));
 }
 
 // Recursive clone-and-redact: any sensitive property value becomes

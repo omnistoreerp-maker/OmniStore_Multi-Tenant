@@ -571,6 +571,18 @@ check('working-tree diff touches only intended platform files', () => {
     // Official Multitag integration: minimal CSP change + focused tests.
     'backend/server.js',
     'backend/tests/monetag.boundary.test.js',
+// Control Center security hardening cycle (platform scope only). Explicit
+  // and limited to the exact backend files that cycle actually changes — every
+  // entry below is present in the branch's Control Center hardening diff.
+  // Any OTHER backend file outside this explicit set still fails the guard.
+  'backend/controllers/platform.controller.js',
+  'backend/controllers/platformAdmin.controller.js',
+  'backend/services/audit.service.js',
+  'backend/services/platform.service.js',
+  'backend/services/platformAdmin.service.js',
+  'backend/services/platformControlCenter.service.js',
+  'backend/tests/controlCenterSecurity.test.js',
+  'backend/tests/controlCenterSecurityFixes.test.js',
     'platform/tests/section-lockdown.test.cjs',
     // Pre-existing local WIP from earlier candidate work — carried across
     // branches, deliberately never staged by this change set:
@@ -636,7 +648,10 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/controllers/tiktokReels.controller.js',
     'nginx.conf'
   ]);
-  const allowedUntracked = new Set([
+const allowedUntracked = new Set([
+  // Control Center security hardening cycle (new security proof tests).
+  'backend/tests/controlCenterSecurity.test.js',
+  'backend/tests/controlCenterSecurityFixes.test.js',
     'platform/tests/section-lockdown.test.cjs',
     'backend/tests/platformSections.students.test.js',
     // Support activation cycle: operator workflow tests.
@@ -682,6 +697,42 @@ check('working-tree diff touches only intended platform files', () => {
   for (const file of modified) {
     assert.ok(allowedModified.has(file), 'unexpected modified file: ' + file);
   }
+// Defence in depth: every modified BACKEND file must appear in the EXPLICIT
+// allowlist below. No prefix matching, no wildcard, no branch/commit-based
+// exemption — a backend file outside the explicit set is a hard failure.
+const BACKEND_ALLOWLIST = new Set([
+  'backend/server.js',
+  'backend/tests/monetag.boundary.test.js',
+  'backend/tests/platformPublic.test.js',
+  'backend/tests/platformSections.students.test.js',
+  'backend/services/platformCatalog.service.js',
+  'backend/services/customerRequest.service.js',
+  'backend/controllers/internalChangeCenter.controller.js',
+  'backend/routes/internalChangeCenter.routes.js',
+  'backend/data/platformPublic.json',
+  'backend/controllers/platform.controller.js',
+  'backend/controllers/platformAdmin.controller.js',
+  'backend/services/audit.service.js',
+  'backend/services/platform.service.js',
+  'backend/services/platformAdmin.service.js',
+  'backend/services/platformControlCenter.service.js',
+  'backend/tests/controlCenterSecurity.test.js',
+  'backend/tests/controlCenterSecurityFixes.test.js'
+]);
+for (const file of modified) {
+  if (file === 'backend' || file.startsWith('backend/')) {
+    assert.ok(
+      BACKEND_ALLOWLIST.has(file),
+      'modified backend file is not in the explicit backend allowlist: ' + file
+    );
+  }
+  assert.ok(!file.startsWith('backend/data/'), 'backend/data must never be modified: ' + file);
+  assert.ok(!file.startsWith('marketplace/'), 'marketplace must never be modified: ' + file);
+  assert.notStrictEqual(file, '.env', '.env must never be modified');
+  assert.notStrictEqual(file, 'nginx.conf', 'nginx.conf must never be modified');
+  assert.notStrictEqual(file, 'sw.js', 'sw.js must never be modified');
+  assert.notStrictEqual(file, 'platform/monetag.js', 'monetag must never be modified');
+}
   const untracked = git(['ls-files', '--others', '--exclude-standard']);
   for (const file of untracked) {
     assert.ok(allowedUntracked.has(file), 'unexpected untracked file: ' + file);
