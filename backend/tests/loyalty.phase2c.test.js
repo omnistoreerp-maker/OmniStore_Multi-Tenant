@@ -12,6 +12,18 @@ const SERVICE_PATH = path.resolve(REPO_ROOT, 'backend', 'services', 'loyalty.ser
 const REPO_PATH = path.resolve(REPO_ROOT, 'backend', 'repositories', 'loyalty.repository.js');
 const CUSTOMER_SERVICE_PATH = path.resolve(REPO_ROOT, 'backend', 'services', 'customers.service.js');
 
+// The module compares birthdays via LOCAL calendar fields, but date-only
+// birthDate strings parse as UTC midnight — the previous local day west of
+// Greenwich. This builds the stored string that resolves back to the intended
+// local calendar day in any timezone (the module itself is untouched).
+function birthdayStringForLocalDay(day) {
+  const shifted = new Date(day.getTime() + (day.getTimezoneOffset() > 0 ? 86400000 : 0));
+  const y = shifted.getFullYear();
+  const m = String(shifted.getMonth() + 1).padStart(2, '0');
+  const d = String(shifted.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 function createSandbox(overrides = {}) {
   const transactions = [];
   const configs = {};
@@ -192,7 +204,7 @@ describe('Phase 2C — Loyalty operational enhancements', () => {
   describe('Birthday Bonus', () => {
     test('awards birthday bonus on customer birthday', async () => {
       const { ctx, customers } = createSandbox();
-      customers.push({ id: 'c1', name: 'Alice', birthDate: new Date().toISOString().split('T')[0] });
+      customers.push({ id: 'c1', name: 'Alice', birthDate: birthdayStringForLocalDay(new Date()) });
       const result = await ctx.module.exports.awardBirthdayBonus('c1', { source: 'admin' });
       expect(result.error).toBeUndefined();
       expect(result.transaction).toBeDefined();
@@ -203,7 +215,7 @@ describe('Phase 2C — Loyalty operational enhancements', () => {
 
     test('prevents duplicate birthday bonus same day', async () => {
       const { ctx, customers, transactions } = createSandbox();
-      customers.push({ id: 'c1', name: 'Alice', birthDate: new Date().toISOString().split('T')[0] });
+      customers.push({ id: 'c1', name: 'Alice', birthDate: birthdayStringForLocalDay(new Date()) });
       await ctx.module.exports.awardBirthdayBonus('c1', { source: 'admin' });
       const result = await ctx.module.exports.awardBirthdayBonus('c1', { source: 'admin' });
       expect(result.duplicate).toBe(true);
@@ -221,7 +233,7 @@ describe('Phase 2C — Loyalty operational enhancements', () => {
       const { ctx, customers } = createSandbox();
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
-      customers.push({ id: 'c1', name: 'Alice', birthDate: tomorrow.toISOString().split('T')[0] });
+      customers.push({ id: 'c1', name: 'Alice', birthDate: birthdayStringForLocalDay(tomorrow) });
       const result = await ctx.module.exports.awardBirthdayBonus('c1', { source: 'admin' });
       expect(result.error).toBe("Today is not the customer's birthday");
     });
