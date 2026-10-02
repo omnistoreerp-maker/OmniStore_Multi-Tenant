@@ -41,10 +41,17 @@ function userRecords(password) {
     },
     {
       // Non-privileged staff holding the Program permissions EXPLICITLY, so
-      // the suite proves an unregistered permission still fails closed rather
-      // than being honoured because a client record asked for it.
+      // the suite proves a registered, explicitly granted permission is honoured.
       id: 'u-clerk', username: 'prgClerk', password, role: 'Viewer', fullName: 'Program Clerk',
       permissions: ['education.programs.view', 'education.programs.edit'],
+      tenantIds: ['prg-a'], createdAt: stamp, updatedAt: stamp
+    },
+    {
+      // Non-privileged staff holding a Program permission the registry does NOT
+      // know, so the suite proves an unregistered permission still fails closed
+      // rather than being honoured because a client record asked for it.
+      id: 'u-stranger', username: 'prgStranger', password, role: 'Viewer', fullName: 'Program Stranger',
+      permissions: ['education.programs.export'],
       tenantIds: ['prg-a'], createdAt: stamp, updatedAt: stamp
     },
     {
@@ -398,6 +405,7 @@ describe('STU-5 program routes — authorization and tenant isolation', () => {
   const ownerB = () => token('prgOwner', 'prg-b', 'Owner');
   const managerA = () => token('prgManager', 'prg-a', 'Manager');
   const clerkA = () => token('prgClerk', 'prg-a', 'Viewer');
+  const strangerA = () => token('prgStranger', 'prg-a', 'Viewer');
 
   const create = (body, tok) => request(app).post(`${BASE}/programs`).set('Authorization', `Bearer ${tok}`).send(body);
 
@@ -423,13 +431,23 @@ describe('STU-5 program routes — authorization and tenant isolation', () => {
   });
 
   test('AUTHORIZATION: unregistered Program permissions fail closed, with no bypass', async () => {
-    const read = await request(app).get(`${BASE}/programs`).set('Authorization', `Bearer ${clerkA()}`);
+    // The stranger explicitly holds education.programs.export in its user record,
+    // yet the permission is absent from backend/permissions/registry.js, so the
+    // engine must refuse rather than honour the client record.
+    const read = await request(app).get(`${BASE}/programs`).set('Authorization', `Bearer ${strangerA()}`);
     expect(read.statusCode).toBe(403);
+    expect(read.body.details.code).toBe('PERMISSION_DENIED');
 
     const write = await create({ name: 'Guard' }, managerA());
     expect(write.statusCode).toBe(403);
     expect(['Insufficient role', 'Insufficient permission']).toContain(write.body.message);
     expect(readStore(dir, 'educationPrograms')).toBeNull();
+  });
+
+  test('AUTHORIZATION: an explicitly granted, registered Program permission is honoured', async () => {
+    // The clerk holds education.programs.view, which the registry now knows.
+    const read = await request(app).get(`${BASE}/programs`).set('Authorization', `Bearer ${clerkA()}`);
+    expect(read.statusCode).toBe(200);
   });
 
   test('CRUD: a privileged role performs the full lifecycle', async () => {

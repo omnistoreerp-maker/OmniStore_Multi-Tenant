@@ -54,10 +54,17 @@ function userRecords(password) {
     },
     {
       // Non-privileged staff holding the Teacher permissions EXPLICITLY, so
-      // the suite proves an unregistered permission still fails closed rather
-      // than being honoured because a client record asked for it.
+      // the suite proves a registered, explicitly granted permission is honoured.
       id: 'u-clerk', username: 'tchClerk', password, role: 'Viewer', fullName: 'Teacher Clerk',
       permissions: ['education.teachers.view', 'education.teachers.edit'],
+      tenantIds: ['tch-a'], createdAt: stamp, updatedAt: stamp
+    },
+    {
+      // Non-privileged staff holding a Teacher permission the registry does NOT
+      // know, so the suite proves an unregistered permission still fails closed
+      // rather than being honoured because a client record asked for it.
+      id: 'u-stranger', username: 'tchStranger', password, role: 'Viewer', fullName: 'Teacher Stranger',
+      permissions: ['education.teachers.export'],
       tenantIds: ['tch-a'], createdAt: stamp, updatedAt: stamp
     },
     {
@@ -360,6 +367,7 @@ describe('STU-3 teacher routes — authorization and tenant isolation', () => {
   const ownerB = () => token('tchOwner', 'tch-b', 'Owner');
   const managerA = () => token('tchManager', 'tch-a', 'Manager');
   const clerkA = () => token('tchClerk', 'tch-a', 'Viewer');
+  const strangerA = () => token('tchStranger', 'tch-a', 'Viewer');
 
   const create = (body, tok) => request(app).post(`${BASE}/teachers`).set('Authorization', `Bearer ${tok}`).send(body);
 
@@ -385,16 +393,23 @@ describe('STU-3 teacher routes — authorization and tenant isolation', () => {
   });
 
   test('B. unregistered Teacher permissions fail closed for a non-privileged role', async () => {
-    // The clerk explicitly holds education.teachers.* in its user record, yet
-    // the permission is absent from backend/permissions/registry.js, so the
-    // engine must refuse rather than honour the client record. STU-3 does NOT
-    // register the permission and does NOT bypass the gate.
-    const read = await request(app).get(`${BASE}/teachers`).set('Authorization', `Bearer ${clerkA()}`);
+    // The stranger explicitly holds education.teachers.export in its user
+    // record, yet the permission is absent from backend/permissions/registry.js,
+    // so the engine must refuse rather than honour the client record. STU-3 does
+    // NOT register the permission and does NOT bypass the gate.
+    const read = await request(app).get(`${BASE}/teachers`).set('Authorization', `Bearer ${strangerA()}`);
     expect(read.statusCode).toBe(403);
+    expect(read.body.details.code).toBe('PERMISSION_DENIED');
 
     const write = await create({ firstName: 'M', lastName: 'Guard' }, managerA());
     expect(write.statusCode).toBe(403);
     expect(['Insufficient role', 'Insufficient permission']).toContain(write.body.message);
+  });
+
+  test('C. an explicitly granted, registered Teacher permission is honoured', async () => {
+    // The clerk holds education.teachers.view, which the registry now knows.
+    const read = await request(app).get(`${BASE}/teachers`).set('Authorization', `Bearer ${clerkA()}`);
+    expect(read.statusCode).toBe(200);
   });
 
   test('D. a privileged role performs the full lifecycle', async () => {

@@ -48,10 +48,17 @@ function userRecords(password) {
     },
     {
       // Non-privileged staff. Holds the Education permissions EXPLICITLY so the
-      // suite proves that an unregistered permission still fails closed rather
-      // than being honoured because a client record asked for it.
+      // suite proves that an explicit, REGISTERED grant is honoured.
       id: 'u-viewer', username: 'eduViewer', password, role: 'Viewer', fullName: 'Education Viewer',
       permissions: ['education.pack.view', 'education.pack.edit'],
+      tenantIds: ['edu-a'], createdAt: stamp, updatedAt: stamp
+    },
+    {
+      // Non-privileged staff holding an education permission the registry does
+      // NOT know, so the suite proves unknown permissions still fail closed
+      // rather than being honoured because a client record asked for them.
+      id: 'u-stranger', username: 'eduStranger', password, role: 'Viewer', fullName: 'Education Stranger',
+      permissions: ['education.pack.export'],
       tenantIds: ['edu-a'], createdAt: stamp, updatedAt: stamp
     },
     {
@@ -243,6 +250,7 @@ describe('STU-1 /api/v1/tenant/education — authorization and isolation over HT
   const ownerB = () => jwt.signAccessToken({ id: 'u-owner', username: 'eduOwner', role: 'Owner', tenantId: 'edu-b' });
   const ownerRetired = () => jwt.signAccessToken({ id: 'u-owner', username: 'eduOwner', role: 'Owner', tenantId: 'edu-retired' });
   const viewerA = () => jwt.signAccessToken({ id: 'u-viewer', username: 'eduViewer', role: 'Viewer', tenantId: 'edu-a' });
+  const strangerA = () => jwt.signAccessToken({ id: 'u-stranger', username: 'eduStranger', role: 'Viewer', tenantId: 'edu-a' });
   const managerA = () => jwt.signAccessToken({ id: 'u-manager', username: 'eduManager', role: 'Manager', tenantId: 'edu-a' });
 
   const BASE = '/api/v1/tenant/education';
@@ -304,12 +312,25 @@ describe('STU-1 /api/v1/tenant/education — authorization and isolation over HT
   // --- Permission boundaries ---------------------------------------------
 
   test('an unregistered Education permission fails CLOSED even when granted on the user record', async () => {
-    // eduViewer holds education.pack.view / .edit explicitly in the user store.
-    // They are NOT in backend/permissions/registry.js, and unknown permissions
-    // fail closed — so this must be 403, not 200.
-    const res = await request(app).get(`${BASE}/pack`).set('Authorization', `Bearer ${viewerA()}`);
+    // eduStranger holds education.pack.export in the user store. It is NOT in
+    // backend/permissions/registry.js, and unknown permissions fail closed —
+    // so this must be 403, not 200.
+    const res = await request(app).get(`${BASE}/pack`).set('Authorization', `Bearer ${strangerA()}`);
     expect(res.statusCode).toBe(403);
     expect(res.body.message).toBe('Insufficient permission');
+    expect(res.body.details.code).toBe('PERMISSION_DENIED');
+  });
+
+  test('an explicitly granted, registered Education permission is honoured', async () => {
+    // eduViewer holds education.pack.view, which the registry now knows.
+    const res = await request(app).get(`${BASE}/pack`).set('Authorization', `Bearer ${viewerA()}`);
+    expect(res.statusCode).toBe(200);
+  });
+
+  test('a registered Education permission the user was NOT granted still fails closed', async () => {
+    // education.pack.view is registered, but eduManager was never granted it.
+    const res = await request(app).get(`${BASE}/pack`).set('Authorization', `Bearer ${managerA()}`);
+    expect(res.statusCode).toBe(403);
     expect(res.body.details.code).toBe('PERMISSION_DENIED');
   });
 

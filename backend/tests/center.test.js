@@ -58,10 +58,17 @@ function userRecords(password) {
     },
     {
       // Non-privileged staff holding the Center permissions EXPLICITLY, so
-      // the suite proves an unregistered permission still fails closed rather
-      // than being honoured because a client record asked for it.
+      // the suite proves a registered, explicitly granted permission is honoured.
       id: 'u-clerk', username: 'ctrClerk', password, role: 'Viewer', fullName: 'Center Clerk',
       permissions: ['education.centers.view', 'education.centers.edit'],
+      tenantIds: ['ctr-a'], createdAt: stamp, updatedAt: stamp
+    },
+    {
+      // Non-privileged staff holding a Center permission the registry does NOT
+      // know, so the suite proves an unregistered permission still fails closed
+      // rather than being honoured because a client record asked for it.
+      id: 'u-stranger', username: 'ctrStranger', password, role: 'Viewer', fullName: 'Center Stranger',
+      permissions: ['education.centers.export'],
       tenantIds: ['ctr-a'], createdAt: stamp, updatedAt: stamp
     },
     {
@@ -359,6 +366,7 @@ describe('STU-4 center routes — authorization and tenant isolation', () => {
   const ownerB = () => token('ctrOwner', 'ctr-b', 'Owner');
   const managerA = () => token('ctrManager', 'ctr-a', 'Manager');
   const clerkA = () => token('ctrClerk', 'ctr-a', 'Viewer');
+  const strangerA = () => token('ctrStranger', 'ctr-a', 'Viewer');
 
   const create = (body, tok) => request(app).post(`${BASE}/centers`).set('Authorization', `Bearer ${tok}`).send(body);
 
@@ -384,17 +392,24 @@ describe('STU-4 center routes — authorization and tenant isolation', () => {
   });
 
   test('AUTHORIZATION: unregistered Center permissions fail closed, with no bypass', async () => {
-    // The clerk explicitly holds education.centers.* in its user record, yet
-    // the permission is absent from backend/permissions/registry.js, so the
+    // The stranger explicitly holds education.centers.export in its user record,
+    // yet the permission is absent from backend/permissions/registry.js, so the
     // engine must refuse rather than honour the client record. STU-4 does NOT
     // register the permission and does NOT bypass the gate.
-    const read = await request(app).get(`${BASE}/centers`).set('Authorization', `Bearer ${clerkA()}`);
+    const read = await request(app).get(`${BASE}/centers`).set('Authorization', `Bearer ${strangerA()}`);
     expect(read.statusCode).toBe(403);
+    expect(read.body.details.code).toBe('PERMISSION_DENIED');
 
     const write = await create({ name: 'Guard' }, managerA());
     expect(write.statusCode).toBe(403);
     expect(['Insufficient role', 'Insufficient permission']).toContain(write.body.message);
     expect(readStore(dir, 'educationCenters')).toBeNull();
+  });
+
+  test('AUTHORIZATION: an explicitly granted, registered Center permission is honoured', async () => {
+    // The clerk holds education.centers.view, which the registry now knows.
+    const read = await request(app).get(`${BASE}/centers`).set('Authorization', `Bearer ${clerkA()}`);
+    expect(read.statusCode).toBe(200);
   });
 
   test('CRUD: a privileged role performs the full lifecycle', async () => {

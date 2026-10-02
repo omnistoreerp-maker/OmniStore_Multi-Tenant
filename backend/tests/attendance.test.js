@@ -56,6 +56,14 @@ function userRecords(password) {
       tenantIds: ['att-a'], createdAt: stamp, updatedAt: stamp
     },
     {
+      // Non-privileged staff holding an Attendance permission the registry does
+      // NOT know, so the suite proves an unregistered permission still fails
+      // closed rather than being honoured because a client record asked for it.
+      id: 'u-stranger', username: 'attStranger', password, role: 'Viewer', fullName: 'Attendance Stranger',
+      permissions: ['education.attendance.export'],
+      tenantIds: ['att-a'], createdAt: stamp, updatedAt: stamp
+    },
+    {
       id: 'u-manager', username: 'attManager', password, role: 'Manager', fullName: 'Attendance Manager',
       tenantIds: ['att-a'], createdAt: stamp, updatedAt: stamp
     }
@@ -1101,6 +1109,7 @@ describe('STU-8 attendance routes — authorization, tenant isolation and the da
   const ownerB = () => token('attOwner', 'att-b', 'Owner');
   const managerA = () => token('attManager', 'att-a', 'Manager');
   const clerkA = () => token('attClerk', 'att-a', 'Viewer');
+  const strangerA = () => token('attStranger', 'att-a', 'Viewer');
 
   const post = (path, tok) => request(app).post(`${BASE}${path}`)
     .set('Authorization', `Bearer ${tok}`);
@@ -1197,16 +1206,21 @@ describe('STU-8 attendance routes — authorization, tenant isolation and the da
   });
 
   test('AUTHORIZATION: unregistered Attendance permissions fail closed, with no bypass', async () => {
-    // The Clerk record holds education.attendance.view / .edit EXPLICITLY and is
+    // The stranger record holds education.attendance.export EXPLICITLY and is
     // still refused: unknown permissions are not honoured because a client
     // record asked for them.
-    expect((await get('/attendance', clerkA())).statusCode).toBe(403);
+    expect((await get('/attendance', strangerA())).statusCode).toBe(403);
 
     const chain = await setup(ownerA());
     const write = await markDay(chain.enrollmentId, TODAY, 'present', clerkA());
     expect(write.statusCode).toBe(403);
     expect(['Insufficient role', 'Insufficient permission']).toContain(write.body.message);
     expect(readStore(dir, 'educationAttendance')).toBeNull();
+  });
+
+  test('AUTHORIZATION: an explicitly granted, registered Attendance permission is honoured', async () => {
+    // The clerk holds education.attendance.view, which the registry now knows.
+    expect((await get('/attendance', clerkA())).statusCode).toBe(200);
   });
 
   test('AUTHORIZATION: a Manager cannot write, and nothing is persisted on refusal', async () => {
@@ -2355,6 +2369,7 @@ describe('EDUCATION CORE+ attendance bulk routes — authorization, tenant isola
   const ownerB = () => token('attOwner', 'att-b', 'Owner');
   const managerA = () => token('attManager', 'att-a', 'Manager');
   const clerkA = () => token('attClerk', 'att-a', 'Viewer');
+  const strangerA = () => token('attStranger', 'att-a', 'Viewer');
 
   const post = (path, tok) => request(app).post(`${BASE}${path}`)
     .set('Authorization', `Bearer ${tok}`);
@@ -2395,7 +2410,7 @@ describe('EDUCATION CORE+ attendance bulk routes — authorization, tenant isola
 
   test('AUTHORIZATION: unregistered Attendance permissions fail closed on the batch route', async () => {
     const roster = await rosterOverHttp(ownerA(), 2);
-    const res = await post('/attendance/bulk', clerkA())
+    const res = await post('/attendance/bulk', strangerA())
       .send({ attendanceDate: TODAY, entries: entriesFor(roster) });
     expect(res.statusCode).toBe(403);
     expect(['Insufficient role', 'Insufficient permission']).toContain(res.body.message);

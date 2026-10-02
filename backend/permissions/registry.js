@@ -38,7 +38,27 @@ const REAL_GROUPS = [
   },
   { group: 'audit', permissions: ['audit.view'] },
   { group: 'company', permissions: ['company.view', 'company.create'] },
-  { group: 'settings', permissions: ['settings.view', 'settings.edit'] }
+  { group: 'settings', permissions: ['settings.view', 'settings.edit'] },
+  // Education (STU-1 to STU-10). Names mirror the requirePermission calls on the
+  // routers mounted at /api/v1/tenant/education verbatim — no aliases, no
+  // wildcard. Owner/Admin inherit these via REAL_PERMISSIONS; every operator
+  // role stays on its existing baseline and must be granted explicitly.
+  {
+    group: 'education',
+    permissions: [
+      'education.attendance.view', 'education.attendance.edit',
+      'education.centers.view', 'education.centers.edit',
+      'education.classes.view', 'education.classes.edit',
+      'education.courses.view', 'education.courses.edit',
+      'education.enrollments.view', 'education.enrollments.edit',
+      'education.grading.view', 'education.grading.edit',
+      'education.pack.view', 'education.pack.edit',
+      'education.programs.view', 'education.programs.edit',
+      'education.scheduling.view', 'education.scheduling.edit',
+      'education.students.view', 'education.students.edit',
+      'education.teachers.view', 'education.teachers.edit'
+    ]
+  }
 ];
 
 const PLANNED_GROUPS = [

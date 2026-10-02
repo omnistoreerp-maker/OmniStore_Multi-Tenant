@@ -47,10 +47,17 @@ function userRecords(password) {
     },
     {
       // Non-privileged staff holding the Class permissions EXPLICITLY, so the
-      // suite proves an unregistered permission still fails closed rather than
-      // being honoured because a client record asked for it.
+      // suite proves a registered, explicitly granted permission is honoured.
       id: 'u-clerk', username: 'clsClerk', password, role: 'Viewer', fullName: 'Class Clerk',
       permissions: ['education.classes.view', 'education.classes.edit'],
+      tenantIds: ['cls-a'], createdAt: stamp, updatedAt: stamp
+    },
+    {
+      // Non-privileged staff holding a Class permission the registry does NOT
+      // know, so the suite proves an unregistered permission still fails closed
+      // rather than being honoured because a client record asked for it.
+      id: 'u-stranger', username: 'clsStranger', password, role: 'Viewer', fullName: 'Class Stranger',
+      permissions: ['education.classes.export'],
       tenantIds: ['cls-a'], createdAt: stamp, updatedAt: stamp
     },
     {
@@ -930,6 +937,7 @@ describe('STU-6 class routes — authorization and tenant isolation', () => {
   const ownerB = () => token('clsOwner', 'cls-b', 'Owner');
   const managerA = () => token('clsManager', 'cls-a', 'Manager');
   const clerkA = () => token('clsClerk', 'cls-a', 'Viewer');
+  const strangerA = () => token('clsStranger', 'cls-a', 'Viewer');
 
   const createProgramIn = (name, tok) =>
     request(app).post(`${BASE}/programs`).set('Authorization', `Bearer ${tok}`).send({ name });
@@ -977,13 +985,23 @@ describe('STU-6 class routes — authorization and tenant isolation', () => {
   });
 
   test('AUTHORIZATION: unregistered Class permissions fail closed, with no bypass', async () => {
-    const read = await request(app).get(`${BASE}/classes`).set('Authorization', `Bearer ${clerkA()}`);
+    // The stranger explicitly holds education.classes.export in its user record,
+    // yet the permission is absent from backend/permissions/registry.js, so the
+    // engine must refuse rather than honour the client record.
+    const read = await request(app).get(`${BASE}/classes`).set('Authorization', `Bearer ${strangerA()}`);
     expect(read.statusCode).toBe(403);
+    expect(read.body.details.code).toBe('PERMISSION_DENIED');
 
     const write = await create({ courseId: 'c', teacherId: 't', name: 'Guard' }, managerA());
     expect(write.statusCode).toBe(403);
     expect(['Insufficient role', 'Insufficient permission']).toContain(write.body.message);
     expect(readStore(dir, 'educationClasses')).toBeNull();
+  });
+
+  test('AUTHORIZATION: an explicitly granted, registered Class permission is honoured', async () => {
+    // The clerk holds education.classes.view, which the registry now knows.
+    const read = await request(app).get(`${BASE}/classes`).set('Authorization', `Bearer ${clerkA()}`);
+    expect(read.statusCode).toBe(200);
   });
 
   test('AUTHORIZATION: a Manager cannot write even with an explicit permission record', async () => {

@@ -54,10 +54,17 @@ function userRecords(password) {
     },
     {
       // Non-privileged staff holding the Enrollment permissions EXPLICITLY, so
-      // the suite proves an unregistered permission still fails closed rather
-      // than being honoured because a client record asked for it.
+      // the suite proves a registered, explicitly granted permission is honoured.
       id: 'u-clerk', username: 'enrClerk', password, role: 'Viewer', fullName: 'Enrollment Clerk',
       permissions: ['education.enrollments.view', 'education.enrollments.edit'],
+      tenantIds: ['enr-a'], createdAt: stamp, updatedAt: stamp
+    },
+    {
+      // Non-privileged staff holding an Enrollment permission the registry does
+      // NOT know, so the suite proves an unregistered permission still fails
+      // closed rather than being honoured because a client record asked for it.
+      id: 'u-stranger', username: 'enrStranger', password, role: 'Viewer', fullName: 'Enrollment Stranger',
+      permissions: ['education.enrollments.export'],
       tenantIds: ['enr-a'], createdAt: stamp, updatedAt: stamp
     },
     {
@@ -971,6 +978,7 @@ describe('STU-7 enrollment routes — authorization and tenant isolation', () =>
   const ownerB = () => token('enrOwner', 'enr-b', 'Owner');
   const managerA = () => token('enrManager', 'enr-a', 'Manager');
   const clerkA = () => token('enrClerk', 'enr-a', 'Viewer');
+  const strangerA = () => token('enrStranger', 'enr-a', 'Viewer');
 
   const createStudentIn = (lastName, tok, extra) => request(app)
     .post(`${BASE}/students`).set('Authorization', `Bearer ${tok}`)
@@ -1036,17 +1044,24 @@ describe('STU-7 enrollment routes — authorization and tenant isolation', () =>
   });
 
   test('AUTHORIZATION: unregistered Enrollment permissions fail closed, with no bypass', async () => {
-    // The Clerk record holds education.enrollments.view / .edit EXPLICITLY and
-    // is still refused: unknown permissions are not honoured because a client
-    // record asked for them.
-    const read = await request(app).get(`${BASE}/enrollments`).set('Authorization', `Bearer ${clerkA()}`);
+    // The stranger explicitly holds education.enrollments.export in its user
+    // record and is still refused: unknown permissions are not honoured because
+    // a client record asked for them.
+    const read = await request(app).get(`${BASE}/enrollments`).set('Authorization', `Bearer ${strangerA()}`);
     expect(read.statusCode).toBe(403);
+    expect(read.body.details.code).toBe('PERMISSION_DENIED');
 
     const chain = await setup(ownerA());
     const write = await create({ studentId: chain.studentId, classId: chain.classId }, clerkA());
     expect(write.statusCode).toBe(403);
     expect(['Insufficient role', 'Insufficient permission']).toContain(write.body.message);
     expect(readStore(dir, 'educationEnrollments')).toBeNull();
+  });
+
+  test('AUTHORIZATION: an explicitly granted, registered Enrollment permission is honoured', async () => {
+    // The clerk holds education.enrollments.view, which the registry now knows.
+    const read = await request(app).get(`${BASE}/enrollments`).set('Authorization', `Bearer ${clerkA()}`);
+    expect(read.statusCode).toBe(200);
   });
 
   test('AUTHORIZATION: a Manager cannot write, and nothing is persisted on refusal', async () => {

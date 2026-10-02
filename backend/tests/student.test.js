@@ -49,10 +49,17 @@ function userRecords(password) {
     },
     {
       // Non-privileged staff holding the Student permissions EXPLICITLY, so
-      // the suite proves an unregistered permission still fails closed rather
-      // than being honoured because a client record asked for it.
+      // the suite proves a registered, explicitly granted permission is honoured.
       id: 'u-clerk', username: 'stuClerk', password, role: 'Viewer', fullName: 'Student Clerk',
       permissions: ['education.students.view', 'education.students.edit'],
+      tenantIds: ['stu-a'], createdAt: stamp, updatedAt: stamp
+    },
+    {
+      // Non-privileged staff holding a Student permission the registry does NOT
+      // know, so the suite proves an unregistered permission still fails closed
+      // rather than being honoured because a client record asked for it.
+      id: 'u-stranger', username: 'stuStranger', password, role: 'Viewer', fullName: 'Student Stranger',
+      permissions: ['education.students.export'],
       tenantIds: ['stu-a'], createdAt: stamp, updatedAt: stamp
     },
     {
@@ -255,6 +262,7 @@ describe('STU-2 student routes — authorization and tenant isolation', () => {
   const ownerB = () => token('stuOwner', 'stu-b', 'Owner');
   const managerA = () => token('stuManager', 'stu-a', 'Manager');
   const clerkA = () => token('stuClerk', 'stu-a', 'Viewer');
+  const strangerA = () => token('stuStranger', 'stu-a', 'Viewer');
 
   const create = (body, tok) => request(app).post(`${BASE}/students`).set('Authorization', `Bearer ${tok}`).send(body);
 
@@ -280,11 +288,19 @@ describe('STU-2 student routes — authorization and tenant isolation', () => {
   });
 
   test('an unregistered Education permission still fails closed for a non-privileged role', async () => {
-    // The clerk explicitly holds education.students.* in its user record, yet
-    // the permission is absent from backend/permissions/registry.js, so the
-    // authorization engine must refuse rather than honour the client record.
-    const res = await request(app).get(`${BASE}/students`).set('Authorization', `Bearer ${clerkA()}`);
+    // The stranger explicitly holds education.students.export in its user
+    // record, yet the permission is absent from backend/permissions/registry.js,
+    // so the authorization engine must refuse rather than honour the client
+    // record.
+    const res = await request(app).get(`${BASE}/students`).set('Authorization', `Bearer ${strangerA()}`);
     expect(res.statusCode).toBe(403);
+    expect(res.body.details.code).toBe('PERMISSION_DENIED');
+  });
+
+  test('an explicitly granted, registered Student permission is honoured', async () => {
+    // The clerk holds education.students.view, which the registry now knows.
+    const res = await request(app).get(`${BASE}/students`).set('Authorization', `Bearer ${clerkA()}`);
+    expect(res.statusCode).toBe(200);
   });
 
   test('a Manager write is blocked by the global write guard before route permissions', async () => {

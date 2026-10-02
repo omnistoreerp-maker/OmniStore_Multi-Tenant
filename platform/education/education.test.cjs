@@ -1260,12 +1260,13 @@ check('the pack route and the batch route keep the strict permission gate', () =
   }
   // The permissions the new screens rely on are the ones the existing MVP
   // already declares. No new permission string is introduced anywhere.
-  const before = read('backend/permissions/registry.js');
-  assert(before.indexOf('education') < 0, 'the registry now declares an education permission; re-check the gate story');
+  const registrySrc = read('backend/permissions/registry.js');
+  assert(registrySrc.indexOf("group: 'education'") >= 0, 'the registry declares no education group');
   const used = new Set((ATTENDANCE_ROUTE + PACK_ROUTE).match(/requirePermission\('([^']+)'\)/g) || []);
   const strings = [...used].map((raw) => /'([^']+)'/.exec(raw)[1]);
   for (const permission of strings) {
     assert(permission.indexOf('education.') === 0, 'an unexpected permission string appeared: ' + permission);
+    assert(registrySrc.indexOf("'" + permission + "'") >= 0, 'a required permission is not registered: ' + permission);
   }
 });
 
@@ -1592,10 +1593,10 @@ check('the report surfaces add no backend surface and no new permission', () => 
     const declared = ALL_ROUTES.some((r) => r.verb === spec.route.verb && r.path === spec.route.path);
     assert(declared, key + ' reads a route the backend does not declare');
   }
-  // No new permission string: the three the reports name are the three the
-  // existing routes already require, and the registry is untouched.
-  const registry = read('backend/permissions/registry.js');
-  assert(registry.indexOf('education') < 0, 'the registry declares an education permission; re-check the gate story');
+// No new permission string: the three the reports name are the three the
+     // existing routes already require, and the registry registers them as-is.
+     const registry = read('backend/permissions/registry.js');
+     assert(registry.indexOf("group: 'education'") >= 0, 'the registry declares no education group');
   const named = REPORT_KEYS.map((k) => reportBlock(k).match(/permission: '([^']+)'/)[1]);
   for (const permission of named) {
     const service = permission.split('.')[1];

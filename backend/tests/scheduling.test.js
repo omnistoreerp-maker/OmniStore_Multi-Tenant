@@ -52,10 +52,18 @@ function userRecords(password) {
     },
     {
       // Non-privileged staff holding the Scheduling permissions EXPLICITLY, so
-      // the suite proves an unregistered permission still fails closed rather
-      // than being honoured because a client record asked for it.
+      // the suite proves a registered, explicitly granted permission is honoured.
+      // The stranger below covers the unregistered case.
       id: 'u-clerk', username: 'schClerk', password, role: 'Viewer', fullName: 'Scheduling Clerk',
       permissions: ['education.scheduling.view', 'education.scheduling.edit'],
+      tenantIds: ['sch-a'], createdAt: stamp, updatedAt: stamp
+    },
+    {
+      // Non-privileged staff holding a Scheduling permission the registry does
+      // NOT know, so the suite proves an unregistered permission still fails
+      // closed rather than being honoured because a client record asked for it.
+      id: 'u-stranger', username: 'schStranger', password, role: 'Viewer', fullName: 'Scheduling Stranger',
+      permissions: ['education.scheduling.export'],
       tenantIds: ['sch-a'], createdAt: stamp, updatedAt: stamp
     },
     {
@@ -1033,6 +1041,7 @@ describe('STU-9 scheduling routes — authorization, tenant isolation and the ti
   const ownerB = () => token('schOwner', 'sch-b', 'Owner');
   const managerA = () => token('schManager', 'sch-a', 'Manager');
   const clerkA = () => token('schClerk', 'sch-a', 'Viewer');
+  const strangerA = () => token('schStranger', 'sch-a', 'Viewer');
 
   const post = (path, tok) => request(app).post(`${BASE}${path}`).set('Authorization', `Bearer ${tok}`);
   const put = (path, tok) => request(app).put(`${BASE}${path}`).set('Authorization', `Bearer ${tok}`);
@@ -1092,16 +1101,21 @@ describe('STU-9 scheduling routes — authorization, tenant isolation and the ti
   });
 
   test('AUTHORIZATION: unregistered Scheduling permissions fail closed, with no bypass', async () => {
-    // The Clerk record holds education.scheduling.view / .edit EXPLICITLY and is
+    // The stranger record holds education.scheduling.export EXPLICITLY and is
     // still refused: unknown permissions are not honoured because a client
     // record asked for them.
-    expect((await get('/scheduling', clerkA())).statusCode).toBe(403);
+    expect((await get('/scheduling', strangerA())).statusCode).toBe(403);
 
     const chain = await setup(ownerA());
     const write = await makeDay(chain.classId, {}, clerkA());
     expect(write.statusCode).toBe(403);
     expect(['Insufficient role', 'Insufficient permission']).toContain(write.body.message);
     expect(readStore(dir, 'educationScheduling')).toBeNull();
+  });
+
+  test('AUTHORIZATION: an explicitly granted, registered Scheduling permission is honoured', async () => {
+    // The clerk holds education.scheduling.view, which the registry now knows.
+    expect((await get('/scheduling', clerkA())).statusCode).toBe(200);
   });
 
   test('AUTHORIZATION: a Manager cannot write, and nothing is persisted on refusal', async () => {
