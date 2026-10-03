@@ -652,7 +652,14 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/tests/controlCenterSecurityFixes.test.js',
     // Loyalty phase2c TZ-defect fix: test-only local-calendar date helpers
     // (business logic in services/loyalty.service.js is untouched).
-    'backend/tests/loyalty.phase2c.test.js'
+    'backend/tests/loyalty.phase2c.test.js',
+    // Education runtime defect fix: the teacher Sessions table now reads the
+    // session variable its callback receives (plus its source regression test).
+    'platform/education/education.js',
+    'platform/education/education.test.cjs',
+    // Master Control visibility: dev/test bootstrap seed for the platform
+    // admin store (production stores are never written) plus the chain test.
+    'backend/tests/platformAdminSeed.test.js'
   ]);
   const allowedUntracked = new Set([
   'backend/tests/controlCenterSecurityFixes.test.js',
@@ -694,7 +701,9 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/services/reelsCache.service.js',
     'backend/services/tiktokConnection.service.js',
     'backend/services/tiktokDisplayApi.service.js',
-    'backend/tests/tiktokReels.test.js'
+    'backend/tests/tiktokReels.test.js',
+    // Master Control visibility: admin-seed -> role -> access chain test.
+    'backend/tests/platformAdminSeed.test.js'
   ]);
   const git = (args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' }).stdout.split('\n').map((s) => s.trim()).filter(Boolean);
   const modified = git(['diff', '--name-only', 'HEAD']);
@@ -722,7 +731,8 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/services/platformControlCenter.service.js',
     'backend/tests/controlCenterSecurity.test.js',
     'backend/tests/controlCenterSecurityFixes.test.js',
-    'backend/tests/loyalty.phase2c.test.js'
+    'backend/tests/loyalty.phase2c.test.js',
+    'backend/tests/platformAdminSeed.test.js'
   ]);
   // Negative boundaries: these must NEVER appear in a working-tree diff or be added.
   const FORBIDDEN_NEVER_TOUCHED = ['.env','nginx.conf','sw.js','package.json','package-lock.json','platform/monetag.js'];

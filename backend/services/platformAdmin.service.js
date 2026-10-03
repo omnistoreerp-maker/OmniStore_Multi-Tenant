@@ -28,6 +28,14 @@
 // On first read, if the store is empty/missing, the PLATFORM_ADMINS
 // environment variable (comma-separated usernames) seeds MASTER_OWNER
 // entries — a safe, secret-free bootstrap for the platform operator.
+//
+// When PLATFORM_ADMINS is NOT configured and the store is empty, a fresh
+// development/test install would otherwise have no way into the Control
+// Center at all (every /platform route answers 403/404 forever). In that
+// case, and ONLY on the development/test runtimes, ensureSeeded() seeds one
+// well-known bootstrap owner identity instead. See ensureSeeded() for the
+// safety properties that keep this from being a production or privilege
+// concern.
 
 const storageAdapter = require('../repositories/storageAdapter');
 const config = require('../config');
@@ -124,20 +132,51 @@ function listMembers() {
   });
 }
 
-// Seed from the environment ONLY when the store has no entries yet.
+// Development/test bootstrap identity. Chosen to match the username the
+// existing platform suites already treat as the platform owner, so it never
+// collides with a tenant administrator account.
+const DEV_BOOTSTRAP_OWNER = 'master';
+// The bootstrap writes ONLY on these runtimes. The allowlist (not a
+// production deny-list) is deliberate: an environment we do not recognise —
+// staging, a box that forgot NODE_ENV — never receives a seeded owner.
+const DEV_BOOTSTRAP_ENVS = ['development', 'test'];
+
+// Seed the platform store ONLY when it has no entries yet. Precedence:
+//   1. PLATFORM_ADMINS (operator configured) — wins in every runtime.
+//   2. Dev/test bootstrap owner — only when nothing is configured and the
+//      runtime is development or test.
+//   3. Otherwise leave the store empty, exactly as before: an unconfigured
+//      production store stays empty and every platform gate stays closed.
+//
+// Safety properties of the bootstrap (why it is not a bypass):
+//   - No credential, password or token is written — the entry is a username
+//     plus a role. Authentication still happens through the normal login.
+//   - requirePlatformAdmin() is untouched: it re-resolves BOTH the real user
+//     record and this store on every request, so the entry alone grants
+//     nothing to anyone who is not that exact username.
+//   - Exactly ONE username receives MASTER_OWNER; every other username still
+//     resolves null, so an ordinary user sees no platform surface.
+//   - Production stores are never written by the fallback (env allowlist),
+//     and an operator's PLATFORM_ADMINS list always takes precedence.
 function ensureSeeded() {
   const existing = _load();
   if (existing.length > 0) return existing;
-  const fromEnv = (config.platformAdmins || []).filter(Boolean);
-  if (fromEnv.length === 0) return existing;
   const now = new Date().toISOString();
-  const seeded = fromEnv.map(username => ({
+  const ownerEntry = (username) => ({
     username,
     platformRole: 'MASTER_OWNER',
     status: 'active',
     createdAt: now,
     updatedAt: now
-  }));
+  });
+  const fromEnv = (config.platformAdmins || []).filter(Boolean);
+  if (fromEnv.length > 0) {
+    const seeded = fromEnv.map(ownerEntry);
+    _save(seeded);
+    return seeded;
+  }
+  if (DEV_BOOTSTRAP_ENVS.indexOf(config.env) === -1) return existing;
+  const seeded = [ownerEntry(DEV_BOOTSTRAP_OWNER)];
   _save(seeded);
   return seeded;
 }
@@ -306,5 +345,8 @@ module.exports = {
   setMemberStatus,
   setMemberPermissions,
   removeMember,
-  activeOwnerCount
+  activeOwnerCount,
+  // Exposed so the seed contract can be asserted directly by tests and so an
+  // operator reading the store can tell which identity is the bootstrap one.
+  DEV_BOOTSTRAP_OWNER
 };
