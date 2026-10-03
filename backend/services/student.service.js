@@ -20,6 +20,7 @@
 //     customers.service.js cannot exist here by construction.
 
 const storageAdapter = require('../repositories/storageAdapter');
+const usersService = require('./users.service');
 const logger = require('../utils/logger');
 
 const STORE_KEY = 'educationStudents';
@@ -56,6 +57,19 @@ const FORBIDDEN_FIELDS = Object.freeze([
 
 // Maximum length applied to every string field.
 const MAX_STRING_LEN = 160;
+
+// Typed conflict raised when a user↔student link already exists in the
+// opposite direction. Mirrors CenterLinkConflictError: the controller maps
+// `err.conflict === true` to HTTP 409 with the typed `code` (USER_ALREADY_LINKED
+// / STUDENT_ALREADY_LINKED).
+class StudentLinkConflictError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'StudentLinkConflictError';
+    this.code = code;
+    this.conflict = true;
+  }
+}
 
 function _defaultDoc() {
   return { students: [] };
@@ -309,14 +323,102 @@ function archiveStudent(tenantContext, id) {
   return { ...next };
 }
 
+// Look up a student by its linked user id inside THIS tenant, or null.
+function getStudentByUserId(tenantContext, userId) {
+  const tid = _requireTenantId(tenantContext);
+  if (userId === undefined || userId === null || String(userId).trim() === '') return null;
+  const uid = String(userId).trim();
+  const found = _students(_readStore()).find(
+    s => String(s.tenantId || '') === tid && String(s.userId || '') === uid
+  );
+  return found ? { ...found } : null;
+}
+
+// Owner/Admin-only route: bind an existing authenticated account to this
+// student inside this tenant. Server-owned in both directions:
+//   - `userId` stays out of WRITABLE_FIELDS/FORBIDDEN_FIELDS as before;
+//   - one account links to AT MOST one student per tenant and one student
+//     holds AT MOST one account (repeat of same pair = idempotent no-op;
+//     different pair = typed 409);
+//   - the account must exist and, when tenant-bound, must be bound to THIS
+//     tenant — a cross-tenant link is refused, never repaired.
+function linkUser(tenantContext, id, userId) {
+  const tid = _requireTenantId(tenantContext);
+  if (userId === undefined || userId === null || String(userId).trim() === '') {
+    throw _validationError(['userId is required']);
+  }
+  const uid = String(userId).trim().slice(0, MAX_STRING_LEN);
+
+  const doc = _readStore();
+  const students = _students(doc);
+  const idx = _findIndexByTenant(students, id, tid);
+  if (idx < 0) return null;
+
+  const user = usersService.getById(uid);
+  if (!user) {
+    throw _validationError(['userId does not reference an existing user']);
+  }
+  if (user.tenantId !== undefined && user.tenantId !== null && String(user.tenantId) !== '' &&
+      String(user.tenantId) !== tid) {
+    throw _validationError(['userId is bound to a different tenant']);
+  }
+
+  const base = { ...students[idx] };
+  if (String(base.userId || '') === uid) return { ...base }; // idempotent re-link
+
+  if (base.userId !== undefined && base.userId !== null && String(base.userId) !== '') {
+    throw new StudentLinkConflictError(
+      'STUDENT_ALREADY_LINKED',
+      'this student is already linked to an account; unlink it first'
+    );
+  }
+  const taken = students.find(
+    s => String(s.tenantId || '') === tid && String(s.userId || '') === uid
+  );
+  if (taken) {
+    throw new StudentLinkConflictError(
+      'USER_ALREADY_LINKED',
+      'this account is already linked to another student in this tenant'
+    );
+  }
+
+  const next = { ...base, userId: uid, updatedAt: _now() };
+  students[idx] = next;
+  _writeStore({ ...doc, students });
+  return { ...next };
+}
+
+// Clears the link. The `userId` KEY is deleted (not blanked). Idempotent.
+function unlinkUser(tenantContext, id) {
+  const tid = _requireTenantId(tenantContext);
+  const doc = _readStore();
+  const students = _students(doc);
+  const idx = _findIndexByTenant(students, id, tid);
+  if (idx < 0) return null;
+
+  const base = { ...students[idx] };
+  if (base.userId === undefined || base.userId === null || String(base.userId) === '') {
+    return { ...base };
+  }
+  const next = { ...base, updatedAt: _now() };
+  delete next.userId;
+  students[idx] = next;
+  _writeStore({ ...doc, students });
+  return { ...next };
+}
+
 module.exports = {
   listStudents,
   getStudent,
   createStudent,
   updateStudent,
   archiveStudent,
+  getStudentByUserId,
+  linkUser,
+  unlinkUser,
   STUDENT_STATUSES,
   WRITABLE_FIELDS,
   FORBIDDEN_FIELDS,
+  StudentLinkConflictError,
   STORE_KEY
 };

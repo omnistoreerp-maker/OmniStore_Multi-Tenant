@@ -591,6 +591,140 @@ describe('STU-2 student progress — raw counts only, no fabricated model', () =
   });
 });
 
+
+// P4 /students/me — link-based identity, tenant isolation
+describe('P4 /students/me — link-based identity, tenant and branch isolation', () => {
+  const BASE = '/api/v1/tenant/education';
+  let app;
+  let jwt;
+  let dir;
+
+  const now = new Date().toISOString();
+
+  beforeEach(() => {
+    dir = makeTempDataDir('stu-me');
+    seed(dir, 'companies', companies);
+    seed(dir, 'users', { users: [
+      { id: 'u-owner', username: 'stuOwner', password: bcrypt.hashSync('Pass#123', 10), role: 'Owner', fullName: 'Student Owner', tenantIds: ['stu-a', 'stu-b'], createdAt: now, updatedAt: now },
+      { id: 'u-actor', username: 'stuActor', password: bcrypt.hashSync('Pass#123', 10), role: 'Viewer', fullName: 'Student Actor', tenantIds: ['stu-a'], createdAt: now, updatedAt: now },
+      { id: 'u-manager', username: 'stuManager', password: bcrypt.hashSync('Pass#123', 10), role: 'Manager', fullName: 'Student Manager', tenantIds: ['stu-a'], createdAt: now, updatedAt: now }
+    ]});
+    seed(dir, 'educationStudents', { students: [
+      { id: 'std-1', tenantId: 'stu-a', studentCode: 'S1', firstName: 'Sara', lastName: 'Student', status: 'active', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+      { id: 'std-2', tenantId: 'stu-a', studentCode: 'S2', firstName: 'Sam', lastName: 'Student', status: 'active', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+      { id: 'std-b1', tenantId: 'stu-b', studentCode: 'SB', firstName: 'Bea', lastName: 'Student', status: 'active', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }
+    ]});
+    process.env.ENABLE_TENANT_CARRY = 'true';
+    app = startServer(dir, { AUTH_REQUIRED: 'true' }).app;
+    jwt = require('../utils/jwt');
+  });
+
+  afterEach(() => {
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}
+  });
+
+  const ownerA = () => jwt.signAccessToken({ id: 'u-owner', username: 'stuOwner', role: 'Owner', tenantId: 'stu-a' });
+  const ownerB = () => jwt.signAccessToken({ id: 'u-owner', username: 'stuOwner', role: 'Owner', tenantId: 'stu-b' });
+  const actorA = () => jwt.signAccessToken({ id: 'u-actor', username: 'stuActor', role: 'Viewer', tenantId: 'stu-a' });
+  const managerA = () => jwt.signAccessToken({ id: 'u-manager', username: 'stuManager', role: 'Manager', tenantId: 'stu-a' });
+
+  const link = (studentId, userId) =>
+    request(app).post(BASE + '/students/' + studentId + '/link-user')
+      .set('Authorization', 'Bearer ' + ownerA()).send({ userId });
+  const delLink = (studentId, tok) =>
+    request(app).delete(BASE + '/students/' + studentId + '/link-user')
+      .set('Authorization', 'Bearer ' + tok);
+  const get = (path, tok) =>
+    request(app).get(BASE + path).set('Authorization', 'Bearer ' + tok);
+
+  test('P4: /students/me refuses an anonymous caller with 401', async () => {
+    expect((await request(app).get(BASE + '/students/me')).statusCode).toBe(401);
+  });
+
+  test('P4: authenticated-but-unlinked account gets 404 STUDENT_NOT_LINKED', async () => {
+    const res = await get('/students/me', actorA());
+    expect(res.statusCode).toBe(404);
+    expect(res.body.details.code).toBe('STUDENT_NOT_LINKED');
+  });
+
+  test('P4: after linking, the account resolves its own student (200)', async () => {
+    expect((await link('std-1', 'u-actor')).statusCode).toBe(200);
+    const res = await get('/students/me', actorA());
+    expect(res.statusCode).toBe(200);
+    expect(res.body.data.id).toBe('std-1');
+    expect(res.body.data.userId).toBe('u-actor');
+    expect(res.body.data.tenantId).toBe('stu-a');
+  });
+
+  test('P4: after unlink, the portal disappears (404 STUDENT_NOT_LINKED)', async () => {
+    expect((await link('std-1', 'u-actor')).statusCode).toBe(200);
+    expect((await delLink('std-1', ownerA())).statusCode).toBe(200);
+    const res = await get('/students/me', actorA());
+    expect(res.statusCode).toBe(404);
+    expect(res.body.details.code).toBe('STUDENT_NOT_LINKED');
+  });
+  test('P4: tenant B owner cannot resolve a student linked in tenant A', async () => {
+    const res = await get('/students/me', ownerB());
+    expect(res.statusCode).toBe(404);
+    expect(res.body.details.code).toBe('STUDENT_NOT_LINKED');
+  });
+
+  test('P4: the link endpoint is Owner/Admin only — Viewer and Manager are 403', async () => {
+    const asViewer = await request(app)
+      .post(BASE + '/students/std-1/link-user')
+      .set('Authorization', 'Bearer ' + actorA())
+      .send({ userId: 'u-actor' });
+    expect(asViewer.statusCode).toBe(403);
+    const asManager = await request(app)
+      .post(BASE + '/students/std-1/link-user')
+      .set('Authorization', 'Bearer ' + managerA())
+      .send({ userId: 'u-actor' });
+    expect(asManager.statusCode).toBe(403);
+  });
+
+  test('P4: one-to-one — student already linked to different account is 409', async () => {
+    expect((await link('std-1', 'u-actor')).statusCode).toBe(200);
+    const res = await link('std-1', 'u-owner');
+    expect(res.statusCode).toBe(409);
+    expect(res.body.details.code).toBe('STUDENT_ALREADY_LINKED');
+  });
+
+  test('P4: one-to-one — account already linked to another student is 409', async () => {
+    expect((await link('std-1', 'u-actor')).statusCode).toBe(200);
+    const res = await link('std-2', 'u-actor');
+    expect(res.statusCode).toBe(409);
+    expect(res.body.details.code).toBe('USER_ALREADY_LINKED');
+  });
+
+  test('P4: idempotent re-link of the same pair returns 200', async () => {
+    expect((await link('std-1', 'u-actor')).statusCode).toBe(200);
+    expect((await link('std-1', 'u-actor')).statusCode).toBe(200);
+  });
+
+  test('P4: linking to a nonexistent user is 400', async () => {
+    const res = await link('std-1', 'nonexistent-user-id');
+    expect(res.statusCode).toBe(400);
+  });
+
+  test('P4: payload shape — no GPA, grade, ranking, percentage, payment fields', async () => {
+    expect((await link('std-1', 'u-actor')).statusCode).toBe(200);
+    const res = await get('/students/me', actorA());
+    expect(res.statusCode).toBe(200);
+    const d = res.body.data;
+    expect(d).toHaveProperty('id');
+    expect(d).toHaveProperty('tenantId');
+    expect(d).toHaveProperty('studentCode');
+    expect(d).toHaveProperty('userId');
+    expect(d.tenantId).toBe('stu-a');
+    expect(d).not.toHaveProperty('gpa');
+    expect(d).not.toHaveProperty('grade');
+    expect(d).not.toHaveProperty('ranking');
+    expect(d).not.toHaveProperty('percentage');
+    expect(d).not.toHaveProperty('payment');
+  });
+});
+
+
 // Restore env so other suites are unaffected.
 afterAll(() => {
   const mapping = {

@@ -31,7 +31,12 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/center.controller');
 const asyncHandler = require('../utils/asyncHandler');
-const { requirePermission } = require('../middleware/authorize');
+const { requirePermission, requireRole } = require('../middleware/authorize');
+
+// Portal identity — MUST stay above '/centers/:id'.
+router.get('/centers/me', asyncHandler(ctrl.getMe));
+router.post('/centers/:id/link-user', requireRole('Owner', 'Admin'), asyncHandler(ctrl.linkUser));
+router.delete('/centers/:id/link-user', requireRole('Owner', 'Admin'), asyncHandler(ctrl.unlinkUser));
 
 router.get('/centers', requirePermission('education.centers.view'), asyncHandler(ctrl.listCenters));
 router.get('/centers/:id', requirePermission('education.centers.view'), asyncHandler(ctrl.getCenter));

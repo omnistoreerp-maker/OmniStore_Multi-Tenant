@@ -226,4 +226,69 @@ function getStudentProgress(req, res) {
   }
 }
 
-module.exports = { listStudents, getStudent, createStudent, updateStudent, archiveStudent, getStudentProgress };
+// GET /students/me — the learner portal's identity endpoint. Mirrors
+// /teachers/me and /centers/me. Authorization is the LINK, not a permission
+// grant. Anonymous is 401; authenticated-but-unlinked is 404 STUDENT_NOT_LINKED.
+//
+// BRANCH ISOLATION: same rule as center.getMe — when the user carries a
+// trusted branch scope and the linked student record carries a different
+// branchId, the request is refused 403 BRANCH_SCOPE_DENIED.
+function getMe(req, res) {
+  try {
+    if (!req.user) return error(res, 'Authentication required', 401);
+    const tenantId = _tenantIdOr400(req, res);
+    if (!tenantId) return;
+    const student = studentService.getStudentByUserId({ tenantId }, req.user.id);
+    if (!student) {
+      return error(res, 'No student is linked to this account', 404, { code: 'STUDENT_NOT_LINKED' });
+    }
+    const userBranch = req.user.branchId;
+    if (userBranch && student.branchId && String(student.branchId) !== String(userBranch)) {
+      return error(res, 'Branch scope denied', 403, { code: 'BRANCH_SCOPE_DENIED' });
+    }
+    success(res, student, 'Student retrieved');
+  } catch (err) {
+    logger.error('student.getMe error:', err.message);
+    error(res, 'Failed to resolve the linked student', 500);
+  }
+}
+
+// POST /students/:id/link-user — Owner/Admin only.
+function linkUser(req, res) {
+  try {
+    const tenantId = _tenantIdOr400(req, res);
+    if (!tenantId) return;
+    const body = (req.body && typeof req.body === 'object') ? req.body : {};
+    const linked = studentService.linkUser({ tenantId }, req.params.id, body.userId);
+    if (!linked) return error(res, 'Student not found', 404);
+    success(res, linked, 'Account linked to student');
+  } catch (err) {
+    if (err && err.conflict === true) {
+      return error(res, err.message, 409, { code: err.code });
+    }
+    if (err && Array.isArray(err.validation)) {
+      return error(res, err.message, 400, { details: err.validation });
+    }
+    logger.error('student.linkUser error:', err.message);
+    error(res, 'Failed to link account', 500);
+  }
+}
+
+// DELETE /students/:id/link-user — Owner/Admin only, idempotent.
+function unlinkUser(req, res) {
+  try {
+    const tenantId = _tenantIdOr400(req, res);
+    if (!tenantId) return;
+    const unlinked = studentService.unlinkUser({ tenantId }, req.params.id);
+    if (!unlinked) return error(res, 'Student not found', 404);
+    success(res, unlinked, 'Account unlinked from student');
+  } catch (err) {
+    logger.error('student.unlinkUser error:', err.message);
+    error(res, 'Failed to unlink account', 500);
+  }
+}
+
+module.exports = {
+  listStudents, getStudent, createStudent, updateStudent, archiveStudent,
+  getStudentProgress, getMe, linkUser, unlinkUser
+};

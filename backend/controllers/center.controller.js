@@ -116,4 +116,72 @@ function archiveCenter(req, res) {
   }
 }
 
-module.exports = { listCenters, getCenter, createCenter, updateCenter, archiveCenter };
+// GET /centers/me — the portal's identity endpoint. Authorization here is
+// NOT a permission grant: the LINK is the check. An authenticated account can
+// only ever read the record linked to ITS OWN id, so there is nothing to
+// delegate. Anonymous is 401; authenticated-but-unlinked is 404
+// CENTER_NOT_LINKED (a distinct, honest answer the portal uses).
+//
+// BRANCH ISOLATION: when the signed-in user carries a trusted branch scope
+// (populated by middleware/branchStore) and the linked center record also
+// carries a branchId that differs from the user's scope, the request is
+// refused 403 BRANCH_SCOPE_DENIED. When the center has no branchId the check
+// is a no-op (branch isolation only restricts records that explicitly carry a
+// branch binding).
+function getMe(req, res) {
+  try {
+    if (!req.user) return error(res, 'Authentication required', 401);
+    const tenantId = _tenantIdOr400(req, res);
+    if (!tenantId) return;
+    const center = centerService.getCenterByUserId({ tenantId }, req.user.id);
+    if (!center) {
+      return error(res, 'No center is linked to this account', 404, { code: 'CENTER_NOT_LINKED' });
+    }
+    const userBranch = req.user.branchId;
+    if (userBranch && center.branchId && String(center.branchId) !== String(userBranch)) {
+      return error(res, 'Branch scope denied', 403, { code: 'BRANCH_SCOPE_DENIED' });
+    }
+    success(res, center, 'Center retrieved');
+  } catch (err) {
+    logger.error('center.getMe error:', err.message);
+    error(res, 'Failed to resolve the linked center', 500);
+  }
+}
+
+// POST /centers/:id/link-user — Owner/Admin only (enforced by requireRole on
+// the route, which resolves the TENANT role, not a client-supplied one).
+function linkUser(req, res) {
+  try {
+    const tenantId = _tenantIdOr400(req, res);
+    if (!tenantId) return;
+    const body = (req.body && typeof req.body === 'object') ? req.body : {};
+    const linked = centerService.linkUser({ tenantId }, req.params.id, body.userId);
+    if (!linked) return error(res, 'Center not found', 404);
+    success(res, linked, 'Account linked to center');
+  } catch (err) {
+    if (err && err.conflict === true) {
+      return error(res, err.message, 409, { code: err.code });
+    }
+    if (err && Array.isArray(err.validation)) {
+      return error(res, err.message, 400, { details: err.validation });
+    }
+    logger.error('center.linkUser error:', err.message);
+    error(res, 'Failed to link account', 500);
+  }
+}
+
+// DELETE /centers/:id/link-user — Owner/Admin only, idempotent.
+function unlinkUser(req, res) {
+  try {
+    const tenantId = _tenantIdOr400(req, res);
+    if (!tenantId) return;
+    const unlinked = centerService.unlinkUser({ tenantId }, req.params.id);
+    if (!unlinked) return error(res, 'Center not found', 404);
+    success(res, unlinked, 'Account unlinked from center');
+  } catch (err) {
+    logger.error('center.unlinkUser error:', err.message);
+    error(res, 'Failed to unlink account', 500);
+  }
+}
+
+module.exports = { listCenters, getCenter, createCenter, updateCenter, archiveCenter, getMe, linkUser, unlinkUser };

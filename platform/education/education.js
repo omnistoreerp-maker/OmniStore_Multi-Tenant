@@ -1452,6 +1452,7 @@
     closeDrawer();
 
     if (page === 'dashboard') renderDashboard(body);
+    else if (page === 'center') renderCenterWorkspace(body);
     else if (page === 'teacher') renderTeacherWorkspace(body);
     else if (page === 'student') renderStudentWorkspace(body);
     else if (page === 'roster') renderRoster(body);
@@ -1464,6 +1465,7 @@
 
   function pageLabel(page) {
     if (page === 'dashboard') return 'Education dashboard';
+    if (page === 'center') return 'Center workspace';
     if (page === 'teacher') return 'Teacher workspace';
     if (page === 'student') return 'Student workspace';
     if (page === 'roster') return 'Class roster';
@@ -2844,6 +2846,141 @@
   // are explicit tenant-level pickers, and both say so on screen.
   // ---------------------------------------------------------------------
 
+  // ---------------------------------------------------------------------
+  // Center self-service workspace.
+  //
+  // Resolves the caller's linked center through GET /centers/me. When the
+  // account is linked, the view shows that center's profile plus read-only
+  // summaries of programs, courses, classes, scheduling and ratings. When no
+  // link exists the view says so plainly and offers no picker: the center
+  // workspace is strictly owner-scoped, not a tenant-level browser.
+  // ---------------------------------------------------------------------
+
+  function renderCenterWorkspace(body) {
+    body.appendChild(el('h2', 'edu-section-title', 'Center workspace'));
+
+    if (!state.portalCenterPromise) {
+      state.portalCenterPromise = api('GET', '/centers/me').then(function (center) {
+        return center || null;
+      }, function (err) {
+        return { __error: err };
+      });
+    }
+
+    state.portalCenterPromise.then(function (center) {
+      if (state.page !== 'center') return;
+
+      if (center && center.__error) {
+        var err = center.__error;
+        var msg = explain(err);
+        if (err && err.statusCode === 404) {
+          body.appendChild(banner('info',
+            'This account is not linked to a center record. An Owner or Admin ' +
+            'must link your account to a center before the workspace becomes available.'));
+        } else {
+          body.appendChild(banner('error', msg));
+        }
+        return;
+      }
+
+      if (!center) {
+        body.appendChild(banner('info',
+          'This account is not linked to a center record. An Owner or Admin ' +
+          'must link your account to a center before the workspace becomes available.'));
+        return;
+      }
+
+      state.portalCenter = center;
+      paintCenterWorkspace(body, center);
+    });
+  }
+
+  function paintCenterWorkspace(body, center) {
+    // Profile card
+    var profile = el('div', 'edu-card');
+    profile.appendChild(el('h3', null, 'Profile'));
+    var rows = [
+      ['Name', center.name || ''],
+      ['Display name', center.displayName || ''],
+      ['Center code', center.centerCode || ''],
+      ['Status', center.status || ''],
+      ['Email', center.email || ''],
+      ['Timezone', center.timezone || '']
+    ];
+    var dl = document.createElement('dl');
+    dl.className = 'edu-profile-grid';
+    rows.forEach(function (pair) {
+      var dt = document.createElement('dt');
+      dt.textContent = pair[0];
+      var dd = document.createElement('dd');
+      dd.textContent = pair[1] || '—';
+      if (pair[0] === 'Status') {
+        dd.appendChild(pill(pair[1]));
+        dd.textContent = '';
+        var span = document.createElement('span');
+        span.textContent = pair[1] || '';
+        dd.className = '';
+        dd.appendChild(pill(pair[1]));
+        dd.appendChild(document.createTextNode(' ' + (pair[1] || '')));
+      }
+      dl.appendChild(dt);
+      dl.appendChild(dd);
+    });
+    profile.appendChild(dl);
+    body.appendChild(profile);
+
+    // Summary section — load counts from the canonical list endpoints.
+    var summaryHost = el('div', 'edu-card');
+    summaryHost.appendChild(loadingBlock());
+    body.appendChild(summaryHost);
+
+    Promise.all([
+      api('GET', '/programs').catch(function () { return []; }),
+      api('GET', '/courses').catch(function () { return []; }),
+      api('GET', '/classes').catch(function () { return []; }),
+      api('GET', '/scheduling').catch(function () { return []; }),
+      api('GET', '/ratings').catch(function () { return []; })
+    ]).then(function (results) {
+      if (state.page !== 'center') return;
+      summaryHost.textContent = '';
+      summaryHost.appendChild(el('h3', null, 'Summary'));
+      var grid = el('div', 'edu-stats-grid');
+      var items = [
+        ['Programs', Array.isArray(results[0]) ? results[0].length : 0],
+        ['Courses', Array.isArray(results[1]) ? results[1].length : 0],
+        ['Classes', Array.isArray(results[2]) ? results[2].length : 0],
+        ['Sessions', Array.isArray(results[3]) ? results[3].length : 0],
+        ['Ratings', Array.isArray(results[4]) ? results[4].length : 0]
+      ];
+      items.forEach(function (item) {
+        var stat = el('div', 'edu-stat');
+        stat.appendChild(el('div', 'edu-stat-value', String(item[1])));
+        stat.appendChild(el('div', 'edu-stat-label', item[0]));
+        grid.appendChild(stat);
+      });
+      summaryHost.appendChild(grid);
+
+      // Ratings detail (read-only, most recent 5)
+      if (Array.isArray(results[4]) && results[4].length) {
+        var ratingsCard = el('div', 'edu-card');
+        ratingsCard.appendChild(el('h3', null, 'Recent ratings'));
+        var recent = results[4].slice(0, 5);
+        ratingsCard.appendChild(simpleTable(
+          ['Target', 'Rating', 'Status'],
+          recent.map(function (r) {
+            return [
+              text(r.targetName || r.targetId || '—'),
+              text(r.rating || '—'),
+              pill(r.status || 'active')
+            ];
+          })
+        ));
+        body.appendChild(ratingsCard);
+      }
+    });
+  }
+
+
   // The linked teacher is resolved once through GET /teachers/me: a real
   // backend record, or null when no teacher is linked to this account. The
   // request is cached for the session so every visit shows the same answer.
@@ -3026,10 +3163,33 @@
 
   function renderStudentWorkspace(body) {
     body.appendChild(el('h2', 'edu-section-title', 'Student workspace'));
-    body.appendChild(banner('info',
-      'The Education service does not link your signed-in account to a student record, ' +
-      'so this view is scoped by an explicit student selection rather than pretending ' +
-      'to know who you are.'));
+
+    if (!state.portalStudentPromise) {
+      state.portalStudentPromise = api('GET', '/students/me').then(function (student) {
+        return student || null;
+      }, function () {
+        return null;
+      });
+    }
+
+    state.portalStudentPromise.then(function (actor) {
+      if (state.page !== 'student') return;
+      state.portalStudent = actor;
+      paintStudentWorkspace(body, actor);
+    });
+  }
+
+  function paintStudentWorkspace(body, actor) {
+    if (actor) {
+      body.appendChild(banner('info',
+        'This account is linked to a student record, so the workspace opens on that ' +
+        'record. The picker below stays explicit and can be changed at any time.'));
+    } else {
+      body.appendChild(banner('info',
+        'The Education service does not link your signed-in account to a student record, ' +
+        'so this view is scoped by an explicit student selection rather than pretending ' +
+        'to know who you are.'));
+    }
 
     var picker = el('div', 'edu-filters');
     body.appendChild(picker);
@@ -3062,7 +3222,11 @@
       select.addEventListener('change', function () {
         paintStudentDetail(host, select.value);
       });
-      if (students.length) {
+      var preselect = actor ? String(actor.id || '') : '';
+      if (preselect && students.some(function (student) { return String(student.id || '') === preselect; })) {
+        select.value = preselect;
+        paintStudentDetail(host, select.value);
+      } else if (students.length) {
         select.value = String(students[0].id || '');
         paintStudentDetail(host, select.value);
       } else {
@@ -3087,11 +3251,13 @@
     Promise.all([
       loadRef('classes'),
       loadRef('enrollments'),
-      api('GET', '/enrollments?studentId=' + encodeURIComponent(studentId))
+      api('GET', '/enrollments?studentId=' + encodeURIComponent(studentId)),
+      api('GET', '/scheduling').catch(function () { return []; })
     ]).then(function (results) {
       var enrollments = Array.isArray(results[2]) ? results[2] : [];
+      var allSessions = Array.isArray(results[3]) ? results[3] : [];
       var attendance = [];
-      var grading = [];
+      var progressData = [];
 
       host.textContent = '';
       host.appendChild(el('h2', null, 'Enrollments'));
@@ -3112,16 +3278,19 @@
       var active = enrollments.filter(function (row) { return row.status === 'active'; });
       if (!active.length) return;
 
+      var activeClassIds = {};
+      active.forEach(function (row) { activeClassIds[String(row.classId || '')] = true; });
+
       return Promise.all([
         Promise.all(active.map(function (row) {
           return api('GET', '/attendance?enrollmentId=' + encodeURIComponent(String(row.id || '')));
         })),
         Promise.all(active.map(function (row) {
-          return api('GET', '/grading?enrollmentId=' + encodeURIComponent(String(row.id || '')));
+          return api('GET', '/enrollments/' + encodeURIComponent(String(row.id || '')) + '/progress').catch(function () { return null; });
         }))
       ]).then(function (batches) {
         batches[0].forEach(function (batch) { if (Array.isArray(batch)) attendance = attendance.concat(batch); });
-        batches[1].forEach(function (batch) { if (Array.isArray(batch)) grading = grading.concat(batch); });
+        batches[1].forEach(function (p) { if (p) progressData.push(p); });
       });
     }).then(function () {
       if (state.page !== 'student') return;
@@ -3143,26 +3312,22 @@
         : stateBlock('empty', 'No attendance records for this student.'));
       host.appendChild(card);
 
-      // Grading stays a plain register of recorded values. Nothing is summed,
-      // averaged, ranked or otherwise compared.
-      var gradeCard = el('div', 'edu-card');
-      gradeCard.appendChild(el('h2', 'edu-section-title', 'Recorded grades'));
-      gradeCard.appendChild(el('p', 'edu-card-sub',
-        'Each recorded value exactly as staff typed it. The platform defines no scale, ' +
-        'so no total or comparison is shown.'));
-      gradeCard.appendChild(grading.length
-        ? simpleTable(
-          ['Date', 'Class', 'Grade', 'Notes'],
-          grading.map(function (row) {
-            return [
-              code(row.gradingDate),
-              text(refLabel('classes', classOfEnrollment(row.enrollmentId))),
-              text(row.grade),
-              text(row.notes)
-            ];
-          }))
-        : stateBlock('empty', 'No grades recorded for this student.'));
-      host.appendChild(gradeCard);
+      // Raw progress - read-only counts from the canonical P2 progress endpoint.
+      if (progressData.length) {
+        var progCard = el('div', 'edu-card');
+        progCard.appendChild(el('h2', 'edu-section-title', 'Progress'));
+        progCard.appendChild(el('p', 'edu-card-sub',
+          'Raw lesson completion counts per enrollment. No percentage, score or grade is derived.'));
+        var progRows = progressData.map(function (p) {
+          return [
+            text(p.enrollmentId || '—'),
+            text(String(p.completedLessons || 0) + ' / ' + String(p.totalLessons || 0)),
+            text(String(p.completedLessons || 0) + ' of ' + String(p.totalLessons || 0) + ' lessons')
+          ];
+        });
+        progCard.appendChild(simpleTable(['Enrollment', 'Completed', 'Detail'], progRows));
+        host.appendChild(progCard);
+      }
     }).catch(function (err) {
       host.textContent = '';
       host.appendChild(banner('error', explain(err)));
