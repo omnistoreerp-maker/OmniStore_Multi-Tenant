@@ -211,6 +211,7 @@ const enrollmentRoutes = require('./routes/enrollment.routes');
 const attendanceRoutes = require('./routes/attendance.routes');
 const schedulingRoutes = require('./routes/scheduling.routes');
 const gradingRoutes = require('./routes/grading.routes');
+const educationCoreRoutes = require('./routes/educationCore.routes');
 const shiftManagementRoutes = require('./routes/shiftManagement.routes');
 const onlineStoreRoutes = require('./routes/onlineStore.routes');
 const loyaltyRoutes = require('./routes/loyalty.routes');
@@ -379,6 +380,7 @@ app.use('/api/v1/tenant/education', enrollmentRoutes);
 app.use('/api/v1/tenant/education', attendanceRoutes);
 app.use('/api/v1/tenant/education', schedulingRoutes);
 app.use('/api/v1/tenant/education', gradingRoutes);
+app.use('/api/v1/tenant/education', educationCoreRoutes);
 app.use('/api/v1/tenant/shifts', shiftManagementRoutes);
 app.use('/api/v1/tenant/online-store', onlineStoreRoutes);
 
