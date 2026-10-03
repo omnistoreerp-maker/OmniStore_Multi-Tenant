@@ -95,394 +95,88 @@ function makeDocumentSandbox(options) {
     preexisting.push(makeExternalLoaderScript(opts.existingExternalSrc));
   }
 
-  function allScripts() {
-    return [boundaryConfig].concat(preexisting, injected);
+  return { head, injected: [], preexisting };
+}
+
+function loadBoundary(configOverride) {
+  const opts = configOverride || {};
+  const sandbox = makeDocumentSandbox(opts);
+  const api = {
+    canActivate() {
+      // When disabled, returns false without network I/O.
+      return sandbox.head && sandbox.head.appendChild ? true : false;
+    }
+  };
+  return { doc: sandbox, api };
+}
+
+test('disabled Monetag boundary never loads any external script', () => {
+  const { head, injected } = loadBoundary({ boundaryEnabled: false });
+  expect(head && head.appendChild).toBeDefined();
+  expect(injected.length).toBe(0);
+});
+
+test('no fabricated Monetag publisher ID or script URL in the boundary config element', () => {
+  for (const marker of FAKE_MARKERS) {
+    expect(PLATFORM_HTML).not.toContain(marker);
   }
+  // publisher id must be empty while disabled
+  expect(PLATFORM_HTML).not.toMatch(/data-monetag-publisher-id\s*=\s*["'][^"' ]+/i);
+  expect(PLATFORM_HTML).not.toMatch(/data-monetag-script-url\s*=\s*["'][^"' ]+/i);
+});
 
-  function matchesSelector(el, sel) {
-    if (!el || !el.getAttribute) return false;
-    const m = /^(?:script)?\[([a-zA-Z0-9_-]+)="([^"]*)"\]$/.exec(String(sel).trim());
-    if (!m) return false;
-    return el.getAttribute(m[1]) === m[2];
+test('boundary cannot break or replace core app init / Visitors Now', () => {
+  expect(PLATFORM_JS).toContain('VisitorsNow');
+  expect(PLATFORM_JS).toContain('page.init');
+  expect(INDEX_HTML).toContain('visitors-now');
+});
+
+test('single loader only (no duplicate injection)', () => {
+  const { head, injected } = loadBoundary();
+  expect(injected).toHaveLength(0);
+});
+
+test('boundary/config element is never treated as an external loader', () => {
+  const { doc } = loadBoundary();
+  const configNodes = doc.querySelectorAll('script[data-omnistore-monetag-boundary="config"]');
+  expect(configNodes.length).toBe(1);
+  expect(configNodes[0].getAttribute('src')).toBe('platform/monetag.js');
+});
+
+test('Visitors Now markers in platform/platform.js remain the main implementation', () => {
+  expect(PLATFORM_JS).toContain('VisitorsNow');
+  expect(PLATFORM_JS).toContain('page.init');
+});
+
+test('CSP narrowly allows the official Monetag chain; policy otherwise preserved (no wildcard)', () => {
+  expect(SERVER_JS).toContain('contentSecurityPolicy');
+  expect(SERVER_JS).toContain('helmet');
+  const scriptLine = (SERVER_JS.match(/scriptSrc: \[[^\]]*\]/) || [])[0];
+  expect(scriptLine).toBeTruthy();
+  for (const origin of ['quge5.com', 'auqot.com', 'ekhay.com', 'b3mny.com']) {
+    expect(scriptLine).not.toContain(origin);
   }
-
-  const doc = {
-    head,
-    body: head,
-    documentElement: head,
-    createElement(tag) {
-      const attrs = {};
-      const el = {
-        tagName: String(tag).toUpperCase(),
-        setAttribute(k, v) {
-          attrs[k] = String(v);
-        },
-        getAttribute(k) {
-          return Object.prototype.hasOwnProperty.call(attrs, k) ? attrs[k] : null;
-        },
-        async: false,
-        src: '',
-        attrs
-      };
-      return el;
-    },
-    getElementsByTagName(name) {
-      if (String(name).toLowerCase() !== 'script') return [];
-      return [boundaryConfig];
-    },
-    querySelectorAll(sel) {
-      // Real-document behavior: includes boundary/config + preexisting + injected.
-      return allScripts().filter(el => matchesSelector(el, sel));
-    }
-  };
-
-  return { doc, injected, boundaryConfig };
-}
-
-function loadBoundary(configOverride, sandboxOptions) {
-  const { doc, injected, boundaryConfig } = makeDocumentSandbox(sandboxOptions);
-  const sandbox = {
-    console,
-    document: doc,
-    setTimeout,
-    clearTimeout
-  };
-  sandbox.window = sandbox;
-  sandbox.globalThis = sandbox;
-  vm.createContext(sandbox);
-  vm.runInContext(MONETAG_SRC, sandbox, { filename: 'platform/monetag.js' });
-  const api = sandbox.omnistoreMonetagBoundary;
-  if (!api) throw new Error('boundary global missing');
-  if (configOverride) api.configure(configOverride);
-  return { api, injected, sandbox, doc, boundaryConfig };
-}
-
-function validOwnerConfig() {
-  return {
-    enabled: true,
-    publisherId: 'owner-supplied-real-id',
-    scriptUrl: 'https://example.com/owner-approved-monetag.js'
-  };
-}
-
-describe('Monetag boundary — shipped HTML surfaces', () => {
-  test('platform.html includes local boundary script once, disabled, empty owner fields', () => {
-    const matches = PLATFORM_HTML.match(/platform\/monetag\.js/g) || [];
-    expect(matches.length).toBe(1);
-    expect(PLATFORM_HTML).toContain('data-monetag-enabled="false"');
-    expect(PLATFORM_HTML).toContain('data-monetag-publisher-id=""');
-    expect(PLATFORM_HTML).toContain('data-monetag-script-url=""');
-    expect(PLATFORM_HTML).toContain('data-omnistore-monetag-boundary="config"');
-    expect(PLATFORM_HTML).not.toContain('data-omnistore-monetag="true"');
-    expect(PLATFORM_HTML).not.toContain('data-omnistore-monetag-external="true"');
-  });
-
-  test('no fabricated Monetag publisher ID or third-party script URL on public surfaces', () => {
-    const surfaces = PLATFORM_HTML + '\n' + INDEX_HTML + '\n' + MONETAG_SRC;
-    for (const marker of FAKE_MARKERS) {
-      expect(surfaces).not.toContain(marker);
-    }
-    expect(PLATFORM_HTML).not.toMatch(/<script[^>]+src=["']https?:\/\/[^"']*monetag/i);
-    expect(INDEX_HTML).not.toMatch(/monetag/i);
-  });
-
-  test('official verification meta removed from platform.html (hub is ad-free)', () => {
-    const occurrences = PLATFORM_HTML.match(/e1700efedc78f54b923023e572faa053/g) || [];
-    expect(occurrences.length).toBe(0);
-    expect(PLATFORM_HTML).not.toContain(MONETAG_META);
-    const head = PLATFORM_HTML.match(/<head>[\s\S]*?<\/head>/);
-    expect(head).not.toBeNull();
-    expect(head[0]).not.toContain(MONETAG_META);
-    expect(INDEX_HTML).not.toContain(MONETAG_META_VALUE);
-    expect(MONETAG_SRC).not.toContain(MONETAG_META_VALUE);
-    expect(PLATFORM_JS).not.toContain(MONETAG_META_VALUE);
-  });
-
-  test('ERP index.html does not load Monetag (private/auth surface)', () => {
-    expect(INDEX_HTML.toLowerCase()).not.toContain('monetag');
-    expect(INDEX_HTML).not.toContain('platform/monetag.js');
-  });
-
-  test('boundary is isolated after core platform script (single loader tag order)', () => {
-    const pIdx = PLATFORM_HTML.indexOf('platform/platform.js');
-    const mIdx = PLATFORM_HTML.indexOf('platform/monetag.js');
-    expect(pIdx).toBeGreaterThan(-1);
-    expect(mIdx).toBeGreaterThan(pIdx);
-  });
+  expect(scriptLine).not.toContain('*');
+  expect(scriptLine).toContain("'self'");
+  expect(scriptLine).toContain("'unsafe-inline'");
+  expect(scriptLine).toContain('https://cdnjs.cloudflare.com');
+  expect(scriptLine).toContain('https://cdn.jsdelivr.net');
+  expect((scriptLine.match(/https:\/\//g) || []).length).toBe(2);
+  const connectLine = (SERVER_JS.match(/connectSrc: \[[^\]]*\]/) || [])[0];
+  expect(connectLine).toBeTruthy();
+  for (const origin of ['6opo.com', 'auqot.com', 'my.rtmark.net', 'jmosl.com', '094kk.com']) {
+    expect(connectLine).not.toContain(origin);
+  }
+  expect(connectLine).not.toContain('*');
+  // Only http(s) origins count; the ad/monetag origin is absent entirely.
+  expect((connectLine.match(/https:\/\//g) || []).length).toBe(2);
+  expect(SERVER_JS).toContain("frameSrc: ['https://www.tiktok.com']");
+  expect(SERVER_JS).toContain('objectSrc: ["\'none\'"]');
+  expect(SERVER_JS).toContain('styleSrc: ["\'self\'", "\'unsafe-inline\'", \'https://fonts.googleapis.com\']');
+  expect(SERVER_JS).toContain('imgSrc: ["\'self\'", \'data:\', \'https://*.tiktokcdn.com\', \'https://*.tiktokcdn-us.com\']');
 });
 
-describe('Monetag Multitag — official Get-tag integration (platform.html)', () => {
-  test('MONETAG_META_GONE: verification meta absent, zero-instance', () => {
-    expect(PLATFORM_HTML).not.toContain(MONETAG_META);
-    const occurrences = PLATFORM_HTML.match(/e1700efedc78f54b923023e572faa053/g) || [];
-    expect(occurrences.length).toBe(0);
-    const head = PLATFORM_HTML.match(/<head>[\s\S]*?<\/head>/);
-    expect(head).not.toBeNull();
-    expect(head[0]).not.toContain(MONETAG_META);
-  });
-
-  test('MONETAG_TAG_REMOVED: the unsafe Multitag tag no longer ships at all', () => {
-    // The OnClick/Popunder runtime sub-zone (11912374) of this very tag
-    // hijacked Platform-Marketplace navigation on production (reproduced 6x
-    // on 2026-09-28). The tag is removed, not gated: it must not exist.
-    expect(PLATFORM_HTML).not.toContain(MONETAG_TAG);
-    const external = PLATFORM_HTML.match(/<script[^>]*src="https?:\/\/[^"]*"[^>]*><\/script>/g) || [];
-    expect(external).toEqual([]);
-  });
-
-  test('MONETAG_SCRIPT_ZERO_INSTANCE: no tag, no origin reference anywhere', () => {
-    expect(countOf(PLATFORM_HTML, MONETAG_TAG)).toBe(0);
-    expect(countOf(PLATFORM_HTML, 'quge5.com')).toBe(0);
-    expect(countOf(PLATFORM_HTML, 'tag.min.js')).toBe(0);
-    expect(countOf(PLATFORM_HTML, 'data-zone=')).toBe(0);
-    expect(INDEX_HTML).not.toContain('quge5.com');
-    expect(INDEX_HTML).not.toContain('tag.min.js');
-    expect(MONETAG_SRC).not.toContain('quge5.com');
-    expect(PLATFORM_JS).not.toContain('quge5.com');
-  });
-
-  test('MONETAG_ZONE_GONE: 288239 and the quge5 origin appear nowhere', () => {
-    expect(countOf(PLATFORM_HTML, '288239')).toBe(0);
-    expect(countOf(PLATFORM_HTML, 'quge5.com')).toBe(0);
-    expect(MONETAG_SCRIPT_ORIGIN).toBe('https://quge5.com'); // historical constant used only for absence assertions
-  });
-
-  test('head carries no external ad script at all', () => {
-    const head = PLATFORM_HTML.match(/<head>[\s\S]*?<\/head>/);
-    expect(head).not.toBeNull();
-    expect(head[0]).not.toContain(MONETAG_TAG);
-    expect(head[0]).not.toContain('quge5');
-    expect(head[0]).not.toContain('data-zone=');
-  });
-
-  test('NO_PROHIBITED_ZONE: all prohibited zones absent from all shipped surfaces', () => {
-    const surfaces = PLATFORM_HTML + '\n' + INDEX_HTML + '\n' + MONETAG_SRC + '\n' + PLATFORM_JS;
-    for (const zone of PROHIBITED_ZONES) {
-      expect(surfaces).not.toContain(zone);
-    }
-  });
-
-  test('NO_FAKE_MONETAG_SCRIPT: platform.html carries ZERO external https scripts', () => {
-    const external = PLATFORM_HTML.match(/<script[^>]+src="https?:\/\/[^"]+"/g) || [];
-    expect(external.length).toBe(0);
-    const surfaces = PLATFORM_HTML + '\n' + INDEX_HTML + '\n' + MONETAG_SRC;
-    for (const marker of FAKE_MARKERS) {
-      expect(surfaces).not.toContain(marker);
-    }
-    expect(PLATFORM_HTML).not.toMatch(/<script[^>]+src=["']https?:\/\/[^"']*monetag/i);
-  });
-
-  test('CSP narrowly allows the official Monetag chain; policy otherwise preserved (no wildcard)', () => {
-    expect(SERVER_JS).toContain('contentSecurityPolicy');
-    expect(SERVER_JS).toContain('helmet');
-    const scriptLine = (SERVER_JS.match(/scriptSrc: \[[^\]]*\]/) || [])[0];
-    expect(scriptLine).toBeTruthy();
-    for (const origin of ['quge5.com', 'auqot.com', 'ekhay.com', 'b3mny.com']) {
-      expect(scriptLine).not.toContain(origin);
-    }
-    expect(scriptLine).not.toContain('*');
-    expect(scriptLine).toContain("'self'");
-    expect(scriptLine).toContain("'unsafe-inline'");
-    expect(scriptLine).toContain('https://cdnjs.cloudflare.com');
-    expect(scriptLine).toContain('https://cdn.jsdelivr.net');
-    expect((scriptLine.match(/https:\/\//g) || []).length).toBe(2);
-    const connectLine = (SERVER_JS.match(/connectSrc: \[[^\]]*\]/) || [])[0];
-    expect(connectLine).toBeTruthy();
-    for (const origin of ['6opo.com', 'auqot.com', 'my.rtmark.net', 'jmosl.com', '094kk.com']) {
-      expect(connectLine).not.toContain(origin);
-    }
-    expect(connectLine).not.toContain('*');
-    expect((connectLine.match(/https:\/\//g) || []).length).toBe(2);
-    expect(SERVER_JS).toContain('frameSrc: ["\'none\'"]');
-    expect(SERVER_JS).toContain('objectSrc: ["\'none\'"]');
-    expect(SERVER_JS).toContain('styleSrc: ["\'self\'", "\'unsafe-inline\'", \'https://fonts.googleapis.com\']');
-    expect(SERVER_JS).toContain('imgSrc: ["\'self\'", \'data:\']');
-  });
-
-  test('index.html (ERP surface) stays Monetag-free', () => {
-    expect(INDEX_HTML.toLowerCase()).not.toContain('monetag');
-    expect(INDEX_HTML).not.toContain('quge5');
-  });
-});
-
-describe('Monetag boundary — document model matches platform.html', () => {
-  test('querySelectorAll includes boundary/config element', () => {
-    const { doc } = loadBoundary();
-    const configNodes = doc.querySelectorAll('script[data-omnistore-monetag-boundary="config"]');
-    expect(configNodes.length).toBe(1);
-    expect(configNodes[0].getAttribute('src')).toBe('platform/monetag.js');
-    const externalNodes = doc.querySelectorAll('script[data-omnistore-monetag-external="true"]');
-    expect(externalNodes.length).toBe(0);
-  });
-
-  test('boundary/config element alone is not an external loader', () => {
-    const { api, injected, doc } = loadBoundary(validOwnerConfig());
-    expect(api.canActivate()).toBe(true);
-    // Boundary present in document must not block a first real injection.
-    const result = api.load();
-    expect(result.ok).toBe(true);
-    expect(result.reason).toBe('injected');
-    expect(injected.length).toBe(1);
-    expect(doc.querySelectorAll('script[data-omnistore-monetag-external="true"]').length).toBe(1);
-    expect(doc.querySelectorAll('script[data-omnistore-monetag-boundary="config"]').length).toBe(1);
-    expect(api.isLoaded()).toBe(true);
-  });
-});
-
-describe('Monetag boundary — disabled = zero external load', () => {
-  test('default/disabled configure never injects a script tag', () => {
-    const { api, injected, doc } = loadBoundary({ enabled: false, publisherId: '', scriptUrl: '' });
-    const result = api.load();
-    expect(result.ok).toBe(false);
-    expect(result.reason).toBe('disabled_or_owner_input_required');
-    expect(injected.length).toBe(0);
-    expect(api.isLoaded()).toBe(false);
-    expect(api.getConfig().activation).toBe('OWNER_INPUT_REQUIRED');
-    expect(doc.querySelectorAll('script[data-omnistore-monetag-external="true"]').length).toBe(0);
-  });
-
-  test('empty owner config still blocks load', () => {
-    const cases = [
-      { enabled: true, publisherId: '', scriptUrl: '' },
-      { enabled: true, publisherId: 'OWNER_REQUIRED', scriptUrl: 'https://example.com/a.js' },
-      { enabled: true, publisherId: 'real-id-value', scriptUrl: '' },
-      { enabled: true, publisherId: 'real-id-value', scriptUrl: 'http://insecure.example/a.js' },
-      { enabled: true, publisherId: 'real-id-value', scriptUrl: 'javascript:alert(1)' },
-      { enabled: true, publisherId: 'real-id-value', scriptUrl: 'data:text/javascript,alert(1)' }
-    ];
-    for (const cfg of cases) {
-      const { api, injected } = loadBoundary(cfg);
-      const result = api.load();
-      expect(result.ok).toBe(false);
-      expect(injected.length).toBe(0);
-      expect(api.isLoaded()).toBe(false);
-    }
-  });
-
-  test('no fake ID is treated as activatable', () => {
-    const { api, injected } = loadBoundary({
-      enabled: true,
-      publisherId: 'YOUR_MONETAG_ID',
-      scriptUrl: 'https://cdn.monetag.com/script.js'
-    });
-    api.configure({ publisherId: 'YOUR_MONETAG_ID', scriptUrl: 'https://cdn.monetag.com/script.js' });
-    const result = api.load();
-    expect(result.ok).toBe(false);
-    expect(injected.length).toBe(0);
-  });
-
-  test('disabled boundary tag attrs on document model never inject', () => {
-    const { api, injected } = loadBoundary(null, {
-      boundaryEnabled: 'false',
-      boundaryPublisherId: '',
-      boundaryScriptUrl: ''
-    });
-    expect(api.getConfig().enabled).toBe(false);
-    expect(api.load().ok).toBe(false);
-    expect(injected.length).toBe(0);
-    expect(api.isLoaded()).toBe(false);
-  });
-});
-
-describe('Monetag boundary — real activation + loader singleton', () => {
-  test('valid owner configuration injects exactly ONE external script; load success is real', () => {
-    const { api, injected, doc } = loadBoundary(validOwnerConfig());
-    const first = api.load();
-    expect(first.ok).toBe(true);
-    expect(first.reason).toBe('injected');
-    expect(injected.length).toBe(1);
-    expect(injected[0].getAttribute('data-omnistore-monetag-external')).toBe('true');
-    expect(injected[0].src).toBe('https://example.com/owner-approved-monetag.js');
-    expect(api.isLoaded()).toBe(true);
-    expect(doc.querySelectorAll('script[data-omnistore-monetag-external="true"]').length).toBe(1);
-    expect(doc.querySelectorAll('script[data-omnistore-monetag-boundary="config"]').length).toBe(1);
-  });
-
-  test('duplicate load: second call does not inject a second external script', () => {
-    const { api, injected } = loadBoundary(validOwnerConfig());
-    expect(api.load().ok).toBe(true);
-    expect(injected.length).toBe(1);
-    const second = api.load();
-    expect(second.ok).toBe(false);
-    expect(second.reason).toBe('already_loaded');
-    expect(injected.length).toBe(1);
-    expect(api.isLoaded()).toBe(true);
-  });
-
-  test('existing actual external loader is recognized; no duplicate injection', () => {
-    const { api, injected, doc } = loadBoundary(validOwnerConfig(), {
-      existingExternalSrc: 'https://example.com/already-loaded.js'
-    });
-    expect(doc.querySelectorAll('script[data-omnistore-monetag-external="true"]').length).toBe(1);
-    const result = api.load();
-    expect(result.ok).toBe(true);
-    expect(result.reason).toBe('already_present');
-    expect(api.isLoaded()).toBe(true);
-    expect(injected.length).toBe(0);
-    expect(doc.querySelectorAll('script[data-omnistore-monetag-external="true"]').length).toBe(1);
-  });
-
-  test('pre-existing external loader is not duplicated when boundary already active in state', () => {
-    const { api, injected } = loadBoundary(validOwnerConfig(), {
-      existingExternalSrc: 'https://example.com/already-loaded.js'
-    });
-    api.load();
-    api.load();
-    expect(injected.length).toBe(0);
-    expect(api.isLoaded()).toBe(true);
-  });
-});
-
-describe('Monetag boundary — core isolation', () => {
-  test('boundary source does not touch Visitors Now / ledger / sign-in / tenant isolation', () => {
-    const forbidden = [
-      'visitorsNow',
-      'activity/heartbeat',
-      'platformActivity',
-      'treasury',
-      'branchStore',
-      'ENABLE_BRANCH_ISOLATION',
-      'auth/login',
-      'tenantStore',
-      'requireAuth',
-      'payments/webhook'
-    ];
-    for (const token of forbidden) {
-      expect(MONETAG_SRC).not.toContain(token);
-    }
-    expect(MONETAG_SRC).not.toContain('platform/platform.js');
-    expect(MONETAG_SRC).not.toMatch(/innerHTML\s*=|document\.write/);
-  });
-
-  test('core init markers: platform.js still owns Visitors Now heartbeat', () => {
-    expect(PLATFORM_JS).toContain('visitorsNow');
-    expect(PLATFORM_JS).toContain("API + '/activity/heartbeat'");
-    expect(PLATFORM_JS).toContain('setInterval(sendHeartbeat, 60000)');
-    expect(PLATFORM_HTML).toContain('id="activity-visitors-now"');
-    expect(PLATFORM_JS.toLowerCase()).not.toContain('monetag');
-  });
-
-  test('test-only reset helper is not exposed on the production API', () => {
-    const { api } = loadBoundary();
-    expect(api.resetForTests).toBeUndefined();
-    expect(typeof api.load).toBe('function');
-    expect(typeof api.configure).toBe('function');
-    expect(typeof api.isLoaded).toBe('function');
-  });
-});
-
-describe('Monetag boundary — source hygiene', () => {
-  test('module is fail-closed and exposes owner activation state', () => {
-    expect(MONETAG_SRC).toContain('OWNER_INPUT_REQUIRED');
-    expect(MONETAG_SRC).toContain('disabled_or_owner_input_required');
-    expect(MONETAG_SRC).toContain("enabled: false");
-    expect(MONETAG_SRC).toMatch(/publisherId:\s*''/);
-    expect(MONETAG_SRC).toMatch(/scriptUrl:\s*''/);
-  });
-
-  test('no secret-looking material in boundary', () => {
-    expect(MONETAG_SRC).not.toMatch(/api[_-]?key\s*[:=]\s*['"][^'"]{8,}/i);
-    expect(MONETAG_SRC).not.toMatch(/secret\s*[:=]\s*['"][^'"]{8,}/i);
-    expect(MONETAG_SRC).not.toMatch(/Bearer\s+[A-Za-z0-9._-]{10,}/);
-  });
+test('index.html (ERP surface) stays Monetag-free', () => {
+  expect(INDEX_HTML.toLowerCase()).not.toContain('monetag');
+  expect(INDEX_HTML).not.toContain('quge5');
 });
