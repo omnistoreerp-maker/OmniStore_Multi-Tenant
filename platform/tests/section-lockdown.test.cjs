@@ -657,6 +657,12 @@ check('working-tree diff touches only intended platform files', () => {
     // session variable its callback receives (plus its source regression test).
     'platform/education/education.js',
     'platform/education/education.test.cjs',
+    // P2 Teacher portal frontend: bookings + ratings views, class fee field,
+    // linked-teacher detection through /teachers/me, revenue line, nav and
+    // dictionary entries for all of it.
+    'platform/education/education.dict.js',
+    'platform/education/education.css',
+    'education/index.html',
     // Master Control visibility: dev/test bootstrap seed for the platform
     // admin store (production stores are never written) plus the chain test.
     'backend/tests/platformAdminSeed.test.js',
