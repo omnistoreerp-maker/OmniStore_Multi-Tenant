@@ -47,6 +47,17 @@
   var DURATION_UNITS = ['days', 'weeks', 'months'];
   var ENROLLMENT_STATUSES = ['active', 'withdrawn'];
   var ATTENDANCE_STATUSES = ['present', 'absent', 'late', 'excused'];
+  var BOOKING_STATUSES = ['requested', 'confirmed', 'completed', 'cancelled'];
+  var RATING_STATUSES = ['active', 'archived'];
+  // The booking lifecycle the backend enforces in `transitionBooking`: an edge
+  // that does not appear here is never offered on screen, and the backend
+  // refuses any edge outside its own frozen TRANSITIONS map.
+  var BOOKING_TRANSITIONS = {
+    requested: ['confirmed', 'cancelled'],
+    confirmed: ['completed', 'cancelled'],
+    completed: [],
+    cancelled: []
+  };
 
   // ---------------------------------------------------------------------
   // Inline icon set (no remote asset, no icon font).
@@ -675,6 +686,9 @@
         textField('name', 'Name'),
         textField('displayName', 'Display Name'),
         { name: 'description', label: 'Description', type: 'textarea', maxLength: MAX_STRING_LEN },
+        textField('fee', 'Fee', {
+          hint: 'Class price as a plain decimal amount, for example 1500 or 1500.50. Leave empty for no fee.'
+        }),
         selectField('status', 'Status', STATUS_VALUES),
         { name: 'notes', label: 'Notes', type: 'textarea', maxLength: MAX_STRING_LEN }
       ],
@@ -683,6 +697,7 @@
         { label: 'Name', cell: function (r) { return text(refName('classes', r)); } },
         { label: 'Course', cell: function (r) { return code(refLabel('courses', r.courseId)); } },
         { label: 'Teacher', cell: function (r) { return code(refLabel('teachers', r.teacherId)); } },
+        { label: 'Fee', cell: function (r) { return code(r.fee); } },
         { label: 'Status', cell: function (r) { return pill(r.status); } }
       ],
       export: csvExport('education-classes', [
@@ -690,6 +705,7 @@
         csvColumn('Name', function (r) { return refName('classes', r); }),
         csvColumn('Course', csvRef('courses', 'courseId')),
         csvColumn('Teacher', csvRef('teachers', 'teacherId')),
+        csvColumn('Fee', function (r) { return str(r.fee); }),
         csvColumn('Status', function (r) { return str(r.status); })
       ])
     },
@@ -851,6 +867,107 @@
         csvColumn('Date', function (r) { return str(r.gradingDate); }),
         csvColumn('Grade', function (r) { return str(r.grade); }),
         csvColumn('Notes', function (r) { return str(r.notes); })
+      ])
+    },
+
+    // A booking records WHO books WHOM for WHICH slot. Every link and the slot
+    // itself are immutable after create — only `notes` is correctable — so the
+    // edit form shows `notes` alone. Status is never a body field: it moves
+    // only through PATCH /bookings/:id/status, driven by BOOKING_TRANSITIONS
+    // below, and carries no payment surface of any kind.
+    bookings: {
+      key: 'bookings',
+      path: '/bookings',
+      title: 'Bookings',
+      icon: 'calendar',
+      addLabel: 'Add Booking',
+      statuses: BOOKING_STATUSES,
+      filters: [
+        { name: 'status', label: 'Status', type: 'select', values: BOOKING_STATUSES },
+        { name: 'teacherId', label: 'Teacher', type: 'ref', source: 'teachers' },
+        { name: 'studentId', label: 'Student', type: 'ref', source: 'students' },
+        { name: 'classId', label: 'Class', type: 'ref', source: 'classes' },
+        { name: 'scheduledDate', label: 'Date', type: 'date' },
+        { name: 'dateFrom', label: 'From', type: 'date' },
+        { name: 'dateTo', label: 'To', type: 'date' }
+      ],
+      fields: [
+        refField('teacherId', 'Teacher', 'teachers', true, true),
+        refField('studentId', 'Student', 'students', true, true),
+        refField('classId', 'Class', 'classes', false, true),
+        { name: 'scheduledDate', label: 'Scheduled Date', type: 'date', required: true, immutable: true },
+        { name: 'startTime', label: 'Start Time', type: 'time', required: true, immutable: true, hint: '24-hour wall clock, HH:MM.' },
+        { name: 'endTime', label: 'End Time', type: 'time', required: true, immutable: true, hint: 'Must be after the start time.' },
+        { name: 'notes', label: 'Notes', type: 'textarea', maxLength: MAX_STRING_LEN }
+      ],
+      columns: [
+        { label: 'Teacher', cell: function (r) { return text(refLabel('teachers', r.teacherId)); } },
+        { label: 'Student', cell: function (r) { return text(refLabel('students', r.studentId)); } },
+        { label: 'Class', cell: function (r) { return text(r.classId ? refLabel('classes', r.classId) : '-'); } },
+        { label: 'Date', cell: function (r) { return code(r.scheduledDate); } },
+        { label: 'Time', cell: function (r) { return code(String(r.startTime || '') + ' – ' + String(r.endTime || '')); } },
+        { label: 'Status', cell: function (r) { return pill(r.status); } },
+        { label: 'Notes', cell: function (r) { return text(r.notes); } }
+      ],
+      export: csvExport('education-bookings', [
+        csvColumn('Teacher', csvRef('teachers', 'teacherId')),
+        csvColumn('Student', csvRef('students', 'studentId')),
+        csvColumn('Class', function (r) { return r.classId ? refLabel('classes', r.classId) : '-'; }),
+        csvColumn('Date', function (r) { return str(r.scheduledDate); }),
+        csvColumn('Time', csvTime),
+        csvColumn('Status', function (r) { return str(r.status); }),
+        csvColumn('Notes', function (r) { return str(r.notes); })
+      ])
+    },
+
+    // Feedback the operator records about a teacher/student/class pairing.
+    // `score` is the frozen 1-5 integer the service validates; the references
+    // are immutable and `status` is server-owned — it moves only through
+    // PATCH /ratings/:id/archive, never through a body. No payment field.
+    ratings: {
+      key: 'ratings',
+      path: '/ratings',
+      title: 'Ratings',
+      icon: 'award',
+      addLabel: 'Add Rating',
+      archivePath: '/archive',
+      archiveLabel: 'Archive',
+      statuses: RATING_STATUSES,
+      filters: [
+        { name: 'status', label: 'Status', type: 'select', values: RATING_STATUSES },
+        { name: 'teacherId', label: 'Teacher', type: 'ref', source: 'teachers' },
+        { name: 'studentId', label: 'Student', type: 'ref', source: 'students' },
+        { name: 'classId', label: 'Class', type: 'ref', source: 'classes' },
+        { name: 'score', label: 'Score', type: 'select', values: ['1', '2', '3', '4', '5'] },
+        { name: 'scheduledDate', label: 'Date', type: 'date' },
+        { name: 'dateFrom', label: 'From', type: 'date' },
+        { name: 'dateTo', label: 'To', type: 'date' }
+      ],
+      fields: [
+        refField('teacherId', 'Teacher', 'teachers', true, true),
+        refField('studentId', 'Student', 'students', true, true),
+        refField('classId', 'Class', 'classes', false, true),
+        { name: 'scheduledDate', label: 'Scheduled Date', type: 'date' },
+        selectField('score', 'Score', ['1', '2', '3', '4', '5'], true),
+        { name: 'comment', label: 'Comment', type: 'textarea', maxLength: MAX_STRING_LEN }
+      ],
+      columns: [
+        { label: 'Teacher', cell: function (r) { return text(refLabel('teachers', r.teacherId)); } },
+        { label: 'Student', cell: function (r) { return text(refLabel('students', r.studentId)); } },
+        { label: 'Class', cell: function (r) { return text(r.classId ? refLabel('classes', r.classId) : '-'); } },
+        { label: 'Date', cell: function (r) { return code(r.scheduledDate); } },
+        { label: 'Score', cell: function (r) { return code(r.score); } },
+        { label: 'Status', cell: function (r) { return pill(r.status); } },
+        { label: 'Comment', cell: function (r) { return text(r.comment); } }
+      ],
+      export: csvExport('education-ratings', [
+        csvColumn('Teacher', csvRef('teachers', 'teacherId')),
+        csvColumn('Student', csvRef('students', 'studentId')),
+        csvColumn('Class', function (r) { return r.classId ? refLabel('classes', r.classId) : '-'; }),
+        csvColumn('Date', function (r) { return str(r.scheduledDate); }),
+        csvColumn('Score', function (r) { return str(r.score); }),
+        csvColumn('Status', function (r) { return str(r.status); }),
+        csvColumn('Comment', function (r) { return str(r.comment); })
       ])
     }
   };
@@ -1272,7 +1389,7 @@
 
   var PAGES = ['dashboard', 'students', 'teachers', 'centers', 'programs', 'courses',
     'classes', 'roster', 'enrollments', 'attendance', 'register', 'schedule', 'calendar',
-    'grading', 'report-attendance', 'report-grading', 'report-sessions',
+    'grading', 'bookings', 'ratings', 'report-attendance', 'report-grading', 'report-sessions',
     'settings', 'teacher', 'student'];
 
   var state = {
@@ -1282,6 +1399,12 @@
     lookups: {},
     error: {},
     loading: {},
+    // The teacher linked to the signed-in account, resolved once through
+    // GET /teachers/me. It is a real backend record or null — never derived
+    // from the access token, never a guess. Null means "not linked", which is
+    // exactly what the workspace banner then says.
+    portalTeacher: null,
+    portalTeacherPromise: null,
     // The four operational views keep their own small selection so a user can
     // arrive from a class row, from the roster, or from the nav and still land
     // on a coherent screen. Each value is an id or a day chosen by the user —
@@ -1662,6 +1785,24 @@
         go('roster');
       });
       wrap.appendChild(rosterBtn);
+    }
+
+    // Booking lifecycle: one button per edge the backend's frozen TRANSITIONS
+    // map allows from this row's status. Completing a booking is an operator
+    // action — a linked teacher never sees that verb, because the backend
+    // refuses it with 403 even on their own row.
+    if (spec.key === 'bookings') {
+      var transitionLabels = { confirmed: 'Confirm', completed: 'Complete', cancelled: 'Cancel' };
+      var targets = BOOKING_TRANSITIONS[String(row.status || '')] || [];
+      targets.forEach(function (next) {
+        if (next === 'completed' && state.portalTeacher) return;
+        var transitionBtn = el('button',
+          next === 'cancelled' ? 'edu-btn edu-btn-danger edu-btn-sm' : 'edu-btn edu-btn-outline edu-btn-sm',
+          '<span>' + esc(transitionLabels[next] || next) + '</span>');
+        transitionBtn.type = 'button';
+        transitionBtn.addEventListener('click', function () { confirmTransition(spec, row, next); });
+        wrap.appendChild(transitionBtn);
+      });
     }
 
     var editBtn = el('button', 'edu-btn edu-btn-outline edu-btn-sm', icon('edit', 'edu-icon-sm') + '<span>Edit</span>');
@@ -2703,12 +2844,37 @@
   // are explicit tenant-level pickers, and both say so on screen.
   // ---------------------------------------------------------------------
 
+  // The linked teacher is resolved once through GET /teachers/me: a real
+  // backend record, or null when no teacher is linked to this account. The
+  // request is cached for the session so every visit shows the same answer.
   function renderTeacherWorkspace(body) {
     body.appendChild(el('h2', 'edu-section-title', 'Teacher workspace'));
-    body.appendChild(banner('info',
-      'The Education service does not link your signed-in account to a teacher record, ' +
-      'so this view is scoped by an explicit teacher selection rather than pretending ' +
-      'to know who you are.'));
+
+    if (!state.portalTeacherPromise) {
+      state.portalTeacherPromise = api('GET', '/teachers/me').then(function (actor) {
+        return actor || null;
+      }, function () {
+        return null;
+      });
+    }
+    state.portalTeacherPromise.then(function (actor) {
+      if (state.page !== 'teacher') return;
+      state.portalTeacher = actor;
+      paintTeacherWorkspace(body, actor);
+    });
+  }
+
+  function paintTeacherWorkspace(body, actor) {
+    if (actor) {
+      body.appendChild(banner('info',
+        'This account is linked to a teacher record, so the workspace opens on that ' +
+        'record. The picker below stays explicit and can be changed at any time.'));
+    } else {
+      body.appendChild(banner('info',
+        'The Education service does not link your signed-in account to a teacher record, ' +
+        'so this view is scoped by an explicit teacher selection rather than pretending ' +
+        'to know who you are.'));
+    }
 
     var picker = el('div', 'edu-filters');
     body.appendChild(picker);
@@ -2741,7 +2907,14 @@
       select.addEventListener('change', function () {
         paintTeacherDetail(host, select.value);
       });
-      if (teachers.length) {
+      // A linked account opens on its own record when that record is visible
+      // in this tenant; otherwise the first visible teacher is chosen, exactly
+      // as before. The choice stays a plain picker either way.
+      var preselect = actor ? String(actor.id || '') : '';
+      if (preselect && teachers.some(function (teacher) { return String(teacher.id || '') === preselect; })) {
+        select.value = preselect;
+        paintTeacherDetail(host, select.value);
+      } else if (teachers.length) {
         select.value = String(teachers[0].id || '');
         paintTeacherDetail(host, select.value);
       } else {
@@ -2765,9 +2938,11 @@
 
     Promise.all([
       api('GET', '/classes?teacherId=' + encodeURIComponent(teacherId)),
+      api('GET', '/enrollments'),
       loadRef('courses')
     ]).then(function (results) {
       var classes = Array.isArray(results[0]) ? results[0] : [];
+      var enrollments = Array.isArray(results[1]) ? results[1] : [];
       host.textContent = '';
       host.appendChild(el('h2', null, 'Classes'));
       host.appendChild(el('p', 'edu-card-sub', classes.length + ' class(es) assigned to this teacher.'));
@@ -2778,10 +2953,30 @@
         classes.forEach(function (klass) {
           var li = document.createElement('li');
           li.innerHTML = pill(klass.status) + ' <strong>' + esc(refName('classes', klass)) + '</strong> ' +
-            code(klass.classCode) + ' <span>' + esc(refLabel('courses', klass.courseId)) + '</span>';
+            code(klass.classCode) + ' <span>' + esc(refLabel('courses', klass.courseId)) + '</span>' +
+            (klass.fee ? ' <span>' + code(klass.fee) + '</span>' : '');
           list.appendChild(li);
         });
         host.appendChild(list);
+
+        // Real, grounded revenue: the class's own fee multiplied by the ACTIVE
+        // enrollments of that class, summed over this teacher's classes. A
+        // class stored without a fee contributes nothing — the key is absent
+        // from the record, not zero — and no payment or settlement concept
+        // exists anywhere in this computation.
+        var revenue = 0;
+        classes.forEach(function (klass) {
+          var fee = parseFloat(String(klass.fee === undefined || klass.fee === null ? '' : klass.fee));
+          if (!(fee > 0)) return;
+          var seats = enrollments.filter(function (enrollment) {
+            return enrollment.status === 'active' &&
+              String(enrollment.classId || '') === String(klass.id || '');
+          });
+          revenue += fee * seats.length;
+        });
+        host.appendChild(el('p', 'edu-card-sub',
+          'Expected revenue across these classes: ' + (Math.round(revenue * 100) / 100) +
+          ' — class fee multiplied by active enrollments.'));
       }
 
       var classIds = classes.map(function (klass) { return String(klass.id || ''); });
@@ -2816,7 +3011,7 @@
         var tr = document.createElement('tr');
         tr.innerHTML = '<td>' + text(refLabel('classes', session.classId)) + '</td>' +
           '<td>' + code(session.scheduledDate) + '</td>' +
-          '<td>' + code(String(session.startTime || '') + ' – ' + String(r.endTime || '')) + '</td>' +
+          '<td>' + code(String(session.startTime || '') + ' – ' + String(session.endTime || '')) + '</td>' +
           '<td>' + text(session.notes) + '</td>';
         tbody.appendChild(tr);
       });
@@ -3246,6 +3441,44 @@
         var suffix = spec.archivePath || spec.withdrawPath;
         api('PATCH', spec.path + '/' + encodeURIComponent(String(row.id || '')) + suffix).then(function () {
           toast(label + ' applied.');
+          invalidateRef(spec.key);
+          invalidateRef(null);
+          loadPage(spec, true);
+        }, function (err) {
+          toast(explain(err), true);
+        });
+      };
+    }
+    if (cancel) cancel.onclick = close;
+
+    overlay.classList.add('is-open');
+    overlay.setAttribute('aria-hidden', 'false');
+  }
+
+  // The booking status transition. Same dialog as archive/withdraw, but the
+  // request carries the target status and goes to the item's /status suffix —
+  // the only route the backend allows a status change through.
+  function confirmTransition(spec, row, next) {
+    var overlay = byId('edu-confirm-overlay');
+    var message = byId('edu-confirm-message');
+    if (!overlay || !message) return;
+
+    message.textContent = 'Move this booking from ' + String(row.status || '') + ' to ' + next +
+      '? The transition is recorded by the service and cannot be reversed.';
+
+    var ok = byId('edu-confirm-ok');
+    var cancel = byId('edu-confirm-cancel');
+    var close = function () {
+      overlay.classList.remove('is-open');
+      overlay.setAttribute('aria-hidden', 'true');
+      if (ok) ok.onclick = null;
+    };
+
+    if (ok) {
+      ok.onclick = function () {
+        close();
+        api('PATCH', spec.path + '/' + encodeURIComponent(String(row.id || '')) + '/status', { status: next }).then(function () {
+          toast('Booking marked ' + next + '.');
           invalidateRef(spec.key);
           invalidateRef(null);
           loadPage(spec, true);

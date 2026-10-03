@@ -134,12 +134,41 @@ const PERMISSION_GUARDED_WRITE_ROUTES = new Set([
 // Global write gate used by server.js under AUTH_REQUIRED. Applies the role
 // restriction ONLY to routes that do not have their own per-route permission
 // enforcement; the rest are governed by their per-route requirePermissionIfAuth.
+//
+// ONE identity-based exception: `req.teacherActor` — the Teacher record that
+// server-side attachTeacherActor (mounted for /api/v1/tenant/education BEFORE
+// this gate) resolves for a signed-in account that an Owner/Admin has
+// explicitly linked to a teacher row. Without that exception a linked teacher
+// with a normal (Viewer-level) account could never confirm or cancel their own
+// booking: this gate would answer 'Insufficient role' before the route
+// permission was ever consulted. With it:
+//   - the bypass exists ONLY on the five TEACHER-OWNED education surfaces
+//     (bookings, ratings, classes, scheduling, enrollments) and ONLY for a
+//     caller whose link was created by an Owner/Admin — an unlinked account,
+//     an anonymous request, any other education surface (students, attendance,
+//     grading, programs, courses, centers, educationPack, teachers) and any
+//     other /api/v1 path keeps the full role restriction (all four 'fail
+//     closed' education suites pin that);
+//   - on those five surfaces the controllers enforce ownership: a linked
+//     teacher may write ONLY rows owned by their own teacher record (and the
+//     ratings controller refuses teacher writes outright — entering feedback
+//     is an operator action);
+//   - the route's strict requirePermission still decides access (fails closed
+//     with no grant, unknown permissions refused).
+const TEACHER_OWNED_EDUCATION_SURFACES = new Set([
+  'bookings', 'ratings', 'classes', 'scheduling', 'enrollments'
+]);
 function scopedWriteRoleGuard(...roles) {
   return function (req, res, next) {
     if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
     const segments = req.path ? req.path.split('/') : [];
     const seg = segments[1];
     if (seg && PERMISSION_GUARDED_WRITE_ROUTES.has('/' + seg)) return next();
+    if (
+      req.teacherActor &&
+      seg === 'tenant' && segments[2] === 'education' &&
+      TEACHER_OWNED_EDUCATION_SURFACES.has(segments[3])
+    ) return next();
     return requireRole(...roles)(req, res, next);
   };
 }

@@ -1907,6 +1907,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <button class="nav-icon-btn" data-nav-scope="tenant" onclick="toggleNavDropdown('employees', this, event)" title="الموظفين" aria-label="الموظفين">👨‍💼</button>
     <button class="nav-icon-btn" data-nav-scope="tenant" onclick="toggleNavDropdown('marketplace', this, event)" title="المتجر والإضافات" aria-label="المتجر والإضافات">🏪</button>
     <button class="nav-icon-btn" data-nav-scope="tenant" onclick="toggleNavDropdown('entertainment', this, event)" title="خدمات إضافية" aria-label="خدمات إضافية">🎮</button>
+    <button class="nav-icon-btn" data-nav-scope="tenant" onclick="toggleNavDropdown('education', this, event)" title="التعليم وخدمات الطلاب" aria-label="التعليم وخدمات الطلاب">🎓</button>
     <button class="nav-icon-btn" data-nav-scope="tenant" id="alertsBellBtn" onclick="showPage('alerts-center'); closeAllNavDropdowns();" title="التنبيهات" aria-label="التنبيهات" style="position:relative">🔔<span class="nav-alert-badge" id="alertsBellCount">0</span></button>
     <button class="nav-icon-btn" data-nav-scope="tenant" id="catchNumberModuleBtn" onclick="showPage('cathnumber'); closeAllNavDropdowns();" title="Catch Number" aria-label="Catch Number">🔢</button>
 
@@ -2274,6 +2275,18 @@ document.addEventListener('DOMContentLoaded', function() {
     <div class="nav-dropdown-item" data-page="playstation"><span class="icon">🎮</span> PlayStation</div>
     <div class="nav-dropdown-item" data-page="game-hosting"><span class="icon">🌐</span> Game Hosting</div>
     <div class="nav-dropdown-item" data-page="car-rental"><span class="icon">🚗</span> تأجير السيارات</div>
+  </div>
+
+  <!-- Education & Student Services — service surfaces hosted in their own
+       documents (student.html and the Education module's hash views).
+       Static items below are the fallback; navigationBuilder re-renders them
+       from moduleRegistry navigation entries at boot and gates each item
+       through canAccessPage(). -->
+  <div class="nav-dropdown" id="dropdown-education" data-nav-scope="tenant">
+    <div class="nav-dropdown-header">🎓 التعليم وخدمات الطلاب</div>
+    <div class="nav-dropdown-item" data-page="student-services"><span class="icon">🎓</span> خدمات الطلاب والطباعة</div>
+    <div class="nav-dropdown-item" data-page="education-teachers"><span class="icon">👨‍🏫</span> المعلمون</div>
+    <div class="nav-dropdown-item" data-page="education-centers"><span class="icon">🏢</span> المراكز</div>
   </div>
 
   <!-- Phase 34.1 — MASTER (platform scope) groups -->
@@ -16420,6 +16433,13 @@ function canAccessPage(page) {
   if (page === 'business-marketplace' || page === 'business-plugin-settings') {
     return can('manageSettings') && (!window.OmniModuleLoader || window.OmniModuleLoader.isRouteEnabled('business-marketplace'));
   }
+  // Service surfaces hosted in OTHER documents: student.html (print shop) and
+  // the Education module's hash-routed views. showPage() redirects to the real
+  // page once this check passes, so a permitted user lands on a working
+  // surface and everyone else never sees the entry.
+  if (page === 'student-services') return !!currentUser;
+  if (page === 'education-teachers') return canEffective('education.teachers.view');
+  if (page === 'education-centers') return canEffective('education.centers.view');
   if (page === 'capital-partners') return canViewCapitalPartners();
   if (page === 'customer-accounts') return canViewArApAccounts();
   if (page === 'supplier-accounts') return canViewArApAccounts() && _effectiveRole() !== 'Cashier';
@@ -19873,6 +19893,18 @@ function showPage(page, options = {}) {
       : canAccessPage('devices') ? 'devices'
       : 'serialsearch';
     if (page !== fallbackPage) setTimeout(() => showPage(fallbackPage), 20);
+    return;
+  }
+  // Service surfaces hosted in other documents: the gate above already
+  // passed, so leave the SPA for the real page instead of looking for a
+  // #page-<id> container that only exists in this document.
+  const EXTERNAL_PAGE_HREFS = {
+    'student-services': 'student.html',
+    'education-teachers': 'education/index.html#teachers',
+    'education-centers': 'education/index.html#centers'
+  };
+  if (EXTERNAL_PAGE_HREFS[page]) {
+    window.location.href = EXTERNAL_PAGE_HREFS[page];
     return;
   }
   if ((page === 'employees' || page === 'hr') && !(can('manageEmployees') || can('viewOwnAttendance'))) {

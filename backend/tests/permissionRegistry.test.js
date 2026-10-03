@@ -141,6 +141,7 @@ describe('registry structure', () => {
 // default and nothing makes them discoverable in the Platform shell.
 const EDUCATION_PERMISSIONS = [
   'education.attendance.view', 'education.attendance.edit',
+  'education.bookings.view', 'education.bookings.edit',
   'education.centers.view', 'education.centers.edit',
   'education.classes.view', 'education.classes.edit',
   'education.courses.view', 'education.courses.edit',
@@ -148,6 +149,7 @@ const EDUCATION_PERMISSIONS = [
   'education.grading.view', 'education.grading.edit',
   'education.pack.view', 'education.pack.edit',
   'education.programs.view', 'education.programs.edit',
+  'education.ratings.view', 'education.ratings.edit',
   'education.scheduling.view', 'education.scheduling.edit',
   'education.students.view', 'education.students.edit',
   'education.teachers.view', 'education.teachers.edit'
@@ -159,12 +161,12 @@ describe('education permission group', () => {
     expect(matches).toHaveLength(1);
   });
 
-  test('education exposes exactly 11 view/edit permission pairs', () => {
+  test('education exposes exactly 13 view/edit permission pairs', () => {
     const perms = registry.groups().find(g => g.group === 'education').permissions;
-    expect(perms).toHaveLength(22);
+    expect(perms).toHaveLength(26);
 
     const resources = perms.map(p => p.split('.')[1]);
-    expect(new Set(resources).size).toBe(11);
+    expect(new Set(resources).size).toBe(13);
 
     for (const resource of resources) {
       expect(perms).toContain(`education.${resource}.view`);
@@ -172,8 +174,8 @@ describe('education permission group', () => {
     }
   });
 
-  test('all 22 education permission names are registered and enforceable', () => {
-    expect(EDUCATION_PERMISSIONS).toHaveLength(22);
+  test('all 26 education permission names are registered and enforceable', () => {
+    expect(EDUCATION_PERMISSIONS).toHaveLength(26);
     const registered = registry.groups().flatMap(g => g.permissions);
     for (const permission of EDUCATION_PERMISSIONS) {
       expect(registered).toContain(permission);

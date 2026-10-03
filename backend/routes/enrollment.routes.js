@@ -24,12 +24,14 @@
 // student.routes, class.routes and course.routes.
 // STRICT `requirePermission`, NOT `requirePermissionIfAuth`.
 //
-// KNOWN BLOCKER (Master-owned, NOT worked around here):
-//   `education.enrollments.view` / `education.enrollments.edit` are not yet
-//   registered in backend/permissions/registry.js. Unknown permissions fail
-//   closed, so only Owner/Admin can reach this surface until Master registers
-//   them. This file does NOT register them, does NOT bypass the gate, and does
-//   NOT weaken the middleware.
+// PERMISSIONS (P1-registered): `education.enrollments.view` /
+// `education.enrollments.edit` ARE registered in backend/permissions/registry.js.
+// Strict `requirePermission` enforces them per grant; unknown permissions still
+// fail closed; this file does NOT bypass the gate and does NOT weaken the
+// middleware. The global scopedWriteRoleGuard (Owner/Admin/Manager writes)
+// applies to these routes too — and a LINKED teacher (req.teacherActor) is
+// confined to their own classes' enrollments by the controller; see
+// enrollment.controller.
 
 const router = require('express').Router();
 const ctrl = require('../controllers/enrollment.controller');

@@ -81,7 +81,7 @@ function _defaultDoc() {
         icon: 'fa-graduation-cap'
       },
       {
-        // Education (STU-1 to STU-10). Live in the branch: the 22 education.*
+        // Education (STU-1 to STU-10). Live in the branch: the 26 education.*
         // permissions are registered, so advertising it is honest. The entry
         // grants nothing — the Education API stays tenant-scoped and
         // permission-gated exactly as before, so an operator without an

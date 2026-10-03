@@ -25,10 +25,15 @@
 //
 // SCOPE — this file is the operational Teacher directory ONLY. It carries no
 // salary, payroll, bank account, compensation, billing or payment field, and
-// no portal credential or auth identifier. Teacher portal access and payroll
-// belong to future or Master-owned domains.
+// no credential of any kind: no password, no token, no secret. The ONE
+// identity field is `userId`, an optional link to an existing authenticated
+// account that is SERVER-OWNED and written exclusively by `linkUser` /
+// `unlinkUser` (exposed as Owner/Admin-only routes). It never appears in
+// WRITABLE_FIELDS, so a generic create/update can never set or move it, and
+// unlinking deletes the key entirely. Payroll remains out of scope.
 
 const storageAdapter = require('../repositories/storageAdapter');
+const usersService = require('./users.service');
 const logger = require('../utils/logger');
 
 const STORE_KEY = 'educationTeachers';
@@ -82,6 +87,17 @@ class TeacherCodeConflictError extends Error {
     this.name = 'TeacherCodeConflictError';
     this.code = 'TEACHER_CODE_CONFLICT';
     this.teacherCode = teacherCode;
+    this.conflict = true;
+  }
+}
+
+// Raised when a link cannot be created because one of the two sides is already
+// linked elsewhere. Mapped to 409 with the repository's `{ code }` convention.
+class TeacherLinkConflictError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'TeacherLinkConflictError';
+    this.code = code;
     this.conflict = true;
   }
 }
@@ -423,16 +439,113 @@ function archiveTeacher(tenantContext, id) {
   return { ...next };
 }
 
+// ---------------------------------------------------------------------------
+// Account link (P2 Teacher portal)
+// ---------------------------------------------------------------------------
+
+// The teacher record linked to this signed-in account inside THIS tenant, or
+// null. This is the only lookup the ownership layer performs: it never guesses
+// from a claim, and it never crosses tenants.
+function getTeacherByUserId(tenantContext, userId) {
+  const tid = _requireTenantId(tenantContext);
+  if (userId === undefined || userId === null || String(userId).trim() === '') return null;
+  const uid = String(userId).trim();
+  const found = _teachers(_readStore()).find(
+    t => String(t.tenantId || '') === tid && String(t.userId || '') === uid
+  );
+  return found ? { ...found } : null;
+}
+
+// Owner/Admin-only route: bind an existing authenticated account to this
+// teacher inside this tenant. Server-owned in both directions:
+//   - `userId` stays out of WRITABLE_FIELDS/FORBIDDEN_FIELDS as before: only
+//     this function writes it, and only a link row that exists can be read;
+//   - one account links to AT MOST one teacher per tenant and one teacher
+//     holds AT MOST one account (a repeat of the same pair is an idempotent
+//     no-op; a different pair is a typed 409);
+//   - the account must exist and, when it carries a tenant binding, it must
+//     be bound to THIS tenant — a cross-tenant link is refused, never repaired.
+function linkUser(tenantContext, id, userId) {
+  const tid = _requireTenantId(tenantContext);
+  if (userId === undefined || userId === null || String(userId).trim() === '') {
+    throw _validationError(['userId is required']);
+  }
+  const uid = String(userId).trim().slice(0, MAX_STRING_LEN);
+
+  const doc = _readStore();
+  const teachers = _teachers(doc);
+  const idx = _findIndexByTenant(teachers, id, tid);
+  if (idx < 0) return null;
+
+  const user = usersService.getById(uid);
+  if (!user) {
+    throw _validationError(['userId does not reference an existing user']);
+  }
+  if (user.tenantId !== undefined && user.tenantId !== null && String(user.tenantId) !== '' &&
+      String(user.tenantId) !== tid) {
+    throw _validationError(['userId is bound to a different tenant']);
+  }
+
+  const base = { ...teachers[idx] };
+  if (String(base.userId || '') === uid) return { ...base }; // idempotent re-link
+
+  if (base.userId !== undefined && base.userId !== null && String(base.userId) !== '') {
+    throw new TeacherLinkConflictError(
+      'TEACHER_ALREADY_LINKED',
+      'this teacher is already linked to an account; unlink it first'
+    );
+  }
+  const taken = teachers.find(
+    t => String(t.tenantId || '') === tid && String(t.userId || '') === uid
+  );
+  if (taken) {
+    throw new TeacherLinkConflictError(
+      'USER_ALREADY_LINKED',
+      'this account is already linked to another teacher in this tenant'
+    );
+  }
+
+  const next = { ...base, userId: uid, updatedAt: _now() };
+  teachers[idx] = next;
+  _writeStore({ ...doc, teachers });
+  return { ...next };
+}
+
+// Clears the link. The `userId` KEY is deleted (not blanked), so an unlinked
+// record is byte-identical to one that was never linked. Idempotent: unlinking
+// an unlinked teacher returns the record untouched.
+function unlinkUser(tenantContext, id) {
+  const tid = _requireTenantId(tenantContext);
+  const doc = _readStore();
+  const teachers = _teachers(doc);
+  const idx = _findIndexByTenant(teachers, id, tid);
+  if (idx < 0) return null;
+
+  const base = { ...teachers[idx] };
+  if (base.userId === undefined || base.userId === null || String(base.userId) === '') {
+    return { ...base };
+  }
+  const next = { ...base, updatedAt: _now() };
+  delete next.userId;
+  teachers[idx] = next;
+  _writeStore({ ...doc, teachers });
+  return { ...next };
+}
+
 module.exports = {
   listTeachers,
   getTeacher,
   createTeacher,
   updateTeacher,
   archiveTeacher,
+  getTeacherByUserId,
+  linkUser,
+  unlinkUser,
   TEACHER_STATUSES,
   EMPLOYMENT_TYPES,
   WRITABLE_FIELDS,
   FORBIDDEN_FIELDS,
   TeacherCodeConflictError,
+  TeacherLinkConflictError,
   STORE_KEY
 };

@@ -16,14 +16,12 @@
 // short-circuits to next() whenever AUTH_REQUIRED is false, which defaults to
 // false, so it would make the whole Center surface unauthenticated by default.
 //
-// KNOWN BLOCKER (Master-owned, NOT worked around here):
-//   `education.centers.view` / `education.centers.edit` are not yet registered
-//   in backend/permissions/registry.js. Unknown permissions fail closed, so
-//   only Owner/Admin can reach this surface until Master registers them. This
-//   file does NOT register them, does NOT bypass the gate, and does NOT
-//   weaken the middleware. The global scopedWriteRoleGuard interception
-//   documented in the STU-1/STU-2/STU-3 route files applies to these writes
-//   too.
+// PERMISSIONS (P1-registered): `education.centers.view` /
+// `education.centers.edit` ARE registered in backend/permissions/registry.js.
+// Strict `requirePermission` enforces them per grant; unknown permissions still
+// fail closed; this file does NOT bypass the gate and does NOT weaken the
+// middleware. The global scopedWriteRoleGuard interception documented in the
+// STU-1/STU-2/STU-3 route files applies to these writes too.
 //
 // Center is the ONLY Education domain added here. Programs, Courses, Classes,
 // Enrollment, Attendance, Scheduling, Guardian/Parent portal, Teacher portal,

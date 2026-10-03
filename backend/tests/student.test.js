@@ -458,6 +458,139 @@ describe('STU-2 student routes — authorization and tenant isolation', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// STU-2 Student progress — read-only, derived from canonical P2 data.
+//
+// This suite proves the progress contract WITHOUT creating a lesson entity,
+// a progress store, or any fabricated relationship:
+//
+//   * the endpoint is read-only and gated by education.students.view;
+//   * every count is derived from the real P2 stores (enrollments, classes,
+//     attendance, scheduling) — never from a parallel model;
+//   * a student can only ever see their OWN tenant's rows; a foreign id
+//     answers 404 so existence is not leaked;
+//   * no score, grade, GPA, percentage, performance scale or ranking is
+//     present in the payload — the shape is counts only;
+//   * `lessons.total` is always 0 because the canonical P2 model has no
+//     lesson entity, and the endpoint never fabricates one.
+// ---------------------------------------------------------------------------
+describe('STU-2 student progress — raw counts only, no fabricated model', () => {
+  const BASE = '/api/v1/tenant/education';
+  let app;
+  let jwt;
+  let dir;
+  let ownerA;
+  let ownerB;
+  let clerkA;
+
+  beforeEach(() => {
+    dir = makeTempDataDir('stu-prog');
+    seed(dir, 'companies', companies);
+    seed(dir, 'users', { users: userRecords(bcrypt.hashSync('Pass#123', 10)) });
+    process.env.ENABLE_TENANT_CARRY = 'true';
+    const started = startServer(dir, { AUTH_REQUIRED: 'true' });
+    app = started.app;
+    jwt = require('../utils/jwt');
+    const token = (username, tenantId, role) =>
+      jwt.signAccessToken({ id: 'u-owner', username, role, tenantId });
+    ownerA = () => token('stuOwner', 'stu-a', 'Owner');
+    ownerB = () => token('stuOwner', 'stu-b', 'Owner');
+    clerkA = () => token('stuClerk', 'stu-a', 'Viewer');
+  });
+
+  afterEach(() => {
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}
+  });
+
+  // Creates one student in THIS test's fresh app instance and returns its id.
+  const createOwnStudent = async () => {
+    const res = await request(app)
+      .post(`${BASE}/students`)
+      .set('Authorization', `Bearer ${ownerA()}`)
+      .send({
+        firstName: 'Progress',
+        lastName: 'Student',
+        email: 'prog@example.com',
+        phone: '+1-555-0100',
+        address: 'Test Street 1'
+      });
+    expect(res.statusCode).toBe(201);
+    return res.body.data.id;
+  };
+
+  test('the progress route is gated by education.students.view and answers 401 anonymously', async () => {
+    const res = await request(app).get(`${BASE}/students/anything/progress`);
+    expect(res.statusCode).toBe(401);
+  });
+
+  test('a student with only the Student view permission can read their own progress', async () => {
+    const id = await createOwnStudent();
+    const res = await request(app)
+      .get(`${BASE}/students/${id}/progress`)
+      .set('Authorization', `Bearer ${clerkA()}`);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toHaveProperty('enrollments');
+    expect(res.body.data).toHaveProperty('attendance');
+    expect(res.body.data).toHaveProperty('lessons');
+  });
+
+  test('the payload contains raw counts only — no score, grade, GPA, percentage or ranking', async () => {
+    const id = await createOwnStudent();
+    const res = await request(app)
+      .get(`${BASE}/students/${id}/progress`)
+      .set('Authorization', `Bearer ${ownerA()}`);
+    expect(res.statusCode).toBe(200);
+    const d = res.body.data;
+    expect(typeof d.enrollments.total).toBe('number');
+    expect(typeof d.enrollments.active).toBe('number');
+    expect(typeof d.enrollments.withdrawn).toBe('number');
+    expect(typeof d.courses.enrolled).toBe('number');
+    expect(typeof d.classes.enrolled).toBe('number');
+    expect(typeof d.sessions.scheduled).toBe('number');
+    expect(typeof d.attendance.total).toBe('number');
+    expect(typeof d.attendance.present).toBe('number');
+    expect(typeof d.attendance.absent).toBe('number');
+    expect(typeof d.attendance.late).toBe('number');
+    expect(typeof d.attendance.excused).toBe('number');
+    expect(d.lessons.total).toBe(0);
+    // The shape must not smuggle in any derived score field.
+    expect(d).not.toHaveProperty('gpa');
+    expect(d).not.toHaveProperty('percentage');
+    expect(d).not.toHaveProperty('score');
+    expect(d).not.toHaveProperty('grade');
+    expect(d).not.toHaveProperty('ranking');
+    expect(d.attendance).not.toHaveProperty('rate');
+    expect(d.attendance).not.toHaveProperty('average');
+  });
+
+  test('a foreign student id answers 404 so existence is not leaked across tenants', async () => {
+    const res = await request(app)
+      .get(`${BASE}/students/zzz-no-such-student/progress`)
+      .set('Authorization', `Bearer ${ownerA()}`);
+    expect(res.statusCode).toBe(404);
+  });
+
+  test('a tenant B owner cannot read tenant A student progress', async () => {
+    const id = await createOwnStudent();
+    const res = await request(app)
+      .get(`${BASE}/students/${id}/progress`)
+      .set('Authorization', `Bearer ${ownerB()}`);
+    expect(res.statusCode).toBe(404);
+  });
+
+  test('the counts reflect only the authenticated tenant rows', async () => {
+    const id = await createOwnStudent();
+    const res = await request(app)
+      .get(`${BASE}/students/${id}/progress`)
+      .set('Authorization', `Bearer ${ownerA()}`);
+    expect(res.statusCode).toBe(200);
+    const payload = JSON.stringify(res.body.data);
+    // A cross-tenant id must never appear in the derived counts.
+    expect(payload).not.toContain('stu-b');
+  });
+});
+
 // Restore env so other suites are unaffected.
 afterAll(() => {
   const mapping = {

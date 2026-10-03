@@ -61,7 +61,8 @@ const SERVER_JS = read('backend/server.js');
 
 const EDUCATION_ROUTE_FILES = [
   'educationPack', 'student', 'teacher', 'center', 'program', 'course',
-  'class', 'enrollment', 'attendance', 'scheduling', 'grading'
+  'class', 'enrollment', 'attendance', 'scheduling', 'grading',
+  'booking', 'rating'
 ].map((name) => ({
   name,
   src: read('backend/routes/' + name + '.routes.js')
@@ -69,7 +70,8 @@ const EDUCATION_ROUTE_FILES = [
 
 const SERVICE_FILES = [
   'student', 'teacher', 'center', 'program', 'course', 'class',
-  'enrollment', 'attendance', 'scheduling', 'grading'
+  'enrollment', 'attendance', 'scheduling', 'grading',
+  'booking', 'rating'
 ].map((name) => ({
   name,
   src: read('backend/services/' + name + '.service.js')
@@ -87,7 +89,9 @@ const SERVICE_FOR_ENTITY = {
   enrollments: 'enrollment',
   attendance: 'attendance',
   scheduling: 'scheduling',
-  grading: 'grading'
+  grading: 'grading',
+  bookings: 'booking',
+  ratings: 'rating'
 };
 
 let passed = 0;
@@ -177,7 +181,8 @@ check('education page declares the landmarks and live regions it needs', () => {
 check('education page exposes every management view and both workspaces', () => {
   const required = [
     'dashboard', 'students', 'teachers', 'centers', 'programs', 'courses',
-    'classes', 'enrollments', 'attendance', 'schedule', 'grading', 'teacher', 'student'
+    'classes', 'enrollments', 'attendance', 'schedule', 'grading',
+    'bookings', 'ratings', 'teacher', 'student'
   ];
   for (const page of required) {
     assert(PAGE.includes('data-edu-page="' + page + '"'), 'navigation entry missing: ' + page);
@@ -331,7 +336,7 @@ check('the page issues only verbs the backend declares for each path', () => {
 check('the backend really mounts the Education routers this page depends on', () => {
   for (const route of ['programRoutes', 'courseRoutes', 'classRoutes', 'enrollmentRoutes',
     'attendanceRoutes', 'schedulingRoutes', 'gradingRoutes', 'studentRoutes', 'teacherRoutes',
-    'centerRoutes', 'educationPackRoutes']) {
+    'centerRoutes', 'educationPackRoutes', 'bookingRoutes', 'ratingRoutes']) {
     assert(SERVER_JS.includes('const ' + route + ' ='), 'the server does not import ' + route);
     assert(
       new RegExp("app\\.use\\('/api/v1/tenant/education',\\s*" + route + '\\)').test(SERVER_JS),
@@ -405,7 +410,9 @@ check('the fields the page freezes on edit are exactly the ones the backend free
     enrollment: ['studentId', 'classId'],
     attendance: ['enrollmentId'],
     scheduling: ['classId'],
-    grading: ['enrollmentId']
+    grading: ['enrollmentId'],
+    booking: ['teacherId', 'studentId', 'classId', 'sessionId', 'scheduledDate', 'startTime', 'endTime'],
+    rating: ['teacherId', 'studentId', 'classId']
   };
   for (const [name, fields] of Object.entries(frozen)) {
     const src = SERVICE_FILES.find((file) => file.name === name).src;
@@ -478,7 +485,9 @@ check('status dropdowns equal the frozen lists in the services', () => {
     ['program', 'DURATION_UNITS'],
     ['course', 'DURATION_UNITS'],
     ['enrollment', 'ENROLLMENT_STATUSES'],
-    ['attendance', 'ATTENDANCE_STATUSES']
+    ['attendance', 'ATTENDANCE_STATUSES'],
+    ['booking', 'STATUS_VALUES'],
+    ['rating', 'RATING_STATUSES']
   ];
   for (const [service, constName] of pairs) {
     const src = SERVICE_FILES.find((file) => file.name === service).src;
@@ -495,7 +504,7 @@ check('the page invents no status value the backend would refuse', () => {
   const allowed = new Set();
   for (const constName of ['STUDENT_STATUSES', 'TEACHER_STATUSES', 'CENTER_STATUSES', 'PROGRAM_STATUSES',
     'COURSE_STATUSES', 'CLASS_STATUSES', 'ENROLLMENT_STATUSES', 'ATTENDANCE_STATUSES',
-    'EMPLOYMENT_TYPES', 'DURATION_UNITS']) {
+    'EMPLOYMENT_TYPES', 'DURATION_UNITS', 'STATUS_VALUES', 'RATING_STATUSES']) {
     for (const file of SERVICE_FILES) {
       const list = serviceList(file.src, constName);
       if (list) list.forEach((value) => allowed.add(value));
@@ -503,11 +512,13 @@ check('the page invents no status value the backend would refuse', () => {
   }
   assert(RUNTIME.includes('var STATUS_VALUES = ') && RUNTIME.includes('var EMPLOYMENT_TYPES = ') &&
     RUNTIME.includes('var DURATION_UNITS = ') && RUNTIME.includes('var ENROLLMENT_STATUSES = ') &&
-    RUNTIME.includes('var ATTENDANCE_STATUSES = '),
+    RUNTIME.includes('var ATTENDANCE_STATUSES = ') &&
+    RUNTIME.includes('var BOOKING_STATUSES = ') && RUNTIME.includes('var RATING_STATUSES = '),
     'the page must declare its vocabularies as named lists so this test can read them');
 
   const declarations = [
-    'STATUS_VALUES', 'EMPLOYMENT_TYPES', 'DURATION_UNITS', 'ENROLLMENT_STATUSES', 'ATTENDANCE_STATUSES'
+    'STATUS_VALUES', 'EMPLOYMENT_TYPES', 'DURATION_UNITS', 'ENROLLMENT_STATUSES', 'ATTENDANCE_STATUSES',
+    'BOOKING_STATUSES', 'RATING_STATUSES'
   ];
   for (const name of declarations) {
     const m = new RegExp('var ' + name + ' = \\[([^\\]]*)\\]').exec(RUNTIME);
@@ -521,13 +532,64 @@ check('the page invents no status value the backend would refuse', () => {
 
 check('the page renders every declared status as a styled pill', () => {
   const css = CSS;
-  for (const value of ['active', 'inactive', 'archived', 'withdrawn', 'present', 'absent', 'late', 'excused']) {
+  for (const value of ['active', 'inactive', 'archived', 'withdrawn', 'present', 'absent', 'late', 'excused',
+    'requested', 'confirmed', 'completed', 'cancelled']) {
     assert(css.includes('.edu-pill-' + value), 'no style for the "' + value + '" status: ' + value);
   }
   assert(RUNTIME.includes('function pill(value)'), 'the pill renderer is missing');
   // A status is rendered as data, so the class name must be sanitized rather
   // than interpolated raw into the class attribute.
   assert(RUNTIME.includes("replace(/[^a-z_]/g, '')"), 'the status class is not sanitized');
+});
+
+check('the booking lifecycle on the page is exactly the one the backend enforces', () => {
+  const src = SERVICE_FILES.find((file) => file.name === 'booking').src;
+  const start = src.indexOf('const TRANSITIONS');
+  assert(start >= 0, 'the booking service no longer declares TRANSITIONS');
+  const block = src.slice(start, src.indexOf('});', start));
+  const edges = {};
+  const re = /(\w+):\s*Object\.freeze\(\[([^\]]*)\]\)/g;
+  let m;
+  while ((m = re.exec(block)) !== null) {
+    edges[m[1]] = m[2].split(',').map((s) => s.trim().replace(/^'|'$/g, '')).filter(Boolean);
+  }
+  assert(Object.keys(edges).length >= 4, 'could not read the backend transition edges');
+
+  const pageStart = RUNTIME.indexOf('var BOOKING_TRANSITIONS = {');
+  assert(pageStart >= 0, 'the page declares no booking transition map');
+  const pageBlock = RUNTIME.slice(pageStart, RUNTIME.indexOf('};', pageStart));
+  for (const [from, tos] of Object.entries(edges)) {
+    const edge = new RegExp(from + ':\\s*\\[([^\\]]*)\\]').exec(pageBlock);
+    assert(edge, 'the page offers no transition edge from ' + from);
+    const pageTos = edge[1].split(',').map((s) => s.trim().replace(/^'|'$/g, '')).filter(Boolean);
+    assertEqual(pageTos.join(','), tos.join(','),
+      'the transition edge from ' + from + ' differs from the backend TRANSITIONS map');
+  }
+
+  // The status moves only through the item's /status suffix — never through a
+  // form body — and a linked teacher is never offered the operator's verb.
+  assert(RUNTIME.includes("'/status'"), 'the page no longer calls the booking status route');
+  assert(RUNTIME.includes("if (next === 'completed' && state.portalTeacher) return;"),
+    'the page must hide the operator-only completion verb from a linked teacher');
+});
+
+check('bookings and ratings carry no payment surface', () => {
+  // The backend declares these as later-phase fields and refuses them in any
+  // body; the page must not even offer them as writable controls.
+  const laterPhase = ['payment', 'payments', 'paid', 'amount', 'price', 'fee',
+    'total', 'invoice', 'receipt', 'transaction'];
+  for (const key of ['bookings', 'ratings']) {
+    const block = entityBlock(key);
+    for (const field of laterPhase) {
+      assert(!new RegExp("(?:textField|refField|selectField)\\(\\s*'" + field + "'").test(block),
+        key + ' offers the payment field ' + field + ' as writable');
+      assert(!new RegExp("name:\\s*'" + field + "'").test(block),
+        key + ' offers the payment field ' + field + ' as writable');
+    }
+  }
+  const bookingSrc = SERVICE_FILES.find((file) => file.name === 'booking').src;
+  assert(bookingSrc.includes('LATER_PHASE_FIELDS'),
+    'the booking service no longer declares its later-phase fields');
 });
 
 // ---------------------------------------------------------------------------
@@ -731,7 +793,9 @@ check('the dictionary covers the English text the page renders', () => {
     'Dashboard', 'Students', 'Teachers', 'Centers', 'Programs', 'Courses',
     'Classes', 'Enrollments', 'Attendance', 'Schedule', 'Grading',
     'Roster', 'Class Register', 'Calendar', 'Settings',
-    'Teacher Workspace', 'Student Workspace', 'Cancel', 'Save', 'Confirm'
+    'Teacher Workspace', 'Student Workspace', 'Cancel', 'Save', 'Confirm',
+    'Bookings', 'Ratings', 'Add Booking', 'Add Rating',
+    'Score', 'Comment', 'Fee', 'Complete'
   ];
   for (const text of visible) {
     assert(DICT.includes('"' + text + '":'), 'the dictionary has no entry for: ' + text);
@@ -744,7 +808,7 @@ check('the dictionary covers the English text the page renders', () => {
   ];
   const drawerOnly = [
     'centers', 'programs', 'courses', 'roster', 'enrollments', 'attendance',
-    'register', 'calendar', 'grading',
+    'register', 'calendar', 'grading', 'bookings', 'ratings',
     'report-attendance', 'report-grading', 'report-sessions',
     'settings', 'teacher', 'student'
   ];
@@ -833,8 +897,52 @@ check('stale responses from a previous page are dropped', () => {
     'a response arriving after navigation is not discarded');
   assert(RUNTIME.includes("state.page !== 'teacher'"), 'the teacher workspace guard is missing');
   assert(RUNTIME.includes("state.page !== 'student'"), 'the student workspace guard is missing');
-  assert(count(RUNTIME, "state.page !== 'teacher'") === 1, 'the teacher guard drifted');
+  // Two teacher guards now: one over the async /teachers/me identity
+  // resolution, one over the class/session paint chain it feeds.
+  assert(count(RUNTIME, "state.page !== 'teacher'") === 2, 'the teacher guard drifted');
   assert(count(RUNTIME, "state.page !== 'student'") === 1, 'the student guard drifted');
+});
+
+check('a renderer callback only reads the row variable it actually receives', () => {
+  // Regression: the teacher Sessions table once read `r.endTime` inside a
+  // `sessions.forEach(function (session) {...})`, where no `r` is bound. That
+  // is a ReferenceError thrown while painting, which the catch below turns
+  // into a generic error banner — so the table looked "broken" rather than
+  // failing any route, vocabulary or parity check. `r` is the conventional row
+  // parameter of the cell/csv callbacks; the callback may open on the same
+  // line or within the two lines that wrap it.
+  const lines = stripComments(RUNTIME).split('\n');
+  const offenders = [];
+  lines.forEach((line, i) => {
+    if (!/(?<![a-zA-Z0-9_])r\.[a-zA-Z]/.test(line)) return;
+    const bound = [0, 1, 2].some((back) => {
+      const prev = lines[i - back];
+      return prev !== undefined && /function\s*\(\s*r\s*\)/.test(prev);
+    });
+    if (!bound) offenders.push('L' + (i + 1) + ': ' + line.trim());
+  });
+  assertEqual(offenders.length, 0,
+    'a row variable `r` is read outside any function (r) callback, which throws '
+    + 'at paint time: ' + offenders.join(' | '));
+});
+
+check('the teacher Sessions table reads only the session it was given', () => {
+  // Three sites iterate sessions: the day grouping, the calendar's day list
+  // and the teacher Sessions table. Only the table paints <tr> rows, so the
+  // table is isolated by the row append rather than by the first marker.
+  const marker = 'sessions.forEach(function (session)';
+  const tableBlocks = [];
+  let at = RUNTIME.indexOf(marker);
+  while (at !== -1) {
+    const block = RUNTIME.slice(at, RUNTIME.indexOf('});', at) + 3);
+    if (block.includes('tbody.appendChild(tr)')) tableBlocks.push(block);
+    at = RUNTIME.indexOf(marker, at + marker.length);
+  }
+  assertEqual(tableBlocks.length, 1, 'expected exactly one table-row session renderer');
+  const block = tableBlocks[0];
+  assert(block.includes('session.startTime'), 'the Sessions table no longer renders the start time');
+  assert(block.includes('session.endTime'), 'the Sessions table never renders the end time');
+  assert(!/(?<![a-zA-Z0-9_])r\./.test(block), 'the Sessions table reads the out-of-scope row variable `r`');
 });
 
 // ---------------------------------------------------------------------------
@@ -1110,7 +1218,9 @@ check('every Education list exports its own visible columns and nothing else', (
     enrollments: 'education-enrollments',
     attendance: 'education-attendance',
     scheduling: 'education-scheduling',
-    grading: 'education-grading'
+    grading: 'education-grading',
+    bookings: 'education-bookings',
+    ratings: 'education-ratings'
   };
   for (const key of entities) {
     const block = entityBlock(key);
@@ -1405,8 +1515,11 @@ check('a report reads the existing list route and declares no surface of its own
   // The only outbound call shape a report makes.
   assert(RUNTIME.includes("api('GET', spec.path + (query ? '?' + query : ''))"),
     'the report loader does not read its route through the shared transport');
-  // No report route, and no report-only endpoint of any kind.
-  assert(!ALL_ROUTES.some((r) => /report|analytics|summary|stat/i.test(r.path)),
+  // No report route, and no report-only endpoint of any kind. Matched as
+  // whole path segments so a lifecycle suffix like /bookings/:id/status is
+  // not mistaken for a statistics surface.
+  assert(!ALL_ROUTES.some((route) =>
+    /\/(report|reports|analytics|summary|stat|stats|statistics)(\/|$)/i.test(route.path)),
     'a report-shaped backend route was added');
   assert(!/\/api\/v1\/reports/.test(RUNTIME), 'the page reaches for the central reports API');
 });
