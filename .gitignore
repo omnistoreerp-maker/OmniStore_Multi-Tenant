@@ -33,6 +33,8 @@ backend/.env.local
 backend/data/apiKeys.json
 backend/data/auditLog.json
 backend/data/users.json
+# Platform admin store: seeded on development/test boot, never versioned.
+backend/data/platformAdmins.json
 backend/data/gameHostingPlans.json
 backend/data/gameHostingServers.json
 backend/data/marketCustomers.json
