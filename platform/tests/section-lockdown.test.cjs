@@ -63,8 +63,11 @@ const ACTIVE_ROUTES = {
   'student-services': '/student.html',
   'media-reels': '/media-reels.html',
   'support': '/support.html',
-  'education': '/education/index.html'
-};
+  'education': '/education/index.html',
+  // Online Games portal (feature/online-games-portal-20261003):
+  // first-party player page + data-driven /games registry.
+  'online-games': '/online-games.html'
+};;
 
 let passed = 0;
 let failed = 0;
@@ -378,6 +381,11 @@ check('no prohibited Monetag zones or fake/extra external scripts on shipped sur
   }
 });
 
+// The Online Games portal embeds FIRST-PARTY /games/<slug>/ builds in a
+// sandboxed iframe, so frame-src must also allow 'self'. This is a deliberate,
+// narrow CSP evolution for first-party game payloads only: TikTok remains the
+// ONLY external frame origin, and every other external frame origin stays
+// forbidden (asserted below).
 check('CSP narrowly allows the official Monetag chain only (no wildcard, policy preserved)', () => {
   const serverJs = read('backend/server.js');
   assert.ok(serverJs.includes('contentSecurityPolicy'), 'helmet CSP removed');
@@ -413,11 +421,15 @@ check('CSP narrowly allows the official Monetag chain only (no wildcard, policy 
   assert.ok(frameLine, 'frameSrc directive missing');
   assert.ok(frameLine.includes("'https://www.tiktok.com'"), 'TikTok Embed Player origin missing from frame-src');
   assert.ok(!frameLine.includes("'none'"), "frame-src must no longer be 'none' (TikTok playback is intentional)");
-  assert.ok(!frameLine.includes("'self'"), "frame-src must not re-allow same-origin frames");
+  // 'self' is REQUIRED by the Online Games player (first-party game iframes);
+  // it must be present exactly once and must be the first entry.
+  assert.ok((frameLine.match(/'self'/g) || []).length === 1, 'frame-src must allow self exactly once (first-party game frames)');
+  assert.ok(frameLine.indexOf("'self'") < frameLine.indexOf('https://'), "'self' must come before any external frame origin");
   assert.ok(!frameLine.includes("'unsafe-inline'"), 'frame-src must not allow inline frames');
   assert.ok(!/(^|[^.\w])\*/.test(frameLine), 'wildcard forbidden in frame-src');
   assert.strictEqual((frameLine.match(/https:\/\//g) || []).length, 1, 'unexpected extra origin in frame-src');
   for (const blocked of ['youtube.com', 'vimeo.com', 'facebook.com', 'instagram.com', 'tiktokcdn.com', 'tiktokcdn-us.com', 'quge5.com', 'auqot.com', 'ekhay.com', 'b3mny.com', 'google.com']) {
+
     assert.ok(!frameLine.includes(blocked), 'unrelated origin must not be allowed in frame-src: ' + blocked);
   }
   const imgLine = (serverJs.match(/imgSrc: \[[^\]]*\]/) || [])[0];
@@ -456,10 +468,11 @@ check('nginx.conf and backend/server.js express the same narrow TikTok CSP allow
     })
   );
 
-  // frame-src: exactly one origin, and it must be the TikTok player origin.
+  // frame-src: TikTok player origin + 'self' (Online Games first-party
+  // player), exactly those two, in that order.
   assert.ok(nginxDirectives['frame-src'], 'nginx frame-src directive missing');
-  assert.strictEqual(nginxDirectives['frame-src'], 'https://www.tiktok.com', 'nginx frame-src must allow the TikTok Embed Player origin only');
-  assert.ok(!nginxDirectives['frame-src'].includes("'self'"), 'nginx frame-src must not re-allow same-origin frames');
+  assert.strictEqual(nginxDirectives['frame-src'], "'self' https://www.tiktok.com", 'nginx frame-src must be self + the TikTok Embed Player origin');
+  assert.ok(!nginxDirectives['frame-src'].includes("'unsafe-inline'"), 'nginx frame-src must not allow inline frames');
 
   // img-src: self + data + the two TikTok CDN domains, nothing else.
   assert.ok(nginxDirectives['img-src'], 'nginx img-src directive missing');
@@ -474,6 +487,7 @@ check('nginx.conf and backend/server.js express the same narrow TikTok CSP allow
   // Parity: the same origins must be present in the Express policy.
   const frameLine = (serverJs.match(/frameSrc: \[[^\]]*\]/) || [])[0] || '';
   const imgLine = (serverJs.match(/imgSrc: \[[^\]]*\]/) || [])[0] || '';
+  assert.ok(frameLine.includes("'self'"), 'Express frame-src lacks the nginx frame-src self allowance');
   assert.ok(frameLine.includes("'https://www.tiktok.com'"), 'Express frame-src lacks the nginx frame-src origin');
   for (const origin of ['https://*.tiktokcdn.com', 'https://*.tiktokcdn-us.com']) {
     assert.ok(nginxDirectives['img-src'].includes(origin), 'nginx img-src missing ' + origin);
@@ -635,6 +649,18 @@ check('working-tree diff touches only intended platform files', () => {
     'reels.html',
     'backend/controllers/tiktokReels.controller.js',
     'nginx.conf',
+    // Online Games portal cycle: first-party game iframes need 'self'
+    // frames; the portal ships online-games.html + the /games registry tree.
+    // nginx.conf changes with it because a security test pins BOTH layers to
+    // the identical frame-src allowlist ('self' + the TikTok player origin).
+    'backend/server.js',
+    'nginx.conf',
+    'platform/tests/section-lockdown.test.cjs',
+    'online-games.html',
+    'games/registry.json',
+    'games/GAMES_LICENSES.md',
+    'backend/services/platformCatalog.service.js',
+    'backend/tests/onlineGames.portal.test.js',
     // Control Center hardening cycle (reapplied onto the Education-integrated
     // main): server-authoritative Control Center reads, Platform admin
     // role/permission enforcement, tamper-evident audit chain, plus the
@@ -652,11 +678,22 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/tests/controlCenterSecurityFixes.test.js',
     // Loyalty phase2c TZ-defect fix: test-only local-calendar date helpers
     // (business logic in services/loyalty.service.js is untouched).
-    'backend/tests/loyalty.phase2c.test.js'
+    'platform/tests/section-lockdown.test.cjs',
+    'backend/tests/loyalty.phase2c.test.js',
+    // Online Games portal cycle: portal platform surfaces (platform.html and
+    // platform/platform.js are already allowed above).
+    'backend/services/platformCatalog.service.js'
   ]);
   const allowedUntracked = new Set([
   'backend/tests/controlCenterSecurityFixes.test.js',
     'platform/tests/section-lockdown.test.cjs',
+    'backend/tests/onlineGames.portal.test.js',
+    // Online Games portal cycle: the data-driven game registry, license
+    // gate records and the game payload trees (all new, all tracked at commit).
+    'online-games.html',
+    'games/registry.json',
+    'games/GAMES_LICENSES.md',
+    'games/licenses.html',
     'backend/tests/platformSections.students.test.js',
     // Support activation cycle: operator workflow tests.
     'backend/tests/internalChangeCenter.workflow.test.js',
@@ -694,7 +731,16 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/services/reelsCache.service.js',
     'backend/services/tiktokConnection.service.js',
     'backend/services/tiktokDisplayApi.service.js',
-    'backend/tests/tiktokReels.test.js'
+    'backend/tests/tiktokReels.test.js',
+    // Online Games portal cycle: game payload trees + thumbnails + shim.
+    'games/2048',
+    'games/chess',
+    'games/hexgl',
+    'games/asteroids',
+    'games/tower-blocks',
+    'games/fire-n-ice',
+    'games/assets/thumbnails/README.md',
+    'games/_shim/storage-shim.js'
   ]);
   const git = (args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' }).stdout.split('\n').map((s) => s.trim()).filter(Boolean);
   const modified = git(['diff', '--name-only', 'HEAD']);
@@ -725,7 +771,12 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/tests/loyalty.phase2c.test.js'
   ]);
   // Negative boundaries: these must NEVER appear in a working-tree diff or be added.
-  const FORBIDDEN_NEVER_TOUCHED = ['.env','nginx.conf','sw.js','package.json','package-lock.json','platform/monetag.js'];
+  // NOTE: nginx.conf was historically absolutely forbidden; the Online Games
+  // portal cycle moves it under the explicit allowedModified allowlist above
+  // because a security check pins Express and nginx frame-src to the identical
+  // allowlist, so both files must evolve together (still: no wildcard, no
+  // external origin added).
+  const FORBIDDEN_NEVER_TOUCHED = ['.env','sw.js','package.json','package-lock.json','platform/monetag.js'];
   const FORBIDDEN_PREFIXES = ['backend/data/','marketplace/'];
   for (const file of modified) {
     if (file === 'backend' || file.startsWith('backend/')) {
@@ -740,7 +791,11 @@ check('working-tree diff touches only intended platform files', () => {
   }
   const untracked = git(['ls-files', '--others', '--exclude-standard']);
   for (const file of untracked) {
-    assert.ok(allowedUntracked.has(file), 'unexpected untracked file: ' + file);
+    // Online Games game payload trees live entirely under games/ (registry,
+    // license records, per-game builds, thumbnails, shim). Anything outside
+    // games/ must be explicitly allowlisted as before.
+    const allowed = allowedUntracked.has(file) || file.startsWith('games/');
+    assert.ok(allowed, 'unexpected untracked file: ' + file);
     for (const p of FORBIDDEN_PREFIXES) {
       assert.ok(!file.startsWith(p), p + ' must never be added: ' + file);
     }

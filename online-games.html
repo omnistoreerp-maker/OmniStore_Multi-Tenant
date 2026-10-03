@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#070a12">
+<meta name="description" content="OmniStore Games — ألعاب أونلاين مجانية تعمل مباشرة في المتصفح.">
+<title>ألعاب أونلاين | OmniStore</title>
+<style>
+  :root{
+    --bg:#070a12; --surface:#0f1420; --surface2:#151c2b; --surface3:#1d2738;
+    --border:#2a3548; --accent:#5b8def; --accent2:#7aa2ff; --green:#3dd68c; --red:#fb6f7a;
+    --text:#eef2fb; --text2:#aeb9cc; --muted:#73829c;
+    --safe-top:env(safe-area-inset-top,0px); --safe-bottom:env(safe-area-inset-bottom,0px);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{
+    font-family:'Cairo',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+    background:var(--bg);color:var(--text);min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit;text-decoration:none;}
+  button{font-family:inherit;cursor:pointer;}
+  img,svg{max-width:100%;display:block;}
+
+  .page{max-width:1180px;margin:0 auto;padding:calc(16px + var(--safe-top)) 16px calc(40px + var(--safe-bottom));}
+
+  /* Top bar */
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:1.05rem;}
+  .brand .mark{width:26px;height:26px;color:var(--accent2);}
+  .top-actions{display:flex;gap:8px;}
+  .icon-btn{width:38px;height:38px;border-radius:11px;border:1px solid var(--border);background:var(--surface);color:var(--text2);display:flex;align-items:center;justify-content:center;transition:background .2s;}
+  .icon-btn:hover{background:var(--surface2);}
+
+  /* Hero + search */
+  .hero{background:linear-gradient(135deg,rgba(91,141,239,.16),rgba(122,162,255,.05));border:1px solid var(--border);border-radius:18px;padding:22px 18px;margin-bottom:18px;}
+  .hero h1{font-size:1.35rem;margin-bottom:6px;}
+  .hero p{color:var(--text2);font-size:.92rem;margin-bottom:14px;}
+  .search-wrap{position:relative;max-width:520px;}
+  .search-wrap svg{position:absolute;top:50%;inset-inline-start:14px;transform:translateY(-50%);width:18px;height:18px;color:var(--muted);}
+  #search{width:100%;padding:12px 44px;border-radius:13px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-family:inherit;font-size:.95rem;outline:none;transition:border .2s;}
+  #search:focus{border-color:var(--accent);}
+  #search::placeholder{color:var(--muted);}
+
+  /* Category chips */
+  .chips{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 10px;scrollbar-width:none;}
+  .chips::-webkit-scrollbar{display:none;}
+  .chip{flex:0 0 auto;display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);color:var(--text2);border-radius:999px;padding:8px 14px;font-size:.85rem;font-weight:600;transition:all .2s;}
+  .chip svg{width:15px;height:15px;}
+  .chip:hover{border-color:var(--accent);}
+  .chip.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+
+  /* Rows */
+  .row{margin-top:22px;}
+  .row-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .row-title{font-size:1.05rem;font-weight:800;display:flex;align-items:center;gap:8px;}
+  .row-title .dot{width:8px;height:8px;border-radius:50%;background:var(--accent2);}
+  .row-count{color:var(--muted);font-size:.8rem;}
+  .cards{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(200px,240px);gap:14px;overflow-x:auto;padding-bottom:8px;scroll-snap-type:x proximity;scrollbar-width:thin;}
+  .cards::-webkit-scrollbar{height:6px;}
+  .cards::-webkit-scrollbar-thumb{background:var(--surface3);border-radius:3px;}
+  .cards.grid{grid-auto-flow:row;grid-template-columns:repeat(auto-fill,minmax(200px,240px));overflow:visible;}
+
+  /* Game card */
+  .card{scroll-snap-align:start;background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;transition:transform .15s,border-color .2s;display:flex;flex-direction:column;}
+  .card:hover{transform:translateY(-3px);border-color:var(--accent);}
+  .thumb{position:relative;aspect-ratio:4/3;background:var(--surface2);}
+  .thumb img{width:100%;height:100%;object-fit:cover;}
+  .play-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(7,10,18,.35);opacity:0;transition:opacity .2s;}
+  .card:hover .play-overlay{opacity:1;}
+  .play-overlay .p{width:52px;height:52px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 0 24px rgba(91,141,239,.5);}
+  .card-body{padding:10px 12px 12px;display:flex;flex-direction:column;gap:4px;flex:1;}
+  .card-title{font-weight:700;font-size:.92rem;}
+  .card-meta{display:flex;align-items:center;justify-content:space-between;color:var(--muted);font-size:.75rem;}
+  .badge{background:var(--surface3);border-radius:999px;padding:2px 9px;font-size:.7rem;color:var(--accent2);}
+
+  /* Featured hero card */
+  .featured-card{position:relative;border-radius:18px;overflow:hidden;border:1px solid var(--border);min-height:200px;display:flex;align-items:flex-end;}
+  .featured-card img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+  .featured-card .f-body{position:relative;z-index:1;width:100%;padding:16px;background:linear-gradient(0deg,rgba(7,10,18,.95),transparent);}
+  .featured-card .f-title{font-size:1.2rem;font-weight:800;}
+  .featured-card .f-desc{color:var(--text2);font-size:.85rem;margin-bottom:10px;max-width:480px;}
+
+  /* Buttons */
+  .btn{display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:#fff;border:none;border-radius:12px;padding:10px 18px;font-weight:700;font-size:.9rem;transition:transform .15s,background .2s;}
+  .btn:hover{background:var(--accent2);}
+  .btn:active{transform:scale(.97);}
+  .btn.ghost{background:var(--surface);border:1px solid var(--border);color:var(--text);}
+  .btn svg{width:16px;height:16px;}
+
+  /* States */
+  .state-wrap{padding:48px 16px;text-align:center;color:var(--text2);}
+  .state-wrap .big{font-size:2rem;margin-bottom:10px;}
+  .hidden{display:none!important;}
+
+  /* Details panel */
+  dialog#details{border:none;border-radius:18px;background:var(--surface);color:var(--text);max-width:560px;width:calc(100% - 32px);padding:0;}
+  dialog#details::backdrop{background:rgba(7,10,18,.75);backdrop-filter:blur(4px);}
+  .d-body{padding:20px;}
+  .d-head{display:flex;gap:14px;align-items:center;margin-bottom:12px;}
+  .d-head img{width:120px;border-radius:12px;border:1px solid var(--border);}
+  .d-title{font-size:1.15rem;font-weight:800;}
+  .d-cat{margin-top:4px;}
+  .d-desc{color:var(--text2);font-size:.9rem;margin-bottom:12px;}
+  .d-facts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;}
+  .fact{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:.78rem;color:var(--text2);}
+  .fact b{color:var(--text);display:block;font-size:.8rem;}
+  .d-actions{display:flex;gap:10px;flex-wrap:wrap;}
+  .d-close{position:absolute;top:12px;inset-inline-end:12px;}
+
+  /* Player page (hash #/play/<slug>) */
+  #player.hidden{display:none;}
+  #player{position:fixed;inset:0;z-index:50;background:#000;display:flex;flex-direction:column;}
+  .p-top{display:flex;align-items:center;gap:10px;padding:8px 12px;padding-top:calc(8px + var(--safe-top));background:var(--surface);border-bottom:1px solid var(--border);}
+  .p-title{font-weight:700;font-size:.95rem;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .p-frame-wrap{position:relative;flex:1;background:#000;}
+  #gameFrame{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000;}
+  .p-ad-top,.p-ad-bottom{display:none;background:var(--surface);border-bottom:1px solid var(--border);text-align:center;color:var(--muted);font-size:.75rem;padding:8px;}
+  .p-ad-bottom{border-bottom:none;border-top:1px solid var(--border);padding-bottom:calc(8px + var(--safe-bottom));}
+  .p-ad-top.enabled,.p-ad-bottom.enabled{display:block;}
+
+  @media (min-width: 768px){
+    .hero h1{font-size:1.7rem;}
+    .page{padding-top:calc(24px + var(--safe-top));}
+  }
+</style>
+</head>
+<body>
+<div class="page" id="portalPage">
+
+  <header class="topbar">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="6" width="20" height="12" rx="4"/>
+        <path d="M6 12h4M8 10v4"/>
+        <circle cx="16" cy="11" r="0.8" fill="currentColor"/>
+        <circle cx="18.5" cy="13" r="0.8" fill="currentColor"/>
+      </svg>
+      <span data-i18n="brand">ألعاب أونلاين</span>
+    </div>
+    <div class="top-actions">
+      <a class="icon-btn" href="/platform.html" data-i18n-aria="back_platform" aria-label="العودة للمنصة" title="المنصة">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <section class="hero">
+    <h1 data-i18n="hero_title">العب الآن — مجانًا ومباشرة</h1>
+    <p data-i18n="hero_sub">ألعاب HTML5 مفتوحة المصدر تعمل فورًا في المتصفح — بدون تحميل أو تسجيل.</p>
+    <div class="search-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input id="search" type="search" data-i18n-placeholder="search_ph" placeholder="ابحث عن لعبة…" autocomplete="off">
+    </div>
+  </section>
+
+  <nav class="chips" id="chips" aria-label="التصنيفات"></nav>
+
+  <main id="rows">
+    <section class="row" id="row-featured">
+      <div class="row-head">
+        <div class="row-title"><span class="dot"></span><span data-i18n="row_featured">مميزة</span></div>
+      </div>
+      <div class="cards" id="cards-featured"></div>
+    </section>
+
+    <section class="row" id="row-popular">
+      <div class="row-head">
+        <div class="row-title"><span class="dot"></span><span data-i18n="row_popular">الأكثر لعبًا</span></div>
+        <span class="row-count" id="count-popular"></span>
+      </div>
+      <div class="cards" id="cards-popular"></div>
+    </section>
+
+    <section class="row" id="row-new">
+      <div class="row-head">
+        <div class="row-title"><span class="dot"></span><span data-i18n="row_new">ألعاب جديدة</span></div>
+        <span class="row-count" id="count-new"></span>
+      </div>
+      <div class="cards" id="cards-new"></div>
+    </section>
+
+    <div id="categoryRows"></div>
+
+    <section class="row hidden" id="row-results">
+      <div class="row-head">
+        <div class="row-title"><span class="dot"></span><span data-i18n="row_results">نتائج البحث</span></div>
+        <span class="row-count" id="count-results"></span>
+      </div>
+      <div class="cards grid" id="cards-results"></div>
+      <div class="state-wrap hidden" id="noResults">
+        <div class="big">🎮</div>
+        <div data-i18n="no_results">لا توجد ألعاب مطابقة لبحثك.</div>
+      </div>
+    </section>
+  </main>
+
+  <footer style="margin-top:36px;color:var(--muted);font-size:.78rem;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+    <span data-i18n="footer_note">جميع الألعاب مفتوحة المصدر وتُستخدم وفق تراخيصها.</span>
+    <a href="/games/licenses.html" data-i18n="footer_licenses" style="color:var(--accent2);">التراخيص والإسناد</a>
+  </footer>
+</div>
+
+<!-- Game details dialog -->
+<dialog id="details">
+  <div class="d-body">
+    <button class="icon-btn d-close" id="dClose" aria-label="إغلاق">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+    <div class="d-head">
+      <img id="dThumb" alt="">
+      <div>
+        <div class="d-title" id="dTitle"></div>
+        <div class="d-cat"><span class="badge" id="dCat"></span></div>
+      </div>
+    </div>
+    <div class="d-desc" id="dDesc"></div>
+    <div class="d-facts">
+      <div class="fact"><b data-i18n="d_controls">التحكم</b><span id="dControls"></span></div>
+      <div class="fact"><b data-i18n="d_orientation">الاتجاه</b><span id="dOrientation"></span></div>
+      <div class="fact"><b data-i18n="d_license">الترخيص</b><span id="dLicense"></span></div>
+      <div class="fact"><b data-i18n="d_source">المصدر</b><span><a id="dSource" target="_blank" rel="noopener noreferrer" style="color:var(--accent2);"></a></span></div>
+    </div>
+    <div class="d-actions">
+      <button class="btn" id="dPlay">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+        <span data-i18n="d_play">العب الآن</span>
+      </button>
+      <button class="btn ghost" id="dFav" disabled title="قريبًا">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21.2l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>
+        <span data-i18n="d_favorite">مفضلة — قريبًا</span>
+      </button>
+    </div>
+  </div>
+</dialog>
+
+<!-- Game player (full-screen overlay) -->
+<div id="player" class="hidden" role="dialog" aria-modal="true">
+  <div class="p-ad-top" id="adTop" data-i18n="ad_reserved">مساحة إعلانية محجوزة — غير مفعّلة</div>
+  <div class="p-top">
+    <button class="icon-btn" id="pBack" data-i18n-aria="back" aria-label="رجوع" title="رجوع">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+    </button>
+    <div class="p-title" id="pTitle"></div>
+    <button class="icon-btn" id="pFullscreen" data-i18n-aria="fullscreen" aria-label="ملء الشاشة" title="ملء الشاشة">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+    </button>
+  </div>
+  <div class="p-frame-wrap">
+    <iframe id="gameFrame" title="OmniStore game player"
+      sandbox="allow-scripts allow-pointer-lock allow-popups-to-escape-sandbox"
+      referrerpolicy="no-referrer"
+      allow="fullscreen; gamepad"></iframe>
+  </div>
+  <div class="p-ad-bottom" id="adBottom" data-i18n="ad_reserved">مساحة إعلانية محجوزة — غير مفعّلة</div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  var REGISTRY_URL = '/games/registry.json';
+  var I18N = {
+    ar: {
+      brand:'ألعاب أونلاين', hero_title:'العب الآن — مجانًا ومباشرة',
+      hero_sub:'ألعاب HTML5 مفتوحة المصدر تعمل فورًا في المتصفح — بدون تحميل أو تسجيل.',
+      search_ph:'ابحث عن لعبة…', row_featured:'مميزة', row_popular:'الأكثر لعبًا', row_new:'ألعاب جديدة',
+      row_results:'نتائج البحث', no_results:'لا توجد ألعاب مطابقة لبحثك.',
+      footer_note:'جميع الألعاب مفتوحة المصدر وتُستخدم وفق تراخيصها.', footer_licenses:'التراخيص والإسناد',
+      d_play:'العب الآن', d_favorite:'مفضلة — قريبًا', d_controls:'التحكم', d_orientation:'الاتجاه',
+      d_license:'الترخيص', d_source:'المصدر', back:'رجوع', fullscreen:'ملء الشاشة',
+      back_platform:'العودة للمنصة', ad_reserved:'مساحة إعلانية محجوزة — غير مفعّلة',
+      play_count_suffix:'لعبة', load_error:'تعذر تحميل قائمة الألعاب. ',
+      cat_all:'الكل', orientation_portrait:'عمودي', orientation_landscape:'أفقي'
+    },
+    en: {
+      brand:'Online Games', hero_title:'Play now — free & instant',
+      hero_sub:'Open-source HTML5 games that run right in your browser — no download, no signup.',
+      search_ph:'Search for a game…', row_featured:'Featured', row_popular:'Popular', row_new:'New Games',
+      row_results:'Search results', no_results:'No games match your search.',
+      footer_note:'All games are open source and used under their own licenses.', footer_licenses:'Licenses & attribution',
+      d_play:'Play now', d_favorite:'Favorite — coming soon', d_controls:'Controls', d_orientation:'Orientation',
+      d_license:'License', d_source:'Source', back:'Back', fullscreen:'Fullscreen',
+      back_platform:'Back to platform', ad_reserved:'Reserved ad slot — not enabled',
+      play_count_suffix:'games', load_error:'Could not load the game list. ',
+      cat_all:'All', orientation_portrait:'Portrait', orientation_landscape:'Landscape'
+    }
+  };
+
+  var lang = 'ar';
+  try { if (localStorage.getItem('omnistore_games_lang') === 'en') lang = 'en'; } catch(e){}
+
+  function t(k){
+    return (I18N[lang] && I18N[lang][k]) || I18N.ar[k] || k;
+  }
+  function catLabel(cat){
+    if (!cat) return '';
+    return lang === 'en' ? (cat.labelEn || cat.labelAr) : (cat.labelAr || cat.labelEn);
+  }
+
+  var games = [];
+  var categories = [];
+  var activeCategory = 'all';
+  var query = '';
+  var currentGame = null;
+
+  /* ---------- rendering ---------- */
+  function cardEl(g){
+    var a = document.createElement('a');
+    a.className = 'card';
+    a.href = '#/play/' + g.slug;
+    a.setAttribute('aria-label', g.title);
+    a.innerHTML =
+      '<div class="thumb"><img loading="lazy" src="' + g.thumbnail + '" alt="' + g.title + '">'
+      + '<div class="play-overlay"><span class="p"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 20 12 6 21 6 3"/></svg></span></div></div>'
+      + '<div class="card-body"><div class="card-title">' + g.title + '</div>'
+      + '<div class="card-meta"><span>' + categoryLabelOf(g) + '</span><span class="badge">' + (g.orientation === 'portrait' ? t('orientation_portrait') : t('orientation_landscape')) + '</span></div></div>';
+    a.addEventListener('click', function(ev){
+      ev.preventDefault();
+      openDetails(g);
+    });
+    return a;
+  }
+  function categoryLabelOf(g){
+    var cat = categories.find(function(c){ return c.id === g.category; });
+    return cat ? catLabel(cat) : g.category;
+  }
+  function clear(el){ el.innerHTML = ''; }
+
+  function render(){
+    clear(document.getElementById('cards-featured'));
+    clear(document.getElementById('cards-popular'));
+    clear(document.getElementById('cards-new'));
+    clear(document.getElementById('categoryRows'));
+    clear(document.getElementById('cards-results'));
+
+    var searching = query.trim().length > 0 || activeCategory !== 'all';
+    document.getElementById('row-featured').classList.toggle('hidden', searching);
+    document.getElementById('row-popular').classList.toggle('hidden', searching);
+    document.getElementById('row-new').classList.toggle('hidden', searching);
+    document.getElementById('row-results').classList.toggle('hidden', !searching);
+
+    if (searching){
+      var q = query.trim().toLowerCase();
+      var res = games.filter(function(g){
+        if (activeCategory !== 'all' && g.category !== activeCategory) return false;
+        if (!q) return true;
+        return (g.title + ' ' + g.description + ' ' + (g.tags||[]).join(' ') + ' ' + categoryLabelOf(g)).toLowerCase().indexOf(q) !== -1;
+      });
+      var cont = document.getElementById('cards-results');
+      res.forEach(function(g){ cont.appendChild(cardEl(g)); });
+      document.getElementById('count-results').textContent = res.length + ' ' + t('play_count_suffix');
+      document.getElementById('noResults').classList.toggle('hidden', res.length > 0);
+      return;
+    }
+
+    var featured = games.filter(function(g){ return g.featured; });
+    featured.forEach(function(g){ document.getElementById('cards-featured').appendChild(cardEl(g)); });
+
+    var popular = games.slice().sort(function(a,b){ return a.catalogIndex - b.catalogIndex; });
+    popular.forEach(function(g){ document.getElementById('cards-popular').appendChild(cardEl(g)); });
+    document.getElementById('count-popular').textContent = popular.length + ' ' + t('play_count_suffix');
+
+    var newest = games.slice().sort(function(a,b){ return (b.addedAt||'').localeCompare(a.addedAt||''); });
+    newest.forEach(function(g){ document.getElementById('cards-new').appendChild(cardEl(g)); });
+    document.getElementById('count-new').textContent = newest.length + ' ' + t('play_count_suffix');
+
+    categories.forEach(function(cat){
+      var list = games.filter(function(g){ return g.category === cat.id; });
+      if (!list.length) return;
+      var row = document.createElement('section');
+      row.className = 'row';
+      row.innerHTML = '<div class="row-head"><div class="row-title"><span class="dot"></span>' + catLabel(cat) + '</div>'
+        + '<span class="row-count">' + list.length + ' ' + t('play_count_suffix') + '</span></div>';
+      var cont = document.createElement('div');
+      cont.className = 'cards';
+      list.forEach(function(g){ cont.appendChild(cardEl(g)); });
+      row.appendChild(cont);
+      document.getElementById('categoryRows').appendChild(row);
+    });
+  }
+
+  function renderChips(){
+    var cont = document.getElementById('chips');
+    clear(cont);
+    var all = document.createElement('button');
+    all.className = 'chip' + (activeCategory === 'all' ? ' active' : '');
+    all.textContent = t('cat_all');
+    all.addEventListener('click', function(){ activeCategory = 'all'; renderChips(); render(); });
+    cont.appendChild(all);
+    categories.forEach(function(cat){
+      var b = document.createElement('button');
+      b.className = 'chip' + (activeCategory === cat.id ? ' active' : '');
+      b.innerHTML = catIcon(cat.icon) + '<span>' + catLabel(cat) + '</span>';
+      b.addEventListener('click', function(){ activeCategory = cat.id; renderChips(); render(); });
+      cont.appendChild(b);
+    });
+  }
+  function catIcon(name){
+    var icons = {
+      puzzle:'<rect x="3" y="3" width="18" height="18" rx="4"/><path d="M9 3v4M15 17v4"/>',
+      joystick:'<rect x="2" y="6" width="20" height="12" rx="4"/><path d="M6 12h4M8 10v4"/><circle cx="16" cy="11" r="0.8" fill="currentColor"/><circle cx="18.5" cy="13" r="0.8" fill="currentColor"/>',
+      gauge:'<path d="M12 15l4-6"/><path d="M4 17a8 8 0 1 1 16 0"/>',
+      grid:'<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+      zap:'<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>'
+    };
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + (icons[name] || icons.puzzle) + '</svg>';
+  }
+
+  /* ---------- details dialog ---------- */
+  var dlg = document.getElementById('details');
+  function openDetails(g){
+    currentGame = g;
+    document.getElementById('dThumb').src = g.thumbnail;
+    document.getElementById('dTitle').textContent = g.title;
+    document.getElementById('dCat').textContent = categoryLabelOf(g);
+    document.getElementById('dDesc').textContent = g.description;
+    document.getElementById('dControls').textContent = g.controls;
+    document.getElementById('dOrientation').textContent = g.orientation === 'portrait' ? t('orientation_portrait') : t('orientation_landscape');
+    document.getElementById('dLicense').textContent = g.license;
+    var s = document.getElementById('dSource'); s.textContent = g.source; s.href = g.source;
+    dlg.showModal();
+  }
+  document.getElementById('dClose').addEventListener('click', function(){ dlg.close(); });
+  document.getElementById('dFav').addEventListener('click', function(){ /* honest coming-soon: no backend yet */ });
+  document.getElementById('dPlay').addEventListener('click', function(){
+    if (!currentGame) return;
+    dlg.close();
+    location.hash = '#/play/' + currentGame.slug;
+  });
+
+  /* ---------- player ---------- */
+  var player = document.getElementById('player');
+  var frame = document.getElementById('gameFrame');
+  function openPlayer(g){
+    currentGame = g;
+    document.getElementById('pTitle').textContent = g.title;
+    frame.src = g.entry;
+    player.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+  function closePlayer(){
+    frame.src = 'about:blank';
+    player.classList.add('hidden');
+    document.body.style.overflow = '';
+    if (location.hash.indexOf('#/play/') === 0) history.replaceState(null, '', location.pathname);
+  }
+  document.getElementById('pBack').addEventListener('click', closePlayer);
+  document.getElementById('pFullscreen').addEventListener('click', function(){
+    var el = document.getElementById('player');
+    if (document.fullscreenElement){ document.exitFullscreen && document.exitFullscreen(); }
+    else if (el.requestFullscreen){ el.requestFullscreen().catch(function(){}); }
+  });
+
+  /* Keyboard bridge: a sandboxed (opaque-origin) player frame can hold focus —
+     document.hasFocus() is true inside it — and STILL not receive key events;
+     Chromium then delivers them to this document instead. Forward the game
+     keys into the frame, where /games/_shim/input-bridge.js re-dispatches them
+     as real KeyboardEvents. Keys that the frame receives natively never reach
+     this handler (a key event targets one document only), so gameplay input is
+     delivered exactly once either way. Portal controls keep working: the
+     forwarder stands down while a button/link/field holds focus. */
+  var FORWARD_KEYS = {
+    37: 1, 38: 1, 39: 1, 40: 1,   /* arrow keys */
+    32: 1,                        /* space */
+    87: 1, 65: 1, 83: 1, 68: 1,   /* W A S D */
+    72: 1, 74: 1, 75: 1, 76: 1,   /* vim H J K L */
+    82: 1, 16: 1, 13: 1           /* R, Shift, Enter */
+  };
+  function forwardKey(type, ev){
+    if (player.classList.contains('hidden')) return;
+    if (!FORWARD_KEYS[ev.keyCode]) return;
+    var ae = document.activeElement;
+    if (ae && (ae.tagName === 'BUTTON' || ae.tagName === 'A' || ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) return;
+    if (!frame || !frame.contentWindow) return;
+    try {
+      frame.contentWindow.postMessage({ __omnistoreGamesInput: true, type: type, key: ev.key, keyCode: ev.keyCode }, '*');
+    } catch (e) {}
+    if (ev.preventDefault) ev.preventDefault();
+  }
+  document.addEventListener('keydown', function(ev){ forwardKey('keydown', ev); }, true);
+  document.addEventListener('keyup', function(ev){ forwardKey('keyup', ev); }, true);
+
+  /* ---------- routing ---------- */
+  function route(){
+    var m = (location.hash || '').match(/^#\/play\/([a-z0-9-]+)/i);
+    if (m){
+      var g = games.find(function(x){ return x.slug === m[1] && x.published; });
+      if (g){ openPlayer(g); return; }
+    }
+    if (!player.classList.contains('hidden')) closePlayer();
+  }
+  window.addEventListener('hashchange', route);
+
+  /* ---------- search ---------- */
+  document.getElementById('search').addEventListener('input', function(){
+    query = this.value;
+    render();
+  });
+
+  /* ---------- init ---------- */
+  function applyLang(){
+    document.documentElement.lang = lang;
+    document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+    document.querySelectorAll('[data-i18n]').forEach(function(el){ el.textContent = t(el.getAttribute('data-i18n')); });
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el){ el.placeholder = t(el.getAttribute('data-i18n-placeholder')); });
+    document.querySelectorAll('[data-i18n-aria]').forEach(function(el){ el.setAttribute('aria-label', t(el.getAttribute('data-i18n-aria'))); });
+  }
+
+  function init(){
+    applyLang();
+    fetch(REGISTRY_URL)
+      .then(function(r){ if (!r.ok) throw new Error('status ' + r.status); return r.json(); })
+      .then(function(reg){
+        games = (reg.games || []).filter(function(g){ return g.published; });
+        categories = reg.categories || [];
+        renderChips();
+        render();
+        route(); // support #/play/<slug> deep links on load
+      })
+      .catch(function(err){
+        var rows = document.getElementById('rows');
+        rows.innerHTML = '<div class="state-wrap"><div class="big">⚠️</div><div>' + t('load_error') + '</div></div>';
+      });
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,232 @@
+{
+  "version": 1,
+  "updatedAt": "2026-10-03",
+  "adConfig": {
+    "enabled": false,
+    "note": "Ad slots are placeholders only. No ad network, no Monetag zone, no popunder/onclick is wired in this phase. Enabling ads requires an independent future review.",
+    "slots": {
+      "topOfPlayerPage": {
+        "active": false,
+        "reserved": true
+      },
+      "postGameContent": {
+        "active": false,
+        "reserved": true
+      }
+    }
+  },
+  "categories": [
+    {
+      "id": "puzzle",
+      "labelAr": "ألغاز",
+      "labelEn": "Puzzle",
+      "icon": "puzzle"
+    },
+    {
+      "id": "arcade",
+      "labelAr": "أركيد",
+      "labelEn": "Arcade",
+      "icon": "joystick"
+    },
+    {
+      "id": "racing",
+      "labelAr": "سباقات",
+      "labelEn": "Racing",
+      "icon": "gauge"
+    },
+    {
+      "id": "board",
+      "labelAr": "ألعاب الطاولة",
+      "labelEn": "Board",
+      "icon": "grid"
+    },
+    {
+      "id": "action",
+      "labelAr": "أكشن",
+      "labelEn": "Action",
+      "icon": "zap"
+    }
+  ],
+  "games": [
+    {
+      "id": "game-2048",
+      "title": "2048",
+      "slug": "2048",
+      "description": "انزلق البلاطات واجمع الأرقام المتشابهة للوصول إلى 2048. لعبة ألغاز رقمية شهيرة بواجهة عربية.",
+      "thumbnail": "/games/assets/thumbnails/2048.svg",
+      "category": "puzzle",
+      "tags": [
+        "numbers",
+        "logic",
+        "tiles"
+      ],
+      "orientation": "portrait",
+      "controls": "keyboard+touch",
+      "entry": "/games/2048/index.html",
+      "source": "https://github.com/attogram/2048-lite",
+      "license": "MIT",
+      "licenseConfirmed": "PASS",
+      "commercialUseAllowed": true,
+      "redistributionAllowed": true,
+      "attributionRequired": true,
+      "attribution": "© 2014 Gabriele Cirulli — MIT License (2048-lite packaging © Attogram Project)",
+      "assetLicenseConfirmed": true,
+      "assetNotes": "All bundled assets ship under the repository MIT license. No third-party assets.",
+      "featured": true,
+      "published": true,
+      "ageGroup": "everyone",
+      "addedAt": "2026-10-03T00:01:00Z",
+      "catalogIndex": 1
+    },
+    {
+      "id": "game-chess",
+      "title": "Chess",
+      "slug": "chess",
+      "description": "شطرنج كامل ضد الكمبيوتر بمستويات صعوبة متعددة وواجهة ثنائية الأبعاد.",
+      "thumbnail": "/games/assets/thumbnails/chess.svg",
+      "category": "board",
+      "tags": [
+        "strategy",
+        "board",
+        "ai"
+      ],
+      "orientation": "landscape",
+      "controls": "mouse+touch",
+      "entry": "/games/chess/index.html",
+      "source": "https://github.com/attogram/chess",
+      "license": "MIT",
+      "licenseConfirmed": "PASS",
+      "commercialUseAllowed": true,
+      "redistributionAllowed": true,
+      "attributionRequired": true,
+      "attribution": "© 2019 Attogram Project — MIT License",
+      "assetLicenseConfirmed": true,
+      "assetNotes": "Piece images ship inside the MIT-licensed repository.",
+      "featured": false,
+      "published": true,
+      "ageGroup": "everyone",
+      "addedAt": "2026-10-03T00:02:00Z",
+      "catalogIndex": 2
+    },
+    {
+      "id": "game-hexgl",
+      "title": "HexGL",
+      "slug": "hexgl",
+      "description": "سباق مستقبلي ثلاثي الأبعاد بمركبة انزلاقية سريعة عبر مدينة نيون — WebGL متكامل.",
+      "thumbnail": "/games/assets/thumbnails/hexgl.svg",
+      "category": "racing",
+      "tags": [
+        "3d",
+        "webgl",
+        "futuristic"
+      ],
+      "orientation": "landscape",
+      "controls": "keyboard",
+      "entry": "/games/hexgl/index.html",
+      "source": "https://github.com/attogram/HexGL-lite",
+      "license": "MIT",
+      "licenseConfirmed": "PASS",
+      "commercialUseAllowed": true,
+      "redistributionAllowed": true,
+      "attributionRequired": true,
+      "attribution": "© 2015 Thibaut Despoulain — MIT License (HexGL-lite packaging © Attogram Project)",
+      "assetLicenseConfirmed": true,
+      "assetNotes": "Sound effects under CC-BY-3.0 (boost, wind, destroyed) and Public Domain (crash, bg); licensing ships in games/hexgl/audio/LICENSE. Distribution-only artifacts (package.zip, textures.full, replays, CoffeeScript sources) excluded.",
+      "featured": true,
+      "published": true,
+      "ageGroup": "everyone",
+      "addedAt": "2026-10-03T00:03:00Z",
+      "catalogIndex": 3
+    },
+    {
+      "id": "game-fire-n-ice",
+      "title": "Fire 'n Ice",
+      "slug": "fire-n-ice",
+      "description": "ألعوبة منصات ألغاز كلاسيكية: اصنع وذوّب مكعبات الجليد لإخماد كل النيران وتقدّم بين 31 مستوى.",
+      "thumbnail": "/games/assets/thumbnails/fire-n-ice.svg",
+      "category": "puzzle",
+      "tags": [
+        "retro",
+        "platformer",
+        "levels"
+      ],
+      "orientation": "landscape",
+      "controls": "keyboard+touch",
+      "entry": "/games/fire-n-ice/app/index.html",
+      "source": "https://github.com/eugenioenko/fire-n-ice",
+      "license": "MIT",
+      "licenseConfirmed": "PASS",
+      "commercialUseAllowed": true,
+      "redistributionAllowed": true,
+      "attributionRequired": true,
+      "attribution": "© 2017 Eugene Yakhnenko — MIT License",
+      "assetLicenseConfirmed": true,
+      "assetNotes": "Ships the project's own complete docs/ web build (fonts loaded from Google Fonts at runtime). Source map removed from distribution.",
+      "featured": false,
+      "published": true,
+      "ageGroup": "everyone",
+      "addedAt": "2026-10-03T00:04:00Z",
+      "catalogIndex": 4
+    },
+    {
+      "id": "game-tower-blocks",
+      "title": "Tower Blocks",
+      "slug": "tower-blocks",
+      "description": "ابنِ أطول برج ممكن بإفلات الكتل في التوقيت المناسب — دقة وتوقيت وتركيز.",
+      "thumbnail": "/games/assets/thumbnails/tower-blocks.svg",
+      "category": "arcade",
+      "tags": [
+        "timing",
+        "mobile",
+        "highscore"
+      ],
+      "orientation": "portrait",
+      "controls": "touch+mouse",
+      "entry": "/games/tower-blocks/index.html",
+      "source": "https://github.com/iamkun/tower_game",
+      "license": "MIT",
+      "licenseConfirmed": "PASS",
+      "commercialUseAllowed": true,
+      "redistributionAllowed": true,
+      "attributionRequired": true,
+      "attribution": "© 2018 BMQB, Inc — MIT License",
+      "assetLicenseConfirmed": true,
+      "assetNotes": "Upstream Google Tag Manager script removed from index.html (no third-party tracking in OmniStore distribution). package-lock.json excluded.",
+      "featured": true,
+      "published": true,
+      "ageGroup": "everyone",
+      "addedAt": "2026-10-03T00:05:00Z",
+      "catalogIndex": 5
+    },
+    {
+      "id": "game-asteroids",
+      "title": "Asteroids",
+      "slug": "asteroids",
+      "description": "دمّر الكويكبات المتطايرة في الفضاء العميق بلعبة المتجهات الكلاسيكية بجافاسكربت خالص.",
+      "thumbnail": "/games/assets/thumbnails/asteroids.svg",
+      "category": "action",
+      "tags": [
+        "space",
+        "classic",
+        "vectors"
+      ],
+      "orientation": "landscape",
+      "controls": "keyboard",
+      "entry": "/games/asteroids/index.html",
+      "source": "https://github.com/dmcinnes/HTML5-Asteroids",
+      "license": "MIT",
+      "licenseConfirmed": "PASS",
+      "commercialUseAllowed": true,
+      "redistributionAllowed": true,
+      "attributionRequired": true,
+      "attribution": "© 2010 Doug McInnes — MIT License",
+      "assetLicenseConfirmed": true,
+      "assetNotes": "The two upstream .wav sound effects were REMOVED from this build because their redistribution license could not be verified; game.js call sites were patched to silent no-op stubs. The bundled vector-battle typeface ships within the MIT repository.",
+      "featured": false,
+      "published": true,
+      "ageGroup": "everyone",
+      "addedAt": "2026-10-03T00:06:00Z",
+      "catalogIndex": 6
+    }
+  ]
+}

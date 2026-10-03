@@ -67,11 +67,51 @@ app.use(helmet({
       // https://www.tiktok.com/player/v1/<video_id> and is built in reels.html
       // from the numeric post id alone. Exactly one origin is allowed. 'self' is
       // deliberately NOT re-added: same-origin frames stay blocked as before.
-      frameSrc: ['https://www.tiktok.com'],
+      // 'self' enables SAME-ORIGIN frames only — required by the Online
+      // Games player, which embeds first-party /games/<slug>/ builds. It
+      // grants nothing to third-party embedders (TikTok stays the only
+      // external frame origin allowed).
+      frameSrc: ["'self'", 'https://www.tiktok.com'],
       objectSrc: ["'none'"]
     }
   }
 }));
+// Online Games (portal cycle): /games/* documents run inside the portal's
+// SANDBOXED player iframe (sandbox="allow-scripts …" WITHOUT allow-same-origin
+// — an opaque origin by design, pinned in onlineGames.portal.test.js).
+// helmet's origin-relative headers (Content-Security-Policy 'self',
+// Cross-Origin-Embedder-Policy require-corp, Cross-Origin-Resource-Policy
+// same-origin) are evaluated against the DOCUMENT's origin, so inside an
+// opaque-origin frame they would block each game build's own first-party
+// subresources (css/js/fonts/images) and render the vendored games blank.
+// The security boundary for games is the iframe sandbox itself (no same-origin
+// access, no top navigation, no popups escalation) — enforced by
+// online-games.html and pinned by backend/tests/onlineGames.portal.test.js —
+// not a per-document CSP. nginx.conf mirrors this with a dedicated /games/
+// location that re-declares the keep-set of headers without the CSP. Every
+// other header (HSTS, nosniff, frameguard, referrer policy, COOP) stays.
+//
+// The same middleware also disables HTTP revalidation for /games/*. Express
+// answers If-None-Match / If-Modified-Since with a bodyless 304, and an
+// opaque-origin (sandboxed) frame that revalidates a stale entry can end up
+// with no usable body for its own css/js — the game then boots unstyled and
+// dead. Dropping the conditional headers server-side guarantees a full 200
+// body for every game asset regardless of client cache state; the explicit
+// max-age keeps same-origin clients caching normally. (send only sets its own
+// `Cache-Control: public, max-age=0` when the header is unset, so the value
+// below wins.) nginx.conf mirrors this with `etag off` + `if_modified_since
+// off` in its /games/ location.
+app.use((req, res, next) => {
+  if (req.path === '/games' || req.path.startsWith('/games/')) {
+    res.removeHeader('Content-Security-Policy');
+    res.removeHeader('Cross-Origin-Embedder-Policy');
+    res.removeHeader('Cross-Origin-Resource-Policy');
+    delete req.headers['if-none-match'];
+    delete req.headers['if-modified-since'];
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+  }
+  next();
+});
 // CORS — fail-closed when no allowlist is configured.
 // In production (AUTH_REQUIRED=true) an empty CORS_ORIGINS blocks all
 // cross-origin browser requests. In dev/test with AUTH_REQUIRED=false the
