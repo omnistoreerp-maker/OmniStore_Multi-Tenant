@@ -9,9 +9,21 @@
 // request header. There is no second tenant resolver here.
 //
 // HTTP mapping: 400 validation / missing tenant / unresolvable Course or Teacher
-// reference, 404 not found or cross-tenant, 409 duplicate classCode, 500
+// reference, 404 not found or cross-tenant, 409 duplicate classCode, 403
+// OWNERSHIP_DENIED when a LINKED teacher touches a Class they do not teach, 500
 // unexpected only. Stack traces, tenant identifiers, storage details and
 // secrets are never returned.
+//
+// TEACHER OWNERSHIP - `req.teacherActor` is the teacher record linked to the
+// signed-in account (attached server-side by middleware/teacherActor). When it
+// is set:
+//   - listClasses is force-scoped to that teacher (the query `teacherId` is
+//     overridden, never trusted);
+//   - getClass / updateClass / archiveClass refuse anyone else's Class with
+//     403 OWNERSHIP_DENIED;
+//   - createClass stamps the linked teacher as `teacherId`, whatever the body
+//     asked for — the server decides who teaches a class a teacher creates.
+// Unlinked callers (Owner/Admin/Manager role gate, operators) are unchanged.
 
 const { success, error } = require('../utils/apiResponse');
 const { trustedTenantId } = require('../middleware/authorize');
@@ -28,13 +40,18 @@ function _tenantIdOr400(req, res) {
   return String(tenantId);
 }
 
+function _ownership403(res, message) {
+  error(res, message, 403, { code: 'OWNERSHIP_DENIED' });
+}
+
 function listClasses(req, res) {
   try {
     const tenantId = _tenantIdOr400(req, res);
     if (!tenantId) return;
     // Only the declared filters are honoured; any other query key is ignored.
     // `programId` is a derived filter resolved through the Course by the
-    // service - it is never stored on a Class.
+    // service - it is never stored on a Class. A LINKED teacher's list is
+    // force-scoped: the query `teacherId` is overridden by the linked record.
     const filters = {
       status: req.query ? req.query.status : undefined,
       courseId: req.query ? req.query.courseId : undefined,
@@ -42,6 +59,7 @@ function listClasses(req, res) {
       programId: req.query ? req.query.programId : undefined,
       search: req.query ? req.query.search : undefined
     };
+    if (req.teacherActor) filters.teacherId = String(req.teacherActor.id);
     success(res, classService.listClasses({ tenantId }, filters), 'Classes retrieved');
   } catch (err) {
     logger.error('class.listClasses error:', err.message);
@@ -57,6 +75,11 @@ function getClass(req, res) {
     // A record owned by another tenant is reported as absent, never as
     // forbidden, so existence is not leaked across tenants.
     if (!found) return error(res, 'Class not found', 404);
+    // Same-tenant, other-teacher Class: refused as forbidden — a linked
+    // teacher only ever reads the rows they teach.
+    if (req.teacherActor && String(found.teacherId) !== String(req.teacherActor.id)) {
+      return _ownership403(res, 'Teachers may only access their own classes');
+    }
     success(res, found, 'Class retrieved');
   } catch (err) {
     logger.error('class.getClass error:', err.message);
@@ -71,8 +94,12 @@ function createClass(req, res) {
     // The body is passed through untouched; the service whitelists writable
     // fields, rejects server-owned and later-phase fields, resolves the
     // required Course and Teacher references inside the trusted tenant and
-    // stamps the trusted tenantId.
-    const created = classService.createClass({ tenantId }, req.body || {});
+    // stamps the trusted tenantId. A LINKED teacher creating a class has the
+    // `teacherId` stamped by the server: whoever they tried to name is
+    // overridden — a teacher creates their own classes, not someone else's.
+    const body = { ...(req.body || {}) };
+    if (req.teacherActor) body.teacherId = String(req.teacherActor.id);
+    const created = classService.createClass({ tenantId }, body);
     success(res, created, 'Class created', 201);
   } catch (err) {
     if (err && err.conflict === true) {
@@ -90,6 +117,15 @@ function updateClass(req, res) {
   try {
     const tenantId = _tenantIdOr400(req, res);
     if (!tenantId) return;
+    // A LINKED teacher may only correct their own Class: the row is loaded
+    // first so a foreign same-tenant Class is refused BEFORE anything runs.
+    if (req.teacherActor) {
+      const existing = classService.getClass({ tenantId }, req.params.id);
+      if (!existing) return error(res, 'Class not found', 404);
+      if (String(existing.teacherId) !== String(req.teacherActor.id)) {
+        return _ownership403(res, 'Teachers may only edit their own classes');
+      }
+    }
     const updated = classService.updateClass({ tenantId }, req.params.id, req.body || {});
     if (!updated) return error(res, 'Class not found', 404);
     success(res, updated, 'Class updated');
@@ -109,6 +145,15 @@ function archiveClass(req, res) {
   try {
     const tenantId = _tenantIdOr400(req, res);
     if (!tenantId) return;
+    // Archiving is a write on a row: a LINKED teacher archives only their own
+    // Class, with the same load-first 404/403 ordering as the update path.
+    if (req.teacherActor) {
+      const existing = classService.getClass({ tenantId }, req.params.id);
+      if (!existing) return error(res, 'Class not found', 404);
+      if (String(existing.teacherId) !== String(req.teacherActor.id)) {
+        return _ownership403(res, 'Teachers may only archive their own classes');
+      }
+    }
     const archived = classService.archiveClass({ tenantId }, req.params.id);
     if (!archived) return error(res, 'Class not found', 404);
     success(res, archived, 'Class archived');

@@ -1521,6 +1521,150 @@ describe('STU-6 class routes — authorization and tenant isolation', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// P2. CLASS FEE — the operator-entered class price (service + HTTP round-trip)
+// ---------------------------------------------------------------------------
+describe('P2 class fee — operator-entered price, optional and string-typed', () => {
+  let dir;
+  let service;
+  let courses;
+  let programs;
+  let teachers;
+
+  beforeEach(() => {
+    jest.resetModules();
+    dir = makeTempDataDir('cls-fee');
+    process.env.DIGITRONICS_DATA_DIR = dir;
+    service = require('../services/class.service');
+    courses = require('../services/course.service');
+    programs = require('../services/program.service');
+    teachers = require('../services/teacher.service');
+  });
+
+  afterEach(() => {
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}
+  });
+
+  const A = { tenantId: 'cls-a' };
+
+  const chain = () => {
+    const program = programs.createProgram(A, { name: 'Fee Track' });
+    const course = courses.createCourse(A, { programId: program.id, name: 'Fee Course' });
+    const teacher = teachers.createTeacher(A, { firstName: 'Fee', lastName: 'Teacher' });
+    return { courseId: course.id, teacherId: teacher.id };
+  };
+
+  test('a Class created without a fee carries NO fee key — revenue is unclaimable, not 0', () => {
+    const { courseId, teacherId } = chain();
+    const created = service.createClass(A, { courseId, teacherId, name: 'No Fee Class' });
+    expect(Object.prototype.hasOwnProperty.call(created, 'fee')).toBe(false);
+
+    // And the pinned fee-less record shape is unchanged.
+    expect(Object.keys(created).sort()).toEqual([
+      'classCode', 'courseId', 'createdAt', 'description', 'displayName',
+      'id', 'name', 'notes', 'status', 'teacherId', 'tenantId', 'updatedAt'
+    ]);
+  });
+
+  test('fee is writable, validated as a decimal amount, and stored verbatim', () => {
+    const { courseId, teacherId } = chain();
+    expect(Object.prototype.hasOwnProperty.call(service.WRITABLE_FIELDS, 'fee')).toBe(true);
+    expect(service.LATER_PHASE_FIELDS).not.toContain('fee');
+    expect(service.FORBIDDEN_FIELDS).not.toContain('fee');
+
+    const priced = service.createClass(A, { courseId, teacherId, name: 'Priced Class', fee: '1500.50' });
+    expect(priced.fee).toBe('1500.50');
+
+    // 0 is a legitimate price (a free class), and integers are fine.
+    const free = service.createClass(A, {
+      courseId, teacherId, classCode: 'FRC', name: 'Free Class', fee: '0'
+    });
+    expect(free.fee).toBe('0');
+    const whole = service.createClass(A, {
+      courseId, teacherId, classCode: 'WLC', name: 'Whole Class', fee: '9999999'
+    });
+    expect(whole.fee).toBe('9999999');
+  });
+
+  test('malformed fees are refused with a single clear validation error', () => {
+    const { courseId, teacherId } = chain();
+    const bad = (fee) => service.createClass(A, { courseId, teacherId, name: 'Bad Fee', fee });
+    expect(() => bad('abc')).toThrow('fee must be a non-negative amount');
+    expect(() => bad('12.345')).toThrow('fee must be a non-negative amount');
+    expect(() => bad('-5')).toThrow('fee must be a non-negative amount');
+    expect(() => bad('1e3')).toThrow('fee must be a non-negative amount');
+    expect(() => bad('12,50')).toThrow('fee must be a non-negative amount');
+    expect(() => bad(' 150 ')).not.toThrow(); // surrounding whitespace is trimmed
+    // A non-string follows the whitelist's generic rule like every other field.
+    expect(() => service.createClass(A, { courseId, teacherId, name: 'Num Fee', fee: 150 }))
+      .toThrow('fee must be a string');
+  });
+
+  test('update sets, preserves and clears the fee exactly as supplied', () => {
+    const { courseId, teacherId } = chain();
+    const cls = service.createClass(A, { courseId, teacherId, name: 'Fee Mover' });
+
+    // Omitted fee: untouched.
+    expect(service.updateClass(A, cls.id, { notes: 'x' }).fee).toBeUndefined();
+
+    // Set.
+    expect(service.updateClass(A, cls.id, { fee: '250' }).fee).toBe('250');
+
+    // Preserved across an unrelated correction.
+    expect(service.updateClass(A, cls.id, { notes: 'y' }).fee).toBe('250');
+
+    // Explicit empty string CLEARS the key entirely (fee-less shape restored).
+    const cleared = service.updateClass(A, cls.id, { fee: '' });
+    expect(Object.prototype.hasOwnProperty.call(cleared, 'fee')).toBe(false);
+    const stored = service.getClass(A, cls.id);
+    expect(Object.prototype.hasOwnProperty.call(stored, 'fee')).toBe(false);
+  });
+
+  test('HTTP: fee rides the real create and update routes and is cleared by ""', async () => {
+    const feeDir = makeTempDataDir('cls-fee-http');
+    seed(feeDir, 'companies', companies);
+    seed(feeDir, 'users', { users: userRecords(bcrypt.hashSync('Pass#123', 10)) });
+    seed(feeDir, 'educationPrograms', {
+      programs: [{ id: 'prg-1', tenantId: 'cls-a', name: 'Fee Track', displayName: 'Fee Track', status: 'active', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }]
+    });
+    seed(feeDir, 'educationCourses', {
+      courses: [{ id: 'crs-1', tenantId: 'cls-a', programId: 'prg-1', name: 'Fee Course', displayName: 'Fee Course', status: 'active', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }]
+    });
+    seed(feeDir, 'educationTeachers', {
+      teachers: [{ id: 'tch-1', tenantId: 'cls-a', teacherCode: 'FCT', firstName: 'Fee', lastName: 'Teacher', displayName: 'Fee Teacher', status: 'active', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }]
+    });
+    process.env.ENABLE_TENANT_CARRY = 'true';
+    const feeApp = startServer(feeDir, { AUTH_REQUIRED: 'true' }).app;
+    const feeJwt = require('../utils/jwt');
+    const owner = feeJwt.signAccessToken({ id: 'u-owner', username: 'clsOwner', role: 'Owner', tenantId: 'cls-a' });
+    try {
+      const created = await request(feeApp).post('/api/v1/tenant/education/classes')
+        .set('Authorization', `Bearer ${owner}`)
+        .send({ courseId: 'crs-1', teacherId: 'tch-1', name: 'HTTP Fee Class', fee: '375.25' });
+      expect(created.statusCode).toBe(201);
+      expect(created.body.data.fee).toBe('375.25');
+      const id = created.body.data.id;
+
+      const bad = await request(feeApp).post('/api/v1/tenant/education/classes')
+        .set('Authorization', `Bearer ${owner}`)
+        .send({ courseId: 'crs-1', teacherId: 'tch-1', name: 'Bad', fee: 'ten' });
+      expect(bad.statusCode).toBe(400);
+      expect(bad.body.details.details).toEqual(expect.arrayContaining([
+        'fee must be a non-negative amount with up to 2 decimals (e.g. 1500.50)'
+      ]));
+
+      const cleared = await request(feeApp).put(`/api/v1/tenant/education/classes/${id}`)
+        .set('Authorization', `Bearer ${owner}`)
+        .send({ fee: '' });
+      expect(cleared.statusCode).toBe(200);
+      expect(Object.prototype.hasOwnProperty.call(cleared.body.data, 'fee')).toBe(false);
+    } finally {
+      try { fs.rmSync(feeDir, { recursive: true, force: true }); } catch (_) {}
+      process.env.ENABLE_TENANT_CARRY = ORIGINAL_ENV.CARRY;
+    }
+  });
+});
+
 // Restore env so other suites are unaffected.
 afterAll(() => {
   const mapping = {

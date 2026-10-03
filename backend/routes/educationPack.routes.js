@@ -20,11 +20,12 @@
 // It 401s when `req.user` is absent and 403s with code PERMISSION_DENIED when
 // the authorization engine refuses the permission for the trusted tenant.
 //
-// KNOWN BLOCKER (Master-owned, NOT worked around here):
-//   `education.pack.view` / `education.pack.edit` are not yet registered in
-//   backend/permissions/registry.js. Unknown permissions fail closed, so until
-//   Master adds them only Owner/Admin can reach this surface (they bypass the
-//   registry). That is the safe direction to fail.
+// PERMISSIONS (P1-registered): `education.pack.view` / `education.pack.edit`
+// ARE registered in backend/permissions/registry.js. Strict `requirePermission`
+// enforces them per grant; unknown permissions still fail closed; this file
+// does NOT bypass the gate and does NOT weaken the middleware. The global
+// scopedWriteRoleGuard (Owner/Admin/Manager writes) applies to these routes
+// too.
 
 const router = require('express').Router();
 const ctrl = require('../controllers/educationPack.controller');

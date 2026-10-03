@@ -56,6 +56,13 @@
 // enrollment, attendance, grading, exam, scheduling, billing, payment, tuition,
 // salary or payroll field. `capacity` is DEFERRED to the Enrollment phase, and
 // dayOfWeek / startTime / endTime / room / recurrence belong to Scheduling.
+// The ONE financial field is `fee` (P2): the operator-entered price of the
+// class itself, a decimal amount stored as a plain string (e.g. '1500.50') and
+// OPTIONAL — a Class created without it has no fee key at all, so revenue is
+// simply not claimable for that class rather than silently zero. It is the
+// class's own price only: no payment, transaction, invoice or receipt concept
+// exists here, and teacher revenue is COMPUTED elsewhere as fee x active
+// enrollments of that teacher's classes.
 // Archiving a Class never cascades: Students, Teachers, Centers, Programs and
 // Courses are only ever READ here, never written.
 
@@ -72,7 +79,10 @@ const STORE_KEY = 'educationClasses';
 const CLASS_STATUSES = Object.freeze(['active', 'inactive', 'archived']);
 
 // EXPLICIT WRITE WHITELIST with per-key kinds. `courseId` and `teacherId` are
-// REQUIRED; everything else is optional string metadata.
+// REQUIRED; everything else is optional string metadata. `fee` (P2) is the
+// operator-entered class price: a non-negative decimal with up to two decimals
+// (validated below), or '' to clear it — a cleared/absent fee leaves the key
+// OUT of the stored record entirely.
 const WRITABLE_FIELDS = Object.freeze({
   courseId: 'string',
   teacherId: 'string',
@@ -81,7 +91,8 @@ const WRITABLE_FIELDS = Object.freeze({
   displayName: 'string',
   description: 'string',
   status: 'string',
-  notes: 'string'
+  notes: 'string',
+  fee: 'string'
 });
 
 // Server-owned fields a client may never set.
@@ -259,6 +270,14 @@ function _validateClass(data, forCreate) {
     }
     if (value.length > MAX_STRING_LEN) {
       errors.push(key + ' must be at most ' + MAX_STRING_LEN + ' characters');
+    }
+  }
+
+  // `fee` is either a non-negative decimal amount (up to two decimals) or the
+  // empty string, which explicitly means "no fee" and clears the key.
+  if (typeof data.fee === 'string' && data.fee.trim() !== '') {
+    if (!/^\d{1,7}(\.\d{1,2})?$/.test(data.fee.trim())) {
+      errors.push('fee must be a non-negative amount with up to 2 decimals (e.g. 1500.50)');
     }
   }
 
@@ -465,6 +484,12 @@ function createClass(tenantContext, input) {
     createdAt: now,
     updatedAt: now
   };
+  // `fee` exists only when actually supplied and non-empty: a Class without a
+  // price carries NO fee key (so the pinned record shape for a fee-less create
+  // is unchanged), and revenue for it is unclaimable rather than 0.
+  if (typeof clean.fee === 'string' && clean.fee !== '') {
+    record.fee = clean.fee;
+  }
   classes.push(record);
   _writeStore({ ...doc, classes });
   return { ...record };
@@ -512,6 +537,13 @@ function updateClass(tenantContext, id, input) {
     if (String(base.displayName || '').trim() === String(base.name || '').trim()) {
       next.displayName = String(merged.name || '').trim();
     }
+  }
+  // An explicitly supplied empty fee CLEARS it: the key is deleted, returning
+  // the record to the fee-less shape it had before any price was set. A fee
+  // that is simply Omitted is never touched (it lives in `merged` only when
+  // the client actually sent it).
+  if (Object.prototype.hasOwnProperty.call(clean, 'fee') && clean.fee === '') {
+    delete next.fee;
   }
   classes[idx] = next;
   _writeStore({ ...doc, classes });
