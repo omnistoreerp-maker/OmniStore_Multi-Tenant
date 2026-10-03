@@ -2816,7 +2816,7 @@
         var tr = document.createElement('tr');
         tr.innerHTML = '<td>' + text(refLabel('classes', session.classId)) + '</td>' +
           '<td>' + code(session.scheduledDate) + '</td>' +
-          '<td>' + code(String(session.startTime || '') + ' – ' + String(r.endTime || '')) + '</td>' +
+          '<td>' + code(String(session.startTime || '') + ' – ' + String(session.endTime || '')) + '</td>' +
           '<td>' + text(session.notes) + '</td>';
         tbody.appendChild(tr);
       });

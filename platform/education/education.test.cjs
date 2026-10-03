@@ -837,6 +837,48 @@ check('stale responses from a previous page are dropped', () => {
   assert(count(RUNTIME, "state.page !== 'student'") === 1, 'the student guard drifted');
 });
 
+check('a renderer callback only reads the row variable it actually receives', () => {
+  // Regression: the teacher Sessions table once read `r.endTime` inside a
+  // `sessions.forEach(function (session) {...})`, where no `r` is bound. That
+  // is a ReferenceError thrown while painting, which the catch below turns
+  // into a generic error banner — so the table looked "broken" rather than
+  // failing any route, vocabulary or parity check. `r` is the conventional row
+  // parameter of the cell/csv callbacks; the callback may open on the same
+  // line or within the two lines that wrap it.
+  const lines = stripComments(RUNTIME).split('\n');
+  const offenders = [];
+  lines.forEach((line, i) => {
+    if (!/(?<![a-zA-Z0-9_])r\.[a-zA-Z]/.test(line)) return;
+    const bound = [0, 1, 2].some((back) => {
+      const prev = lines[i - back];
+      return prev !== undefined && /function\s*\(\s*r\s*\)/.test(prev);
+    });
+    if (!bound) offenders.push('L' + (i + 1) + ': ' + line.trim());
+  });
+  assertEqual(offenders.length, 0,
+    'a row variable `r` is read outside any function (r) callback, which throws '
+    + 'at paint time: ' + offenders.join(' | '));
+});
+
+check('the teacher Sessions table reads only the session it was given', () => {
+  // Three sites iterate sessions: the day grouping, the calendar's day list
+  // and the teacher Sessions table. Only the table paints <tr> rows, so the
+  // table is isolated by the row append rather than by the first marker.
+  const marker = 'sessions.forEach(function (session)';
+  const tableBlocks = [];
+  let at = RUNTIME.indexOf(marker);
+  while (at !== -1) {
+    const block = RUNTIME.slice(at, RUNTIME.indexOf('});', at) + 3);
+    if (block.includes('tbody.appendChild(tr)')) tableBlocks.push(block);
+    at = RUNTIME.indexOf(marker, at + marker.length);
+  }
+  assertEqual(tableBlocks.length, 1, 'expected exactly one table-row session renderer');
+  const block = tableBlocks[0];
+  assert(block.includes('session.startTime'), 'the Sessions table no longer renders the start time');
+  assert(block.includes('session.endTime'), 'the Sessions table never renders the end time');
+  assert(!/(?<![a-zA-Z0-9_])r\./.test(block), 'the Sessions table reads the out-of-scope row variable `r`');
+});
+
 // ---------------------------------------------------------------------------
 // 11. EDUCATION CORE+ — the operational layer
 // ---------------------------------------------------------------------------
