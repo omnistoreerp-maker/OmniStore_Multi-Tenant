@@ -159,6 +159,7 @@ const internalChangeCenterRoutes = require('./routes/internalChangeCenter.routes
 const platformIntegrationRoutes = require('./routes/platformIntegration.routes');
 const tenantOnboardingRoutes = require('./routes/tenantOnboarding.routes');
 const studentServicesPackRoutes = require('./routes/studentServicesPack.routes');
+const educationCoreRoutes = require('./routes/educationCore.routes');
 const shiftManagementRoutes = require('./routes/shiftManagement.routes');
 const onlineStoreRoutes = require('./routes/onlineStore.routes');
 const loyaltyRoutes = require('./routes/loyalty.routes');
@@ -272,6 +273,7 @@ app.use('/api/v1/reports', validateResource('reports'), reportsRoutes);
 app.use('/api/v1/users', validateResource('users'), usersRoutes);
 app.use('/api/v1/loyalty', validateResource('loyalty'), loyaltyRoutes);
 app.use('/api/v1/tenant/student-services', studentServicesPackRoutes);
+app.use('/api/v1/tenant/education', educationCoreRoutes);
 app.use('/api/v1/tenant/shifts', shiftManagementRoutes);
 app.use('/api/v1/tenant/online-store', onlineStoreRoutes);
 
