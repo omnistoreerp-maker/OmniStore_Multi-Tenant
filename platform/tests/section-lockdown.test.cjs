@@ -649,7 +649,10 @@ check('working-tree diff touches only intended platform files', () => {
   'backend/services/platformControlCenter.service.js',
     // Audit header-style alias sanitization cycle: normalized-key matcher in
     // audit.service.js plus the focused regression coverage for it.
-    'backend/tests/controlCenterSecurityFixes.test.js'
+    'backend/tests/controlCenterSecurityFixes.test.js',
+    // Loyalty phase2c TZ-defect fix: test-only local-calendar date helpers
+    // (business logic in services/loyalty.service.js is untouched).
+    'backend/tests/loyalty.phase2c.test.js'
   ]);
   const allowedUntracked = new Set([
   'backend/tests/controlCenterSecurityFixes.test.js',
@@ -718,7 +721,8 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/services/platformAdmin.service.js',
     'backend/services/platformControlCenter.service.js',
     'backend/tests/controlCenterSecurity.test.js',
-    'backend/tests/controlCenterSecurityFixes.test.js'
+    'backend/tests/controlCenterSecurityFixes.test.js',
+    'backend/tests/loyalty.phase2c.test.js'
   ]);
   // Negative boundaries: these must NEVER appear in a working-tree diff or be added.
   const FORBIDDEN_NEVER_TOUCHED = ['.env','nginx.conf','sw.js','package.json','package-lock.json','platform/monetag.js'];
