@@ -663,7 +663,33 @@ check('working-tree diff touches only intended platform files', () => {
     // Service surfaces visibility: education group + module registration for
     // the student/teacher/center entry points (real existing routes only).
     'services/modulePlatform/moduleRegistry.js',
-    'services/modulePlatform/navigationBuilder.js'
+    'services/modulePlatform/navigationBuilder.js',
+    // P2 Teacher portal: bookings + ratings entities, teacher link-user
+    // identity, teacher-actor ownership scoping for classes/scheduling/
+    // enrollments, the 26-permission registry, route header refresh and the
+    // focused suites for all of it.
+    'backend/controllers/class.controller.js',
+    'backend/controllers/enrollment.controller.js',
+    'backend/controllers/scheduling.controller.js',
+    'backend/controllers/teacher.controller.js',
+    'backend/middleware/authorize.js',
+    'backend/permissions/registry.js',
+    'backend/routes/attendance.routes.js',
+    'backend/routes/center.routes.js',
+    'backend/routes/class.routes.js',
+    'backend/routes/course.routes.js',
+    'backend/routes/educationPack.routes.js',
+    'backend/routes/enrollment.routes.js',
+    'backend/routes/grading.routes.js',
+    'backend/routes/program.routes.js',
+    'backend/routes/scheduling.routes.js',
+    'backend/routes/student.routes.js',
+    'backend/routes/teacher.routes.js',
+    'backend/services/class.service.js',
+    'backend/services/teacher.service.js',
+    'backend/tests/class.test.js',
+    'backend/tests/permissionRegistry.test.js',
+    'backend/tests/platformSections.education.test.js'
   ]);
   const allowedUntracked = new Set([
   'backend/tests/controlCenterSecurityFixes.test.js',
@@ -710,7 +736,19 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/tests/platformAdminSeed.test.js',
     // Service surfaces visibility: entry-point + permission gating test for
     // student/teacher/center/master nav routes.
-    'backend/tests/frontendServiceNavigation.test.js'
+    'backend/tests/frontendServiceNavigation.test.js',
+    // P2 Teacher portal: bookings + ratings entities, the linked-teacher actor
+    // middleware and their focused suites.
+    'backend/controllers/booking.controller.js',
+    'backend/controllers/rating.controller.js',
+    'backend/middleware/teacherActor.js',
+    'backend/routes/booking.routes.js',
+    'backend/routes/rating.routes.js',
+    'backend/services/booking.service.js',
+    'backend/services/rating.service.js',
+    'backend/tests/booking.test.js',
+    'backend/tests/rating.test.js',
+    'backend/tests/teacherScope.test.js'
   ]);
   const git = (args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' }).stdout.split('\n').map((s) => s.trim()).filter(Boolean);
   const modified = git(['diff', '--name-only', 'HEAD']);
@@ -740,7 +778,32 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/tests/controlCenterSecurityFixes.test.js',
     'backend/tests/loyalty.phase2c.test.js',
     'backend/tests/platformAdminSeed.test.js',
-    'backend/tests/frontendServiceNavigation.test.js'
+    'backend/tests/frontendServiceNavigation.test.js',
+    // P2 Teacher portal: bookings + ratings, teacher link-user identity,
+    // teacher-actor ownership scoping, registry grants, route header refresh
+    // and the focused suites for all of it.
+    'backend/controllers/class.controller.js',
+    'backend/controllers/enrollment.controller.js',
+    'backend/controllers/scheduling.controller.js',
+    'backend/controllers/teacher.controller.js',
+    'backend/middleware/authorize.js',
+    'backend/permissions/registry.js',
+    'backend/routes/attendance.routes.js',
+    'backend/routes/center.routes.js',
+    'backend/routes/class.routes.js',
+    'backend/routes/course.routes.js',
+    'backend/routes/educationPack.routes.js',
+    'backend/routes/enrollment.routes.js',
+    'backend/routes/grading.routes.js',
+    'backend/routes/program.routes.js',
+    'backend/routes/scheduling.routes.js',
+    'backend/routes/student.routes.js',
+    'backend/routes/teacher.routes.js',
+    'backend/services/class.service.js',
+    'backend/services/teacher.service.js',
+    'backend/tests/class.test.js',
+    'backend/tests/permissionRegistry.test.js',
+    'backend/tests/platformSections.education.test.js'
   ]);
   // Negative boundaries: these must NEVER appear in a working-tree diff or be added.
   const FORBIDDEN_NEVER_TOUCHED = ['.env','nginx.conf','sw.js','package.json','package-lock.json','platform/monetag.js'];
