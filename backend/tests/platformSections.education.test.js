@@ -2,7 +2,7 @@
 
 // platformSections.education.test.js — Education discoverability integration.
 //
-// Education landed dark in 754b119 and its 22 education.* permissions were
+// Education landed dark in 754b119 and its 26 education.* permissions were
 // registered in 372815a. This suite pins the discoverability layer that turns
 // it into a real, findable platform service WITHOUT granting any access:
 //
@@ -21,7 +21,7 @@
 //      real Arabic, there are no duplicate or undefined labels, and the
 //      OmniLang dictionary carries the Arabic literal.
 //   5. BOUNDARY — discoverability grants nothing: the Education API still
-//      rejects anonymous access, still enforces its 22 permissions, and tenant
+//      rejects anonymous access, still enforces its 26 permissions, and tenant
 //      A still cannot see tenant B.
 //
 // Nothing here writes to backend/data: every scenario runs against its own
@@ -452,8 +452,8 @@ describe('Education discoverability grants no access', () => {
     gateServer = null;
   });
 
-  test('the 22 education permissions are still registered and enforceable', () => {
-    expect(EDUCATION_PERMISSIONS).toHaveLength(22);
+  test('the 26 education permissions are still registered and enforceable', () => {
+    expect(EDUCATION_PERMISSIONS).toHaveLength(26);
     for (const permission of EDUCATION_PERMISSIONS) {
       expect(registryKnows(permission)).toBe(true);
     }
@@ -483,6 +483,8 @@ describe('Education discoverability grants no access', () => {
     '/api/v1/tenant/education/attendance',
     '/api/v1/tenant/education/scheduling',
     '/api/v1/tenant/education/grading',
+    '/api/v1/tenant/education/bookings',
+    '/api/v1/tenant/education/ratings',
     '/api/v1/tenant/education/pack'
   ];
 
@@ -498,6 +500,8 @@ describe('Education discoverability grants no access', () => {
       ['post', '/api/v1/tenant/education/students', { firstName: 'A', lastName: 'B' }],
       ['post', '/api/v1/tenant/education/teachers', { firstName: 'A', lastName: 'B' }],
       ['post', '/api/v1/tenant/education/centers', { name: 'A' }],
+      ['post', '/api/v1/tenant/education/bookings', { teacherId: 'x', studentId: 'y' }],
+      ['post', '/api/v1/tenant/education/ratings', { teacherId: 'x', score: 5 }],
       ['post', '/api/v1/tenant/education/attendance/bulk', { attendanceDate: '2026-10-02', entries: [] }]
     ];
     for (const [method, p, body] of writes) {
