@@ -23,6 +23,10 @@
     installments: { title: '📆 التقسيط', icon: '📆', scope: 'tenant' },
     marketplace: { title: '🏪 المتجر والإضافات', icon: '🏪', scope: 'tenant' },
     entertainment: { title: '🎮 خدمات إضافية', icon: '🎮', scope: 'tenant' },
+    // Education & Student Services: the tenant-scope home of the four service
+    // surfaces that live in their own documents (student.html and the
+    // Education module). Master Control stays in the master scope below.
+    education: { title: '🎓 التعليم وخدمات الطلاب', icon: '🎓', scope: 'tenant' },
     internal: { title: '🧪 مركز المطورين والاختبار', icon: '🧪', scope: 'internal' },
     master_home: { title: '🛰️ لوحة تحكم المنصة', icon: '🛰️', scope: 'master' },
     master_companies: { title: '🏢 الشركات', icon: '🏢', scope: 'master' },

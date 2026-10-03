@@ -659,7 +659,11 @@ check('working-tree diff touches only intended platform files', () => {
     'platform/education/education.test.cjs',
     // Master Control visibility: dev/test bootstrap seed for the platform
     // admin store (production stores are never written) plus the chain test.
-    'backend/tests/platformAdminSeed.test.js'
+    'backend/tests/platformAdminSeed.test.js',
+    // Service surfaces visibility: education group + module registration for
+    // the student/teacher/center entry points (real existing routes only).
+    'services/modulePlatform/moduleRegistry.js',
+    'services/modulePlatform/navigationBuilder.js'
   ]);
   const allowedUntracked = new Set([
   'backend/tests/controlCenterSecurityFixes.test.js',
@@ -703,7 +707,10 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/services/tiktokDisplayApi.service.js',
     'backend/tests/tiktokReels.test.js',
     // Master Control visibility: admin-seed -> role -> access chain test.
-    'backend/tests/platformAdminSeed.test.js'
+    'backend/tests/platformAdminSeed.test.js',
+    // Service surfaces visibility: entry-point + permission gating test for
+    // student/teacher/center/master nav routes.
+    'backend/tests/frontendServiceNavigation.test.js'
   ]);
   const git = (args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' }).stdout.split('\n').map((s) => s.trim()).filter(Boolean);
   const modified = git(['diff', '--name-only', 'HEAD']);
@@ -732,7 +739,8 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/tests/controlCenterSecurity.test.js',
     'backend/tests/controlCenterSecurityFixes.test.js',
     'backend/tests/loyalty.phase2c.test.js',
-    'backend/tests/platformAdminSeed.test.js'
+    'backend/tests/platformAdminSeed.test.js',
+    'backend/tests/frontendServiceNavigation.test.js'
   ]);
   // Negative boundaries: these must NEVER appear in a working-tree diff or be added.
   const FORBIDDEN_NEVER_TOUCHED = ['.env','nginx.conf','sw.js','package.json','package-lock.json','platform/monetag.js'];
