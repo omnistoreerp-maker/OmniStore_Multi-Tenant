@@ -11,13 +11,14 @@
 // short-circuits to next() whenever AUTH_REQUIRED is false, which defaults to
 // false, so it would make the whole Student surface unauthenticated.
 //
-// KNOWN BLOCKER (Master-owned, NOT worked around here):
-//   `education.students.view` / `education.students.edit` are not yet
-//   registered in backend/permissions/registry.js. Unknown permissions fail
-//   closed, so only Owner/Admin can reach this surface until Master registers
-//   them. Also note the global scopedWriteRoleGuard('Owner','Admin','Manager')
-//   intercepts /api/v1/tenant/education/* writes before these route
-//   permissions are evaluated; that interaction is documented, not altered.
+// `education.students.view` / `education.students.edit` are registered in
+// backend/permissions/registry.js; an unknown permission still fails closed.
+// The global scopedWriteRoleGuard('Owner','Admin','Manager') applies to these
+// writes as before, with ONE identity-based exception: a caller whose account
+// an Owner/Admin has LINKED to a teacher row (req.teacherActor, resolved by
+// middleware/teacherActor before that gate) passes it on the education
+// subtree — see the guard's own comment in backend/middleware/authorize.js.
+// The route permission still decides access either way.
 //
 // Teacher, Guardian, Center, Program, Course, Class, Enrollment, Attendance,
 // schedule, grade and billing entities are deliberately NOT declared here.

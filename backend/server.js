@@ -15,6 +15,7 @@ const fileStore = require('./utils/fileStore');
 const { notFound, serverError, requestPerfLogger } = require('./middleware/errorHandler');
 const { authMiddleware, requireAuth } = require('./middleware/auth');
 const { scopedWriteRoleGuard } = require('./middleware/authorize');
+const { attachTeacherActor } = require('./middleware/teacherActor');
 const { sanitizeBody, jsonParseErrorHandler, apiRateLimiter } = require('./middleware/security');
 const { validateResource } = require('./middleware/validate');
 const { configurePassport } = require('./middleware/passport');
@@ -197,9 +198,10 @@ const tenantOnboardingRoutes = require('./routes/tenantOnboarding.routes');
 const tenantPaymentsRoutes = require('./routes/tenantPayments.routes');
 const tenantNotificationsRoutes = require('./routes/tenantNotifications.routes');
 const studentServicesPackRoutes = require('./routes/studentServicesPack.routes');
-// Education module (Device 2), STU-1 to STU-10. Eleven routers on one additive
-// prefix that no other router claims; every one declares only literal paths,
-// so no Education router can shadow another or be shadowed.
+// Education module (Device 2), STU-1 to STU-10 plus the P2 booking and
+// rating surfaces. Thirteen routers on one additive prefix that no other
+// router claims; every one declares only literal paths, so no Education router
+// can shadow another or be shadowed.
 const educationPackRoutes = require('./routes/educationPack.routes');
 const studentRoutes = require('./routes/student.routes');
 const teacherRoutes = require('./routes/teacher.routes');
@@ -211,6 +213,8 @@ const enrollmentRoutes = require('./routes/enrollment.routes');
 const attendanceRoutes = require('./routes/attendance.routes');
 const schedulingRoutes = require('./routes/scheduling.routes');
 const gradingRoutes = require('./routes/grading.routes');
+const bookingRoutes = require('./routes/booking.routes');
+const ratingRoutes = require('./routes/rating.routes');
 const shiftManagementRoutes = require('./routes/shiftManagement.routes');
 const onlineStoreRoutes = require('./routes/onlineStore.routes');
 const loyaltyRoutes = require('./routes/loyalty.routes');
@@ -334,6 +338,16 @@ app.get('/api-docs.json', authGate, (req, res) => {
   res.send(swaggerSpec);
 });
 
+// P2 Teacher portal — resolve the linked-teacher identity (if any) for every
+// Education request BEFORE authentication and the global write gate, so the
+// gate and every ownership rule downstream see the same actor. It never
+// rejects: `req.teacherActor` is the resolved teacher record or null (no
+// signed-in user, no trusted tenant, no link). Mounted outside the
+// AUTH_REQUIRED block on purpose — the controllers must scope a linked
+// teacher's writes even in legacy open mode, and for anonymous traffic the
+// resolution is a no-op.
+app.use('/api/v1/tenant/education', attachTeacherActor);
+
 // Optional route protection (AUTH_REQUIRED=true).
 // Default is OFF: every route stays open exactly as before (legacy behavior).
 if (config.authRequired) {
@@ -363,11 +377,14 @@ app.use('/api/v1/reports', validateResource('reports'), reportsRoutes);
 app.use('/api/v1/users', validateResource('users'), usersRoutes);
 app.use('/api/v1/loyalty', validateResource('loyalty'), loyaltyRoutes);
 app.use('/api/v1/tenant/student-services', studentServicesPackRoutes);
-// Education module. Additive and live: the 22 education.* permissions are
+// Education module. Additive and live: the 26 education.* permissions are
 // registered in backend/permissions/registry.js and the section is published in
 // the Platform catalog, navigation and section lockdown policy. Access is still
 // enforced per route by requirePermission, so mounting here grants nothing on
 // its own — an operator without an education.* grant gets 403 from the route.
+// P2 Teacher portal — attachTeacherActor is mounted EARLIER (just above the
+// auth block) so the resolved teacher identity exists before requireAuth and
+// the global write gate read it; see middleware/teacherActor.js.
 app.use('/api/v1/tenant/education', educationPackRoutes);
 app.use('/api/v1/tenant/education', studentRoutes);
 app.use('/api/v1/tenant/education', teacherRoutes);
@@ -379,6 +396,8 @@ app.use('/api/v1/tenant/education', enrollmentRoutes);
 app.use('/api/v1/tenant/education', attendanceRoutes);
 app.use('/api/v1/tenant/education', schedulingRoutes);
 app.use('/api/v1/tenant/education', gradingRoutes);
+app.use('/api/v1/tenant/education', bookingRoutes);
+app.use('/api/v1/tenant/education', ratingRoutes);
 app.use('/api/v1/tenant/shifts', shiftManagementRoutes);
 app.use('/api/v1/tenant/online-store', onlineStoreRoutes);
 
