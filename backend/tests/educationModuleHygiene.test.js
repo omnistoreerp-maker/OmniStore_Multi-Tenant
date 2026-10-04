@@ -93,6 +93,73 @@ describe('the dead educationCore module stays gone', () => {
   });
 });
 
+// The legacy Education Center surface was a SECOND frontend bound to the
+// educationCore routes. `education.html` was reachable from the business.html
+// Education card, and `platform/education.js` called six routes that only
+// educationCore served: GET /dashboard, GET /courses/:courseId/lessons,
+// PATCH /lessons/:id, PATCH /enrollments/:id/status,
+// GET /enrollments/:id/progress and POST /progress/lesson. Every one of those
+// is now 404, so the page was a dead end. Both files are deleted and the card
+// routes to the canonical entry instead.
+describe('the legacy Education Center surface stays gone', () => {
+  test('education.html is not in the tree', () => {
+    expect(exists('education.html')).toBe(false);
+  });
+
+  test('platform/education.js is not in the tree', () => {
+    expect(exists('platform/education.js')).toBe(false);
+  });
+
+  test('the canonical Education surface is intact', () => {
+    for (const rel of ['education/index.html', 'platform/education/education.js',
+      'platform/education/education.css', 'platform/education/education.dict.js']) {
+      expect(exists(rel)).toBe(true);
+    }
+    expect(read('education/index.html')).toContain('../platform/education/education.js');
+  });
+
+  test('the business.html Education card routes to the canonical entry', () => {
+    const business = read('business.html');
+    expect(business).toMatch(/window\.location\.href='\/education\/index\.html'/);
+    expect(business).not.toMatch(/location\.href='education\.html'/);
+  });
+
+  test('no html page loads the removed client', () => {
+    for (const f of ['business.html', 'platform.html', 'index.html']) {
+      expect(read(f)).not.toMatch(/platform\/education\.js/);
+    }
+  });
+
+  test('no live frontend calls a route only educationCore served', () => {
+    // Every shipped frontend runtime, scanned for the deleted route shapes.
+    const runtimes = ['platform/education/education.js', 'education/index.html'];
+    const ONLY_EDUCATIONCORE = [
+      /api(?:Call)?\(\s*'GET',\s*'\/dashboard'/,
+      /api(?:Call)?\(\s*'GET',\s*'\/courses\/'\s*\+/,          // /courses/:id/lessons
+      /api(?:Call)?\(\s*'(?:PATCH|DELETE)'\s*,\s*'\/lessons\//,
+      /api(?:Call)?\(\s*'PATCH'\s*,\s*'\/enrollments\/'\s*\+[^+]*\/status/,
+      /api(?:Call)?\(\s*'POST'\s*,\s*'\/progress\/lesson'/
+    ];
+    for (const rel of runtimes) {
+      const src = read(rel);
+      for (const re of ONLY_EDUCATIONCORE) expect(src).not.toMatch(re);
+    }
+  });
+
+  test('the one canonical /enrollments/:id/progress call is failure-tolerant', () => {
+    // The canonical Student workspace still asks for progress, but wraps it so a
+    // 404 degrades to null instead of breaking the workspace. Pin that so the
+    // call cannot become load-bearing while the route stays absent.
+    const src = read('platform/education/education.js');
+    const call = src.match(/api\('GET',\s*'\/enrollments\/'[^\n]*?\/progress'\)\.catch\(/);
+    expect(call).toBeTruthy();
+  });
+
+  test('no lesson entity is fabricated by the progress endpoint', () => {
+    expect(read('backend/controllers/student.controller.js')).toMatch(/lessons:\s*\{\s*\/\/[\s\S]*?total:\s*0/);
+  });
+});
+
 describe('every live Education runtime store is gitignored', () => {
   // Each entry is (store file, service that writes it). The service must be
   // reachable from a mounted router, otherwise the store is dead weight.

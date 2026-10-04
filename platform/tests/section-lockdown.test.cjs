@@ -793,7 +793,17 @@ check('working-tree diff touches only intended platform files', () => {
       'backend/tests/educationCore.service.test.js',
       'backend/tests/educationCore.tenantIsolation.test.js',
       'backend/tests/educationModuleHygiene.test.js',
-      '.gitignore'
+      '.gitignore',
+      // Legacy Education Center surface (option A): `education.html` +
+      // `platform/education.js` were a SECOND frontend bound to the educationCore
+      // routes, reachable from the business.html Education card. All six routes it
+      // called are now 404, so both files are DELETED and the card is repointed at
+      // the canonical `/education/index.html`. educationModuleHygiene.test.js pins
+      // the navigation and asserts no live frontend calls a deleted route.
+      'education.html',
+      'platform/education.js',
+      'business.html',
+      'docs/EDUCATION_PRODUCTS_AUDIT.md'
     ]);
   const allowedUntracked = new Set([
   'backend/tests/controlCenterSecurityFixes.test.js',
