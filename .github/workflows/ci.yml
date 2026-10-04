@@ -106,3 +106,68 @@ jobs:
 
       - name: Build (vite build)
         run: npm run build
+
+  # License / dependency gate for the Online Games roster. Pure node + git:
+  # no install step, so a compromised or half-installed dependency tree can
+  # never make this gate pass by accident. Fails the build if a blocked game
+  # (survivors, holdtheline, snakesurvivors), a blocked asset byte-hash or an
+  # unlicensed Ellaz UI font ever enters the tree.
+  online-games-gate:
+    name: Online Games license/dependency gate (46 SAFE / 3 BLOCKED)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Roster + licence + vendoring-scope gate
+        run: node online-games/roster-gate.test.cjs
+
+      # Search, roster contract, the shipped pages, the sandbox/CSP and the
+      # no-network promise of the frame. Pure node — no install step either.
+      # The checks that need `runtime/dist/` skip here (it is gitignored) and
+      # run in full in the online-games-runtime job below, which builds it.
+      - name: Section tests (roster, search, surface, runtime)
+        run: >
+          node --test
+          online-games/tests/roster.test.cjs
+          online-games/tests/search.test.cjs
+          online-games/tests/surface.test.cjs
+          online-games/tests/runtime.test.cjs
+
+  # The frame the games origin serves: typecheck it, build it, then run the
+  # section tests again with `dist/` on disk so the emitted document, its CSP
+  # and its network surface are actually inspected rather than skipped.
+  online-games-runtime:
+    name: Online Games runtime (tsc, vite build, dist tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: online-games/runtime
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: online-games/runtime/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck (tsc --noEmit)
+        run: npm run typecheck
+
+      - name: Build (vite build)
+        run: npm run build
+
+      - name: Section tests with dist/ present
+        run: >
+          node --test
+          ../tests/roster.test.cjs
+          ../tests/search.test.cjs
+          ../tests/surface.test.cjs
+          ../tests/runtime.test.cjs

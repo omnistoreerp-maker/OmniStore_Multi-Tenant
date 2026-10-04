@@ -1,0 +1,7 @@
+{
+  "name": "omnistore-online-games",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Static Arabic-first games section. `type: module` matches the `<script type=\"module\">` tags in index.html, game.html and play.html, so Node imports js/*.js exactly the way the browser does and the section's own tests can exercise the real modules instead of a copy of them."
+}

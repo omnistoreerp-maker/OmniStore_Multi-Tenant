@@ -1,0 +1,295 @@
+{
+  "_": "Hand-authored OmniStore content for the 46 SAFE Ellaz games. Ellaz ships prose in en/he/es/fr/sv only (PAGE_LOCALES), so every Arabic string in the online-games section comes from this file. build-roster.mjs merges it with ROSTER_GATE.safeIds and each game's own meta.ts; nothing here can introduce a game, change a category, or override documented metadata.",
+  "categories": {
+    "learn": {
+      "labelAr": "ألعاب تعليمية",
+      "note": "Ellaz category `learn`"
+    },
+    "think": {
+      "labelAr": "ألعاب ذكاء",
+      "note": "Ellaz category `think`"
+    },
+    "kids": {
+      "labelAr": "ألعاب أطفال",
+      "note": "Ellaz category `kids`"
+    },
+    "speed": {
+      "labelAr": "ألعاب سرعة",
+      "note": "Ellaz category `speed`"
+    },
+    "create": {
+      "labelAr": "ألعاب مهارات",
+      "note": "Ellaz's sixth primary category is `create`. OmniStore labels it ألعاب مهارات — the platform's sixth and only remaining shelf label. The mapping is 1:1 and pinned by roster-gate tests."
+    },
+    "classics": {
+      "labelAr": "ألعاب كلاسيكية",
+      "note": "Ellaz category `classics`"
+    }
+  },
+  "ageBands": {
+    "kids": {
+      "labelAr": "مناسب للأطفال",
+      "note": "Ellaz ageBand `kids` — content is age-checked for young children"
+    },
+    "all": {
+      "labelAr": "مناسب للجميع",
+      "note": "Ellaz ageBand `all` — no age restriction documented"
+    }
+  },
+  "orientation": {
+    "portrait": {
+      "labelAr": "طولي",
+      "shortLabelAr": "طولي"
+    },
+    "landscape": {
+      "labelAr": "عرضي",
+      "shortLabelAr": "عرضي"
+    },
+    "any": {
+      "labelAr": "أي اتجاه",
+      "shortLabelAr": "أي اتجاه"
+    }
+  },
+  "scoreUnits": {
+    "points": { "labelAr": "نقطة" },
+    "moves": { "labelAr": "حركة" },
+    "time": { "labelAr": "ثانية" },
+    "level": { "labelAr": "مستوى" },
+    "words": { "labelAr": "كلمة" },
+    "cards": { "labelAr": "بطاقة" },
+    "score": { "labelAr": "نتيجة" },
+    "rounds": { "labelAr": "جولة" }
+  },
+  "games": {
+    "memory": {
+      "titleAr": "الذاكرة",
+      "summaryAr": "اقلب البطاقات وطابق الأزواج المتشابهة قبل أن تنفد المحاولات.",
+      "aliases": ["لعبة الذاكرة", "تذكر", "ذاكرة", "memory", "cards"]
+    },
+    "evolve": {
+      "titleAr": "التطور",
+      "summaryAr": "ادمج الكائنات المتشابهة لتصنع أشكالاً أعلى في سلسلة التطور.",
+      "aliases": ["تطور", "دمج", "evolve", "merge"]
+    },
+    "coloring": {
+      "titleAr": "التلوين",
+      "summaryAr": "لوّن الرسومات بألوانك على طبيعتها دون أن تخرج عن الحدود.",
+      "aliases": ["الوان", "ارسم", "رسم", "coloring", "draw"]
+    },
+    "finddiff": {
+      "titleAr": "جد الفروق",
+      "summaryAr": "قارن الصورتين المتشابهتين واكتشف التفاصيل التي تختلف بينهما.",
+      "aliases": ["الفرق", "فروق", "observe", "find differences"]
+    },
+    "hidden": {
+      "titleAr": "أين أنا",
+      "summaryAr": "ابحث عن الشيء المخفي بين العناصر المتداخلة واختره بسرعة.",
+      "aliases": ["مخفي", "بحث", "hidden", "find me"]
+    },
+    "math": {
+      "titleAr": "الحساب",
+      "summaryAr": "حل عمليات الجمع والطرح والضرب في وقت قياسي.",
+      "aliases": ["رياضيات", "حسابات", "جمع", "ضرب", "math"]
+    },
+    "2048": {
+      "titleAr": "٢٠٤٨",
+      "summaryAr": "ادفع البلاطات المتشابهة لتصل إلى الرقم ٢٠٤٨ وأبعد.",
+      "aliases": ["2048", "ارقام", "ادفع", "puzzle"]
+    },
+    "tictactoe": {
+      "titleAr": "إكس أو",
+      "summaryAr": "ضع علاماتك ثلاثة في خط مستقيم قبل خصمك.",
+      "aliases": ["اكس او", "اكس و او", "tictactoe", "xo"]
+    },
+    "minesweeper": {
+      "titleAr": "الألغام",
+      "summaryAr": "اكشف المربعات الآمنة وتوقّف عند اللغم الأول.",
+      "aliases": ["منقي الالغام", "minesweeper", "mines"]
+    },
+    "sudoku": {
+      "titleAr": "سودوكو",
+      "summaryAr": "املأ الشبكة بالأرقام من ١ إلى ٩ دون تكرار في أي صف أو عمود.",
+      "aliases": ["سودوكو", "ارقام", "sudoku"]
+    },
+    "snake": {
+      "titleAr": "الثعبان",
+      "summaryAr": "وجّه الثعبان ليأكل الطعام دون أن يلمس جداراً أو ذيله.",
+      "aliases": ["افعى", "حيات برية", "snake"]
+    },
+    "blocks": {
+      "titleAr": "الكتل المتساقطة",
+      "summaryAr": "رتّب الكتل الساقطة لتكمل صفوفاً كاملة وتُمحوها.",
+      "aliases": ["تترس", "bloks", "tetris", "blocks"]
+    },
+    "wordguess": {
+      "titleAr": "تخمين الكلمة",
+      "summaryAr": "خمّن الكلمة الصحيحة حرفًا حرفًا قبل نفاد المحاولات.",
+      "aliases": ["تخمين", "كلمات", "wordguess"]
+    },
+    "sequence": {
+      "titleAr": "ما التالي",
+      "summaryAr": "اكتشف النمط المتكرر واختر العنصر الذي يأتي بعد ذلك.",
+      "aliases": ["تسلسل", "نمط", "sequence"]
+    },
+    "vanish": {
+      "titleAr": "ما الذي اختفى",
+      "summaryAr": "راقب القطع جيداً ثم استدعِ اسم ما اختفى من اللوحة.",
+      "aliases": ["اختفى", "ملاحظة", "vanish"]
+    },
+    "shadows": {
+      "titleAr": "مطابقة الظلال",
+      "summaryAr": "طابق كل شكل مع الظل الصحيح الذي يناسبه.",
+      "aliases": ["ظل", "ظلال", "shadows"]
+    },
+    "echo": {
+      "titleAr": "اتبعني",
+      "summaryAr": "كرّر تتابع الضغطات نفسه الذي يعرضه الجهاز بالترتيب.",
+      "aliases": ["تكرار", "ذاكرة سمعية", "echo"]
+    },
+    "balloons": {
+      "titleAr": "فقع البالونات",
+      "summaryAr": "اسحب إصبعك فوق البالونات لتقعها كلها بأسرع وقت.",
+      "aliases": ["بالونات", "فقع", "balloons"]
+    },
+    "bubbles": {
+      "titleAr": "التقط الفقاعات",
+      "summaryAr": "التقط الفقاعات الملونة قبل أن تهرب من أعلى الشاشة.",
+      "aliases": ["فقاعات", "bubbles"]
+    },
+    "bees": {
+      "titleAr": "النحل",
+      "summaryAr": "اهرب من النحلات واجمع الرحيق دون أن تُمسك.",
+      "aliases": ["نحل", "bees"]
+    },
+    "frog": {
+      "titleAr": "اصطد الضفدع",
+      "summaryAr": "التقط الحشرات المتطايرة قبل أن يسبقك إليها الضفدع.",
+      "aliases": ["ضفدع", "حشرات", "frog"]
+    },
+    "reaction": {
+      "titleAr": "الضوء الأخضر",
+      "summaryAr": "انطلق فور اشتعال الضوء الأخضر وتجنّب الضوء الأحمر.",
+      "aliases": ["رد فعل", "سرعة", "reaction"]
+    },
+    "sort": {
+      "titleAr": "فرز الألوان",
+      "summaryAr": "وجّه كل كرة إلى الأنبوب الذي يحمل لونها الصحيح.",
+      "aliases": ["فرز", "ألوان", "sort"]
+    },
+    "merge": {
+      "titleAr": "اثنان يصنعان واحداً",
+      "summaryAr": "ادمج الرقمين المتشابهين لتصبح قيمة أكبر وأقوى.",
+      "aliases": ["دمج", "ارقام", "merge"]
+    },
+    "pet": {
+      "titleAr": "حيواني الأليف",
+      "summaryAr": "اعتنِ بحيوانك الأليف بالطعام واللعب والراحة.",
+      "aliases": ["حيوان أليف", "رعاية", "pet"]
+    },
+    "fit": {
+      "titleAr": "لائقة الأشكال",
+      "summaryAr": "أدر القطع وملأ الفراغات بحيث لا يبقى فراغ في اللوحة.",
+      "aliases": ["اشكال", "احجية", "fit"]
+    },
+    "music": {
+      "titleAr": "صندوق الموسيقى",
+      "summaryAr": "ارفع المفتاحات واختبر النغمات لتصنع لحنك الخاص.",
+      "aliases": ["موسيقى", "نغمات", "music"]
+    },
+    "maze": {
+      "titleAr": "المتاهة",
+      "summaryAr": "وجّه اللاعب عبر الممرات حتى يجد طريقه إلى البيت.",
+      "aliases": ["متاهة", "طريق", "maze"]
+    },
+    "letters": {
+      "titleAr": "الحرف الأول",
+      "summaryAr": "اختر الحرف الأول الصحيح لكل كلمة مصوّرة.",
+      "aliases": ["حروف", "ابجدية", "letters"]
+    },
+    "spell": {
+      "titleAr": "تهجّئ الكلمة",
+      "summaryAr": "رتّب الحروف المبعثرة لتشكّل الكلمة المطلوبة.",
+      "aliases": ["تهجئة", "حروف", "spell"]
+    },
+    "bubbleshooter": {
+      "titleAr": "قنّاص الفقاعات",
+      "summaryAr": "أطلق الفقاعات لتطابق ثلاثاً أو أكثر وتنفجر.",
+      "aliases": ["قنص", "فقاعات", "bubble shooter"]
+    },
+    "match3": {
+      "titleAr": "ثلاثة متطابقة",
+      "summaryAr": "حرّك القطع لتصطف ثلاثة متشابهة أو أكثر في خط.",
+      "aliases": ["ثلاثة", "مطابقة", "match 3"]
+    },
+    "jigsaw": {
+      "titleAr": "الأحجية",
+      "summaryAr": "رتّب قطع اللغز لتعيد رسم الصورة كاملة.",
+      "aliases": ["احجية", "قطع", "jigsaw"]
+    },
+    "lettercross": {
+      "titleAr": "الكلمات المتقاطعة",
+      "summaryAr": "اعثر على الكلمات المخبأة في الشبكة المتقاطعة.",
+      "aliases": ["كلمات متقاطعة", "بحث عن كلمات", "lettercross"]
+    },
+    "flow": {
+      "titleAr": "تدفق الأنابيب",
+      "summaryAr": "اربط كل نقطة بالآخر بأنبوب لا يتقاطع مع غيره.",
+      "aliases": ["انابيب", "خطوط", "flow"]
+    },
+    "arrowtap": {
+      "titleAr": "اضغط الأسهم",
+      "summaryAr": "اضغط زر السهم المطابق للسهم المعروض بسرعة.",
+      "aliases": ["اسهم", "سرعة", "arrow tap"]
+    },
+    "fruit": {
+      "titleAr": "سقوط الفاكهة",
+      "summaryAr": "التقط الفاكهة الساقطة قبل أن تصل إلى الأرض.",
+      "aliases": ["فاكهة", "التقاط", "fruit"]
+    },
+    "parking": {
+      "titleAr": "الخروج من الموقف",
+      "summaryAr": "حرّك السيارات بأمان ليفتح السيارة الحمراء طريق الخروج.",
+      "aliases": ["سيارات", "مواقف", "parking"]
+    },
+    "nonogram": {
+      "titleAr": "صور بالمنطق",
+      "summaryAr": "املأ المربعات حسب الأرقام حتى تظهر الصورة المخفية.",
+      "aliases": ["nonogram", "منطق", "اكسل صغير"]
+    },
+    "onestroke": {
+      "titleAr": "الخط الواحد",
+      "summaryAr": "ارسم الشكل كاملاً دون أن ترفع إصبعك أو تتكرر.",
+      "aliases": ["خط واحد", "رسم", "one stroke"]
+    },
+    "wordsearch": {
+      "titleAr": "ابحث عن الكلمة",
+      "summaryAr": "اعثر على الكلمات المكتوبة أفقياً ورأسياً وقطرياً في الشبكة.",
+      "aliases": ["بحث عن كلمات", "شبكة كلمات", "word search"]
+    },
+    "untangle": {
+      "titleAr": "فك الخيوط",
+      "summaryAr": "حرّك النقاط حتى تتشابك خيوطها ولا تتداخل.",
+      "aliases": ["خيوط", "ربط", "untangle"]
+    },
+    "chess": {
+      "titleAr": "الشطرنج",
+      "summaryAr": "حرّك قطعك حسب قواعد الشطرنج حتى تحمي الملك خصمك.",
+      "aliases": ["شطرنج", "chess"]
+    },
+    "backgammon": {
+      "titleAr": "الطاولة",
+      "summaryAr": "حرّك قطعك حسب النرد واحضرها كلها قبل خصمك.",
+      "aliases": ["طاولة", "نرد", "backgammon"]
+    },
+    "puzzlesnake": {
+      "titleAr": "لغز الثعبان",
+      "summaryAr": "وجّه الثعبان عبر مسار لغز مغلق دون أن يصطدم.",
+      "aliases": ["لغز", "ثعبان", "puzzle snake"]
+    },
+    "snakearena": {
+      "titleAr": "ساحة الثعابين",
+      "summaryAr": "اجمع الرحيق لتطول بينما تتحاشى ثعابين المنافسين.",
+      "aliases": ["ساحة", "arena", "ثعابين"]
+    }
+  }
+}

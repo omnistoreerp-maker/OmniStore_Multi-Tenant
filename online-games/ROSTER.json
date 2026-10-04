@@ -1,0 +1,997 @@
+{
+  "roster": "omnistore-online-games",
+  "version": 1,
+  "language": "ar",
+  "direction": "rtl",
+  "foundation": {
+    "repository": "Sigmafier/ellaz-games",
+    "commit": "7ee515a10aaba90860f79c83ee52fa81cf9f01e5",
+    "license": "MIT",
+    "note": "Foundation licence covers the repository source. It does NOT by itself license sprite/atlas/manifest assets carried by individual games."
+  },
+  "sourceContract": {
+    "gate": "online-games/ROSTER_GATE.json",
+    "arabicContent": "online-games/scripts/arabic-content.json",
+    "rule": "safeIds ∩ foundation meta.ts ∪ arabic-content.json. No other input may add or rename a game."
+  },
+  "rosterIds": [
+    "memory",
+    "evolve",
+    "coloring",
+    "finddiff",
+    "hidden",
+    "math",
+    "2048",
+    "tictactoe",
+    "minesweeper",
+    "sudoku",
+    "snake",
+    "blocks",
+    "wordguess",
+    "sequence",
+    "vanish",
+    "shadows",
+    "echo",
+    "balloons",
+    "bubbles",
+    "bees",
+    "frog",
+    "reaction",
+    "sort",
+    "merge",
+    "pet",
+    "fit",
+    "music",
+    "maze",
+    "letters",
+    "spell",
+    "bubbleshooter",
+    "match3",
+    "jigsaw",
+    "lettercross",
+    "flow",
+    "arrowtap",
+    "fruit",
+    "parking",
+    "nonogram",
+    "onestroke",
+    "wordsearch",
+    "untangle",
+    "chess",
+    "backgammon",
+    "puzzlesnake",
+    "snakearena"
+  ],
+  "categories": [
+    {
+      "id": "learn",
+      "labelAr": "ألعاب تعليمية",
+      "count": 6
+    },
+    {
+      "id": "think",
+      "labelAr": "ألعاب ذكاء",
+      "count": 14
+    },
+    {
+      "id": "kids",
+      "labelAr": "ألعاب أطفال",
+      "count": 10
+    },
+    {
+      "id": "speed",
+      "labelAr": "ألعاب سرعة",
+      "count": 4
+    },
+    {
+      "id": "create",
+      "labelAr": "ألعاب مهارات",
+      "count": 1
+    },
+    {
+      "id": "classics",
+      "labelAr": "ألعاب كلاسيكية",
+      "count": 11
+    }
+  ],
+  "ageBands": [
+    {
+      "id": "kids",
+      "labelAr": "مناسب للأطفال"
+    },
+    {
+      "id": "all",
+      "labelAr": "مناسب للجميع"
+    }
+  ],
+  "totals": {
+    "games": 46,
+    "blocked": 3,
+    "authoritative": 49
+  },
+  "games": [
+    {
+      "id": "memory",
+      "dir": "memory",
+      "titleAr": "الذاكرة",
+      "titleEn": "Memory",
+      "summaryAr": "اقلب البطاقات وطابق الأزواج المتشابهة قبل أن تنفد المحاولات.",
+      "aliases": [
+        "لعبة الذاكرة",
+        "تذكر",
+        "ذاكرة",
+        "memory",
+        "cards"
+      ],
+      "emoji": "🧠",
+      "color": "#fd79a8",
+      "category": "kids",
+      "ageBand": "kids",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "moves"
+    },
+    {
+      "id": "evolve",
+      "dir": "evolve",
+      "titleAr": "التطور",
+      "titleEn": "Evolution",
+      "summaryAr": "ادمج الكائنات المتشابهة لتصنع أشكالاً أعلى في سلسلة التطور.",
+      "aliases": [
+        "تطور",
+        "دمج",
+        "evolve",
+        "merge"
+      ],
+      "emoji": "🦖",
+      "color": "#00cec9",
+      "category": "kids",
+      "ageBand": "kids",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "points"
+    },
+    {
+      "id": "coloring",
+      "dir": "coloring",
+      "titleAr": "التلوين",
+      "titleEn": "Coloring",
+      "summaryAr": "لوّن الرسومات بألوانك على طبيعتها دون أن تخرج عن الحدود.",
+      "aliases": [
+        "الوان",
+        "ارسم",
+        "رسم",
+        "coloring",
+        "draw"
+      ],
+      "emoji": "🎨",
+      "color": "#ffa94d",
+      "category": "kids",
+      "ageBand": "kids",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": null
+    },
+    {
+      "id": "finddiff",
+      "dir": "finddiff",
+      "titleAr": "جد الفروق",
+      "titleEn": "Find Differences",
+      "summaryAr": "قارن الصورتين المتشابهتين واكتشف التفاصيل التي تختلف بينهما.",
+      "aliases": [
+        "الفرق",
+        "فروق",
+        "observe",
+        "find differences"
+      ],
+      "emoji": "🔍",
+      "color": "#00cec9",
+      "category": "kids",
+      "ageBand": "kids",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "points"
+    },
+    {
+      "id": "hidden",
+      "dir": "hidden",
+      "titleAr": "أين أنا",
+      "titleEn": "Find Me",
+      "summaryAr": "ابحث عن الشيء المخفي بين العناصر المتداخلة واختره بسرعة.",
+      "aliases": [
+        "مخفي",
+        "بحث",
+        "hidden",
+        "find me"
+      ],
+      "emoji": "👀",
+      "color": "#a29bfe",
+      "category": "kids",
+      "ageBand": "kids",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "points"
+    },
+    {
+      "id": "math",
+      "dir": "math",
+      "titleAr": "الحساب",
+      "titleEn": "Math",
+      "summaryAr": "حل عمليات الجمع والطرح والضرب في وقت قياسي.",
+      "aliases": [
+        "رياضيات",
+        "حسابات",
+        "جمع",
+        "ضرب",
+        "math"
+      ],
+      "emoji": "➕",
+      "color": "#00b894",
+      "category": "learn",
+      "ageBand": "kids",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "points"
+    },
+    {
+      "id": "2048",
+      "dir": "n2048",
+      "titleAr": "٢٠٤٨",
+      "titleEn": "2048",
+      "summaryAr": "ادفع البلاطات المتشابهة لتصل إلى الرقم ٢٠٤٨ وأبعد.",
+      "aliases": [
+        "2048",
+        "ارقام",
+        "ادفع",
+        "puzzle"
+      ],
+      "emoji": "🔢",
+      "color": "#edc22e",
+      "category": "classics",
+      "ageBand": "all",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "points"
+    },
+    {
+      "id": "tictactoe",
+      "dir": "tictactoe",
+      "titleAr": "إكس أو",
+      "titleEn": "Tic-Tac-Toe",
+      "summaryAr": "ضع علاماتك ثلاثة في خط مستقيم قبل خصمك.",
+      "aliases": [
+        "اكس او",
+        "اكس و او",
+        "tictactoe",
+        "xo"
+      ],
+      "emoji": "⭕",
+      "color": "#74b9ff",
+      "category": "classics",
+      "ageBand": "all",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "points"
+    },
+    {
+      "id": "minesweeper",
+      "dir": "minesweeper",
+      "titleAr": "الألغام",
+      "titleEn": "Minesweeper",
+      "summaryAr": "اكشف المربعات الآمنة وتوقّف عند اللغم الأول.",
+      "aliases": [
+        "منقي الالغام",
+        "minesweeper",
+        "mines"
+      ],
+      "emoji": "💣",
+      "color": "#636e72",
+      "category": "classics",
+      "ageBand": "all",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "ms"
+    },
+    {
+      "id": "sudoku",
+      "dir": "sudoku",
+      "titleAr": "سودوكو",
+      "titleEn": "Sudoku",
+      "summaryAr": "املأ الشبكة بالأرقام من ١ إلى ٩ دون تكرار في أي صف أو عمود.",
+      "aliases": [
+        "سودوكو",
+        "ارقام",
+        "sudoku"
+      ],
+      "emoji": "🔡",
+      "color": "#0b6bb5",
+      "category": "classics",
+      "ageBand": "all",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "ms"
+    },
+    {
+      "id": "snake",
+      "dir": "snake",
+      "titleAr": "الثعبان",
+      "titleEn": "Snake",
+      "summaryAr": "وجّه الثعبان ليأكل الطعام دون أن يلمس جداراً أو ذيله.",
+      "aliases": [
+        "افعى",
+        "حيات برية",
+        "snake"
+      ],
+      "emoji": "🐍",
+      "color": "#55efc4",
+      "category": "classics",
+      "ageBand": "all",
+      "orientation": "any",
+      "renderer": "phaser",
+      "scoreUnit": "points"
+    },
+    {
+      "id": "blocks",
+      "dir": "blocks",
+      "titleAr": "الكتل المتساقطة",
+      "titleEn": "Falling Blocks",
+      "summaryAr": "رتّب الكتل الساقطة لتكمل صفوفاً كاملة وتُمحوها.",
+      "aliases": [
+        "تترس",
+        "bloks",
+        "tetris",
+        "blocks"
+      ],
+      "emoji": "🧱",
+      "color": "#6d4bd6",
+      "category": "classics",
+      "ageBand": "all",
+      "orientation": "portrait",
+      "renderer": "dom",
+      "scoreUnit": "points"
+    },
+    {
+      "id": "wordguess",
+      "dir": "wordguess",
+      "titleAr": "تخمين الكلمة",
+      "titleEn": "Word Guess",
+      "summaryAr": "خمّن الكلمة الصحيحة حرفًا حرفًا قبل نفاد المحاولات.",
+      "aliases": [
+        "تخمين",
+        "كلمات",
+        "wordguess"
+      ],
+      "emoji": "🔤",
+      "color": "#af37c1",
+      "category": "learn",
+      "ageBand": "all",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "points"
+    },
+    {
+      "id": "sequence",
+      "dir": "sequence",
+      "titleAr": "ما التالي",
+      "titleEn": "What Comes Next",
+      "summaryAr": "اكتشف النمط المتكرر واختر العنصر الذي يأتي بعد ذلك.",
+      "aliases": [
+        "تسلسل",
+        "نمط",
+        "sequence"
+      ],
+      "emoji": "🔗",
+      "color": "#6c5ce7",
+      "category": "think",
+      "ageBand": "kids",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "points"
+    },
+    {
+      "id": "vanish",
+      "dir": "vanish",
+      "titleAr": "ما الذي اختفى",
+      "titleEn": "What Disappeared",
+      "summaryAr": "راقب القطع جيداً ثم استدعِ اسم ما اختفى من اللوحة.",
+      "aliases": [
+        "اختفى",
+        "ملاحظة",
+        "vanish"
+      ],
+      "emoji": "🫥",
+      "color": "#00b894",
+      "category": "think",
+      "ageBand": "kids",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "points"
+    },
+    {
+      "id": "shadows",
+      "dir": "shadows",
+      "titleAr": "مطابقة الظلال",
+      "titleEn": "Shadow Match",
+      "summaryAr": "طابق كل شكل مع الظل الصحيح الذي يناسبه.",
+      "aliases": [
+        "ظل",
+        "ظلال",
+        "shadows"
+      ],
+      "emoji": "🌓",
+      "color": "#b2bec3",
+      "category": "think",
+      "ageBand": "kids",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "points"
+    },
+    {
+      "id": "echo",
+      "dir": "echo",
+      "titleAr": "اتبعني",
+      "titleEn": "Follow Me",
+      "summaryAr": "كرّر تتابع الضغطات نفسه الذي يعرضه الجهاز بالترتيب.",
+      "aliases": [
+        "تكرار",
+        "ذاكرة سمعية",
+        "echo"
+      ],
+      "emoji": "💡",
+      "color": "#fdcb6e",
+      "category": "think",
+      "ageBand": "kids",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "points"
+    },
+    {
+      "id": "balloons",
+      "dir": "balloons",
+      "titleAr": "فقع البالونات",
+      "titleEn": "Pop the Balloons",
+      "summaryAr": "اسحب إصبعك فوق البالونات لتقعها كلها بأسرع وقت.",
+      "aliases": [
+        "بالونات",
+        "فقع",
+        "balloons"
+      ],
+      "emoji": "🎈",
+      "color": "#ff5a5f",
+      "category": "kids",
+      "ageBand": "kids",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "points"
+    },
+    {
+      "id": "bubbles",
+      "dir": "bubbles",
+      "titleAr": "التقط الفقاعات",
+      "titleEn": "Catch the Bubbles",
+      "summaryAr": "التقط الفقاعات الملونة قبل أن تهرب من أعلى الشاشة.",
+      "aliases": [
+        "فقاعات",
+        "bubbles"
+      ],
+      "emoji": "🫧",
+      "color": "#4fc3f7",
+      "category": "learn",
+      "ageBand": "kids",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "points"
+    },
+    {
+      "id": "bees",
+      "dir": "bees",
+      "titleAr": "النحل",
+      "titleEn": "Bees Only",
+      "summaryAr": "اهرب من النحلات واجمع الرحيق دون أن تُمسك.",
+      "aliases": [
+        "نحل",
+        "bees"
+      ],
+      "emoji": "🐝",
+      "color": "#f6b93b",
+      "category": "speed",
+      "ageBand": "kids",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "points"
+    },
+    {
+      "id": "frog",
+      "dir": "frog",
+      "titleAr": "اصطد الضفدع",
+      "titleEn": "Catch the Frog",
+      "summaryAr": "التقط الحشرات المتطايرة قبل أن يسبقك إليها الضفدع.",
+      "aliases": [
+        "ضفدع",
+        "حشرات",
+        "frog"
+      ],
+      "emoji": "🐸",
+      "color": "#5bc236",
+      "category": "speed",
+      "ageBand": "kids",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "points"
+    },
+    {
+      "id": "reaction",
+      "dir": "reaction",
+      "titleAr": "الضوء الأخضر",
+      "titleEn": "Green Light",
+      "summaryAr": "انطلق فور اشتعال الضوء الأخضر وتجنّب الضوء الأحمر.",
+      "aliases": [
+        "رد فعل",
+        "سرعة",
+        "reaction"
+      ],
+      "emoji": "🟢",
+      "color": "#2ecc71",
+      "category": "speed",
+      "ageBand": "kids",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "ms"
+    },
+    {
+      "id": "sort",
+      "dir": "sort",
+      "titleAr": "فرز الألوان",
+      "titleEn": "Color Sort",
+      "summaryAr": "وجّه كل كرة إلى الأنبوب الذي يحمل لونها الصحيح.",
+      "aliases": [
+        "فرز",
+        "ألوان",
+        "sort"
+      ],
+      "emoji": "🧪",
+      "color": "#8e44ad",
+      "category": "think",
+      "ageBand": "kids",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "moves"
+    },
+    {
+      "id": "merge",
+      "dir": "merge",
+      "titleAr": "اثنان يصنعان واحداً",
+      "titleEn": "Two Make One",
+      "summaryAr": "ادمج الرقمين المتشابهين لتصبح قيمة أكبر وأقوى.",
+      "aliases": [
+        "دمج",
+        "ارقام",
+        "merge"
+      ],
+      "emoji": "🦋",
+      "color": "#16a085",
+      "category": "think",
+      "ageBand": "kids",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "points"
+    },
+    {
+      "id": "pet",
+      "dir": "pet",
+      "titleAr": "حيواني الأليف",
+      "titleEn": "My Pet",
+      "summaryAr": "اعتنِ بحيوانك الأليف بالطعام واللعب والراحة.",
+      "aliases": [
+        "حيوان أليف",
+        "رعاية",
+        "pet"
+      ],
+      "emoji": "🐣",
+      "color": "#e84393",
+      "category": "kids",
+      "ageBand": "kids",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "points"
+    },
+    {
+      "id": "fit",
+      "dir": "fit",
+      "titleAr": "لائقة الأشكال",
+      "titleEn": "Shape Fit",
+      "summaryAr": "أدر القطع وملأ الفراغات بحيث لا يبقى فراغ في اللوحة.",
+      "aliases": [
+        "اشكال",
+        "احجية",
+        "fit"
+      ],
+      "emoji": "🔷",
+      "color": "#2d6cdf",
+      "category": "think",
+      "ageBand": "all",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "points"
+    },
+    {
+      "id": "music",
+      "dir": "music",
+      "titleAr": "صندوق الموسيقى",
+      "titleEn": "Music Box",
+      "summaryAr": "ارفع المفتاحات واختبر النغمات لتصنع لحنك الخاص.",
+      "aliases": [
+        "موسيقى",
+        "نغمات",
+        "music"
+      ],
+      "emoji": "🎵",
+      "color": "#c2185b",
+      "category": "create",
+      "ageBand": "kids",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": null
+    },
+    {
+      "id": "maze",
+      "dir": "maze",
+      "titleAr": "المتاهة",
+      "titleEn": "Way Home",
+      "summaryAr": "وجّه اللاعب عبر الممرات حتى يجد طريقه إلى البيت.",
+      "aliases": [
+        "متاهة",
+        "طريق",
+        "maze"
+      ],
+      "emoji": "🐭",
+      "color": "#1e8449",
+      "category": "kids",
+      "ageBand": "kids",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "points"
+    },
+    {
+      "id": "letters",
+      "dir": "letters",
+      "titleAr": "الحرف الأول",
+      "titleEn": "First Letter",
+      "summaryAr": "اختر الحرف الأول الصحيح لكل كلمة مصوّرة.",
+      "aliases": [
+        "حروف",
+        "ابجدية",
+        "letters"
+      ],
+      "emoji": "🔠",
+      "color": "#6355E0",
+      "category": "learn",
+      "ageBand": "kids",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "points"
+    },
+    {
+      "id": "spell",
+      "dir": "spell",
+      "titleAr": "تهجّئ الكلمة",
+      "titleEn": "Spell It",
+      "summaryAr": "رتّب الحروف المبعثرة لتشكّل الكلمة المطلوبة.",
+      "aliases": [
+        "تهجئة",
+        "حروف",
+        "spell"
+      ],
+      "emoji": "✏️",
+      "color": "#0E9F94",
+      "category": "learn",
+      "ageBand": "kids",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "points"
+    },
+    {
+      "id": "bubbleshooter",
+      "dir": "bubbleshooter",
+      "titleAr": "قنّاص الفقاعات",
+      "titleEn": "Bubble Shooter",
+      "summaryAr": "أطلق الفقاعات لتطابق ثلاثاً أو أكثر وتنفجر.",
+      "aliases": [
+        "قنص",
+        "فقاعات",
+        "bubble shooter"
+      ],
+      "emoji": "🎯",
+      "color": "#2BA8F0",
+      "category": "classics",
+      "ageBand": "all",
+      "orientation": "portrait",
+      "renderer": "dom",
+      "scoreUnit": "points"
+    },
+    {
+      "id": "match3",
+      "dir": "match3",
+      "titleAr": "ثلاثة متطابقة",
+      "titleEn": "Match Three",
+      "summaryAr": "حرّك القطع لتصطف ثلاثة متشابهة أو أكثر في خط.",
+      "aliases": [
+        "ثلاثة",
+        "مطابقة",
+        "match 3"
+      ],
+      "emoji": "💎",
+      "color": "#B43594",
+      "category": "think",
+      "ageBand": "kids",
+      "orientation": "portrait",
+      "renderer": "dom",
+      "scoreUnit": "points"
+    },
+    {
+      "id": "jigsaw",
+      "dir": "jigsaw",
+      "titleAr": "الأحجية",
+      "titleEn": "Jigsaw",
+      "summaryAr": "رتّب قطع اللغز لتعيد رسم الصورة كاملة.",
+      "aliases": [
+        "احجية",
+        "قطع",
+        "jigsaw"
+      ],
+      "emoji": "🧩",
+      "color": "#17798F",
+      "category": "kids",
+      "ageBand": "kids",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "moves"
+    },
+    {
+      "id": "lettercross",
+      "dir": "lettercross",
+      "titleAr": "الكلمات المتقاطعة",
+      "titleEn": "Lettercross",
+      "summaryAr": "اعثر على الكلمات المخبأة في الشبكة المتقاطعة.",
+      "aliases": [
+        "كلمات متقاطعة",
+        "بحث عن كلمات",
+        "lettercross"
+      ],
+      "emoji": "🅰️",
+      "color": "#B33A3A",
+      "category": "classics",
+      "ageBand": "all",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "points"
+    },
+    {
+      "id": "flow",
+      "dir": "flow",
+      "titleAr": "تدفق الأنابيب",
+      "titleEn": "Pipe Flow",
+      "summaryAr": "اربط كل نقطة بالآخر بأنبوب لا يتقاطع مع غيره.",
+      "aliases": [
+        "انابيب",
+        "خطوط",
+        "flow"
+      ],
+      "emoji": "🔌",
+      "color": "#e17055",
+      "category": "think",
+      "ageBand": "all",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "moves"
+    },
+    {
+      "id": "arrowtap",
+      "dir": "arrowtap",
+      "titleAr": "اضغط الأسهم",
+      "titleEn": "Arrows Out",
+      "summaryAr": "اضغط زر السهم المطابق للسهم المعروض بسرعة.",
+      "aliases": [
+        "اسهم",
+        "سرعة",
+        "arrow tap"
+      ],
+      "emoji": "➡️",
+      "color": "#0b6fbf",
+      "category": "think",
+      "ageBand": "all",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "ms"
+    },
+    {
+      "id": "fruit",
+      "dir": "fruit",
+      "titleAr": "سقوط الفاكهة",
+      "titleEn": "Fruit Drop",
+      "summaryAr": "التقط الفاكهة الساقطة قبل أن تصل إلى الأرض.",
+      "aliases": [
+        "فاكهة",
+        "التقاط",
+        "fruit"
+      ],
+      "emoji": "🍉",
+      "color": "#d63031",
+      "category": "kids",
+      "ageBand": "kids",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "points"
+    },
+    {
+      "id": "parking",
+      "dir": "parking",
+      "titleAr": "الخروج من الموقف",
+      "titleEn": "Escape the Jam",
+      "summaryAr": "حرّك السيارات بأمان ليفتح السيارة الحمراء طريق الخروج.",
+      "aliases": [
+        "سيارات",
+        "مواقف",
+        "parking"
+      ],
+      "emoji": "🚗",
+      "color": "#f39c12",
+      "category": "classics",
+      "ageBand": "all",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "moves"
+    },
+    {
+      "id": "nonogram",
+      "dir": "nonogram",
+      "titleAr": "صور بالمنطق",
+      "titleEn": "Picture Logic",
+      "summaryAr": "املأ المربعات حسب الأرقام حتى تظهر الصورة المخفية.",
+      "aliases": [
+        "nonogram",
+        "منطق",
+        "اكسل صغير"
+      ],
+      "emoji": "🖼️",
+      "color": "#4a5568",
+      "category": "think",
+      "ageBand": "all",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "ms"
+    },
+    {
+      "id": "onestroke",
+      "dir": "onestroke",
+      "titleAr": "الخط الواحد",
+      "titleEn": "One Stroke",
+      "summaryAr": "ارسم الشكل كاملاً دون أن ترفع إصبعك أو تتكرر.",
+      "aliases": [
+        "خط واحد",
+        "رسم",
+        "one stroke"
+      ],
+      "emoji": "✏️",
+      "color": "#4767e6",
+      "category": "think",
+      "ageBand": "all",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "ms"
+    },
+    {
+      "id": "wordsearch",
+      "dir": "wordsearch",
+      "titleAr": "ابحث عن الكلمة",
+      "titleEn": "Word Search",
+      "summaryAr": "اعثر على الكلمات المكتوبة أفقياً ورأسياً وقطرياً في الشبكة.",
+      "aliases": [
+        "بحث عن كلمات",
+        "شبكة كلمات",
+        "word search"
+      ],
+      "emoji": "🔎",
+      "color": "#2A9D8F",
+      "category": "learn",
+      "ageBand": "all",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "ms"
+    },
+    {
+      "id": "untangle",
+      "dir": "untangle",
+      "titleAr": "فك الخيوط",
+      "titleEn": "Untangle",
+      "summaryAr": "حرّك النقاط حتى تتشابك خيوطها ولا تتداخل.",
+      "aliases": [
+        "خيوط",
+        "ربط",
+        "untangle"
+      ],
+      "emoji": "🕸️",
+      "color": "#387f6d",
+      "category": "think",
+      "ageBand": "all",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "ms"
+    },
+    {
+      "id": "chess",
+      "dir": "chess",
+      "titleAr": "الشطرنج",
+      "titleEn": "Chess",
+      "summaryAr": "حرّك قطعك حسب قواعد الشطرنج حتى تحمي الملك خصمك.",
+      "aliases": [
+        "شطرنج",
+        "chess"
+      ],
+      "emoji": "♟️",
+      "color": "#8d6e63",
+      "category": "classics",
+      "ageBand": "all",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "points"
+    },
+    {
+      "id": "backgammon",
+      "dir": "backgammon",
+      "titleAr": "الطاولة",
+      "titleEn": "Backgammon",
+      "summaryAr": "حرّك قطعك حسب النرد واحضرها كلها قبل خصمك.",
+      "aliases": [
+        "طاولة",
+        "نرد",
+        "backgammon"
+      ],
+      "emoji": "🎲",
+      "color": "#c0703f",
+      "category": "classics",
+      "ageBand": "all",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "points"
+    },
+    {
+      "id": "puzzlesnake",
+      "dir": "puzzlesnake",
+      "titleAr": "لغز الثعبان",
+      "titleEn": "Puzzle Snake",
+      "summaryAr": "وجّه الثعبان عبر مسار لغز مغلق دون أن يصطدم.",
+      "aliases": [
+        "لغز",
+        "ثعبان",
+        "puzzle snake"
+      ],
+      "emoji": "🐍",
+      "color": "#5646C9",
+      "category": "think",
+      "ageBand": "all",
+      "orientation": "any",
+      "renderer": "dom",
+      "scoreUnit": "moves"
+    },
+    {
+      "id": "snakearena",
+      "dir": "snakearena",
+      "titleAr": "ساحة الثعابين",
+      "titleEn": "Snake Arena",
+      "summaryAr": "اجمع الرحيق لتطول بينما تتحاشى ثعابين المنافسين.",
+      "aliases": [
+        "ساحة",
+        "arena",
+        "ثعابين"
+      ],
+      "emoji": "🐍",
+      "color": "#0F7F60",
+      "category": "speed",
+      "ageBand": "all",
+      "orientation": "any",
+      "renderer": "phaser",
+      "scoreUnit": "points"
+    }
+  ]
+}

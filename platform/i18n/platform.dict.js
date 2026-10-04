@@ -2,6 +2,12 @@
   if (!window.OmniLang) return;
   OmniLang.registerDict('ar', {
     'إحصاءات النشاط العام المباشر غير مُفعّلة بعد.': 'Live public activity stats are not configured yet.',
+    'ألعاب أونلاين': 'Online Games',
+    'ألعاب مشابهة': 'More games',
+    'ألعاب أخرى': 'More games',
+    'ابدأ اللعب': 'Play now',
+    'كل الألعاب': 'All games',
+    'خروج': 'Exit',
     'استضافة الألعاب': 'Game Hosting',
     'استكشاف السوق': 'Explore Market',
     'افتح السوق أو استعرض حلول الأعمال خلال ثوانٍ.': 'Open the market or browse business services in seconds.',
