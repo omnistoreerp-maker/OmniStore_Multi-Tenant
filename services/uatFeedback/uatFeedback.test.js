@@ -82,7 +82,7 @@ function run() {
   assert.strictEqual(/حفظ الملاحظة|Save Feedback|Post Feedback/i.test(source), false);
 
   const sw = fs.readFileSync(path.join(projectRoot, 'sw.js'), 'utf8');
-  assert.ok(/omnistore-erp-v(24-uat-feedback|25-client-handoff|26-master-release|27-configuration-preview|28-data-layer-preview|29-auth-preview|30-tenancy-preview|31-deployment-simulation|32-real-supabase-installer|33-customer-provisioning|44-dashboard-v6-sw-reload-v2|45-cairotech-isolation-v1)/.test(sw));
+  assert.ok(/omnistore-erp-v(24-uat-feedback|25-client-handoff|26-master-release|27-configuration-preview|28-data-layer-preview|29-auth-preview|30-tenancy-preview|31-deployment-simulation|32-real-supabase-installer|33-customer-provisioning|44-dashboard-v6-sw-reload-v2|45-cairotech-isolation-v1|47-platform-ux-dock-v1|48-freshness-v1)/.test(sw));
   assert.ok(sw.includes('./services/uatFeedback/UATFeedbackEngine.js'));
   assert.ok(sw.includes('./services/uatFeedback/uatFeedbackUi.js'));
 

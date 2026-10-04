@@ -178,11 +178,11 @@ check('education page declares the landmarks and live regions it needs', () => {
   assert(count(PAGE, 'class="edu-nav-btn"') >= 1, 'navigation buttons missing');
 });
 
-check('education page exposes every management view and both workspaces', () => {
+check('education page exposes every management view and all three workspaces', () => {
   const required = [
     'dashboard', 'students', 'teachers', 'centers', 'programs', 'courses',
     'classes', 'enrollments', 'attendance', 'schedule', 'grading',
-    'bookings', 'ratings', 'teacher', 'student'
+    'bookings', 'ratings', 'center', 'teacher', 'student'
   ];
   for (const page of required) {
     assert(PAGE.includes('data-edu-page="' + page + '"'), 'navigation entry missing: ' + page);
@@ -793,7 +793,8 @@ check('the dictionary covers the English text the page renders', () => {
     'Dashboard', 'Students', 'Teachers', 'Centers', 'Programs', 'Courses',
     'Classes', 'Enrollments', 'Attendance', 'Schedule', 'Grading',
     'Roster', 'Class Register', 'Calendar', 'Settings',
-    'Teacher Workspace', 'Student Workspace', 'Cancel', 'Save', 'Confirm',
+    'Center Workspace', 'Teacher Workspace', 'Student Workspace',
+    'Cancel', 'Save', 'Confirm',
     'Bookings', 'Ratings', 'Add Booking', 'Add Rating',
     'Score', 'Comment', 'Fee', 'Complete'
   ];
@@ -810,7 +811,7 @@ check('the dictionary covers the English text the page renders', () => {
     'centers', 'programs', 'courses', 'roster', 'enrollments', 'attendance',
     'register', 'calendar', 'grading', 'bookings', 'ratings',
     'report-attendance', 'report-grading', 'report-sessions',
-    'settings', 'teacher', 'student'
+    'settings', 'center', 'teacher', 'student'
   ];
   for (const page of bottomNav.concat(drawerOnly)) {
     const marker = 'data-edu-page="' + page + '"';
@@ -897,10 +898,13 @@ check('stale responses from a previous page are dropped', () => {
     'a response arriving after navigation is not discarded');
   assert(RUNTIME.includes("state.page !== 'teacher'"), 'the teacher workspace guard is missing');
   assert(RUNTIME.includes("state.page !== 'student'"), 'the student workspace guard is missing');
-  // Two teacher guards now: one over the async /teachers/me identity
-  // resolution, one over the class/session paint chain it feeds.
+  // Two guards per workspace: one over the async identity resolution
+  // (/teachers/me, /students/me), one over the paint chain it feeds —
+  // the teacher chain paints classes/sessions, the student chain paints
+  // the attendance/progress records. Dropping either guard would let a
+  // slow response repaint a workspace the user has already left.
   assert(count(RUNTIME, "state.page !== 'teacher'") === 2, 'the teacher guard drifted');
-  assert(count(RUNTIME, "state.page !== 'student'") === 1, 'the student guard drifted');
+  assert(count(RUNTIME, "state.page !== 'student'") === 2, 'the student guard drifted');
 });
 
 check('a renderer callback only reads the row variable it actually receives', () => {
@@ -909,16 +913,19 @@ check('a renderer callback only reads the row variable it actually receives', ()
   // is a ReferenceError thrown while painting, which the catch below turns
   // into a generic error banner — so the table looked "broken" rather than
   // failing any route, vocabulary or parity check. `r` is the conventional row
-  // parameter of the cell/csv callbacks; the callback may open on the same
-  // line or within the two lines that wrap it.
+  // parameter of the cell/csv callbacks. A cell sits arbitrarily deep inside
+  // its callback body (`return [`, wrapped expressions), so a fixed line
+  // window cannot tell whether the callback is still open; instead walk up to
+  // the nearest line that OPENS a function and require that opener to bind `r`.
   const lines = stripComments(RUNTIME).split('\n');
   const offenders = [];
   lines.forEach((line, i) => {
     if (!/(?<![a-zA-Z0-9_])r\.[a-zA-Z]/.test(line)) return;
-    const bound = [0, 1, 2].some((back) => {
-      const prev = lines[i - back];
-      return prev !== undefined && /function\s*\(\s*r\s*\)/.test(prev);
-    });
+    let bound = false;
+    for (let j = i; j >= 0; j--) {
+      if (/function\s*\(\s*r\s*\)/.test(lines[j])) { bound = true; break; }
+      if (/function\s*\(/.test(lines[j])) break;
+    }
     if (!bound) offenders.push('L' + (i + 1) + ': ' + line.trim());
   });
   assertEqual(offenders.length, 0,

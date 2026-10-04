@@ -1,4 +1,4 @@
-const DIGITRONICS_PWA_VERSION = 'omnistore-erp-v47-platform-ux-dock-v1';
+const DIGITRONICS_PWA_VERSION = 'omnistore-erp-v48-freshness-v1';
 const APP_SHELL_CACHE = DIGITRONICS_PWA_VERSION;
 const APP_SHELL_ASSETS = [
   './',
@@ -412,15 +412,27 @@ self.addEventListener('fetch', event => {
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  const accept = request.headers.get('accept') || '';
+  const isDocument = request.mode === 'navigate' || accept.indexOf('text/html') >= 0;
+  // Network-first: the live origin always wins. The previous cache-first
+  // strategy (`return cached || network`) kept serving the precached shell
+  // after a release — a returning visitor saw the pre-activation Education
+  // card ("قريباً") long after production reported it as Active. Every same-
+  // origin GET now waits for the network, refreshes the shell cache from the
+  // response, and only falls back to the cache when the network is offline
+  // (documents fall back to the precached index.html).
   event.respondWith(
-    caches.match(request).then(cached => {
-      const network = fetch(request).then(response => {
+    fetch(request).then(response => {
+      if (response && response.ok && response.type === 'basic') {
         const copy = response.clone();
         caches.open(APP_SHELL_CACHE).then(cache => cache.put(request, copy)).catch(() => {});
-        return response;
-      }).catch(() => cached || caches.match('./index.html'));
-      return cached || network;
-    })
+      }
+      return response;
+    }).catch(() => caches.match(request).then(cached => {
+      if (cached) return cached;
+      if (isDocument) return caches.match('./index.html');
+      return Response.error();
+    }))
   );
 });
 
