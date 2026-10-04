@@ -1387,10 +1387,15 @@
   // Page state.
   // ---------------------------------------------------------------------
 
+  // Every page the drawer and the bottom bar can navigate to. `center` belongs
+  // here: the drawer has always linked to #center and renderPage has always
+  // dispatched it, but the page was missing from this list, so pageFromHash()
+  // rejected the hash and the Center Workspace link silently fell through to
+  // the dashboard instead. A workspace nobody can open is not a workspace.
   var PAGES = ['home', 'parent', 'dashboard', 'students', 'teachers', 'centers', 'programs', 'courses',
     'classes', 'roster', 'enrollments', 'attendance', 'register', 'schedule', 'calendar',
     'grading', 'bookings', 'ratings', 'report-attendance', 'report-grading', 'report-sessions',
-    'settings', 'teacher', 'student'];
+    'settings', 'center', 'teacher', 'student'];
 
   var state = {
     page: 'dashboard',
@@ -3939,21 +3944,11 @@ function resolveRoleIdentities() {
     home.appendChild(manage);
     body.appendChild(home);
 
-    if (state.educationHomePromise) {
-      state.educationHomePromise.then(function (identity) {
-        if (state.page !== 'home') return;
-        paintRoleGrid(grid, identity);
-      });
-      return;
-    }
-
-    grid.appendChild(loadingBlock());
-    state.educationHomePromise = resolveRoleIdentities().then(function (identity) {
-      state.roleIdentity = identity;
-      return identity;
-    }, function () {
-      return null;
-    }).then(function (identity) {
+    // Paint the grid, or the honest failure state. Shared by BOTH the first load
+    // and the cached-promise revisit: the cached promise resolves to `null` when
+    // the first attempt failed, so a revisit must run the same null check
+    // instead of handing `null` to paintRoleGrid and throwing on identity[key].
+    function paintHome(identity) {
       if (state.page !== 'home') return;
       if (!identity) {
         grid.innerHTML = '';
@@ -3966,7 +3961,20 @@ function resolveRoleIdentities() {
         return;
       }
       paintRoleGrid(grid, identity);
-    });
+    }
+
+    if (state.educationHomePromise) {
+      state.educationHomePromise.then(paintHome);
+      return;
+    }
+
+    grid.appendChild(loadingBlock());
+    state.educationHomePromise = resolveRoleIdentities().then(function (identity) {
+      state.roleIdentity = identity;
+      return identity;
+    }, function () {
+      return null;
+    }).then(paintHome);
   }
 
   function paintRoleGrid(grid, identity) {

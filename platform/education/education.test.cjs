@@ -1003,6 +1003,67 @@ check('the Phase 0 role workspaces render no unescaped value and write no raw in
   }
 });
 
+check('every page the navigation links to is actually routable', () => {
+  // Regression, found by rendering the page rather than reading it: the drawer
+  // has always linked to #center and renderPage has always dispatched
+  // renderCenterWorkspace for it, but 'center' was missing from PAGES, so
+  // pageFromHash() rejected the hash and the Center Workspace link fell through
+  // to the dashboard. The workspace existed and could not be opened.
+  //
+  // PAGES is the single source of truth for routability, so this walks the real
+  // navigation targets out of the shipped page and requires each one to be in
+  // it — rather than restating a list that could drift from the HTML again.
+  const pages = /var PAGES = \[([\s\S]*?)\];/.exec(RUNTIME)[1]
+    .split(',')
+    .map((s) => s.trim().replace(/'/g, ''))
+    .filter(Boolean);
+
+  const linked = new Set();
+  for (const m of PAGE.matchAll(/data-edu-page="([^"]+)"/g)) linked.add(m[1]);
+  assert(linked.size > 10, 'the page exposes too few navigation targets to check: ' + linked.size);
+
+  const unroutable = [...linked].filter((p) => pages.indexOf(p) < 0).sort();
+  assertEqual(unroutable.join(','), '',
+    'the navigation links to pages that are not routable: ' + unroutable.join(', '));
+
+  // And the reverse: a routable page nobody can navigate to is dead code.
+  const orphaned = pages.filter((p) => linked.has(p) === false).sort();
+  assertEqual(orphaned.join(','), '', 'these pages are routable but nothing links to them: ' + orphaned.join(', '));
+
+  // Every workspace the runtime dispatches must be reachable by hash.
+  for (const workspace of ['home', 'parent', 'center', 'teacher', 'student']) {
+    assert(pages.indexOf(workspace) >= 0, 'the ' + workspace + ' workspace is not routable');
+    assert(RUNTIME.includes("page === '" + workspace + "'") || workspace === 'home',
+      'renderPage does not dispatch the ' + workspace + ' workspace');
+  }
+  // The fallback must stay a real page, not an undefined value.
+  assert(RUNTIME.includes("PAGES.indexOf(hash) >= 0 ? hash : 'home'"),
+    'an unknown hash no longer falls back to the Education Home');
+});
+
+check('a failed identity resolution is shown as an error, not painted as a blank grid', () => {
+  // Regression, also found by rendering: renderEducationHome has two paths into
+  // the role grid — the first resolution and the cached-promise revisit. Only
+  // the first one checked for a failed resolution, so a revisit after a failed
+  // first attempt handed `null` to paintRoleGrid and threw on `identity[key]`,
+  // taking the whole Education Home down on a transient network failure.
+  //
+  // The rule is that BOTH paths share one guarded painter.
+  const home = RUNTIME.slice(RUNTIME.indexOf('function renderEducationHome'),
+    RUNTIME.indexOf('function paintRoleGrid'));
+  assert(home.includes('function paintHome(identity)'),
+    'the Education Home has no shared guarded painter for the role grid');
+  assertEqual(count(home, 'paintHome'), 3,
+    'both the first resolution and the cached revisit must go through paintHome');
+  assert(home.includes('if (!identity) {'),
+    'the shared painter does not handle a failed identity resolution');
+  assert(RUNTIME.includes("state.educationHomePromise.then(paintHome)"),
+    'the cached-promise path bypasses the guarded painter');
+  // paintRoleGrid may still assume an identity: the guard is the painter's job.
+  assert(!RUNTIME.includes('function paintRoleGrid(grid, identity) {\n  grid.innerHTML'),
+    'paintRoleGrid silently tolerates a null identity instead of the painter guarding it');
+});
+
 check('the page survives an unreachable service instead of hanging on a spinner', () => {
   assert(RUNTIME.includes("throw new ApiError('Unable to reach the Education service.'"),
     'a network failure is not converted into a user-facing error');
