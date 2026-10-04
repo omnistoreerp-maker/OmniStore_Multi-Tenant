@@ -8086,7 +8086,7 @@ function resetOmniModules() {
   if (!requirePermission('manageSettings') || !window.OmniModuleLoader) return;
   if (!confirm('إعادة Feature Flags وإعدادات الوحدات للافتراضي؟')) return;
   window.OmniModuleLoader.reset();
-  window.OmniNavigationBuilder?.build();
+  rebuildNavigation();
   window.OmniDashboardBuilder?.build();
   renderOmniModuleSettings();
   showToast('✅ تمت إعادة إعدادات الوحدات');
@@ -16121,7 +16121,7 @@ function doLogin() {
       if (d.effectiveRole !== undefined) currentUser.effectiveRole = d.effectiveRole;
       refreshEffectivePermissions();
       // Phase 33 — platform identity + presence heartbeat (server-authoritative).
-      refreshPlatformRole().then(() => { try { window.OmniNavigationBuilder?.build(); applyNavScope(); applyPermissions(); } catch (e) {} });
+      refreshPlatformRole().then(() => { rebuildNavigation(); });
       startPlatformHeartbeat();
     }).catch(() => {
       document.getElementById('loginError').style.display = 'block';
@@ -16230,7 +16230,7 @@ function restoreSessionOnLoad() {
         applyPermissions();
         initApp();
         // Phase 33 — platform identity + presence heartbeat on session restore too.
-        refreshPlatformRole().then(() => { try { window.OmniNavigationBuilder?.build(); applyNavScope(); applyPermissions(); } catch (e) {} });
+        refreshPlatformRole().then(() => { rebuildNavigation(); });
         startPlatformHeartbeat();
         scheduleSupabaseDiagnosticAutoTest('session-restore');
         showPage(getDefaultPageForCurrentRole());
@@ -16708,6 +16708,9 @@ function applyPermissions() {
     let show = true;
     if (page && !canAccessPage(page)) show = false;
     if (page === 'alerts-center' && !['Owner', 'Admin', 'Manager'].includes(_effectiveRole())) show = false;
+    // Record the authorization verdict so the scope pass below can reveal a
+    // scope-hidden entry WITHOUT ever overriding an authorization denial.
+    el.dataset.navDenied = show ? '0' : '1';
     el.style.display = show ? 'flex' : 'none';
   });
   document.querySelectorAll('.nav-dropdown').forEach(drop => {
@@ -16732,8 +16735,19 @@ function isPlatformMaster() {
 // dev flag is on. Backend authorization remains authoritative and untouched.
 function applyNavScope() {
   const activeScope = isPlatformMaster() ? (window.__omniNavScope || 'tenant') : 'tenant';
+  // Master entries are revealed by ROLE, never by the active scope pill and
+  // never by load order. OmniNavigationBuilder.build() replaces each dropdown's
+  // innerHTML, so the inline display refreshPlatformRole() wrote on the
+  // pre-rebuild #platformMasterNav node dies with that node and the rebuilt
+  // copy only carries data-nav-scope="master". Gating on the pill (whose
+  // default is 'tenant') therefore left #platformMasterNav at display:none for
+  // an authenticated MASTER_OWNER. Re-derive it from the current role on
+  // every pass, so role hydration and rebuild can happen in any order.
+  // data-nav-denied="1" is written by applyPermissions(): an entry the
+  // authorization layer refused stays hidden regardless of the role state.
+  const masterVisible = isPlatformMaster();
   document.querySelectorAll('[data-nav-scope="master"]').forEach(el => {
-    el.style.display = activeScope === 'master' ? '' : 'none';
+    el.style.display = (masterVisible && el.dataset.navDenied !== '1') ? '' : 'none';
   });
   document.querySelectorAll('[data-nav-scope="internal"]').forEach(el => {
     el.style.display = (activeScope === 'tenant' && window.__devToolsEnabled) ? '' : 'none';
@@ -16767,6 +16781,17 @@ function setOmniNavScope(scope) {
     p.setAttribute('aria-pressed', active ? 'true' : 'false');
   });
   closeAllNavDropdowns();
+}
+
+// Single entry point for every navigation rebuild. build() destroys and
+// recreates every dropdown node, so visibility has to be re-applied AFTER it;
+// applyPermissions() ends with applyNavScope(), which re-derives the MASTER
+// entries from the current platformRole. Calling build() on its own (as the
+// feature-flag reset used to) left the rebuilt nodes with whatever visibility
+// the previous tree happened to have.
+function rebuildNavigation() {
+  try { window.OmniNavigationBuilder?.build(); } catch (e) {}
+  try { applyPermissions(); } catch (e) {}
 }
 
 function buildMobileNavDrawerSections() {

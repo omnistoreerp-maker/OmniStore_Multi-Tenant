@@ -8,7 +8,11 @@ services:
     name: omnistore-erp
     runtime: node
     plan: free
-    buildCommand: npm install
+    # marketplace/index.html (the entry served at /marketplace/) references
+    # ./dist/* assets that only exist after the Vite build. dist/ is gitignored,
+    # so without this step production served the HTML with 404 assets and a
+    # blank page. build:marketplace installs and builds it; no new deps.
+    buildCommand: npm install && npm run build:marketplace
     startCommand: npm start
     healthCheckPath: /api/v1/health
     autoDeploy: true
