@@ -1,10 +1,17 @@
 'use strict';
 
-// API-level proof that the Education Core routes are really mounted under
-// /api/v1/tenant/education and that they refuse to operate without a
-// server-side tenant context (the tenant is never supplied by the client).
+// API-level proof that the Education routes are really mounted under
+// /api/v1/tenant/education and that they fail CLOSED for anonymous traffic.
+//
+// The mounted routers guard every surface with the strict `requirePermission`
+// gate (backend/middleware/authorize.js), which answers 401 whenever no signed
+// user is present — regardless of AUTH_REQUIRED. The tenant itself is resolved
+// server-side from the signed token claim / reconstructed tenant context and is
+// never accepted from a query, body or header vector.
 const request = require('supertest');
 const { startServer } = require('./helpers/testServer');
+
+const BASE = '/api/v1/tenant/education';
 
 describe('education API routing', () => {
   let app;
@@ -13,36 +20,39 @@ describe('education API routing', () => {
     app = startServer(undefined, { AUTH_REQUIRED: 'false' }).app;
   });
 
-  test('dashboard is mounted and requires a tenant context', async () => {
-    const res = await request(app).get('/api/v1/tenant/education/dashboard');
-    expect(res.status).toBe(400);
-    expect(String(res.body.message || '')).toMatch(/Tenant context is required/i);
-  });
-
-  test('reads are mounted for every core collection', async () => {
-    for (const path of ['/centers', '/teachers', '/students', '/courses', '/enrollments']) {
-      const res = await request(app).get('/api/v1/tenant/education' + path);
-      expect(res.status).toBe(400);
-      expect(String(res.body.message || '')).toMatch(/Tenant context is required/i);
+  test('anonymous reads are refused with 401 on every mounted collection', async () => {
+    const paths = ['/centers', '/teachers', '/students', '/courses', '/classes', '/enrollments', '/pack', '/capabilities'];
+    for (const path of paths) {
+      const res = await request(app).get(BASE + path);
+      expect(res.status).toBe(401);
+      expect(String(res.body.message || '')).toMatch(/Authentication required/i);
     }
   });
 
-  test('writes without a tenant context are rejected (no silent success)', async () => {
-    const res = await request(app).post('/api/v1/tenant/education/centers').send({ name: 'X' });
-    expect(res.status).toBe(400);
-    expect(String(res.body.message || '')).toMatch(/Tenant context is required/i);
+  test('anonymous writes are refused with 401 (no silent success)', async () => {
+    const res = await request(app).post(BASE + '/centers').send({ name: 'X' });
+    expect(res.status).toBe(401);
+    expect(String(res.body.message || '')).toMatch(/Authentication required/i);
   });
 
-  test('client-supplied tenantId is rejected even when present in the body', async () => {
+  test('a client-supplied tenantId in the body never authenticates the request', async () => {
     const res = await request(app)
-      .post('/api/v1/tenant/education/centers')
+      .post(BASE + '/centers')
       .send({ name: 'X', tenantId: 'sneaky' });
-    expect(res.status).toBe(400);
-    expect(String(res.body.message || '')).toMatch(/Tenant context is required/i);
+    expect(res.status).toBe(401);
+    expect(String(res.body.message || '')).toMatch(/Authentication required/i);
+  });
+
+  test('a client-supplied tenantId in a header never authenticates the request', async () => {
+    const res = await request(app)
+      .get(BASE + '/centers')
+      .set('X-Tenant-Id', 'sneaky');
+    expect(res.status).toBe(401);
+    expect(String(res.body.message || '')).toMatch(/Authentication required/i);
   });
 
   test('unknown education sub-routes return 404', async () => {
-    const res = await request(app).get('/api/v1/tenant/education/does-not-exist');
+    const res = await request(app).get(BASE + '/does-not-exist');
     expect(res.status).toBe(404);
   });
 });

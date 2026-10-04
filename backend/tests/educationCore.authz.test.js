@@ -1,9 +1,13 @@
 'use strict';
 
 // Authenticated HTTP-level E2E + tenant-isolation proof for the Education
-// Core. Modeled on tests/phaseG.tenantUserIsolation.test.js: tenant identity
+// module. Modeled on tests/phaseG.tenantUserIsolation.test.js: tenant identity
 // comes ONLY from the signed JWT claim carried by tenantCarry, never from a
 // header/body/query vector.
+//
+// The mounted surface is the real one: center/teacher/student/program/course/
+// class/enrollment routers under /api/v1/tenant/education (see server.js).
+// List endpoints answer with a plain array in `data`, not a pagination object.
 //
 // Matrix:
 //   Tenant A -> Tenant A = PASS
@@ -68,7 +72,7 @@ const EDU = '/api/v1/tenant/education';
 
 describe('education authorization (AUTH_REQUIRED=true)', () => {
   test('anonymous reads and writes are rejected with 401', async () => {
-    const read = await request(server.app).get(EDU + '/dashboard');
+    const read = await request(server.app).get(EDU + '/centers');
     expect(read.statusCode).toBe(401);
     const write = await request(server.app).post(EDU + '/centers').send({ name: 'X' });
     expect(write.statusCode).toBe(401);
@@ -85,8 +89,9 @@ describe('education authorization (AUTH_REQUIRED=true)', () => {
 
     const list = await request(server.app).get(EDU + '/centers').set(authHeader(token));
     expect(list.statusCode).toBe(200);
-    expect(list.body.data.total).toBeGreaterThanOrEqual(1);
-    expect(list.body.data.items.some((c) => c.name === 'Digi Center')).toBe(true);
+    expect(Array.isArray(list.body.data)).toBe(true);
+    expect(list.body.data.length).toBeGreaterThanOrEqual(1);
+    expect(list.body.data.some((c) => c.name === 'Digi Center')).toBe(true);
   });
 
   test('tenant B cannot see tenant A centers', async () => {
@@ -94,20 +99,22 @@ describe('education authorization (AUTH_REQUIRED=true)', () => {
     const b = await tokenFor('nileOwner', 'nile');
     const listB = await request(server.app).get(EDU + '/centers').set(authHeader(b));
     expect(listB.statusCode).toBe(200);
-    expect(listB.body.data.items.some((c) => c.name === 'Digi Center')).toBe(false);
+    expect(Array.isArray(listB.body.data)).toBe(true);
+    expect(listB.body.data.some((c) => c.name === 'Digi Center')).toBe(false);
 
     const listA = await request(server.app).get(EDU + '/centers').set(authHeader(a));
-    const digiCenterId = listA.body.data.items[0].id;
+    const digiCenterId = listA.body.data[0].id;
 
     const readB = await request(server.app).get(EDU + '/centers/' + digiCenterId).set(authHeader(b));
     expect(readB.statusCode).toBe(404);
     expect(String(readB.body.message)).toMatch(/Center not found/i);
 
-    const patchB = await request(server.app)
-      .patch(EDU + '/centers/' + digiCenterId)
+    const putB = await request(server.app)
+      .put(EDU + '/centers/' + digiCenterId)
       .set(authHeader(b))
       .send({ name: 'hijacked' });
-    expect(patchB.statusCode).toBe(404);
+    expect(putB.statusCode).toBe(404);
+    expect(String(putB.body.message)).toMatch(/Center not found/i);
   });
 
   test('forged X-Tenant-Id header never reveals another tenant', async () => {
@@ -117,84 +124,91 @@ describe('education authorization (AUTH_REQUIRED=true)', () => {
       .set(authHeader(b))
       .set('X-Tenant-Id', 'digi');
     expect(list.statusCode).toBe(200);
-    expect(list.body.data.items.some((c) => c.name === 'Digi Center')).toBe(false);
-    expect(list.body.data.items.every((c) => c.tenantId === 'nile')).toBe(true);
+    expect(list.body.data.some((c) => c.name === 'Digi Center')).toBe(false);
+    expect(list.body.data.every((c) => c.tenantId === 'nile')).toBe(true);
   });
 
   test('cross-tenant reference in a payload is denied', async () => {
     const a = await tokenFor('digiOwner', 'digi');
     const b = await tokenFor('nileOwner', 'nile');
     const listA = await request(server.app).get(EDU + '/centers').set(authHeader(a));
-    const digiCenterId = listA.body.data.items[0].id;
+    const digiCenterId = listA.body.data[0].id;
 
+    // tenant B points a Program at tenant A's Center: the service resolves the
+    // reference inside the TRUSTED tenant only, so it is refused as missing.
     const res = await request(server.app)
-      .post(EDU + '/courses')
+      .post(EDU + '/programs')
       .set(authHeader(b))
-      .send({ title: 'evil', centerId: digiCenterId });
-    expect(res.statusCode).toBe(404);
-    expect(String(res.body.message)).toMatch(/Center not found/i);
+      .send({ name: 'evil', centerId: digiCenterId });
+    expect(res.statusCode).toBe(400);
+    expect(String(res.body.message)).toMatch(/centerId does not reference a Center/i);
   });
 });
 
 describe('education end-to-end journey (authenticated)', () => {
-  test('center → teacher → student → course → lessons → enrollment → progress → publish', async () => {
+  test('center → teacher → student → program → course → class → enrollment → withdraw', async () => {
     const token = await tokenFor('digiOwner', 'digi');
     const as = (r) => r.set(authHeader(token));
 
     const center = (await as(request(server.app).post(EDU + '/centers')).send({ name: 'Journey Center' })).body.data;
     const teacher = (await as(request(server.app).post(EDU + '/teachers'))
-      .send({ displayName: 'Ms. Sara', centerId: center.id, subjects: ['Math'] })).body.data;
+      .send({ firstName: 'Sara', lastName: 'Nassef' })).body.data;
     const student = (await as(request(server.app).post(EDU + '/students'))
-      .send({ displayName: 'Omar', grade: 'Grade 5', centerId: center.id })).body.data;
+      .send({ firstName: 'Omar', lastName: 'Hassan' })).body.data;
+    const program = (await as(request(server.app).post(EDU + '/programs'))
+      .send({ name: 'Math Track', centerId: center.id })).body.data;
     const course = (await as(request(server.app).post(EDU + '/courses'))
-      .send({ title: 'Algebra Basics', centerId: center.id, teacherId: teacher.id })).body.data;
+      .send({ name: 'Algebra Basics', programId: program.id })).body.data;
 
-    expect(course.status).toBe('draft');
+    expect(center.tenantId).toBe('digi');
     expect(teacher.tenantId).toBe('digi');
     expect(student.tenantId).toBe('digi');
+    expect(program.centerId).toBe(center.id);
+    expect(course.tenantId).toBe('digi');
 
-    const l1 = (await as(request(server.app).post(EDU + '/lessons'))
-      .send({ title: 'Intro', courseId: course.id })).body.data;
-    const l2 = (await as(request(server.app).post(EDU + '/lessons'))
-      .send({ title: 'Variables', courseId: course.id })).body.data;
-    expect(l1.order).toBe(1);
-    expect(l2.order).toBe(2);
-
-    const lessons = (await as(request(server.app).get(EDU + '/courses/' + course.id + '/lessons'))).body.data;
-    expect(lessons.map((l) => l.title)).toEqual(['Intro', 'Variables']);
+    const klass = (await as(request(server.app).post(EDU + '/classes'))
+      .send({ courseId: course.id, teacherId: teacher.id, name: 'A1' })).body.data;
+    expect(klass.tenantId).toBe('digi');
 
     const enrollment = (await as(request(server.app).post(EDU + '/enrollments'))
-      .send({ courseId: course.id, studentId: student.id })).body.data;
+      .send({ studentId: student.id, classId: klass.id })).body.data;
     expect(enrollment.status).toBe('active');
+    expect(enrollment.tenantId).toBe('digi');
+    expect(typeof enrollment.enrolledAt).toBe('string');
+    expect(enrollment.withdrawnAt).toBeNull();
 
-    // dashboard reports REAL counts derived from stored data
-    const dash = (await as(request(server.app).get(EDU + '/dashboard'))).body.data;
-    expect(dash.students).toBeGreaterThanOrEqual(1);
-    expect(dash.courses).toBeGreaterThanOrEqual(1);
-    expect(dash.enrollments).toBeGreaterThanOrEqual(1);
-    expect(dash.publishedCourses).toBeGreaterThanOrEqual(0);
+    // The lists are tenant-scoped arrays; every row belongs to this tenant.
+    for (const path of ['/centers', '/teachers', '/students', '/programs', '/courses', '/classes', '/enrollments']) {
+      const list = await as(request(server.app).get(EDU + path));
+      expect(list.statusCode).toBe(200);
+      expect(Array.isArray(list.body.data)).toBe(true);
+      expect(list.body.data.length).toBeGreaterThanOrEqual(1);
+      expect(list.body.data.every((row) => row.tenantId === 'digi')).toBe(true);
+    }
 
-    // publish the course, then track real lesson progress
-    const published = (await as(request(server.app).patch(EDU + '/courses/' + course.id))
-      .send({ status: 'published' })).body.data;
-    expect(published.status).toBe('published');
+    // Cross-tenant read of the enrollment is refused as absent.
+    const bToken = await tokenFor('nileOwner', 'nile');
+    const foreign = await request(server.app)
+      .get(EDU + '/enrollments/' + enrollment.id)
+      .set(authHeader(bToken));
+    expect(foreign.statusCode).toBe(404);
+    expect(String(foreign.body.message)).toMatch(/Enrollment not found/i);
 
-    await as(request(server.app).post(EDU + '/progress/lesson'))
-      .send({ enrollmentId: enrollment.id, lessonId: l1.id });
-    let prog = (await as(request(server.app).get(EDU + '/enrollments/' + enrollment.id + '/progress'))).body.data;
-    expect(prog.percentage).toBe(50);
-    expect(prog.totalLessons).toBe(2);
+    // Enrollment lifecycle: withdraw is non-destructive and stamps both
+    // withdrawnAt and updatedAt with the same server instant.
+    const withdrawn = (await as(request(server.app)
+      .patch(EDU + '/enrollments/' + enrollment.id + '/withdraw'))).body.data;
+    expect(withdrawn.status).toBe('withdrawn');
+    expect(withdrawn.id).toBe(enrollment.id);
+    expect(withdrawn.enrolledAt).toBe(enrollment.enrolledAt);
+    expect(withdrawn.withdrawnAt).toBe(withdrawn.updatedAt);
+    expect(withdrawn.updatedAt).not.toBe(enrollment.updatedAt);
 
-    await as(request(server.app).post(EDU + '/progress/lesson'))
-      .send({ enrollmentId: enrollment.id, lessonId: l2.id });
-    prog = (await as(request(server.app).get(EDU + '/enrollments/' + enrollment.id + '/progress'))).body.data;
-    expect(prog.percentage).toBe(100);
-    expect(prog.completedLessons).toBe(2);
-
-    // enrollment lifecycle
-    const done = (await as(request(server.app).patch(EDU + '/enrollments/' + enrollment.id + '/status'))
-      .send({ status: 'completed' })).body.data;
-    expect(done.status).toBe('completed');
+    // The withdrawal is idempotent: a retry never moves the original
+    // withdrawnAt.
+    const twice = (await as(request(server.app)
+      .patch(EDU + '/enrollments/' + enrollment.id + '/withdraw'))).body.data;
+    expect(twice.withdrawnAt).toBe(withdrawn.withdrawnAt);
   });
 });
 
