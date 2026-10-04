@@ -42,6 +42,36 @@ app.set('trust proxy', 'loopback');
 // nginx.conf posture ('unsafe-inline' for the app's inline scripts/styles)
 // plus the exact external hosts index.html loads. Everything else stays
 // locked down (no eval, no frames, no objects).
+/**
+ * The online-games player frame's origin — OWNER CONFIGURATION, never guessed.
+ *
+ * Set GAMES_ORIGIN to the bare origin that serves online-games/runtime
+ * (https://games.example.com) and it is appended to frame-src. Empty is the
+ * default, and empty leaves the directive exactly as it has always been —
+ * TikTok only — so deploying this section's static surface without a games
+ * origin changes nothing rather than breaking the header.
+ *
+ * A malformed value is dropped instead of passed through. A source expression
+ * with a path or a credential is not "mostly right": the browser denies it
+ * outright and the failure surfaces as a game that will not open, which sends
+ * somebody hunting in the wrong layer entirely.
+ *
+ * Must mirror nginx.conf's `$omnistore_games_origin` map — same input, same
+ * rule, two places because nginx cannot read an environment variable in a
+ * header and Node cannot read a nginx map.
+ */
+const GAMES_ORIGIN = (() => {
+  const raw = String(process.env.GAMES_ORIGIN || '').trim();
+  if (!raw) return null;
+  let url;
+  try { url = new URL(raw); } catch { return null; }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+  if (url.username || url.password || url.search || url.hash) return null;
+  if (url.pathname !== '/') return null;
+  if (url.origin !== raw.replace(/\/$/, '')) return null;
+  return url.origin;
+})();
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -66,9 +96,14 @@ app.use(helmet({
       connectSrc: ["'self'", 'https://api.github.com', 'https://cdn.jsdelivr.net', 'https://6opo.com', 'https://auqot.com', 'https://my.rtmark.net', 'https://jmosl.com', 'https://094kk.com'],
       // TikTok embedded playback: the official Embed Player is served from
       // https://www.tiktok.com/player/v1/<video_id> and is built in reels.html
-      // from the numeric post id alone. Exactly one origin is allowed. 'self' is
-      // deliberately NOT re-added: same-origin frames stay blocked as before.
-      frameSrc: ['https://www.tiktok.com'],
+      // from the numeric post id alone. The second entry is the online-games
+      // player frame and is null unless GAMES_ORIGIN is configured — see the
+      // block above — in which case filter(Boolean) removes it and the
+      // directive is TikTok-only exactly as it was before. 'self' is
+      // deliberately NOT re-added: same-origin frames stay blocked, and the
+      // games are cross-origin by design so they cannot touch this origin's
+      // cookies, storage or tenant data.
+      frameSrc: ['https://www.tiktok.com', GAMES_ORIGIN].filter(Boolean),
       objectSrc: ["'none'"]
     }
   }

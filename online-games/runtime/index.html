@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!--
+      THE FRAME CSP, VERBATIM.
+
+      This document is loaded inside the platform's player iframe from a
+      separate origin, so it has to police itself: the platform cannot inspect
+      what a cross-origin frame does. Each directive earns its place —
+
+        default-src 'none'   nothing is allowed that is not named below
+        script-src 'self'    the bundle and its per-game chunks, nothing else
+        style-src 'self' 'unsafe-inline'  the emitted stylesheet plus the inline
+                             styles React and the games write on elements
+        img-src 'self' data: blob:  generated art, emoji painted to canvas, and
+                             the object URLs a game builds at runtime
+        font-src 'self'      /fonts/Cairo-*.woff, served by this origin only
+        media-src 'self' data: blob:  audio a game synthesises into a blob
+        connect-src 'none'   THE POINT. No fetch, no XHR, no beacon, no
+                             websocket. The 46 SAFE games contain zero runtime
+                             fetch/XHR/asset loads — verified — so this costs
+                             nothing and makes "games phone home" impossible
+                             rather than merely unimplemented.
+
+      No `frame-ancestors` and no `report-uri`: neither can appear in a meta
+      policy at all, and the platform's own header is what decides who may
+      frame this origin.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self' data: blob:; connect-src 'none'"
+    />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="robots" content="noindex" />
+    <meta name="omnistore:build" content="__OMNISTORE_BUILD__" />
+    <title>لعبة</title>
+    <style>
+      /* Night is Ellaz's own default-value block (`:root, :root[data-theme="night"]`),
+         chosen to sit against OmniStore's #070a12 page rather than the cream
+         `market` palette Ellaz's standalone bundle ships with. The literals
+         below mirror src/ui/tokens.css so the pre-JavaScript paint matches what
+         the app paints a frame later; a mismatch here is a white flash on every
+         game open. */
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #10121a;
+        color: #f4f4f8;
+        font-family: "Cairo", "Heebo", system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      #root {
+        height: 100%;
+      }
+      #run-fallback {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        padding: 1.5rem;
+        text-align: center;
+      }
+      #run-fallback p {
+        margin: 0;
+        max-width: 34ch;
+        line-height: 1.6;
+      }
+      #run-fallback a {
+        color: #ff4d8d;
+      }
+    </style>
+  </head>
+  <!--
+    `app-shell` is what makes the app tokens reach this page: src/ui/global.css
+    hangs `color: var(--text)` and `background: var(--page-bg)` off
+    `body.app-shell`. Without it the document paints in this style block's
+    literals while every app component paints in the tokens, and the two drift.
+    `data-theme` is set here rather than left to the boot script for exactly
+    the reason Ellaz's standalone.html learned in 2026-08-29: an unset theme
+    means the default one, which is cream, on a page that declared dark.
+  -->
+  <body class="app-shell" data-theme="night">
+    <div id="root"></div>
+
+    <!--
+      A sibling of #root, not a child: a node React does not know about inside
+      a tree it reconciles is the nested-root teardown bug in a different
+      costume. Removed on boot when the game starts, left in place when it
+      cannot — so the text below is also the no-JavaScript and bad-id answer.
+    -->
+    <div id="run-fallback">
+      <p id="run-fallback-title">جارٍ تحميل اللعبة…</p>
+      <p id="run-fallback-detail">
+        هذه اللعبة تحتاج إلى تفعيل جافاسكربت للعمل.
+      </p>
+    </div>
+
+    <script type="module" src="/src/run.tsx"></script>
+  </body>
+</html>

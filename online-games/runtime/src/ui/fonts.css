@@ -1,0 +1,54 @@
+/* OmniStore's shipped faces for the games runtime.
+ *
+ * REPLACES Ellaz's generated `fonts.css`. That file declared Fredoka, Baloo 2,
+ * Gochi Hand, Press Start 2P and Heebo subsets pulled from Ellaz's repository —
+ * all five are forbidden by `ROSTER_GATE.json.uiFonts.forbiddenFamilies`, whose
+ * policy reads "No Ellaz UI font may be vendored into OmniStore." The nine
+ * files are therefore not here at all; this file is why nothing references
+ * them.
+ *
+ * What ships instead is Ellaz's OWN allowed set — `uiFonts.allowedFoundationFonts`
+ * names Cairo and the build copy of Heebo, both SIL OFL 1.1, with their licence
+ * text committed beside the binaries in `public/fonts/`. Cairo comes first in
+ * every stack because it is the one of the two that carries Arabic glyphs, and
+ * the runtime speaks Arabic.
+ *
+ * No `@import`, no third-party origin: a webfont fetched from another host is
+ * an external request out of a game, which is the rule that lets these frames
+ * ship with `connect-src 'none'`.
+ *
+ * `font-display: swap`: the system fallback paints immediately instead of
+ * leaving the Arabic chrome blank while 17 KB arrives.
+ */
+
+@font-face {
+  font-family: "Cairo";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/Cairo-400.woff") format("woff");
+}
+
+@font-face {
+  font-family: "Cairo";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/Cairo-700.woff") format("woff");
+}
+
+@font-face {
+  font-family: "Heebo";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/Heebo-400.woff") format("woff");
+}
+
+@font-face {
+  font-family: "Heebo";
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url("/fonts/Heebo-800.woff") format("woff");
+}

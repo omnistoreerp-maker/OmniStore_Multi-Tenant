@@ -1,0 +1,565 @@
+/* ============================================================================
+   OmniStore — Online Games section
+   Catalog (/online-games/), details (game.html), player (play.html).
+
+   Built ON TOP of platform/platform.css, which every page here links first:
+   all the custom properties below already exist (`--bg`, `--surface`,
+   `--text`, `--muted`, `--border`, `--accent`, `--radius`, `--shadow-glass`,
+   `--font-arabic`), so nothing is restated. This file adds only what the
+   platform stylesheet has no concept of: a searchable grid of game cards, a
+   details column and a framed player stage.
+
+   RTL is not an add-on: the document is `dir="rtl"` and every direction here
+   is expressed in logical properties (`inline-*`, `block-*`, `inset-inline-*`)
+   so nothing has to be mirrored by hand later.
+   ========================================================================== */
+
+/* ---- shared page shell -------------------------------------------------- */
+
+.og-main {
+  position: relative;
+  z-index: 1;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 28px 20px 120px;
+}
+
+/* ---- hero --------------------------------------------------------------- */
+
+.og-hero {
+  padding: 8px 0 26px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 26px;
+}
+
+.og-hero-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.og-hero-pill b {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.og-hero h1 {
+  margin: 16px 0 10px;
+  font-size: clamp(26px, 5vw, 40px);
+  line-height: 1.25;
+  font-weight: 800;
+}
+
+.og-hero h1 .og-grad {
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.og-hero p {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+/* ---- toolbar: search + result count ------------------------------------- */
+
+.og-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.og-search {
+  position: relative;
+  flex: 1 1 300px;
+  min-width: 0;
+}
+
+.og-search input {
+  width: 100%;
+  min-height: 48px;
+  padding-block: 12px;
+  /* inline-end is the LEFT in this RTL document, which is where the icon is
+     put below; writing the two sides as physical numbers here is how an RTL
+     field ends up with its icon sitting on top of the placeholder. */
+  padding-inline: 18px 46px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-solid);
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  outline: none;
+}
+
+.og-search input::placeholder {
+  color: var(--muted);
+}
+
+.og-search input:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.28);
+}
+
+/* In RTL the field's text starts on the right, so the icon sits at the LEFT. */
+.og-search .og-search-icon {
+  position: absolute;
+  inset-inline-start: auto;
+  inset-inline-end: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.og-count {
+  color: var(--muted);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+/* ---- category chips ----------------------------------------------------- */
+
+.og-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+  margin-bottom: 20px;
+  scrollbar-width: thin;
+}
+
+.og-chip {
+  flex: 0 0 auto;
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 18px;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.og-chip:hover {
+  border-color: var(--accent);
+}
+
+.og-chip[aria-pressed="true"] {
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  border-color: transparent;
+  color: #fff;
+  font-weight: 700;
+}
+
+.og-chip .og-chip-n {
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+/* ---- game grid ---------------------------------------------------------- */
+
+.og-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(184px, 1fr));
+  gap: 14px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.og-card {
+  display: block;
+  height: 100%;
+  padding: 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-glass);
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.og-card:hover,
+.og-card:focus-visible {
+  transform: translateY(-3px);
+  border-color: var(--accent);
+}
+
+.og-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.og-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.og-emoji {
+  font-size: 30px;
+  line-height: 1;
+}
+
+/* The game's own colour, used only as a tint behind the emoji so two cards
+   never look identical without turning the section into a rainbow. */
+.og-badge {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--c, var(--accent)) 24%, transparent);
+  font-size: 24px;
+}
+
+.og-card h3 {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.og-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.og-card-meta {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.og-tag {
+  padding: 3px 10px;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* ---- empty / notice states ---------------------------------------------- */
+
+.og-state {
+  padding: 46px 20px;
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.og-state h2 {
+  margin: 0 0 8px;
+  font-size: 19px;
+}
+
+.og-state p {
+  margin: 0 auto;
+  max-width: 52ch;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.og-state .og-state-emoji {
+  font-size: 40px;
+  display: block;
+  margin-bottom: 12px;
+}
+
+.og-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  min-width: 48px;
+  padding: 0 22px;
+  margin-top: 16px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  color: #fff;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.og-btn:hover {
+  filter: brightness(1.08);
+}
+
+.og-btn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.og-btn--ghost {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text);
+}
+
+/* ---- details page ------------------------------------------------------- */
+
+.og-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 0 16px;
+  margin-bottom: 18px;
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.og-back:hover {
+  border-color: var(--accent);
+}
+
+.og-detail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 340px);
+  gap: 22px;
+  align-items: start;
+}
+
+@media (max-width: 860px) {
+  .og-detail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.og-panel {
+  padding: 22px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-glass);
+}
+
+.og-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.og-detail-head .og-badge {
+  width: 64px;
+  height: 64px;
+  font-size: 34px;
+  border-radius: 16px;
+}
+
+.og-detail-head h1 {
+  margin: 0;
+  font-size: clamp(22px, 4vw, 30px);
+  line-height: 1.3;
+}
+
+.og-detail-head .og-sub {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.og-lead {
+  margin: 0 0 18px;
+  font-size: 16px;
+  line-height: 1.8;
+  color: var(--text);
+}
+
+.og-facts {
+  list-style: none;
+  margin: 0 0 20px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.og-facts li {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 13px;
+}
+
+.og-facts b {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.og-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* ---- player page -------------------------------------------------------- */
+
+.og-stage {
+  position: relative;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: #05070d;
+  overflow: hidden;
+  box-shadow: var(--shadow-glass);
+}
+
+/* The iframe and its loading cover share this box, so the cover sits over the
+   stage's body only and never over the title bar and its exit control — a
+   visitor must always be able to get out, including while a game is loading. */
+.og-frame-host {
+  position: relative;
+}
+
+.og-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  text-align: center;
+  background: #05070d;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.7;
+  z-index: 1;
+}
+
+.og-stage-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-solid);
+}
+
+.og-stage-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.og-stage-title .og-emoji {
+  font-size: 20px;
+}
+
+.og-iconbtn {
+  min-width: 48px;
+  min-height: 48px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.og-iconbtn:hover {
+  border-color: var(--accent);
+}
+
+.og-iconbtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* The stage never grows taller than the viewport minus the chrome around it,
+   so the frame and its exit control are always reachable without scrolling. */
+.og-frame {
+  display: block;
+  width: 100%;
+  height: clamp(360px, calc(100vh - 260px), 860px);
+  border: 0;
+  background: #10121a;
+}
+
+.og-frame--portrait {
+  height: clamp(420px, calc(100vh - 240px), 900px);
+  max-width: 520px;
+  margin-inline: auto;
+  border-inline: 1px solid var(--border);
+}
+
+.og-stage-note {
+  padding: 14px 16px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ---- related row -------------------------------------------------------- */
+
+.og-related {
+  margin-top: 26px;
+}
+
+.og-related h2 {
+  margin: 0 0 14px;
+  font-size: 18px;
+}
+
+.og-related .og-grid {
+  grid-template-columns: repeat(auto-fill, minmax(164px, 1fr));
+}
+
+/* ---- footer clearance for the fixed bottom nav -------------------------- */
+
+/* platform.css fixes `.bottom-nav` to the viewport; a page whose content ends
+   underneath it hides the last row. The platform's own pages absorb this with
+   section padding, this one needs it explicitly. */
+.og-main {
+  padding-bottom: 140px;
+}
