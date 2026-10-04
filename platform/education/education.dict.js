@@ -21,6 +21,9 @@
     "Center": "المركز",
     "Center Code": "كود المركز",
     "Centers": "المراكز",
+    "Center Workspace": "مساحة المركز",
+    "Profile": "الملف الشخصي",
+    "Progress": "التقدم",
     "Class": "الصف",
     "Class Code": "كود الصف",
     "Classes": "الصفوف",
@@ -249,6 +252,20 @@
     "part_time": "دوام جزئي",
     "present": "حاضر",
     "weeks": "أسابيع",
-    "withdrawn": "مسحوب"
+    "withdrawn": "مسحوب",
+    "Bookings": "الحجوزات",
+    "Ratings": "التقييمات",
+    "Add Booking": "إضافة حجز",
+    "Add Rating": "إضافة تقييم",
+    "Fee": "السعر",
+    "Score": "الدرجة",
+    "Comment": "التعليق",
+    "Complete": "إتمام",
+    "requested": "مطلوب",
+    "confirmed": "مؤكد",
+    "completed": "مكتمل",
+    "cancelled": "ملغى",
+    "This account is linked to a teacher record, so the workspace opens on that record. The picker below stays explicit and can be changed at any time.": "مرتبط هذا الحساب بسجل معلّم، لذا تفتح مساحة العمل على ذلك السجل. القائمة أدناه تبقى صريحة ويمكن تغييرها في أي وقت.",
+    "Class price as a plain decimal amount, for example 1500 or 1500.50. Leave empty for no fee.": "سعر الفصل كقيمة عشرية بسيطة، مثال 1500 أو 1500.50. اتركه فارغاً لعدم وجود سعر."
   });
 }());

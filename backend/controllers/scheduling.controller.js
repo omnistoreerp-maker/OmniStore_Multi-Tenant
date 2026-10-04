@@ -19,10 +19,23 @@
 // There is no DELETE handler and no /archive or /cancel route: a scheduled
 // session is a plan, and a wrong plan is corrected through PUT, which is
 // auditable in a way a delete is not.
+//
+// TEACHER OWNERSHIP - a session stores only `classId`; the owning teacher is
+// resolved THROUGH the Class. When `req.teacherActor` is set (linked account):
+//   - listScheduling is force-scoped to that teacher's classes (the query
+//     `teacherId` is overridden, never trusted);
+//   - getSession / updateSession refuse a session of another teacher's class
+//     with 403 OWNERSHIP_DENIED (404 still wins across tenants — existence is
+//     never leaked);
+//   - createSession may only schedule INTO one of the linked teacher's own
+//     classes; an unknown classId still falls through to the service's 400
+//     (no existence oracle), a known foreign class is 403.
+// Unlinked callers (Owner/Admin/Manager role gate, operators) are unchanged.
 
 const { success, error } = require('../utils/apiResponse');
 const { trustedTenantId } = require('../middleware/authorize');
 const schedulingService = require('../services/scheduling.service');
+const classService = require('../services/class.service');
 const logger = require('../utils/logger');
 
 // Returns the trusted tenant id, or null after having already answered 400.
@@ -50,6 +63,19 @@ function _handleWriteError(res, err, message) {
   error(res, message, 500);
 }
 
+function _ownership403(res, message) {
+  error(res, message, 403, { code: 'OWNERSHIP_DENIED' });
+}
+
+// Resolves the Class that owns a session for the ownership checks. Returns the
+// Class row, or null when the classId does not resolve inside the tenant (the
+// caller then falls through to the service's own 400/404 handling — no
+// existence oracle is opened here).
+function _classOfSession(tenantId, session) {
+  if (!session || !session.classId) return null;
+  return classService.getClass({ tenantId }, session.classId);
+}
+
 function listScheduling(req, res) {
   try {
     const tenantId = _tenantIdOr400(req, res);
@@ -66,6 +92,9 @@ function listScheduling(req, res) {
       dateFrom: req.query ? req.query.dateFrom : undefined,
       dateTo: req.query ? req.query.dateTo : undefined
     };
+    // A LINKED teacher's timetable is force-scoped through their own classes:
+    // the query `teacherId` is overridden by the linked record, never trusted.
+    if (req.teacherActor) filters.teacherId = String(req.teacherActor.id);
     success(res, schedulingService.listScheduling({ tenantId }, filters), 'Scheduling retrieved');
   } catch (err) {
     logger.error('scheduling.listScheduling error:', err.message);
@@ -81,6 +110,13 @@ function getSession(req, res) {
     // A record owned by another tenant is reported as absent, never as
     // forbidden, so existence is not leaked across tenants.
     if (!found) return error(res, 'Scheduling session not found', 404);
+    // Same-tenant session of ANOTHER teacher's class: forbidden.
+    if (req.teacherActor) {
+      const owner = _classOfSession(tenantId, found);
+      if (owner && String(owner.teacherId) !== String(req.teacherActor.id)) {
+        return _ownership403(res, 'Teachers may only access sessions of their own classes');
+      }
+    }
     success(res, found, 'Scheduling session retrieved');
   } catch (err) {
     logger.error('scheduling.getSession error:', err.message);
@@ -97,6 +133,17 @@ function createSession(req, res) {
     // required Class reference inside the trusted tenant, refuses an empty or
     // inverted time range, enforces both conflict rules and stamps the trusted
     // tenantId.
+    //
+    // A LINKED teacher schedules only INTO their own classes: a classId that
+    // resolves to a known foreign class is refused here with 403, while an
+    // unresolvable classId falls through to the service's 400 so this check
+    // never becomes an existence oracle.
+    if (req.teacherActor && req.body && req.body.classId) {
+      const target = classService.getClass({ tenantId }, req.body.classId);
+      if (target && String(target.teacherId) !== String(req.teacherActor.id)) {
+        return _ownership403(res, 'Teachers may only schedule sessions for their own classes');
+      }
+    }
     const created = schedulingService.createSession({ tenantId }, req.body || {});
     success(res, created, 'Scheduling session created', 201);
   } catch (err) {
@@ -111,6 +158,18 @@ function updateSession(req, res) {
     // A correction. `scheduledDate`, `startTime`, `endTime` and `notes` are
     // mutable; `classId` is immutable and any attempt to supply it is rejected
     // before the persisted record is touched.
+    //
+    // A LINKED teacher corrects only sessions of their own classes: the row is
+    // loaded first so a foreign same-tenant session is refused BEFORE the
+    // update runs (404 across tenants still wins — no existence leak).
+    if (req.teacherActor) {
+      const existing = schedulingService.getSession({ tenantId }, req.params.id);
+      if (!existing) return error(res, 'Scheduling session not found', 404);
+      const owner = _classOfSession(tenantId, existing);
+      if (owner && String(owner.teacherId) !== String(req.teacherActor.id)) {
+        return _ownership403(res, 'Teachers may only correct sessions of their own classes');
+      }
+    }
     const updated = schedulingService.updateSession({ tenantId }, req.params.id, req.body || {});
     if (!updated) return error(res, 'Scheduling session not found', 404);
     success(res, updated, 'Scheduling session updated');

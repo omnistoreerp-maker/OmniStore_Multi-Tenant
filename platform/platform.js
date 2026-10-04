@@ -266,8 +266,8 @@
   // customer request API and the platform-admin operator workflow.
   // Education is active as well: the tenant-scoped Education module ships with
   // this release (students, teachers, centers, programs, courses, classes,
-  // enrollments, attendance, schedule, grading) and its 22 education.*
-  // permissions are registered. Discoverability here grants no access — every
+  // enrollments, attendance, schedule, grading, bookings, ratings) and its 26
+  // education.* permissions are registered. Discoverability here grants no access — every
   // Education route still enforces requirePermission per route.
   const SECTION_LOCK_POLICY = {
     active: {

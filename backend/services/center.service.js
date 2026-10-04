@@ -36,6 +36,7 @@
 // owner/portal field. Those belong to future or Master-owned domains.
 
 const storageAdapter = require('../repositories/storageAdapter');
+const usersService = require('./users.service');
 const logger = require('../utils/logger');
 
 const STORE_KEY = 'educationCenters';
@@ -89,6 +90,17 @@ class CenterCodeConflictError extends Error {
   }
 }
 
+// Raised when a link cannot be created because one of the two sides is already
+// linked elsewhere. Mapped to 409 with the repository's `{ code }` convention.
+class CenterLinkConflictError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'CenterLinkConflictError';
+    this.code = code;
+    this.conflict = true;
+  }
+}
+
 function _defaultDoc() {
   return { centers: [] };
 }
@@ -127,8 +139,12 @@ function _requireTenantId(tenantContext) {
   return tid;
 }
 
+let _lastNowMs = 0;
+
 function _now() {
-  return new Date().toISOString();
+  const nowMs = Date.now();
+  _lastNowMs = Math.max(nowMs, _lastNowMs + 1);
+  return new Date(_lastNowMs).toISOString();
 }
 
 function _generateId(prefix) {
@@ -404,15 +420,108 @@ function archiveCenter(tenantContext, id) {
   return { ...next };
 }
 
+// Look up a center by its linked user id inside THIS tenant, or null.
+// This is the only lookup the ownership layer performs: it never guesses
+// from a claim, and it never crosses tenants.
+function getCenterByUserId(tenantContext, userId) {
+  const tid = _requireTenantId(tenantContext);
+  if (userId === undefined || userId === null || String(userId).trim() === '') return null;
+  const uid = String(userId).trim();
+  const found = _centers(_readStore()).find(
+    c => String(c.tenantId || '') === tid && String(c.userId || '') === uid
+  );
+  return found ? { ...found } : null;
+}
+
+// Owner/Admin-only route: bind an existing authenticated account to this
+// center inside this tenant. Server-owned in both directions:
+//   - `userId` stays out of WRITABLE_FIELDS/FORBIDDEN_FIELDS as before: only
+//     this function writes it, and only a link row that exists can be read;
+//   - one account links to AT MOST one center per tenant and one center
+//     holds AT MOST one account (a repeat of the same pair is an idempotent
+//     no-op; a different pair is a typed 409);
+//   - the account must exist and, when it carries a tenant binding, it must
+//     be bound to THIS tenant — a cross-tenant link is refused, never repaired.
+function linkUser(tenantContext, id, userId) {
+  const tid = _requireTenantId(tenantContext);
+  if (userId === undefined || userId === null || String(userId).trim() === '') {
+    throw _validationError(['userId is required']);
+  }
+  const uid = String(userId).trim().slice(0, MAX_STRING_LEN);
+
+  const doc = _readStore();
+  const centers = _centers(doc);
+  const idx = _findIndexByTenant(centers, id, tid);
+  if (idx < 0) return null;
+
+  const user = usersService.getById(uid);
+  if (!user) {
+    throw _validationError(['userId does not reference an existing user']);
+  }
+  if (user.tenantId !== undefined && user.tenantId !== null && String(user.tenantId) !== '' &&
+      String(user.tenantId) !== tid) {
+    throw _validationError(['userId is bound to a different tenant']);
+  }
+
+  const base = { ...centers[idx] };
+  if (String(base.userId || '') === uid) return { ...base }; // idempotent re-link
+
+  if (base.userId !== undefined && base.userId !== null && String(base.userId) !== '') {
+    throw new CenterLinkConflictError(
+      'CENTER_ALREADY_LINKED',
+      'this center is already linked to an account; unlink it first'
+    );
+  }
+  const taken = centers.find(
+    c => String(c.tenantId || '') === tid && String(c.userId || '') === uid
+  );
+  if (taken) {
+    throw new CenterLinkConflictError(
+      'USER_ALREADY_LINKED',
+      'this account is already linked to another center in this tenant'
+    );
+  }
+
+  const next = { ...base, userId: uid, updatedAt: _now() };
+  centers[idx] = next;
+  _writeStore({ ...doc, centers });
+  return { ...next };
+}
+
+// Clears the link. The `userId` KEY is deleted (not blanked), so an unlinked
+// record is byte-identical to one that was never linked. Idempotent: unlinking
+// an unlinked center returns the record untouched.
+function unlinkUser(tenantContext, id) {
+  const tid = _requireTenantId(tenantContext);
+  const doc = _readStore();
+  const centers = _centers(doc);
+  const idx = _findIndexByTenant(centers, id, tid);
+  if (idx < 0) return null;
+
+  const base = { ...centers[idx] };
+  if (base.userId === undefined || base.userId === null || String(base.userId) === '') {
+    return { ...base };
+  }
+  const next = { ...base, updatedAt: _now() };
+  delete next.userId;
+  centers[idx] = next;
+  _writeStore({ ...doc, centers });
+  return { ...next };
+}
+
 module.exports = {
   listCenters,
   getCenter,
   createCenter,
   updateCenter,
   archiveCenter,
+  getCenterByUserId,
+  linkUser,
+  unlinkUser,
   CENTER_STATUSES,
   WRITABLE_FIELDS,
   FORBIDDEN_FIELDS,
   CenterCodeConflictError,
+  CenterLinkConflictError,
   STORE_KEY
 };

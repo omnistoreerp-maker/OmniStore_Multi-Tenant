@@ -377,6 +377,10 @@
 .edu-pill-days { background: rgba(15, 23, 42, 0.06); color: #334155; border-color: rgba(15, 23, 42, 0.12); }
 .edu-pill-weeks { background: rgba(15, 23, 42, 0.06); color: #334155; border-color: rgba(15, 23, 42, 0.12); }
 .edu-pill-months { background: rgba(15, 23, 42, 0.06); color: #334155; border-color: rgba(15, 23, 42, 0.12); }
+.edu-pill-requested { background: rgba(245, 158, 11, 0.12); color: #b45309; border-color: rgba(245, 158, 11, 0.25); }
+.edu-pill-confirmed { background: rgba(59, 130, 246, 0.12); color: #1d4ed8; border-color: rgba(59, 130, 246, 0.25); }
+.edu-pill-completed { background: rgba(16, 185, 129, 0.12); color: #047857; border-color: rgba(16, 185, 129, 0.25); }
+.edu-pill-cancelled { background: rgba(239, 68, 68, 0.12); color: #b91c1c; border-color: rgba(239, 68, 68, 0.25); }
 
 /* ---------- state blocks ---------- */
 

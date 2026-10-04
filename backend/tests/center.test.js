@@ -612,6 +612,139 @@ describe('STU-4 center routes — authorization and tenant isolation', () => {
   });
 });
 
+
+// P3 /centers/me — link-based identity, tenant isolation
+describe('P3 /centers/me — link-based identity, tenant and branch isolation', () => {
+  const BASE = '/api/v1/tenant/education';
+  let app;
+  let jwt;
+  let dir;
+
+  const now = new Date().toISOString();
+
+  beforeEach(() => {
+    dir = makeTempDataDir('ctr-me');
+    seed(dir, 'companies', companies);
+    seed(dir, 'users', { users: [
+      { id: 'u-owner', username: 'ctrOwner', password: bcrypt.hashSync('Pass#123', 10), role: 'Owner', fullName: 'Center Owner', tenantIds: ['ctr-a', 'ctr-b'], createdAt: now, updatedAt: now },
+      { id: 'u-actor', username: 'ctrActor', password: bcrypt.hashSync('Pass#123', 10), role: 'Viewer', fullName: 'Center Actor', tenantIds: ['ctr-a'], createdAt: now, updatedAt: now },
+      { id: 'u-manager', username: 'ctrManager', password: bcrypt.hashSync('Pass#123', 10), role: 'Manager', fullName: 'Center Manager', tenantIds: ['ctr-a'], createdAt: now, updatedAt: now }
+    ]});
+    seed(dir, 'educationCenters', { centers: [
+      { id: 'ctr-1', tenantId: 'ctr-a', centerCode: 'CT-A1', name: 'Center A1', displayName: 'Center A1', status: 'active', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+      { id: 'ctr-2', tenantId: 'ctr-a', centerCode: 'CT-A2', name: 'Center A2', displayName: 'Center A2', status: 'active', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+      { id: 'ctr-b1', tenantId: 'ctr-b', centerCode: 'CT-B1', name: 'Center B1', displayName: 'Center B1', status: 'active', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }
+    ]});
+    process.env.ENABLE_TENANT_CARRY = 'true';
+    app = startServer(dir, { AUTH_REQUIRED: 'true' }).app;
+    jwt = require('../utils/jwt');
+  });
+
+  afterEach(() => {
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}
+  });
+
+  const ownerA = () => jwt.signAccessToken({ id: 'u-owner', username: 'ctrOwner', role: 'Owner', tenantId: 'ctr-a' });
+  const ownerB = () => jwt.signAccessToken({ id: 'u-owner', username: 'ctrOwner', role: 'Owner', tenantId: 'ctr-b' });
+  const actorA = () => jwt.signAccessToken({ id: 'u-actor', username: 'ctrActor', role: 'Viewer', tenantId: 'ctr-a' });
+  const managerA = () => jwt.signAccessToken({ id: 'u-manager', username: 'ctrManager', role: 'Manager', tenantId: 'ctr-a' });
+
+  const link = (centerId, userId) =>
+    request(app).post(BASE + '/centers/' + centerId + '/link-user')
+      .set('Authorization', 'Bearer ' + ownerA()).send({ userId });
+  const delLink = (centerId, tok) =>
+    request(app).delete(BASE + '/centers/' + centerId + '/link-user')
+      .set('Authorization', 'Bearer ' + tok);
+  const get = (path, tok) =>
+    request(app).get(BASE + path).set('Authorization', 'Bearer ' + tok);
+
+  test('P3: /centers/me refuses an anonymous caller with 401', async () => {
+    expect((await request(app).get(BASE + '/centers/me')).statusCode).toBe(401);
+  });
+
+  test('P3: authenticated-but-unlinked account gets 404 CENTER_NOT_LINKED', async () => {
+    const res = await get('/centers/me', actorA());
+    expect(res.statusCode).toBe(404);
+    expect(res.body.details.code).toBe('CENTER_NOT_LINKED');
+  });
+
+  test('P3: after linking, the account resolves its own center (200)', async () => {
+    expect((await link('ctr-1', 'u-actor')).statusCode).toBe(200);
+    const res = await get('/centers/me', actorA());
+    expect(res.statusCode).toBe(200);
+    expect(res.body.data.id).toBe('ctr-1');
+    expect(res.body.data.userId).toBe('u-actor');
+    expect(res.body.data.tenantId).toBe('ctr-a');
+  });
+
+  test('P3: after unlink, the portal disappears (404 CENTER_NOT_LINKED)', async () => {
+    expect((await link('ctr-1', 'u-actor')).statusCode).toBe(200);
+    expect((await delLink('ctr-1', ownerA())).statusCode).toBe(200);
+    const res = await get('/centers/me', actorA());
+    expect(res.statusCode).toBe(404);
+    expect(res.body.details.code).toBe('CENTER_NOT_LINKED');
+  });
+
+  test('P3: tenant B owner cannot resolve a center linked in tenant A', async () => {
+    const res = await get('/centers/me', ownerB());
+    expect(res.statusCode).toBe(404);
+    expect(res.body.details.code).toBe('CENTER_NOT_LINKED');
+  });
+
+  test('P3: the link endpoint is Owner/Admin only — Viewer and Manager are 403', async () => {
+    const asViewer = await request(app)
+      .post(BASE + '/centers/ctr-1/link-user')
+      .set('Authorization', 'Bearer ' + actorA())
+      .send({ userId: 'u-actor' });
+    expect(asViewer.statusCode).toBe(403);
+    const asManager = await request(app)
+      .post(BASE + '/centers/ctr-1/link-user')
+      .set('Authorization', 'Bearer ' + managerA())
+      .send({ userId: 'u-actor' });
+    expect(asManager.statusCode).toBe(403);
+  });
+
+  test('P3: one-to-one — center already linked to different account is 409', async () => {
+    expect((await link('ctr-1', 'u-actor')).statusCode).toBe(200);
+    const res = await link('ctr-1', 'u-owner');
+    expect(res.statusCode).toBe(409);
+    expect(res.body.details.code).toBe('CENTER_ALREADY_LINKED');
+  });
+
+  test('P3: one-to-one — account already linked to another center is 409', async () => {
+    expect((await link('ctr-1', 'u-actor')).statusCode).toBe(200);
+    const res = await link('ctr-2', 'u-actor');
+    expect(res.statusCode).toBe(409);
+    expect(res.body.details.code).toBe('USER_ALREADY_LINKED');
+  });
+
+  test('P3: idempotent re-link of the same pair returns 200', async () => {
+    expect((await link('ctr-1', 'u-actor')).statusCode).toBe(200);
+    expect((await link('ctr-1', 'u-actor')).statusCode).toBe(200);
+  });
+
+  test('P3: linking to a nonexistent user is 400', async () => {
+    const res = await link('ctr-1', 'nonexistent-user-id');
+    expect(res.statusCode).toBe(400);
+  });
+
+  test('P3: payload shape — /me response carries only the center record', async () => {
+    expect((await link('ctr-1', 'u-actor')).statusCode).toBe(200);
+    const res = await get('/centers/me', actorA());
+    expect(res.statusCode).toBe(200);
+    const d = res.body.data;
+    expect(d).toHaveProperty('id');
+    expect(d).toHaveProperty('tenantId');
+    expect(d).toHaveProperty('name');
+    expect(d).toHaveProperty('userId');
+    expect(d.tenantId).toBe('ctr-a');
+    expect(d).not.toHaveProperty('billingAccountId');
+    expect(d).not.toHaveProperty('ownerUserId');
+  });
+});
+
+
+
 // Restore env so other suites are unaffected.
 afterAll(() => {
   const mapping = {

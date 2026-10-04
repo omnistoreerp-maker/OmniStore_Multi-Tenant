@@ -458,6 +458,273 @@ describe('STU-2 student routes — authorization and tenant isolation', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// STU-2 Student progress — read-only, derived from canonical P2 data.
+//
+// This suite proves the progress contract WITHOUT creating a lesson entity,
+// a progress store, or any fabricated relationship:
+//
+//   * the endpoint is read-only and gated by education.students.view;
+//   * every count is derived from the real P2 stores (enrollments, classes,
+//     attendance, scheduling) — never from a parallel model;
+//   * a student can only ever see their OWN tenant's rows; a foreign id
+//     answers 404 so existence is not leaked;
+//   * no score, grade, GPA, percentage, performance scale or ranking is
+//     present in the payload — the shape is counts only;
+//   * `lessons.total` is always 0 because the canonical P2 model has no
+//     lesson entity, and the endpoint never fabricates one.
+// ---------------------------------------------------------------------------
+describe('STU-2 student progress — raw counts only, no fabricated model', () => {
+  const BASE = '/api/v1/tenant/education';
+  let app;
+  let jwt;
+  let dir;
+  let ownerA;
+  let ownerB;
+  let clerkA;
+
+  beforeEach(() => {
+    dir = makeTempDataDir('stu-prog');
+    seed(dir, 'companies', companies);
+    seed(dir, 'users', { users: userRecords(bcrypt.hashSync('Pass#123', 10)) });
+    process.env.ENABLE_TENANT_CARRY = 'true';
+    const started = startServer(dir, { AUTH_REQUIRED: 'true' });
+    app = started.app;
+    jwt = require('../utils/jwt');
+    const token = (username, tenantId, role) =>
+      jwt.signAccessToken({ id: 'u-owner', username, role, tenantId });
+    ownerA = () => token('stuOwner', 'stu-a', 'Owner');
+    ownerB = () => token('stuOwner', 'stu-b', 'Owner');
+    clerkA = () => token('stuClerk', 'stu-a', 'Viewer');
+  });
+
+  afterEach(() => {
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}
+  });
+
+  // Creates one student in THIS test's fresh app instance and returns its id.
+  const createOwnStudent = async () => {
+    const res = await request(app)
+      .post(`${BASE}/students`)
+      .set('Authorization', `Bearer ${ownerA()}`)
+      .send({
+        firstName: 'Progress',
+        lastName: 'Student',
+        email: 'prog@example.com',
+        phone: '+1-555-0100',
+        address: 'Test Street 1'
+      });
+    expect(res.statusCode).toBe(201);
+    return res.body.data.id;
+  };
+
+  test('the progress route is gated by education.students.view and answers 401 anonymously', async () => {
+    const res = await request(app).get(`${BASE}/students/anything/progress`);
+    expect(res.statusCode).toBe(401);
+  });
+
+  test('a student with only the Student view permission can read their own progress', async () => {
+    const id = await createOwnStudent();
+    const res = await request(app)
+      .get(`${BASE}/students/${id}/progress`)
+      .set('Authorization', `Bearer ${clerkA()}`);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toHaveProperty('enrollments');
+    expect(res.body.data).toHaveProperty('attendance');
+    expect(res.body.data).toHaveProperty('lessons');
+  });
+
+  test('the payload contains raw counts only — no score, grade, GPA, percentage or ranking', async () => {
+    const id = await createOwnStudent();
+    const res = await request(app)
+      .get(`${BASE}/students/${id}/progress`)
+      .set('Authorization', `Bearer ${ownerA()}`);
+    expect(res.statusCode).toBe(200);
+    const d = res.body.data;
+    expect(typeof d.enrollments.total).toBe('number');
+    expect(typeof d.enrollments.active).toBe('number');
+    expect(typeof d.enrollments.withdrawn).toBe('number');
+    expect(typeof d.courses.enrolled).toBe('number');
+    expect(typeof d.classes.enrolled).toBe('number');
+    expect(typeof d.sessions.scheduled).toBe('number');
+    expect(typeof d.attendance.total).toBe('number');
+    expect(typeof d.attendance.present).toBe('number');
+    expect(typeof d.attendance.absent).toBe('number');
+    expect(typeof d.attendance.late).toBe('number');
+    expect(typeof d.attendance.excused).toBe('number');
+    expect(d.lessons.total).toBe(0);
+    // The shape must not smuggle in any derived score field.
+    expect(d).not.toHaveProperty('gpa');
+    expect(d).not.toHaveProperty('percentage');
+    expect(d).not.toHaveProperty('score');
+    expect(d).not.toHaveProperty('grade');
+    expect(d).not.toHaveProperty('ranking');
+    expect(d.attendance).not.toHaveProperty('rate');
+    expect(d.attendance).not.toHaveProperty('average');
+  });
+
+  test('a foreign student id answers 404 so existence is not leaked across tenants', async () => {
+    const res = await request(app)
+      .get(`${BASE}/students/zzz-no-such-student/progress`)
+      .set('Authorization', `Bearer ${ownerA()}`);
+    expect(res.statusCode).toBe(404);
+  });
+
+  test('a tenant B owner cannot read tenant A student progress', async () => {
+    const id = await createOwnStudent();
+    const res = await request(app)
+      .get(`${BASE}/students/${id}/progress`)
+      .set('Authorization', `Bearer ${ownerB()}`);
+    expect(res.statusCode).toBe(404);
+  });
+
+  test('the counts reflect only the authenticated tenant rows', async () => {
+    const id = await createOwnStudent();
+    const res = await request(app)
+      .get(`${BASE}/students/${id}/progress`)
+      .set('Authorization', `Bearer ${ownerA()}`);
+    expect(res.statusCode).toBe(200);
+    const payload = JSON.stringify(res.body.data);
+    // A cross-tenant id must never appear in the derived counts.
+    expect(payload).not.toContain('stu-b');
+  });
+});
+
+
+// P4 /students/me — link-based identity, tenant isolation
+describe('P4 /students/me — link-based identity, tenant and branch isolation', () => {
+  const BASE = '/api/v1/tenant/education';
+  let app;
+  let jwt;
+  let dir;
+
+  const now = new Date().toISOString();
+
+  beforeEach(() => {
+    dir = makeTempDataDir('stu-me');
+    seed(dir, 'companies', companies);
+    seed(dir, 'users', { users: [
+      { id: 'u-owner', username: 'stuOwner', password: bcrypt.hashSync('Pass#123', 10), role: 'Owner', fullName: 'Student Owner', tenantIds: ['stu-a', 'stu-b'], createdAt: now, updatedAt: now },
+      { id: 'u-actor', username: 'stuActor', password: bcrypt.hashSync('Pass#123', 10), role: 'Viewer', fullName: 'Student Actor', tenantIds: ['stu-a'], createdAt: now, updatedAt: now },
+      { id: 'u-manager', username: 'stuManager', password: bcrypt.hashSync('Pass#123', 10), role: 'Manager', fullName: 'Student Manager', tenantIds: ['stu-a'], createdAt: now, updatedAt: now }
+    ]});
+    seed(dir, 'educationStudents', { students: [
+      { id: 'std-1', tenantId: 'stu-a', studentCode: 'S1', firstName: 'Sara', lastName: 'Student', status: 'active', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+      { id: 'std-2', tenantId: 'stu-a', studentCode: 'S2', firstName: 'Sam', lastName: 'Student', status: 'active', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+      { id: 'std-b1', tenantId: 'stu-b', studentCode: 'SB', firstName: 'Bea', lastName: 'Student', status: 'active', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' }
+    ]});
+    process.env.ENABLE_TENANT_CARRY = 'true';
+    app = startServer(dir, { AUTH_REQUIRED: 'true' }).app;
+    jwt = require('../utils/jwt');
+  });
+
+  afterEach(() => {
+    try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}
+  });
+
+  const ownerA = () => jwt.signAccessToken({ id: 'u-owner', username: 'stuOwner', role: 'Owner', tenantId: 'stu-a' });
+  const ownerB = () => jwt.signAccessToken({ id: 'u-owner', username: 'stuOwner', role: 'Owner', tenantId: 'stu-b' });
+  const actorA = () => jwt.signAccessToken({ id: 'u-actor', username: 'stuActor', role: 'Viewer', tenantId: 'stu-a' });
+  const managerA = () => jwt.signAccessToken({ id: 'u-manager', username: 'stuManager', role: 'Manager', tenantId: 'stu-a' });
+
+  const link = (studentId, userId) =>
+    request(app).post(BASE + '/students/' + studentId + '/link-user')
+      .set('Authorization', 'Bearer ' + ownerA()).send({ userId });
+  const delLink = (studentId, tok) =>
+    request(app).delete(BASE + '/students/' + studentId + '/link-user')
+      .set('Authorization', 'Bearer ' + tok);
+  const get = (path, tok) =>
+    request(app).get(BASE + path).set('Authorization', 'Bearer ' + tok);
+
+  test('P4: /students/me refuses an anonymous caller with 401', async () => {
+    expect((await request(app).get(BASE + '/students/me')).statusCode).toBe(401);
+  });
+
+  test('P4: authenticated-but-unlinked account gets 404 STUDENT_NOT_LINKED', async () => {
+    const res = await get('/students/me', actorA());
+    expect(res.statusCode).toBe(404);
+    expect(res.body.details.code).toBe('STUDENT_NOT_LINKED');
+  });
+
+  test('P4: after linking, the account resolves its own student (200)', async () => {
+    expect((await link('std-1', 'u-actor')).statusCode).toBe(200);
+    const res = await get('/students/me', actorA());
+    expect(res.statusCode).toBe(200);
+    expect(res.body.data.id).toBe('std-1');
+    expect(res.body.data.userId).toBe('u-actor');
+    expect(res.body.data.tenantId).toBe('stu-a');
+  });
+
+  test('P4: after unlink, the portal disappears (404 STUDENT_NOT_LINKED)', async () => {
+    expect((await link('std-1', 'u-actor')).statusCode).toBe(200);
+    expect((await delLink('std-1', ownerA())).statusCode).toBe(200);
+    const res = await get('/students/me', actorA());
+    expect(res.statusCode).toBe(404);
+    expect(res.body.details.code).toBe('STUDENT_NOT_LINKED');
+  });
+  test('P4: tenant B owner cannot resolve a student linked in tenant A', async () => {
+    const res = await get('/students/me', ownerB());
+    expect(res.statusCode).toBe(404);
+    expect(res.body.details.code).toBe('STUDENT_NOT_LINKED');
+  });
+
+  test('P4: the link endpoint is Owner/Admin only — Viewer and Manager are 403', async () => {
+    const asViewer = await request(app)
+      .post(BASE + '/students/std-1/link-user')
+      .set('Authorization', 'Bearer ' + actorA())
+      .send({ userId: 'u-actor' });
+    expect(asViewer.statusCode).toBe(403);
+    const asManager = await request(app)
+      .post(BASE + '/students/std-1/link-user')
+      .set('Authorization', 'Bearer ' + managerA())
+      .send({ userId: 'u-actor' });
+    expect(asManager.statusCode).toBe(403);
+  });
+
+  test('P4: one-to-one — student already linked to different account is 409', async () => {
+    expect((await link('std-1', 'u-actor')).statusCode).toBe(200);
+    const res = await link('std-1', 'u-owner');
+    expect(res.statusCode).toBe(409);
+    expect(res.body.details.code).toBe('STUDENT_ALREADY_LINKED');
+  });
+
+  test('P4: one-to-one — account already linked to another student is 409', async () => {
+    expect((await link('std-1', 'u-actor')).statusCode).toBe(200);
+    const res = await link('std-2', 'u-actor');
+    expect(res.statusCode).toBe(409);
+    expect(res.body.details.code).toBe('USER_ALREADY_LINKED');
+  });
+
+  test('P4: idempotent re-link of the same pair returns 200', async () => {
+    expect((await link('std-1', 'u-actor')).statusCode).toBe(200);
+    expect((await link('std-1', 'u-actor')).statusCode).toBe(200);
+  });
+
+  test('P4: linking to a nonexistent user is 400', async () => {
+    const res = await link('std-1', 'nonexistent-user-id');
+    expect(res.statusCode).toBe(400);
+  });
+
+  test('P4: payload shape — no GPA, grade, ranking, percentage, payment fields', async () => {
+    expect((await link('std-1', 'u-actor')).statusCode).toBe(200);
+    const res = await get('/students/me', actorA());
+    expect(res.statusCode).toBe(200);
+    const d = res.body.data;
+    expect(d).toHaveProperty('id');
+    expect(d).toHaveProperty('tenantId');
+    expect(d).toHaveProperty('studentCode');
+    expect(d).toHaveProperty('userId');
+    expect(d.tenantId).toBe('stu-a');
+    expect(d).not.toHaveProperty('gpa');
+    expect(d).not.toHaveProperty('grade');
+    expect(d).not.toHaveProperty('ranking');
+    expect(d).not.toHaveProperty('percentage');
+    expect(d).not.toHaveProperty('payment');
+  });
+});
+
+
 // Restore env so other suites are unaffected.
 afterAll(() => {
   const mapping = {

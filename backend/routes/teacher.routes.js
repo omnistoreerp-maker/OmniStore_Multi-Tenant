@@ -12,29 +12,49 @@
 // STRICT `requirePermission`, NOT `requirePermissionIfAuth`: the IfAuth variant
 // short-circuits to next() whenever AUTH_REQUIRED is false, which defaults to
 // false, so it would make the whole Teacher surface unauthenticated by default.
+// `education.teachers.view` / `education.teachers.edit` are registered in
+// backend/permissions/registry.js, so the gate is enforceable today and an
+// unknown permission still fails closed. The global
+// scopedWriteRoleGuard('Owner','Admin','Manager') applies to these writes
+// too, with ONE identity-based exception: a LINKED teacher account
+// (req.teacherActor, resolved before that gate by middleware/teacherActor)
+// passes it on the education subtree — which is what lets a teacher with a
+// normal, non-privileged account reach their own portal writes; the route
+// permission and the controller's ownership checks still decide everything
+// else. See the guard's comment in backend/middleware/authorize.js.
 //
-// KNOWN BLOCKER (Master-owned, NOT worked around here):
-//   `education.teachers.view` / `education.teachers.edit` are not yet
-//   registered in backend/permissions/registry.js. Unknown permissions fail
-//   closed, so only Owner/Admin can reach this surface until Master registers
-//   them. This route file does NOT register them, does NOT bypass the gate, and
-//   does NOT weaken the middleware. The same global
-//   scopedWriteRoleGuard('Owner','Admin','Manager') interception documented in
-//   the STU-1/STU-2 route files also applies to these writes.
+// PORTAL IDENTITY (P2 Teacher portal):
+//   - GET /teachers/me resolves the teacher LINKED to the signed-in account.
+//     It deliberately uses NO permission grant: the link itself is the
+//     authorization (an account can only ever read its own linked record).
+//     Registered BEFORE /teachers/:id so the literal path wins.
+//   - POST/DELETE /teachers/:id/link-user are gated by requireRole('Owner',
+//     'Admin') — the TENANT role resolved server-side, never a client claim —
+//     because binding an account to a teacher IS granting portal identity.
+//   - OWNERSHIP: a linked teacher (req.teacherActor) is refused 403
+//     OWNERSHIP_DENIED on every other teacher's row in the controller,
+//     independent of the view/edit grants it may also hold.
 //
-// Teacher is the ONLY Education domain added here. Centers, Programs, Courses,
-// Classes, Enrollment, Attendance, Scheduling, Guardian/Parent portal, Teacher
-// portal, Billing, Payments and financial logic are deliberately NOT declared.
+// Teacher is the ONLY record domain declared here; Centers, Programs, Courses,
+// Classes, Enrollment, Attendance, Scheduling, Grading, Bookings and Ratings
+// live in their own routers.
 
 const router = require('express').Router();
 const ctrl = require('../controllers/teacher.controller');
 const asyncHandler = require('../utils/asyncHandler');
-const { requirePermission } = require('../middleware/authorize');
+const { requirePermission, requireRole } = require('../middleware/authorize');
+
+// Portal identity — MUST stay above '/teachers/:id'.
+router.get('/teachers/me', asyncHandler(ctrl.getMe));
 
 router.get('/teachers', requirePermission('education.teachers.view'), asyncHandler(ctrl.listTeachers));
 router.get('/teachers/:id', requirePermission('education.teachers.view'), asyncHandler(ctrl.getTeacher));
 router.post('/teachers', requirePermission('education.teachers.edit'), asyncHandler(ctrl.createTeacher));
 router.put('/teachers/:id', requirePermission('education.teachers.edit'), asyncHandler(ctrl.updateTeacher));
 router.patch('/teachers/:id/archive', requirePermission('education.teachers.edit'), asyncHandler(ctrl.archiveTeacher));
+
+// Account link — Owner/Admin only, server-resolved tenant role.
+router.post('/teachers/:id/link-user', requireRole('Owner', 'Admin'), asyncHandler(ctrl.linkUser));
+router.delete('/teachers/:id/link-user', requireRole('Owner', 'Admin'), asyncHandler(ctrl.unlinkUser));
 
 module.exports = router;

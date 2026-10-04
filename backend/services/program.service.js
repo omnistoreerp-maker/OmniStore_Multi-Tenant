@@ -141,8 +141,12 @@ function _requireTenantId(tenantContext) {
   return tid;
 }
 
+let _lastNowMs = 0;
+
 function _now() {
-  return new Date().toISOString();
+  const nowMs = Date.now();
+  _lastNowMs = Math.max(nowMs, _lastNowMs + 1);
+  return new Date(_lastNowMs).toISOString();
 }
 
 function _generateId(prefix) {

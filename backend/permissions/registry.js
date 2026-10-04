@@ -47,6 +47,7 @@ const REAL_GROUPS = [
     group: 'education',
     permissions: [
       'education.attendance.view', 'education.attendance.edit',
+      'education.bookings.view', 'education.bookings.edit',
       'education.centers.view', 'education.centers.edit',
       'education.classes.view', 'education.classes.edit',
       'education.courses.view', 'education.courses.edit',
@@ -54,6 +55,7 @@ const REAL_GROUPS = [
       'education.grading.view', 'education.grading.edit',
       'education.pack.view', 'education.pack.edit',
       'education.programs.view', 'education.programs.edit',
+      'education.ratings.view', 'education.ratings.edit',
       'education.scheduling.view', 'education.scheduling.edit',
       'education.students.view', 'education.students.edit',
       'education.teachers.view', 'education.teachers.edit'
