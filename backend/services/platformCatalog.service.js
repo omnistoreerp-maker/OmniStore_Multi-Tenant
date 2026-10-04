@@ -102,6 +102,19 @@ function _defaultDoc() {
         icon: 'fa-gamepad'
       },
       {
+        // Online Games (roster cycle): the 46 SAFE games ship under
+        // /online-games/ and the public catalog, details and player pages live
+        // at /online-games/index.html. Read-only and public — it grants no
+        // platform permission, and the frames stay cross-origin behind the
+        // configured GAMES_ORIGIN. Game Hosting above stays coming-soon.
+        id: 'online-games',
+        title: 'Online Games',
+        description: 'Free open-source HTML5 games playable instantly in the browser.',
+        status: 'active',
+        url: '/online-games/index.html',
+        icon: 'fa-dice'
+      },
+      {
         id: 'media-reels',
         title: 'Media / Reels',
         description: 'Media content and reels sharing.',
