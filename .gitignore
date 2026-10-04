@@ -57,3 +57,8 @@ backend/data/educationEnrollments.json
 backend/data/educationAttendance.json
 backend/data/educationScheduling.json
 backend/data/educationGrading.json
+# Written by the mounted booking + rating routers (server.js:434-435). These
+# hold teacher<->student bookings and free-text performance feedback, so they
+# must never reach git.
+backend/data/educationBookings.json
+backend/data/educationRatings.json

@@ -43,7 +43,7 @@ Legend: `COMPLETE` / `PARTIAL` / `MISSING` / `BROKEN` / `UNSAFE`
 | Print orders (existing) | yes | yes | yes | yes | yes | yes | settings.* | yes | yes | COMPLETE | pre-existing **print shop**, not education |
 | Student passes (existing) | yes | yes | yes | yes | yes | yes | settings.* | yes | yes | COMPLETE | pre-existing |
 | Student accounts / login | no | no | no | no | no | — | — | — | no | MISSING | no learner identity exists |
-| Subjects / courses / lessons | no | no | no | no | no | — | — | — | no | **NOW IMPLEMENTED** | Education Core |
+| Subjects / courses / lessons | no | no | no | no | no | — | — | — | no | courses **IMPLEMENTED**; lessons **out of model by design** | Education (`education.courses.*`) |
 | Learning progress | no | no | no | no | no | — | — | — | no | **NOW IMPLEMENTED** | Education Core |
 | Enrollment / subscription | no | no | no | no | no | — | — | — | no | **PARTIAL** | enrollment implemented; **plan/subscription billing missing** |
 | Booking / reschedule / cancel | no | no | no | no | no | — | — | — | no | MISSING | no scheduler entity |
@@ -55,7 +55,7 @@ Legend: `COMPLETE` / `PARTIAL` / `MISSING` / `BROKEN` / `UNSAFE`
 | Feature | Status | Notes |
 |---|---|---|
 | Teacher entity, profile, bio, subjects, availability, pricing, rating/reviews | **partially** | Teacher profile entity (name/bio/subjects/center/status) is now implemented. Availability, pricing, ratings/reviews → **MISSING** (no such model anywhere in repo). |
-| Courses / lessons / draft→published | **NOW IMPLEMENTED** | real create/edit/publish flows with tests |
+| Courses / lessons / draft→published | courses **IMPLEMENTED**, lessons **not in the model** | real course create/edit flows with tests; no lesson entity, by design |
 | Students list, enrollments, progress, booking history | **PARTIAL** | student list + enrollments + progress implemented; booking history MISSING (no bookings) |
 | Schedule / calendar / reschedule | **MISSING** | no schedule/calendar entity in architecture |
 | Revenue / earnings / transactions | **MISSING** | no education financial records; marketplace/ERP finances are a different domain |
@@ -86,21 +86,48 @@ Legend: `COMPLETE` / `PARTIAL` / `MISSING` / `BROKEN` / `UNSAFE`
 
 **No existing catalog/service status was changed.**
 
-## 3. What Was Implemented (this branch)
+## 3. What Was Implemented (superseded — read this first)
 
-Real, persisted, tenant-isolated **Education Core** + an Arabic/RTL backoffice page.
+> **SUPERSEDED / ROLLED BACK.** The `Education Core` implementation originally
+> described here was **never mounted** in `backend/server.js` — contrary to the
+> older revision of this table, there was never a require + mount for it. It was
+> removed in full, along with its backoffice page, because it was a dead parallel
+> model that could not be reached and must not be resurrected.
+>
+> **The canonical Education surface is `/education/index.html`**
+> (`platform/education/education.js` + `education.css` + `education.dict.js`),
+> backed by the 13 routers mounted at `/api/v1/tenant/education`. That
+> implementation is the source of truth.
+
+### Removed — do not reintroduce
+
+| File | Type | Why it went |
+|---|---|---|
+| `backend/services/educationCore.service.js` | removed | Parallel model with its own `educationCore` store. Its `lessons` entity and `PATCH /enrollments/:id/status` contradict the canonical model. |
+| `backend/controllers/educationCore.controller.js` | removed | Carried a private tenant resolver instead of the canonical `trustedTenantId`. |
+| `backend/routes/educationCore.routes.js` | removed | Gated by `requirePermissionIfAuth`, which returns `next()` unconditionally when `AUTH_REQUIRED` is false — and it defaults to false. Mounting it would have exposed 40+ entity routes incl. `DELETE /:id` with no identity requirement. |
+| `education.html` | removed | Legacy backoffice page. Called 6 routes that only `educationCore` served. |
+| `platform/education.js` | removed | Client for the above. |
+| `backend/tests/educationCore.*.test.js` | removed ×4 | Tested unreachable code. |
+
+### Canonical — current source of truth
 
 | File | Type | Purpose |
 |---|---|---|
-| `backend/services/educationCore.service.js` | new | centers, teachers, students, courses, lessons, enrollments, lesson progress — read/write-through JSON via `storageAdapter` |
-| `backend/controllers/educationCore.controller.js` | new | API handlers; tenant from request state only; 400/404 mapping; real dashboard counts |
-| `backend/routes/educationCore.routes.js` | new | `/api/v1/tenant/education/*`, `requirePermissionIfAuth('settings.view'/'settings.edit')` |
-| `backend/server.js` | modified (+2 lines) | 1 require + 1 mount |
-| `education.html` | new | Arabic/RTL, mobile-first, loading/empty/error/success states |
-| `platform/education.js` | new | client bound to `localStorage.access_token`; **no client-supplied tenant** |
-| `business.html` | modified (+16) | additive discoverability link |
-| `backend/tests/educationCore.*.test.js` | new ×4 | service, tenant isolation, route gating, authenticated HTTP E2E |
-| `docs/EDUCATION_PRODUCTS_AUDIT.md` | new | this document |
+| `education/index.html` | current | Canonical Education entry (Arabic/RTL, drawer + bottom nav) |
+| `platform/education/education.js` | current | Full-CRUD runtime; resolves `/centers/me`, `/teachers/me`, `/students/me` — never a fabricated identity |
+| `backend/routes/*.routes.js` ×13 | current | Mounted at `/api/v1/tenant/education`; `requirePermission` on 53 of 62 endpoints |
+| `backend/tests/educationModuleHygiene.test.js` | current | Asserts the removed files stay removed and no mount returns |
+
+### The lessons decision
+
+The canonical model has **no lesson entity**. `student.controller.js` reports
+`lessons: { total: 0 }` by design rather than fabricating a lesson set from
+sessions or attendance. That is the intended contract, so the legacy
+lessons/progress surface was not rebuilt under another name.
+
+| `business.html` | current | Education card routes to `/education/index.html` |
+| `docs/EDUCATION_PRODUCTS_AUDIT.md` | current | this document |
 
 ### Security properties enforced and tested
 
@@ -190,10 +217,13 @@ AFTER   (final)    Test Suites: 124 passed, 124 total
                    Tests: 1727 passed, 1727 total   (--no-cache, 0 failures)
 NEW TESTS          4 suites / 27 tests (service 10, isolation 6, routes 5, authz/E2E 6)
                    1700 baseline → 1727 final = +27
+                   [HISTORICAL — those 4 educationCore suites were later removed;
+                    see section 3. The canonical Education suites are
+                    student/teacher/center/teacherScope/educationPack instead.]
 LIVE SMOKE         health 200 | platform-public/sections 200 |
                    market/config 200 (X-Tenant-Id) | market/products 200 |
                    market.html 200 | platform.html 200 | business.html 200 |
-                   education.html 200 |
-                   education/dashboard 400 (tenant gate) | education/nope 404
+                   education/index.html 200 |          <-- canonical entry
+                   api/v1/tenant/education/students 401 unauthenticated | 404 unknown
 ```
 

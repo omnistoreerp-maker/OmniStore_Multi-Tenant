@@ -777,9 +777,34 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/tests/class.test.js',
     'backend/tests/permissionRegistry.test.js',
     'backend/tests/platformSections.education.test.js',
-    // Online Games license/dependency gate: CI wiring only (no app code).
-    '.github/workflows/ci.yml'
-  ]);
+// Online Games license/dependency gate: CI wiring only (no app code).
+      '.github/workflows/ci.yml',
+      // Education module hygiene: `educationCore` was a SECOND parallel
+      // Education implementation that was never mounted, behind
+      // requirePermissionIfAuth — a no-op whenever AUTH_REQUIRED is false
+      // (the default). All seven files are DELETED. backendModuleHygiene.test.js
+      // asserts they stay gone and that the 13 strongly-gated routers remain
+      // the only Education surface.
+      'backend/routes/educationCore.routes.js',
+      'backend/controllers/educationCore.controller.js',
+      'backend/services/educationCore.service.js',
+      'backend/tests/educationCore.authz.test.js',
+      'backend/tests/educationCore.routes.test.js',
+      'backend/tests/educationCore.service.test.js',
+      'backend/tests/educationCore.tenantIsolation.test.js',
+      'backend/tests/educationModuleHygiene.test.js',
+      '.gitignore',
+      // Legacy Education Center surface (option A): `education.html` +
+      // `platform/education.js` were a SECOND frontend bound to the educationCore
+      // routes, reachable from the business.html Education card. All six routes it
+      // called are now 404, so both files are DELETED and the card is repointed at
+      // the canonical `/education/index.html`. educationModuleHygiene.test.js pins
+      // the navigation and asserts no live frontend calls a deleted route.
+      'education.html',
+      'platform/education.js',
+      'business.html',
+      'docs/EDUCATION_PRODUCTS_AUDIT.md'
+    ]);
   const allowedUntracked = new Set([
   'backend/tests/controlCenterSecurityFixes.test.js',
     'platform/tests/section-lockdown.test.cjs',
@@ -914,9 +939,26 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/services/class.service.js',
     'backend/services/teacher.service.js',
     'backend/tests/class.test.js',
-    'backend/tests/permissionRegistry.test.js',
-    'backend/tests/platformSections.education.test.js'
-  ]);
+'backend/tests/permissionRegistry.test.js',
+      'backend/tests/platformSections.education.test.js',
+      // Education module hygiene: `educationCore` was a SECOND parallel
+      // Education implementation that was never mounted, behind
+      // requirePermissionIfAuth — which returns next() unconditionally when
+      // AUTH_REQUIRED is false, and that flag defaults to false. Mounting it
+      // would have exposed 40+ entity routes including DELETE /:id with no
+      // identity requirement at all. All seven files are DELETED; nothing here
+      // is reachable at runtime. backend/tests/educationModuleHygiene.test.js
+      // asserts they stay deleted and that the 13 strongly-gated routers
+      // (requirePermission on 53 of 62 endpoints) remain the only surface.
+      'backend/routes/educationCore.routes.js',
+      'backend/controllers/educationCore.controller.js',
+      'backend/services/educationCore.service.js',
+      'backend/tests/educationCore.authz.test.js',
+      'backend/tests/educationCore.routes.test.js',
+      'backend/tests/educationCore.service.test.js',
+      'backend/tests/educationCore.tenantIsolation.test.js',
+      'backend/tests/educationModuleHygiene.test.js'
+    ]);
   // Negative boundaries: these must NEVER appear in a working-tree diff or be added.
   //
   // `nginx.conf` used to be in this list. It is not any more, because the
