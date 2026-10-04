@@ -32,16 +32,19 @@
       nav_students: 'Student Services',
       nav_education: 'Education',
       nav_game: 'Game Hosting',
+      nav_online_games: 'Online Games',
       nav_app: 'Open Application',
       nav_market_short: 'Market',
       nav_business_short: 'Business',
       nav_students_short: 'Students',
       nav_education_short: 'Education',
       nav_game_short: 'Games',
+      nav_online_games_short: 'Online Games',
       nav_app_short: 'App',
       nav_soon: 'Soon',
       footer_text: 'OmniStore Platform v',
       footer_rights: 'All rights reserved',
+      licenses: 'Licenses',
       trust_1_title: 'Multi-tenant',
       trust_1_sub: 'Full isolation per company',
       trust_2_title: 'Real-time sync',
@@ -60,6 +63,7 @@
       section_business_services: 'Business Management Services',
       section_student_services: 'Student Services',
       section_game_hosting: 'Game Hosting',
+      section_online_games: 'Online Games',
       section_media_reels: 'Media / Reels',
       section_support: 'Support',
       section_education: 'Education',
@@ -99,16 +103,19 @@
       nav_students: 'خدمات الطلاب',
       nav_education: 'التعليم',
       nav_game: 'استضافة الألعاب',
+      nav_online_games: 'ألعاب أونلاين',
       nav_app: 'Open Application',
       nav_market_short: 'الماركت',
       nav_business_short: 'الأعمال',
       nav_students_short: 'الطلاب',
       nav_education_short: 'التعليم',
       nav_game_short: 'الألعاب',
+      nav_online_games_short: 'ألعاب أونلاين',
       nav_app_short: 'التطبيق',
       nav_soon: 'قريباً',
       footer_text: 'منصة OmniStore إصدار',
       footer_rights: 'جميع الحقوق محفوظة',
+      licenses: 'التراخيص',
       trust_1_title: 'تعدد المستأجرين',
       trust_1_sub: 'عزل كامل لكل شركة',
       trust_2_title: 'مزامنة لحظية',
@@ -127,6 +134,7 @@
       section_business_services: 'خدمات إدارة الأعمال',
       section_student_services: 'خدمات الطلاب',
       section_game_hosting: 'استضافة الألعاب',
+      section_online_games: 'ألعاب أونلاين',
       section_media_reels: 'الوسائط / الريلز',
       section_support: 'الدعم الفني',
       section_education: 'التعليم',
@@ -269,6 +277,10 @@
   // enrollments, attendance, schedule, grading, bookings, ratings) and its 26
   // education.* permissions are registered. Discoverability here grants no access — every
   // Education route still enforces requirePermission per route.
+  // Online Games is active: the 46-game roster ships under /online-games/ and
+  // the catalog, details and player pages live at /online-games/index.html.
+  // The section is public and read-only; it grants no platform permission and
+  // the game frames stay cross-origin behind the configured GAMES_ORIGIN.
   const SECTION_LOCK_POLICY = {
     active: {
       'marketplace': '/marketplace/',
@@ -276,7 +288,8 @@
       'student-services': '/student.html',
       'media-reels': '/media-reels.html',
       'support': '/support.html',
-      'education': '/education/index.html'
+      'education': '/education/index.html',
+      'online-games': '/online-games/index.html'
     },
     lockedIds: ['game-hosting']
   };
@@ -287,6 +300,7 @@
     { id: 'business-services', title: 'Business Management Services', description: 'Existing company access and new company onboarding.', status: 'active', url: '/business.html', icon: 'fa-building' },
     { id: 'student-services', title: 'Student Services & Printing', description: 'Print shop orders, cost calculator, and student monthly passes.', status: 'active', url: '/student.html', icon: 'fa-graduation-cap' },
     { id: 'game-hosting', title: 'Game Hosting', description: 'Host and manage game sessions and catalogs.', status: 'coming-soon', url: null, icon: 'fa-gamepad' },
+    { id: 'online-games', title: 'Online Games', description: 'Free open-source HTML5 games playable instantly in the browser.', status: 'active', url: '/online-games/index.html', icon: 'fa-dice' },
     { id: 'media-reels', title: 'Media / Reels', description: 'Media content and reels sharing.', status: 'active', url: '/media-reels.html', icon: 'fa-film' },
     { id: 'support', title: 'Support', description: 'Customer support center — requests, replies and status tracking.', status: 'active', url: '/support.html', icon: 'fa-life-ring' },
     { id: 'education', title: 'Education', description: 'Tenant-scoped Education management: students, teachers, centers, programs, courses, classes, enrollments, attendance, schedule and grading.', status: 'active', url: '/education/index.html', icon: 'fa-school' }

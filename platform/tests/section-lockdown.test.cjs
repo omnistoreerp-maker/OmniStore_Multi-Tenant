@@ -56,6 +56,8 @@ const PROHIBITED_ZONES = ['11857331', '11912374'];
 // (education/index.html + the tenant-scoped Education API).
 // Game Hosting stays locked per the owner correction cycle:
 // coming-soon with url:null, and it stays inside lockedIds.
+// Online Games graduated to active with the roster cycle:
+// the 46-game catalog + player surface under /online-games/.
 const LOCKED_IDS = ['game-hosting'];
 const ACTIVE_ROUTES = {
   'marketplace': '/marketplace/',
@@ -63,7 +65,8 @@ const ACTIVE_ROUTES = {
   'student-services': '/student.html',
   'media-reels': '/media-reels.html',
   'support': '/support.html',
-  'education': '/education/index.html'
+  'education': '/education/index.html',
+  'online-games': '/online-games/index.html'
 };
 
 let passed = 0;
@@ -780,6 +783,9 @@ check('working-tree diff touches only intended platform files', () => {
   const allowedUntracked = new Set([
   'backend/tests/controlCenterSecurityFixes.test.js',
     'platform/tests/section-lockdown.test.cjs',
+    // Online Games discoverability follow-up: catalog, lockdown policy and
+    // license attribution are asserted from the shipped bytes.
+    'backend/tests/onlineGames.catalog.test.js',
     'backend/tests/platformSections.students.test.js',
     // Support activation cycle: operator workflow tests.
     'backend/tests/internalChangeCenter.workflow.test.js',

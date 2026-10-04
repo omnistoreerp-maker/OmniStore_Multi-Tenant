@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-omni-section="online-games">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="التراخيص والنسب لألعاب أونلاين: الأساس MIT من Sigmafier/ellaz-games، خطوط SIL OFL 1.1، إشعار lettercross، وقائمة الـ46 لعبة المسموح بها.">
+  <meta name="theme-color" content="#070a12">
+  <!--
+    OWNER_REQUIRED — the origin that serves the game frames.
+
+    Deliberately empty on every page of this section, exactly as shipped by the
+    roster cycle. This page never frames anything; the meta exists so all four
+    documents of the section declare the same (unset) origin. Never invent a
+    hostname: js/config.js rejects an origin that is this page's own, because
+    the CSP's frame-src may not contain 'self'.
+  -->
+  <meta name="games-origin" content="">
+  <title>التراخيص والنسب — ألعاب أونلاين | OmniStore</title>
+  <link rel="stylesheet" href="../platform/platform.css">
+  <link rel="stylesheet" href="../platform/omni-design.css">
+  <link rel="stylesheet" href="assets/online-games.css">
+  <style>
+    .og-licen-note {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.9;
+      margin: 0 0 12px;
+    }
+    .og-licen-card {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-glass);
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .og-licen-card h3 {
+      margin: 0 0 8px;
+      font-size: 17px;
+      font-weight: 700;
+    }
+    .og-licen-card p {
+      margin: 0 0 8px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.9;
+    }
+    .og-licen-card a {
+      color: var(--accent);
+      word-break: break-all;
+    }
+    .og-licen-files {
+      margin: 8px 0 0;
+      padding-inline-start: 18px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 2;
+    }
+    .og-licen-files a {
+      color: var(--accent);
+      word-break: break-all;
+    }
+    .og-licen-back {
+      display: inline-flex;
+      align-items: center;
+      min-height: 48px;
+      padding: 0 18px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 700;
+    }
+    .og-licen-back:hover,
+    .og-licen-back:focus-visible {
+      border-color: var(--accent);
+    }
+    .og-licen-count {
+      display: inline-block;
+      margin-bottom: 16px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .og-licen-list-title {
+      margin: 0 0 6px;
+      font-size: 22px;
+      font-weight: 800;
+      line-height: 1.5;
+    }
+    .og-licen-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+  </style>
+  <script src="../platform/omni-i18n.js"></script>
+  <script src="../platform/i18n/platform.dict.js"></script>
+</head>
+<body>
+  <div class="ambient-bg" aria-hidden="true">
+    <div class="ambient-orb ambient-orb-1"></div>
+    <div class="ambient-orb ambient-orb-2"></div>
+    <div class="ambient-orb ambient-orb-3"></div>
+  </div>
+
+  <div class="header-wrap">
+    <header class="glass-header">
+      <a class="brand" href="../platform.html" aria-label="OmniStore Platform">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
+        </span>
+        <span class="brand-text">
+          <span class="brand-name">OmniStore<span class="brand-badge">Platform</span></span>
+          <span class="brand-tag" data-i18n="brand_tag">منصة الخدمات الموحدة</span>
+        </span>
+      </a>
+
+      <nav class="glass-nav" aria-label="التنقل الأساسي">
+        <a class="glass-nav-link" href="../platform.html" data-i18n="nav_home">الرئيسية</a>
+        <a class="glass-nav-link" href="/marketplace/" data-i18n="nav_market">السوق</a>
+        <a class="glass-nav-link" href="../business.html" data-i18n="nav_business">حلول الأعمال</a>
+        <a class="glass-nav-link" href="../student.html" data-i18n="nav_students">خدمات الطلاب</a>
+        <a class="glass-nav-link" href="/education/index.html" data-i18n="nav_education">التعليم</a>
+        <a class="glass-nav-link is-active" href="index.html" data-i18n="nav_online_games">ألعاب أونلاين</a>
+        <span class="glass-nav-link is-soon" aria-disabled="true"><span data-i18n="nav_game">استضافة الألعاب</span><span class="nav-soon" data-i18n="nav_soon">قريباً</span></span>
+        <a class="glass-nav-link" href="../index.html" data-i18n="nav_app">Open Application</a>
+      </nav>
+
+      <div class="header-actions">
+        <div id="lang-switch" data-omni-lang-slot></div>
+      </div>
+    </header>
+  </div>
+
+  <main class="page">
+    <div class="og-main">
+      <section class="og-hero" aria-labelledby="og-licen-title">
+        <h1 id="og-licen-title"><span class="og-grad">التراخيص والنسب</span> لكل لعبة في هذا القسم</h1>
+        <p>
+          هذه الصفحة هي السجل العام لما يُوزَّع داخل قسم ألعاب أونلاين: أساس برمجي برخصة MIT،
+          خطوط بترخيص مفتوح، إشعار قائممة الكلمات، وقائمة الألعاب المسموح بها فقط.
+          تُحدَّد الحدود من بوابة الرخصة لا من هذه الصفحة.
+        </p>
+        <p><a class="og-licen-back" href="index.html">العودة إلى كل الألعاب</a></p>
+      </section>
+
+      <section aria-labelledby="og-licen-title">
+        <div class="og-licen-card">
+          <h3>الأساس البرمجي — رخصة MIT</h3>
+          <p>
+            ألعاب هذا القسم مبنية على مستودع
+            <b>Sigmafier/ellaz-games</b> عند التزام
+            <b>7ee515a10aaba90860f79c83ee52fa81cf9f01e5</b>.
+          </p>
+          <p>Foundation licence covers the repository source. It does NOT by itself license sprite/atlas/manifest assets carried by individual games.</p>
+          <p>
+            نص الرخصة في المستودع الأصلي:
+            <a href="https://github.com/Sigmafier/ellaz-games/blob/7ee515a10aaba90860f79c83ee52fa81cf9f01e5/LICENSE">https://github.com/Sigmafier/ellaz-games/blob/7ee515a10aaba90860f79c83ee52fa81cf9f01e5/LICENSE</a>
+          </p>
+        </div>
+
+        <div class="og-licen-card">
+          <h3>الخطوط — رخصة مفتوحة SIL OFL 1.1</h3>
+          <p>
+            الخطوط التي يُشحن فعلياً داخل هذا القسم تحمل نص رخصتها بجوارها في المستودع،
+            ولا يُسمح بأي خط من خطوط Ellaz UI داخل OmniStore.
+          </p>
+          <ul class="og-licen-files">
+            <li>Cairo — SIL OFL 1.1: <a href="runtime/public/fonts/LICENSE-Cairo-OFL-1.1.txt">runtime/public/fonts/LICENSE-Cairo-OFL-1.1.txt</a></li>
+            <li>Heebo — SIL OFL 1.1: <a href="runtime/public/fonts/LICENSE-Heebo-OFL-1.1.txt">runtime/public/fonts/LICENSE-Heebo-OFL-1.1.txt</a></li>
+          </ul>
+        </div>
+
+        <div class="og-licen-card">
+          <h3>lettercross — إشعار النسبة</h3>
+          <p>
+            قائمة الكلمات المعتمدة على مصدر عام، والإشعار الذي يرافق اللعبة ملزم
+            مع أي توزيع: <a href="runtime/src/games/lettercross/NOTICE.md">runtime/src/games/lettercross/NOTICE.md</a>
+          </p>
+        </div>
+
+        <div class="og-licen-card">
+          <h3>بوابة الرخصة والاعتماد</h3>
+          <p>
+            البوابة هي المرجع الوحيد لحالة أي لعبة. العدّاد المرجعي
+            <b>49</b> يتألف من <b>46</b> لعبة مسموح بها
+            و<b>3</b> قيد مستبعد لا يُدرَج هنا ولا في الفهرس ولا في أي صفحة من هذا القسم.
+          </p>
+          <ul class="og-licen-files">
+            <li><a href="ROSTER_GATE.json">ROSTER_GATE.json</a></li>
+            <li><a href="ROSTER.json">ROSTER.json</a></li>
+          </ul>
+        </div>
+      </section>
+
+      <section aria-labelledby="og-licen-list-title">
+        <h2 id="og-licen-list-title" class="og-section-title">الألعاب المُدرجة — <span id="og-licen-total">46</span></h2>
+        <span class="og-licen-count">المصدر: ROSTER.json (46 لعبة)</span>
+        <ul class="og-grid og-licen-list" id="og-licen-games" aria-label="قائمة الألعاب المُدرجة في سجل التراخيص">
+        <li>
+          <a class="og-card" href="game.html?id=memory">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #fd79a8">🧠</span>
+            </div>
+            <h3>الذاكرة</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب أطفال</span>
+              <span>Memory</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=evolve">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #00cec9">🦖</span>
+            </div>
+            <h3>التطور</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب أطفال</span>
+              <span>Evolution</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=coloring">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #ffa94d">🎨</span>
+            </div>
+            <h3>التلوين</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب أطفال</span>
+              <span>Coloring</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=finddiff">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #00cec9">🔍</span>
+            </div>
+            <h3>جد الفروق</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب أطفال</span>
+              <span>Find Differences</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=hidden">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #a29bfe">👀</span>
+            </div>
+            <h3>أين أنا</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب أطفال</span>
+              <span>Find Me</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=math">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #00b894">➕</span>
+            </div>
+            <h3>الحساب</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب تعليمية</span>
+              <span>Math</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=2048">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #edc22e">🔢</span>
+            </div>
+            <h3>٢٠٤٨</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب كلاسيكية</span>
+              <span>2048</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=tictactoe">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #74b9ff">⭕</span>
+            </div>
+            <h3>إكس أو</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب كلاسيكية</span>
+              <span>Tic-Tac-Toe</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=minesweeper">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #636e72">💣</span>
+            </div>
+            <h3>الألغام</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب كلاسيكية</span>
+              <span>Minesweeper</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=sudoku">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #0b6bb5">🔡</span>
+            </div>
+            <h3>سودوكو</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب كلاسيكية</span>
+              <span>Sudoku</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=snake">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #55efc4">🐍</span>
+            </div>
+            <h3>الثعبان</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب كلاسيكية</span>
+              <span>Snake</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=blocks">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #6d4bd6">🧱</span>
+            </div>
+            <h3>الكتل المتساقطة</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب كلاسيكية</span>
+              <span>Falling Blocks</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=wordguess">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #af37c1">🔤</span>
+            </div>
+            <h3>تخمين الكلمة</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب تعليمية</span>
+              <span>Word Guess</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=sequence">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #6c5ce7">🔗</span>
+            </div>
+            <h3>ما التالي</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب ذكاء</span>
+              <span>What Comes Next</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=vanish">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #00b894">🫥</span>
+            </div>
+            <h3>ما الذي اختفى</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب ذكاء</span>
+              <span>What Disappeared</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=shadows">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #b2bec3">🌓</span>
+            </div>
+            <h3>مطابقة الظلال</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب ذكاء</span>
+              <span>Shadow Match</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=echo">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #fdcb6e">💡</span>
+            </div>
+            <h3>اتبعني</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب ذكاء</span>
+              <span>Follow Me</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=balloons">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #ff5a5f">🎈</span>
+            </div>
+            <h3>فقع البالونات</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب أطفال</span>
+              <span>Pop the Balloons</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=bubbles">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #4fc3f7">🫧</span>
+            </div>
+            <h3>التقط الفقاعات</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب تعليمية</span>
+              <span>Catch the Bubbles</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=bees">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #f6b93b">🐝</span>
+            </div>
+            <h3>النحل</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب سرعة</span>
+              <span>Bees Only</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=frog">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #5bc236">🐸</span>
+            </div>
+            <h3>اصطد الضفدع</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب سرعة</span>
+              <span>Catch the Frog</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=reaction">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #2ecc71">🟢</span>
+            </div>
+            <h3>الضوء الأخضر</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب سرعة</span>
+              <span>Green Light</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=sort">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #8e44ad">🧪</span>
+            </div>
+            <h3>فرز الألوان</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب ذكاء</span>
+              <span>Color Sort</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=merge">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #16a085">🦋</span>
+            </div>
+            <h3>اثنان يصنعان واحداً</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب ذكاء</span>
+              <span>Two Make One</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=pet">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #e84393">🐣</span>
+            </div>
+            <h3>حيواني الأليف</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب أطفال</span>
+              <span>My Pet</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=fit">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #2d6cdf">🔷</span>
+            </div>
+            <h3>لائقة الأشكال</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب ذكاء</span>
+              <span>Shape Fit</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=music">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #c2185b">🎵</span>
+            </div>
+            <h3>صندوق الموسيقى</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب مهارات</span>
+              <span>Music Box</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=maze">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #1e8449">🐭</span>
+            </div>
+            <h3>المتاهة</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب أطفال</span>
+              <span>Way Home</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=letters">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #6355E0">🔠</span>
+            </div>
+            <h3>الحرف الأول</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب تعليمية</span>
+              <span>First Letter</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=spell">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #0E9F94">✏️</span>
+            </div>
+            <h3>تهجّئ الكلمة</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب تعليمية</span>
+              <span>Spell It</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=bubbleshooter">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #2BA8F0">🎯</span>
+            </div>
+            <h3>قنّاص الفقاعات</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب كلاسيكية</span>
+              <span>Bubble Shooter</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=match3">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #B43594">💎</span>
+            </div>
+            <h3>ثلاثة متطابقة</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب ذكاء</span>
+              <span>Match Three</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=jigsaw">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #17798F">🧩</span>
+            </div>
+            <h3>الأحجية</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب أطفال</span>
+              <span>Jigsaw</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=lettercross">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #B33A3A">🅰️</span>
+            </div>
+            <h3>الكلمات المتقاطعة</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب كلاسيكية</span>
+              <span>Lettercross</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=flow">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #e17055">🔌</span>
+            </div>
+            <h3>تدفق الأنابيب</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب ذكاء</span>
+              <span>Pipe Flow</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=arrowtap">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #0b6fbf">➡️</span>
+            </div>
+            <h3>اضغط الأسهم</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب ذكاء</span>
+              <span>Arrows Out</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=fruit">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #d63031">🍉</span>
+            </div>
+            <h3>سقوط الفاكهة</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب أطفال</span>
+              <span>Fruit Drop</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=parking">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #f39c12">🚗</span>
+            </div>
+            <h3>الخروج من الموقف</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب كلاسيكية</span>
+              <span>Escape the Jam</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=nonogram">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #4a5568">🖼️</span>
+            </div>
+            <h3>صور بالمنطق</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب ذكاء</span>
+              <span>Picture Logic</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=onestroke">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #4767e6">✏️</span>
+            </div>
+            <h3>الخط الواحد</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب ذكاء</span>
+              <span>One Stroke</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=wordsearch">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #2A9D8F">🔎</span>
+            </div>
+            <h3>ابحث عن الكلمة</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب تعليمية</span>
+              <span>Word Search</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=untangle">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #387f6d">🕸️</span>
+            </div>
+            <h3>فك الخيوط</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب ذكاء</span>
+              <span>Untangle</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=chess">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #8d6e63">♟️</span>
+            </div>
+            <h3>الشطرنج</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب كلاسيكية</span>
+              <span>Chess</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=backgammon">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #c0703f">🎲</span>
+            </div>
+            <h3>الطاولة</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب كلاسيكية</span>
+              <span>Backgammon</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=puzzlesnake">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #5646C9">🐍</span>
+            </div>
+            <h3>لغز الثعبان</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب ذكاء</span>
+              <span>Puzzle Snake</span>
+            </div>
+          </a>
+        </li>
+        <li>
+          <a class="og-card" href="game.html?id=snakearena">
+            <div class="og-card-top">
+              <span class="og-badge" aria-hidden="true" style="--c: #0F7F60">🐍</span>
+            </div>
+            <h3>ساحة الثعابين</h3>
+            <div class="og-card-meta">
+              <span class="og-tag">ألعاب سرعة</span>
+              <span>Snake Arena</span>
+            </div>
+          </a>
+        </li>
+        </ul>
+      </section>
+
+      <section id="footer" class="section footer">
+        <div class="footer-inner">
+          <div class="footer-brand">
+            <span class="brand-mark brand-mark-sm" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
+            </span>
+            <span>© 2026 OmniStore Platform — <span data-i18n="footer_rights">جميع الحقوق محفوظة</span></span>
+          </div>
+          <div class="footer-links">
+            <a href="index.html" data-i18n="nav_online_games">ألعاب أونلاين</a>
+            <a href="licenses.html" data-i18n="licenses" aria-current="page">التراخيص</a>
+            <a href="/marketplace/" data-i18n="nav_market">السوق</a>
+            <a href="../student.html" data-i18n="nav_students_short">الطلاب</a>
+            <a href="/education/index.html" data-i18n="nav_education_short">التعليم</a>
+            <a href="../business.html" data-i18n="nav_business_short">الأعمال</a>
+            <a href="../index.html" data-i18n="nav_app_short">التطبيق</a>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <nav class="bottom-nav" aria-label="شريط الوصول السريع">
+    <a class="bottom-nav-link" href="../platform.html" data-i18n="nav_home">الرئيسية</a>
+    <a class="bottom-nav-link" href="/marketplace/" data-i18n="nav_market_short">الماركت</a>
+    <a class="bottom-nav-link" href="../business.html" data-i18n="nav_business_short">الأعمال</a>
+    <a class="bottom-nav-link" href="../student.html" data-i18n="nav_students_short">الطلاب</a>
+    <a class="bottom-nav-link" href="/education/index.html" data-i18n="nav_education_short">التعليم</a>
+    <a class="bottom-nav-link is-active" href="index.html" data-i18n="nav_online_games">ألعاب أونلاين</a>
+    <a class="bottom-nav-link" href="../index.html" data-i18n="nav_app_short">التطبيق</a>
+  </nav>
+</body>
+</html>
