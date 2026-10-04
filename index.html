@@ -16748,7 +16748,11 @@ function applyNavScope() {
     });
   }
   const switcher = document.getElementById('omniScopeSwitch');
-  if (switcher) switcher.style.display = isPlatformMaster() ? '' : 'none';
+  // A concrete inline display is REQUIRED here: the stylesheet default is
+  // `#omniScopeSwitch{display:none}`, so assigning '' would fall straight back
+  // to none and the MASTER scope pill would never appear — leaving every
+  // data-nav-scope="master" entry (incl. مركز تحكم OmniStore) unreachable.
+  if (switcher) switcher.style.display = isPlatformMaster() ? 'block' : 'none';
   const drawerScope = document.getElementById('mobileDrawerScope');
   if (drawerScope) drawerScope.style.display = isPlatformMaster() ? 'flex' : 'none';
 }
