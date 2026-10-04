@@ -777,6 +777,19 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/tests/class.test.js',
     'backend/tests/permissionRegistry.test.js',
     'backend/tests/platformSections.education.test.js',
+    // Education V2 Phase 0 — the Parent (Guardian) entity and the
+    // student-scoped notifications adapter. Both are NEW backend files; the
+    // Education frontend files above are already listed further up for the P2
+    // Teacher portal and are unchanged in name, so only the new backend
+    // entries are added here.
+    'backend/controllers/educationNotifications.controller.js',
+    'backend/controllers/guardian.controller.js',
+    'backend/middleware/guardianActor.js',
+    'backend/routes/educationNotifications.routes.js',
+    'backend/routes/guardian.routes.js',
+    'backend/services/educationNotifications.service.js',
+    'backend/services/guardian.service.js',
+    'backend/tests/guardian.test.js',
     // Online Games license/dependency gate: CI wiring only (no app code).
     '.github/workflows/ci.yml'
   ]);
@@ -841,6 +854,20 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/tests/booking.test.js',
     'backend/tests/rating.test.js',
     'backend/tests/teacherScope.test.js',
+    // Education V2 Phase 0 — the Parent (Guardian) entity, its actor
+    // middleware, routes and the read-only notifications adapter. Listed here
+    // as well as in BACKEND_ALLOWLIST because the untracked and the modified
+    // loops read DIFFERENT sets, and a new file moves from one to the other the
+    // moment it is staged. Both loops still apply FORBIDDEN_PREFIXES and
+    // FORBIDDEN_NEVER_TOUCHED to every entry.
+    'backend/controllers/educationNotifications.controller.js',
+    'backend/controllers/guardian.controller.js',
+    'backend/middleware/guardianActor.js',
+    'backend/routes/educationNotifications.routes.js',
+    'backend/routes/guardian.routes.js',
+    'backend/services/educationNotifications.service.js',
+    'backend/services/guardian.service.js',
+    'backend/tests/guardian.test.js',
     // Online Games license/dependency gate (roster 46 SAFE / 3 BLOCKED, blocked
     // asset byte-hashes, forbidden Ellaz UI fonts, vendoring scope), plus the
     // section it ships: the platform-origin catalog / details / player pages
@@ -915,7 +942,19 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/services/teacher.service.js',
     'backend/tests/class.test.js',
     'backend/tests/permissionRegistry.test.js',
-    'backend/tests/platformSections.education.test.js'
+    'backend/tests/platformSections.education.test.js',
+    // Education V2 Phase 0 — Parent entity, guardian actor, its routes and the
+    // read-only notifications adapter, plus the two suites that already
+    // enumerate the education permission list. No existing Education service,
+    // controller or route is modified: Phase 0 only ADDS a surface.
+    'backend/controllers/educationNotifications.controller.js',
+    'backend/controllers/guardian.controller.js',
+    'backend/middleware/guardianActor.js',
+    'backend/routes/educationNotifications.routes.js',
+    'backend/routes/guardian.routes.js',
+    'backend/services/educationNotifications.service.js',
+    'backend/services/guardian.service.js',
+    'backend/tests/guardian.test.js'
   ]);
   // Negative boundaries: these must NEVER appear in a working-tree diff or be added.
   //

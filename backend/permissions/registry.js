@@ -52,6 +52,11 @@ const REAL_GROUPS = [
       'education.classes.view', 'education.classes.edit',
       'education.courses.view', 'education.courses.edit',
       'education.enrollments.view', 'education.enrollments.edit',
+      // Phase 0 Parent portal: the Guardian directory and its Owner/Admin-only
+      // relationship links. Listed here so requirePermission('education.guardians.*')
+      // is enforceable today and fails closed on an unknown permission, exactly
+      // like the other Education pairs.
+      'education.guardians.view', 'education.guardians.edit',
       'education.grading.view', 'education.grading.edit',
       'education.pack.view', 'education.pack.edit',
       'education.programs.view', 'education.programs.edit',

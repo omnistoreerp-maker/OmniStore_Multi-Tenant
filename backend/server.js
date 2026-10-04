@@ -16,6 +16,7 @@ const { notFound, serverError, requestPerfLogger } = require('./middleware/error
 const { authMiddleware, requireAuth } = require('./middleware/auth');
 const { scopedWriteRoleGuard } = require('./middleware/authorize');
 const { attachTeacherActor } = require('./middleware/teacherActor');
+const { attachGuardianActor } = require('./middleware/guardianActor');
 const { sanitizeBody, jsonParseErrorHandler, apiRateLimiter } = require('./middleware/security');
 const { validateResource } = require('./middleware/validate');
 const { configurePassport } = require('./middleware/passport');
@@ -240,6 +241,8 @@ const studentServicesPackRoutes = require('./routes/studentServicesPack.routes')
 const educationPackRoutes = require('./routes/educationPack.routes');
 const studentRoutes = require('./routes/student.routes');
 const teacherRoutes = require('./routes/teacher.routes');
+const guardianRoutes = require('./routes/guardian.routes');
+const educationNotificationsRoutes = require('./routes/educationNotifications.routes');
 const centerRoutes = require('./routes/center.routes');
 const programRoutes = require('./routes/program.routes');
 const courseRoutes = require('./routes/course.routes');
@@ -382,6 +385,13 @@ app.get('/api-docs.json', authGate, (req, res) => {
 // teacher's writes even in legacy open mode, and for anonymous traffic the
 // resolution is a no-op.
 app.use('/api/v1/tenant/education', attachTeacherActor);
+// Phase 0 Parent portal — identical contract to the teacher actor above: the
+// linked guardian is resolved ONCE per request from the account's own id and
+// the trusted tenant, never from a claim, and a failure degrades to null (a
+// plain operator who still passes every permission gate). Mounted outside the
+// AUTH_REQUIRED block on purpose, and deliberately NOT added to the Education
+// write-guard exception set: Phase 0 parents are read-only.
+app.use('/api/v1/tenant/education', attachGuardianActor);
 
 // Optional route protection (AUTH_REQUIRED=true).
 // Default is OFF: every route stays open exactly as before (legacy behavior).
@@ -423,6 +433,11 @@ app.use('/api/v1/tenant/student-services', studentServicesPackRoutes);
 app.use('/api/v1/tenant/education', educationPackRoutes);
 app.use('/api/v1/tenant/education', studentRoutes);
 app.use('/api/v1/tenant/education', teacherRoutes);
+app.use('/api/v1/tenant/education', guardianRoutes);
+// Phase 0 notifications: a read-only ADAPTER over records the Education
+// services already store (attendance/grading/scheduling). No new store, no new
+// package, no message history — see services/educationNotifications.service.js.
+app.use('/api/v1/tenant/education', educationNotificationsRoutes);
 app.use('/api/v1/tenant/education', centerRoutes);
 app.use('/api/v1/tenant/education', programRoutes);
 app.use('/api/v1/tenant/education', courseRoutes);

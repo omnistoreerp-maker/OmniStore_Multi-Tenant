@@ -62,7 +62,11 @@ const SERVER_JS = read('backend/server.js');
 const EDUCATION_ROUTE_FILES = [
   'educationPack', 'student', 'teacher', 'center', 'program', 'course',
   'class', 'enrollment', 'attendance', 'scheduling', 'grading',
-  'booking', 'rating'
+  'booking', 'rating',
+  // Phase 0 Parent portal + the read-only notification ADAPTER. Both are
+  // Education-owned routers under /api/v1/tenant/education, declared with the
+  // same disjoint literal prefixes, so they belong in this boundary list.
+  'guardian', 'educationNotifications'
 ].map((name) => ({
   name,
   src: read('backend/routes/' + name + '.routes.js')
@@ -595,6 +599,31 @@ check('bookings and ratings carry no payment surface', () => {
 // ---------------------------------------------------------------------------
 // 7. Descriptive grading — the product boundary this device must not cross
 // ---------------------------------------------------------------------------
+
+// A recorded grade is a FACT, never an input. This is the precise form of that
+// rule, and it is stronger than the blunt `/grade.*\.(reduce|map)\(/` scan it
+// replaced: that regex could not tell a row-renderer from a computation, so it
+// broke as soon as Phase 0 rendered the teacher's own gradebook — and the only
+// ways to "fix" it would have been to drop a real feature or to weaken the
+// check.
+//
+// Instead, every single read of a grade value in the executable page must hand
+// the raw stored value to a printer — text() for the screen, str() for the CSV,
+// code() for a monospaced cell — and nothing else. A sum, a mean, a sort
+// comparator, a parseInt or a concatenation would all fail this, because none of
+// them appear in the allowed set.
+function assertGradeValuesAreVerbatim(src) {
+  // The read must be the WHOLE argument of a printer call. Anchored at both
+  // ends on purpose: `(r.grade + '')` or `(String(r.grade))` would not match,
+  // which is exactly the transformation this rule forbids.
+  const printer = /(?:^|[^.\w])(?:text|str|code)\(\s*r(?:ow)?\.grade\s*\)/g;
+  const uses = src.match(/[A-Za-z_$][\w$]*\.grade\b/g) || [];
+  assert(uses.length > 0, 'no grade value is read at all, so the rule is vacuous');
+  const printed = (src.match(printer) || []).length;
+  assertEqual(printed, uses.length,
+    'a grade value is read somewhere other than a verbatim printer call (' +
+    uses.length + ' reads, ' + printed + ' printed)');
+}
 check('grading stays descriptive: enrollment, date, typed value and notes only', () => {
   const written = entityWriteFields('grading');
   const writable = serviceWritable(SERVICE_FILES.find((f) => f.name === 'grading').src);
@@ -667,7 +696,7 @@ check('the dashboard shows record counts only, and the grading page offers no ag
 
   // No arithmetic over grade values anywhere in the executable source.
   const code = stripComments(RUNTIME);
-  assert(/grade[^\n]*\.(?:reduce|map)\(/.test(code) === false, 'the runtime maps over grade values');
+  assertGradeValuesAreVerbatim(code);
   assert(!/\b(sum|total|average|mean|aggregate)\s*=/.test(code),
     'the runtime computes an aggregate over records');
   const dist = stripComments(code.slice(code.indexOf('function paintAttendanceDistribution')));
@@ -805,9 +834,10 @@ check('the dictionary covers the English text the page renders', () => {
   // Both surfaces must stay consistent, and no view may be reachable from only
   // one of them.
   const bottomNav = [
-    'dashboard', 'students', 'teachers', 'classes', 'schedule'
+    'home', 'dashboard', 'students', 'teachers', 'classes', 'schedule'
   ];
   const drawerOnly = [
+    'parent',
     'centers', 'programs', 'courses', 'roster', 'enrollments', 'attendance',
     'register', 'calendar', 'grading', 'bookings', 'ratings',
     'report-attendance', 'report-grading', 'report-sessions',
@@ -885,6 +915,94 @@ check('rendered values are escaped, and untrusted data never lands in innerHTML 
   assert(RUNTIME.includes('replace(/"/g, \'&quot;\')'), 'the escaper does not neutralise double quotes');
 });
 
+check('the Phase 0 role workspaces render no unescaped value and write no raw innerHTML', () => {
+  // The rule the MVP check above states globally, applied to the Phase 0 region
+  // with a scanner that can tell an ESCAPED render from a raw one.
+  //
+  // The blunt checks are not enough on their own: a regex over quotes cannot
+  // distinguish `esc(ok) + row.leak` (a real leak) from `esc(a) + esc(b)`, and
+  // a whole-file innerHTML grep cannot tell `panel.innerHTML = ''` (a clear)
+  // from `panel.innerHTML = data`. So this parses each render call, splits the
+  // content expression into its top-level `+` clauses, and requires EVERY clause
+  // to be a literal or an escaping helper — one escaped clause must never make a
+  // mixed expression look safe.
+  const phase0 = stripComments(RUNTIME);
+  const start = phase0.indexOf('function resolveRoleIdentities');
+  assert(start > 0, 'the Phase 0 region could not be located');
+  const region = phase0.slice(start);
+
+  const SAFE_FN = ['esc(', 'text(', 'code(', 'pill(', 'str('];
+  const LIT = /^'(?:[^'\\]|\\.)*'$/;
+  const isLiteral = (c) => LIT.test(c);
+
+  const splitTopLevel = (src, sep) => {
+    const out = [];
+    let depth = 0, q = null, cur = '';
+    for (let i = 0; i < src.length; i++) {
+      const c = src[i];
+      if (q) {
+        cur += c;
+        if (c === '\\') { cur += src[++i] || ''; continue; }
+        if (c === q) q = null;
+        continue;
+      }
+      if (c === "'" || c === '"' || c === '`') { q = c; cur += c; continue; }
+      if ('([{'.includes(c)) depth += 1;
+      if (')]}'.includes(c)) depth -= 1;
+      if (c === sep && depth === 0) { out.push(cur); cur = ''; continue; }
+      cur += c;
+    }
+    out.push(cur);
+    return out;
+  };
+
+  // `el('tag', cls, content)` up to the paren that closes THAT call. The
+  // lookahead keeps the closing paren out of the capture and stops the match at
+  // the end of the statement so a following call is not swallowed.
+  const renderRe = /el\(\s*'[a-z0-9]+'\s*,\s*(?:null|'[^']*')\s*,\s*([\s\S]{0,300}?)\)(?=\s*;|\s*\))/g;
+
+  const unescaped = [];
+  let checked = 0;
+  for (const m of region.matchAll(renderRe)) {
+    checked += 1;
+    const clauses = splitTopLevel(m[1], '+').map((c) => c.trim()).filter(Boolean);
+    const safe = clauses.length > 0 && clauses.every(
+      (c) => isLiteral(c) || SAFE_FN.some((fn) => c.startsWith(fn))
+    );
+    if (!safe) unescaped.push(m[1].replace(/\s+/g, ' ').slice(0, 100));
+  }
+  // Not vacuous: the scanner really did read the Phase 0 renders.
+  assert(checked > 40, 'the Phase 0 render scan found almost nothing: ' + checked);
+  assertEqual(unescaped.length, 0, 'an unescaped value reaches innerHTML: ' + unescaped.join(' | '));
+
+  // innerHTML is only ever CLEARED in this region, never assigned data.
+  const sinks = [];
+  region.split('\n').forEach((line, i) => {
+    if (line.trim().startsWith('//')) return;
+    for (const sink of line.matchAll(/(\w+)\.innerHTML\s*=\s*([^;]*);/g)) {
+      if (sink[2].trim() !== "''") sinks.push('line ' + (i + 1) + ': ' + sink[0].trim());
+    }
+  });
+  assertEqual(sinks.length, 0, 'innerHTML is assigned data in the Phase 0 region: ' + sinks.join(' | '));
+
+  // The scanner above is only meaningful if it FAILS on a real leak. These four
+  // shapes are each a genuine XSS and each must be classified unescaped.
+  const leaks = [
+    'el(\'p\', null, row.name)',
+    'el(\'p\', null, row.a + \' \' + row.b)',
+    'el(\'p\', null, esc(ok) + row.leak)',
+    'el(\'p\', null, row.a + \' \' + esc(row.b))'
+  ];
+  for (const leak of leaks) {
+    const clauses = splitTopLevel(leak.slice(leak.indexOf(',', leak.indexOf("null,") + 5) + 1, -1), '+')
+      .map((c) => c.trim()).filter(Boolean);
+    const safe = clauses.length > 0 && clauses.every(
+      (c) => isLiteral(c) || SAFE_FN.some((fn) => c.startsWith(fn))
+    );
+    assertEqual(safe, false, 'the escape rule failed to reject a real leak: ' + leak);
+  }
+});
+
 check('the page survives an unreachable service instead of hanging on a spinner', () => {
   assert(RUNTIME.includes("throw new ApiError('Unable to reach the Education service.'"),
     'a network failure is not converted into a user-facing error');
@@ -903,8 +1021,34 @@ check('stale responses from a previous page are dropped', () => {
   // the teacher chain paints classes/sessions, the student chain paints
   // the attendance/progress records. Dropping either guard would let a
   // slow response repaint a workspace the user has already left.
-  assert(count(RUNTIME, "state.page !== 'teacher'") === 2, 'the teacher guard drifted');
-  assert(count(RUNTIME, "state.page !== 'student'") === 2, 'the student guard drifted');
+  // The rule this assertion protects is PER CONTINUATION, not per page: every
+  // async continuation re-checks that its page is still the live one before it
+  // writes. So the count grows when real async work is added to a workspace —
+  // it is a tripwire for a LOST guard, not a cap.
+  //
+  // Teacher, six continuations:
+  //   1. /teachers/me identity resolution      4. Phase 0 classes+enrollments+
+  //   2. the sessions paint chain                 scheduling+courses+students
+  //   3. Phase 0 panel rejection handler         5. per-class gradebook/attendance
+  //                                             6. that block's rejection handler
+  // Student, five continuations:
+  //   1. /students/me identity resolution      4. today's /scheduling sessions
+  //   2. attendance+progress paint chain        5. the panel's rejection handler
+  //   3. Phase 0 panel: progress/enrollments/notifications
+  const guardCount = { teacher: 6, student: 5 };
+  for (const role of Object.keys(guardCount)) {
+    assertEqual(count(RUNTIME, "state.page !== '" + role + "'"), guardCount[role],
+      'the ' + role + ' guard drifted');
+    // Every occurrence is a real early return, never a bare comparison, and it
+    // is the ONLY thing guarding that continuation.
+    const needle = "state.page !== '" + role + "'";
+    const sites = RUNTIME.split('\n').filter((line) => line.includes(needle));
+    assertEqual(sites.length, guardCount[role], 'a ' + role + ' guard spans lines unexpectedly');
+    for (const site of sites) {
+      assert(new RegExp("^\\s*if \\([^)]*" + needle + "\\) return;\\s*$").test(site),
+        'a ' + role + ' guard is not a bare early return: ' + site.trim());
+    }
+  }
 });
 
 check('a renderer callback only reads the row variable it actually receives', () => {
@@ -1348,6 +1492,80 @@ check('every human string the new views render has an Arabic entry', () => {
   assertEqual(missing.length, 0, 'untranslated text in the new views: ' + missing.join(' | '));
 });
 
+check('every human string the Phase 0 role workspaces render has an Arabic entry', () => {
+  // Same rule as the check above, applied to the four Phase 0 workspaces
+  // (Education Home, Parent, Student panel, Teacher panel, Center panel). The
+  // scanner is a real string-literal reader rather than a regex over quotes,
+  // because these blocks concatenate sentences across lines and a regex either
+  // misses the pieces or reports fragments the shared runtime never renders —
+  // the exact failure that left a banner half-translated in an earlier pass.
+  const start = CODE_S.indexOf('function resolveRoleIdentities');
+  assert(start > 0, 'the Phase 0 region could not be located in the runtime');
+  const region = CODE_S.slice(start);
+
+  const readString = (src, i) => {
+    const q = src[i];
+    if (q !== "'" && q !== '"') return null;
+    let out = '';
+    i += 1;
+    while (i < src.length) {
+      if (src[i] === '\\') { out += src[i + 1]; i += 2; continue; }
+      if (src[i] === q) return [out, i + 1];
+      out += src[i];
+      i += 1;
+    }
+    return null;
+  };
+  // `'a' + 'b'` renders as ONE text node, and the shared runtime translates the
+  // concatenated text, so the fragments are joined before the lookup — which is
+  // why the dictionary keys below are whole sentences.
+  const readConcat = (src, i) => {
+    const parts = [];
+    let j = i;
+    for (;;) {
+      const s = readString(src, j);
+      if (!s) break;
+      parts.push(s[0]);
+      j = s[1];
+      const m = /^\s*\+\s*/.exec(src.slice(j));
+      if (!m) break;
+      j += m[0].length;
+      if (src[j] !== "'" && src[j] !== '"') break;
+    }
+    return parts.join('');
+  };
+
+  const found = new Set();
+  // Each site that puts a human string on screen: the three text-carrying
+  // helpers, the empty-state message, the role-card descriptor, the stat label
+  // and the attendance breakdown row.
+  const sites = [
+    /el\('[a-z0-9]+',\s*(?:'[^']*'|null),\s*/g,
+    /(?:banner|stateBlock)\('[a-z]+',\s*/g,
+    /notificationList\([^,]+,\s*/g,
+    /(?:subtitle|title|workspace):\s*/g,
+    /roleStat\(\s*/g,
+    /^\s*\['[A-Za-z]+',\s*Number\(/gm
+  ];
+  for (const re of sites) {
+    for (const m of region.matchAll(re)) {
+      const value = readConcat(region, m.index + m[0].length).trim();
+      if (value.length > 2 && value.indexOf('edu-') !== 0) found.add(value);
+    }
+  }
+  // Not vacuous: the Phase 0 region renders a known number of strings.
+  assert(found.size > 40, 'the Phase 0 string scan found almost nothing: ' + found.size);
+
+  const missing = [...found].filter((v) => DICT.indexOf('"' + v + '":') < 0);
+  assertEqual(missing.length, 0, 'untranslated Phase 0 text: ' + missing.join(' | '));
+
+  // And no Arabic entry leaked English back into the dictionary.
+  const arabic = DICT.slice(DICT.indexOf("registerDict('ar'"));
+  const latin = (arabic.match(/"([^"]+)":\s*"([^"]*)"/g) || [])
+    .filter((pair) => /[A-Za-z]{4,}/.test(/:\s*"([^"]*)"/.exec(pair)[1]));
+  assertEqual(latin.length, 0, 'an Arabic value contains Latin words: ' + latin.join(' | '));
+});
+
 check('CORE+ adds no backend surface the page depends on beyond the batch route', () => {
   // Every literal path the runtime calls must exist on a committed Education
   // router, so an operational screen can never call something that is not there.
@@ -1369,8 +1587,17 @@ check('CORE+ adds no backend surface the page depends on beyond the batch route'
   const bulk = ALL_ROUTES.filter((route) => route.path === '/attendance/bulk');
   assertEqual(bulk.length, 1, 'the batch route is declared more than once');
   assertEqual(bulk[0].verb, 'POST', 'the batch route is not a POST');
-  // No notification, messaging or export surface was reached for.
-  for (const forbidden of ['notification', 'telegram', 'whatsapp', '/export', '/report', 'analytics']) {
+  // No messaging, export or analytics surface was reached for.
+  //
+  // PHASE 0 CHANGE, DELIBERATE. "notification" left this list because the
+  // Phase 0 brief requires a student-scoped notification surface. It was NOT
+  // satisfied by adding a notification infrastructure: the Education-owned
+  // /education-notifications/* router is a read-only ADAPTER that derives
+  // items from attendance, grading and scheduling records that already
+  // existed, adds no store, no message history and no package, and reads
+  // nothing from the platform notificationEngine (telegram/whatsapp delivery
+  // settings), which stays out of reach and is still listed below.
+  for (const forbidden of ['telegram', 'whatsapp', 'notificationEngine', '/export', '/report', 'analytics']) {
     const inCode = CODE_S.toLowerCase().indexOf(forbidden) >= 0;
     assert(!inCode, 'the page reaches for a surface this device does not own: ' + forbidden);
   }
@@ -1587,8 +1814,7 @@ check('the grading report shows the recorded grade verbatim and nothing derived'
   const service = read('backend/services/grading.service.js');
   assert(service.includes('EXACT match on the stored value'), 'the grading filter rule changed upstream');
   // Nothing is computed from a grade value anywhere on the page.
-  assert(/grade[^\n]*\.(?:reduce|map|filter)\(/.test(CODE_S) === false,
-    'the page maps or reduces over grade values');
+  assertGradeValuesAreVerbatim(CODE_S);
   // The report states its own boundary to the user, in a translated sentence.
   assert(RUNTIME.includes('the platform defines no '), 'the grading report does not state its boundary');
 });
@@ -1723,9 +1949,9 @@ check('the report surfaces add no backend surface and no new permission', () => 
     assert(declared, key + ' reads a route the backend does not declare');
   }
 // No new permission string: the three the reports name are the three the
-     // existing routes already require, and the registry registers them as-is.
-     const registry = read('backend/permissions/registry.js');
-     assert(registry.indexOf("group: 'education'") >= 0, 'the registry declares no education group');
+  // existing routes already require, and the registry registers them as-is.
+  const registry = read('backend/permissions/registry.js');
+  assert(registry.indexOf("group: 'education'") >= 0, 'the registry declares no education group');
   const named = REPORT_KEYS.map((k) => reportBlock(k).match(/permission: '([^']+)'/)[1]);
   for (const permission of named) {
     const service = permission.split('.')[1];
@@ -1734,9 +1960,34 @@ check('the report surfaces add no backend surface and no new permission', () => 
       'the report names a permission its route does not require: ' + permission);
   }
   // No centralized reporting surface is reached for.
+  //
+  // Scoped to the REPORT REGION, not to the whole runtime. Phase 0 added a
+  // legitimate, Education-owned student notification surface
+  // (/education-notifications/me) that the student workspace reads, so scanning
+  // every line of the runtime here would have made this check contradict the
+  // device's own boundary check, which is what actually guards the page. The
+  // rule being protected is narrower and stronger than that: a REPORT is a
+  // projection of a list route that already exists, so the report code itself
+  // must never reach a notification, analytics or third-party surface. The
+  // region below is every line from the REPORTS descriptor to the cell helpers
+  // — the whole report implementation — and `notification` stays forbidden in it.
+  const reportStart = RUNTIME.indexOf('var REPORTS = {');
+  const reportEnd = RUNTIME.indexOf('// Cell helpers.');
+  assert(reportStart >= 0 && reportEnd > reportStart, 'the report region could not be located');
+  const reportCode = stripComments(RUNTIME.slice(reportStart, reportEnd)).toLowerCase();
   for (const forbidden of ['/api/v1/reports', 'analytics', 'notification', 'telegram', 'whatsapp']) {
-    assert(CODE_S.toLowerCase().indexOf(forbidden) < 0,
+    assert(reportCode.indexOf(forbidden) < 0,
       'the reports reach for a surface this device does not own: ' + forbidden);
+  }
+  // The region really is the report implementation, so the scoped scan cannot
+  // silently pass by locating nothing.
+  assert(reportCode.indexOf("renderreport") >= 0 && reportCode.indexOf('exportreportcsv') >= 0,
+    'the scoped report scan does not cover the report implementation');
+  // The whole page is still forbidden from the third-party surfaces; only the
+  // Education-owned notification adapter is allowed, and only in the workspace.
+  for (const forbidden of ['/api/v1/reports', 'analytics', 'notificationengine', 'telegram', 'whatsapp']) {
+    assert(CODE_S.toLowerCase().indexOf(forbidden) < 0,
+      'the page reaches for a surface this device does not own: ' + forbidden);
   }
 });
 

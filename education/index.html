@@ -32,6 +32,10 @@
     <div class="edu-toast-region" id="edu-toasts"></div>
 
     <nav class="edu-bottom-nav" role="navigation" aria-label="Education navigation">
+      <button class="edu-nav-btn" type="button" data-edu-page="home" data-i18n="nav_home">
+        <svg class="edu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M9 22V12h6v10"/></svg>
+        <span data-i18n="nav_home">Home</span>
+      </button>
       <button class="edu-nav-btn" type="button" data-edu-page="dashboard" data-i18n="nav_dashboard">
         <svg class="edu-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
         <span data-i18n="nav_dashboard">Dashboard</span>
@@ -61,6 +65,10 @@
         <h2 data-i18n="education_title">Education</h2>
       </div>
       <div class="edu-drawer-body">
+        <a class="edu-nav-btn" href="#home" data-edu-page="home" data-i18n="nav_home">Home</a>
+        <a class="edu-nav-btn" href="#parent" data-edu-page="parent" data-i18n="nav_parent_workspace">Parent Workspace</a>
+        <hr class="edu-drawer-sep">
+        <span class="edu-drawer-group">Management</span>
         <a class="edu-nav-btn" href="#dashboard" data-edu-page="dashboard" data-i18n="nav_dashboard">Dashboard</a>
         <a class="edu-nav-btn" href="#students" data-edu-page="students" data-i18n="nav_students">Students</a>
         <a class="edu-nav-btn" href="#teachers" data-edu-page="teachers" data-i18n="nav_teachers">Teachers</a>

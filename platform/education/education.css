@@ -1006,6 +1006,239 @@
   color: #b91c1c;
 }
 
+/* ---------- Education Home (Phase 0) ----------
+ *
+ * The Home is NOT an ERP dashboard. It is a role chooser: four equal cards, the
+ * server-resolved identity of each one, and one button. So the grid is a real
+ * feature of the page rather than a set of record counters, and the mobile
+ * breakpoint collapses it to a single column because a two-up grid on a phone
+ * squeezes the role title and its identity line into two lines each.
+ */
+
+.edu-lead {
+  margin: 0 0 16px;
+  color: #475569;
+  font-size: 14px;
+  line-height: 1.7;
+  max-width: 62ch;
+}
+
+.edu-role-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.edu-role-card {
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: var(--edu-radius-lg);
+  box-shadow: var(--edu-shadow);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+}
+
+.edu-role-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.edu-role-icon {
+  font-size: 26px;
+  line-height: 1;
+  flex: none;
+}
+
+.edu-role-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.edu-role-subtitle {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: #64748b;
+  flex: 1 1 auto;
+}
+
+.edu-role-identity {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--edu-accent);
+  overflow-wrap: anywhere;
+}
+
+.edu-role-state {
+  margin: 0;
+  font-size: 12px;
+  color: #64748b;
+  border-inline-start: 3px solid rgba(100, 116, 139, 0.35);
+  padding-inline-start: 8px;
+}
+
+/* An unavailable role is stated, never hidden: the user learns why the card
+ * is closed instead of wondering where the workspace went. */
+.edu-role-card.is-unavailable {
+  background: rgba(248, 250, 252, 0.72);
+  box-shadow: none;
+}
+
+.edu-role-card.is-unavailable .edu-role-title {
+  color: #94a3b8;
+}
+
+.edu-home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* ---------- role panels ---------- */
+
+.edu-role-panel {
+  display: block;
+}
+
+.edu-empty {
+  margin: 0 0 8px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.edu-empty-note {
+  margin: 0 0 10px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+/* A compact counter row. It reuses .edu-stat but drops the tenant sub-label,
+ * because these figures are one student's own records, not tenant counts. */
+.edu-stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+  margin: 0 0 14px;
+}
+
+.edu-stat-row .edu-stat {
+  padding: 12px;
+}
+
+.edu-plain-list {
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.edu-plain-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border-radius: var(--edu-radius-sm);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.66);
+  font-size: 13px;
+  min-width: 0;
+}
+
+.edu-plain-item > span {
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Parent workspace ---------- */
+
+.edu-child-card {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: var(--edu-radius);
+  background: rgba(255, 255, 255, 0.72);
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.edu-child-name {
+  margin: 0 0 6px;
+  font-size: 0.98rem;
+  overflow-wrap: anywhere;
+}
+
+.edu-child-body {
+  min-width: 0;
+}
+
+/* ---------- notifications ---------- */
+
+.edu-notifications {
+  margin: 0;
+}
+
+.edu-notifications-title {
+  margin: 16px 0 8px;
+  font-size: 0.92rem;
+}
+
+.edu-notification-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.edu-notification {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: var(--edu-radius-sm);
+  border-inline-start: 3px solid var(--edu-accent);
+  background: rgba(13, 148, 136, 0.07);
+  font-size: 12.5px;
+  min-width: 0;
+}
+
+.edu-notification-title {
+  font-weight: 700;
+  color: #0f766e;
+  overflow-wrap: anywhere;
+}
+
+.edu-notification-detail {
+  color: #475569;
+  overflow-wrap: anywhere;
+}
+
+.edu-notification-date {
+  font-size: 11px;
+  color: #64748b;
+}
+
+/* An absence is the one item a parent must not skim past, so it carries the
+ * page's red accent; everything else stays on the calm teal. */
+.edu-notification[data-kind="attendance"] {
+  border-inline-start-color: #dc2626;
+}
+
+.edu-notification[data-kind="attendance"] .edu-notification-title {
+  color: #b91c1c;
+}
+
 /* ---------- responsive ---------- */
 
 @media (max-width: 768px) {
@@ -1045,6 +1278,17 @@
 
   .edu-form-grid {
     grid-template-columns: 1fr;
+  }
+
+  /* The role chooser is mobile-first: one full-width card per role, so the
+   * title, the identity line and the button each get a whole row instead of
+   * sharing a 240px column. */
+  .edu-role-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .edu-stat-row {
+    grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
   }
 }
 

@@ -152,7 +152,16 @@ const EDUCATION_PERMISSIONS = [
   'education.ratings.view', 'education.ratings.edit',
   'education.scheduling.view', 'education.scheduling.edit',
   'education.students.view', 'education.students.edit',
-  'education.teachers.view', 'education.teachers.edit'
+  'education.teachers.view', 'education.teachers.edit',
+  'education.guardians.view', 'education.guardians.edit'
+];
+
+// The resources this group is expected to cover. Declared so a new resource is
+// a deliberate edit here rather than a bare-count mismatch.
+const EDUCATION_RESOURCES = [
+  'attendance', 'bookings', 'centers', 'classes', 'courses', 'enrollments',
+  'grading', 'guardians', 'pack', 'programs', 'ratings', 'scheduling',
+  'students', 'teachers'
 ];
 
 describe('education permission group', () => {
@@ -161,12 +170,17 @@ describe('education permission group', () => {
     expect(matches).toHaveLength(1);
   });
 
-  test('education exposes exactly 13 view/edit permission pairs', () => {
+  test('education exposes exactly one view/edit pair per declared resource', () => {
+    // The expected resource list is declared above, so this fails with a
+    // readable diff when a resource is added rather than with a bare count.
+    // Phase 0 added `guardians` for the Parent entity: 13 -> 14 resources.
     const perms = registry.groups().find(g => g.group === 'education').permissions;
-    expect(perms).toHaveLength(26);
+    expect(perms).toHaveLength(EDUCATION_RESOURCES.length * 2);
 
     const resources = perms.map(p => p.split('.')[1]);
-    expect(new Set(resources).size).toBe(13);
+    expect(new Set(resources).size).toBe(EDUCATION_RESOURCES.length);
+    // No unexpected resource slipped in, and none declared is missing.
+    expect([...new Set(resources)].sort()).toEqual([...EDUCATION_RESOURCES].sort());
 
     for (const resource of resources) {
       expect(perms).toContain(`education.${resource}.view`);
@@ -174,8 +188,8 @@ describe('education permission group', () => {
     }
   });
 
-  test('all 26 education permission names are registered and enforceable', () => {
-    expect(EDUCATION_PERMISSIONS).toHaveLength(26);
+  test('every education permission name is registered and enforceable', () => {
+    expect(EDUCATION_PERMISSIONS).toHaveLength(EDUCATION_RESOURCES.length * 2);
     const registered = registry.groups().flatMap(g => g.permissions);
     for (const permission of EDUCATION_PERMISSIONS) {
       expect(registered).toContain(permission);

@@ -2,7 +2,7 @@
 
 // platformSections.education.test.js — Education discoverability integration.
 //
-// Education landed dark in 754b119 and its 26 education.* permissions were
+// Education landed dark in 754b119 and its education.* permissions were
 // registered in 372815a. This suite pins the discoverability layer that turns
 // it into a real, findable platform service WITHOUT granting any access:
 //
@@ -50,6 +50,15 @@ const EDUCATION_ID = 'education';
 const EDUCATION_PERMISSIONS = REGISTRY.REAL_GROUPS
   .filter((g) => g.group === 'education')
   .flatMap((g) => g.permissions);
+
+// The resources the Education group is expected to cover, spelled out so a new
+// resource is a deliberate edit to this list rather than an accident that a
+// bare count would have hidden.
+const EDUCATION_RESOURCES = [
+  'attendance', 'bookings', 'centers', 'classes', 'courses', 'enrollments',
+  'grading', 'guardians', 'pack', 'programs', 'ratings', 'scheduling',
+  'students', 'teachers'
+];
 
 const ORIGINAL_ENV = {
   AUTH: process.env.AUTH_REQUIRED,
@@ -452,10 +461,20 @@ describe('Education discoverability grants no access', () => {
     gateServer = null;
   });
 
-  test('the 26 education permissions are still registered and enforceable', () => {
-    expect(EDUCATION_PERMISSIONS).toHaveLength(26);
-    for (const permission of EDUCATION_PERMISSIONS) {
-      expect(registryKnows(permission)).toBe(true);
+  test('every education permission is still registered and enforceable', () => {
+    // The count is asserted against the declared resource list rather than a
+    // bare number, so adding a resource fails here with a readable diff instead
+    // of "expected 26, received 28". Phase 0 added `guardians` for the Parent
+    // entity, which took the group from 13 resources / 26 permissions to
+    // 14 / 28.
+    expect(EDUCATION_RESOURCES).toHaveLength(14);
+    expect(EDUCATION_PERMISSIONS).toHaveLength(EDUCATION_RESOURCES.length * 2);
+    for (const resource of EDUCATION_RESOURCES) {
+      for (const action of ['view', 'edit']) {
+        const permission = `education.${resource}.${action}`;
+        expect(EDUCATION_PERMISSIONS).toContain(permission);
+        expect(registryKnows(permission)).toBe(true);
+      }
     }
   });
 

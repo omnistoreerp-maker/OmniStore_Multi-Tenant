@@ -1387,7 +1387,7 @@
   // Page state.
   // ---------------------------------------------------------------------
 
-  var PAGES = ['dashboard', 'students', 'teachers', 'centers', 'programs', 'courses',
+  var PAGES = ['home', 'parent', 'dashboard', 'students', 'teachers', 'centers', 'programs', 'courses',
     'classes', 'roster', 'enrollments', 'attendance', 'register', 'schedule', 'calendar',
     'grading', 'bookings', 'ratings', 'report-attendance', 'report-grading', 'report-sessions',
     'settings', 'teacher', 'student'];
@@ -1405,6 +1405,14 @@
     // exactly what the workspace banner then says.
     portalTeacher: null,
     portalTeacherPromise: null,
+    // Phase 0 — the Education Home and the Parent workspace.
+    // `educationHomePromise` holds the three server-resolved /me probes
+    // (student, teacher, parent). `roleIdentity` caches their answers for the
+    // session. Neither is ever populated from a browser-supplied role: a card
+    // on the home page is enabled only when the corresponding /me endpoint
+    // answered 200 with a real record.
+    educationHomePromise: null,
+    roleIdentity: null,
     // The four operational views keep their own small selection so a user can
     // arrive from a class row, from the roster, or from the nav and still land
     // on a coherent screen. Each value is an id or a day chosen by the user —
@@ -1451,7 +1459,9 @@
     syncNav(page);
     closeDrawer();
 
-    if (page === 'dashboard') renderDashboard(body);
+    if (page === 'home') renderEducationHome(body);
+    else if (page === 'parent') renderParentWorkspace(body);
+    else if (page === 'dashboard') renderDashboard(body);
     else if (page === 'center') renderCenterWorkspace(body);
     else if (page === 'teacher') renderTeacherWorkspace(body);
     else if (page === 'student') renderStudentWorkspace(body);
@@ -1464,6 +1474,8 @@
   }
 
   function pageLabel(page) {
+    if (page === 'home') return 'Education home';
+    if (page === 'parent') return 'Parent workspace';
     if (page === 'dashboard') return 'Education dashboard';
     if (page === 'center') return 'Center workspace';
     if (page === 'teacher') return 'Teacher workspace';
@@ -2892,6 +2904,9 @@
 
       state.portalCenter = center;
       paintCenterWorkspace(body, center);
+      // Phase 0: the center operator's six real views. Rendered below the
+      // existing profile and summary cards, which are left untouched.
+      renderCenterPhase0(body);
     });
   }
 
@@ -2915,12 +2930,13 @@
       var dd = document.createElement('dd');
       dd.textContent = pair[1] || '—';
       if (pair[0] === 'Status') {
-        dd.appendChild(pill(pair[1]));
+        // Phase 0 fix: pill() returns an HTML STRING, so appendChild(pill(..))
+        // threw a TypeError and took the whole Center profile grid down with
+        // it. The visible result the author intended is preserved: the status
+        // pill followed by its text.
         dd.textContent = '';
-        var span = document.createElement('span');
-        span.textContent = pair[1] || '';
         dd.className = '';
-        dd.appendChild(pill(pair[1]));
+        dd.appendChild(pillNode(pair[1]));
         dd.appendChild(document.createTextNode(' ' + (pair[1] || '')));
       }
       dl.appendChild(dt);
@@ -2998,6 +3014,9 @@
       if (state.page !== 'teacher') return;
       state.portalTeacher = actor;
       paintTeacherWorkspace(body, actor);
+      // Phase 0: when the account IS linked to a teacher, open on that
+      // teacher's own work before the operator picker below.
+      if (actor) renderTeacherPhase0(body, actor);
     });
   }
 
@@ -3175,6 +3194,10 @@
     state.portalStudentPromise.then(function (actor) {
       if (state.page !== 'student') return;
       state.portalStudent = actor;
+      // Phase 0: when the account IS linked to a student, open on that
+      // person's own learning view (My Courses / Today's Learning / Progress /
+      // Schedule / Notifications) before the operator picker below.
+      if (actor) renderStudentPhase0(body, actor);
       paintStudentWorkspace(body, actor);
     });
   }
@@ -3699,7 +3722,10 @@
 
   function pageFromHash() {
     var hash = String(window.location.hash || '').replace(/^#/, '');
-    return PAGES.indexOf(hash) >= 0 ? hash : 'dashboard';
+    // Phase 0: arriving with no hash opens the EDUCATION HOME, not the operator
+    // console. The management dashboard is still one click away, and a deep
+    // link such as #students still lands exactly where it did before.
+    return PAGES.indexOf(hash) >= 0 ? hash : 'home';
   }
 
   function boot() {
@@ -3770,7 +3796,831 @@
     renderPage(pageFromHash());
   }
 
-  if (document.readyState === 'loading') {
+  // ===========================================================================
+// PHASE 0 — EDUCATION HOME, ROLE IDENTITY, PARENT WORKSPACE
+// ===========================================================================
+//
+// Phase 0 adds an EDUCATION HOME in front of the operator surface, so a person
+// arrives at "التعليم" and then chooses who they are, instead of landing
+// inside the same management dashboard.
+//
+// THE IDENTITY RULE (the important one). A role is NEVER read from the
+// browser. There is no ?role=, no body field, no header, and nothing in
+// localStorage is trusted here. Each role card is enabled only from the
+// SERVER-RESOLVED answer of that role's own `/me` endpoint:
+//     /students/me   -> 200 + record, 404 STUDENT_NOT_LINKED, 401 anonymous
+//     /teachers/me   -> 200 + record, 404 TEACHER_NOT_LINKED,   401 anonymous
+//     /guardians/me  -> 200 + record, 404 GUARDIAN_NOT_LINKED,  401 anonymous
+// The link between an authenticated account and a person record is created by
+// an Owner/Admin server-side and is the ONLY thing that unlocks a card. A role
+// the account is not linked to is shown as unavailable, with the reason.
+//
+// NO FABRICATED CONTENT. Every number on this page is a count of records the
+// server returned. When a section has no data it says so in words; it never
+// shows a placeholder metric, a fake progress bar, or a sample notification.
+//
+// ERROR HONESTY. A failed request renders an error state with a retry, never a
+// silent empty state that would read as "you have nothing".
+
+// Resolve every role identity in parallel. Each promise resolves to
+// { linked: boolean, record: object|null, status: number } and never rejects,
+// so one failing endpoint cannot blank the whole home.
+function resolveRoleIdentities() {
+  function probe(path) {
+    return api('GET', path).then(function (record) {
+      return { linked: true, record: record || null, status: 200 };
+    }, function (err) {
+      var status = err && typeof err.status === 'number' ? err.status : 0;
+      return { linked: false, record: null, status: status };
+    });
+  }
+  return Promise.all([
+    probe('/students/me'),
+    probe('/teachers/me'),
+    probe('/guardians/me')
+  ]).then(function (results) {
+    return { student: results[0], teacher: results[1], parent: results[2] };
+  });
+}
+
+  var ROLE_CARDS = [
+    {
+      key: 'student',
+      page: 'student',
+      icon: '🎒',
+      title: 'Student',
+      subtitle: 'My Courses, Today\'s Learning, Progress and Schedule',
+      workspace: 'Open Student workspace'
+    },
+    {
+      key: 'teacher',
+      page: 'teacher',
+      icon: '👨‍🏫',
+      title: 'Teacher',
+      subtitle: 'My Classes, My Students, Gradebook and Attendance',
+      workspace: 'Open Teacher workspace'
+    },
+    {
+      key: 'center',
+      page: 'center',
+      icon: '🏫',
+      title: 'Center',
+      subtitle: 'Students, Teachers, Groups, Schedule and Reports',
+      workspace: 'Open Center workspace'
+    },
+    {
+      key: 'parent',
+      page: 'parent',
+      icon: '👨‍👩‍👧',
+      title: 'Parent',
+      subtitle: 'My Children, Progress, Attendance and Grades',
+      workspace: 'Open Parent workspace'
+    }
+  ];
+
+  // Why a card is unavailable, stated plainly. 401 means "sign in", 404 means
+  // "this account is not linked to that record" — a real, honest answer rather
+  // than a hidden card.
+  function roleUnavailableReason(result) {
+    if (!result) return 'Checking your account…';
+    if (result.status === 401) return 'Sign in to continue.';
+    if (result.status === 404) return 'This account is not linked to a record of this kind yet.';
+    if (result.status === 0) return 'The Education service could not be reached.';
+    return 'This role is not available for this account.';
+  }
+
+  function roleCardNode(card, result) {
+    var node = el('article', 'edu-role-card');
+    node.setAttribute('data-role', card.key);
+
+    var head = el('div', 'edu-role-card-head');
+    head.appendChild(el('span', 'edu-role-icon', esc(card.icon)));
+    head.appendChild(el('h3', 'edu-role-title', esc(card.title)));
+    node.appendChild(head);
+
+    node.appendChild(el('p', 'edu-role-subtitle', esc(card.subtitle)));
+
+    var available = !!(result && result.linked);
+    if (!available) {
+      node.className += ' is-unavailable';
+      node.appendChild(el('p', 'edu-role-state', esc(roleUnavailableReason(result))));
+      return node;
+    }
+
+    // The identity itself, as the server reported it — never as typed in.
+    var who = result.record || {};
+    var name = [who.displayName, [who.firstName, who.lastName].filter(Boolean).join(' ')]
+      .filter(Boolean)[0];
+    if (name) node.appendChild(el('p', 'edu-role-identity', esc(name)));
+
+    var go = el('button', 'edu-btn edu-btn-primary', esc(card.workspace));
+    go.type = 'button';
+    go.addEventListener('click', function () {
+      location.hash = '#' + card.page;
+    });
+    node.appendChild(go);
+    return node;
+  }
+
+  function renderEducationHome(body) {
+    body.appendChild(el('h2', 'edu-section-title', 'Education'));
+    body.appendChild(el('p', 'edu-lead',
+      'Choose who you are. Your role is decided by the account you signed in with — ' +
+      'it is never selected in the browser.'));
+
+    var grid = el('div', 'edu-role-grid');
+    grid.id = 'edu-role-grid';
+    body.appendChild(grid);
+
+    var home = el('div', 'edu-home-actions');
+    var manage = el('button', 'edu-btn edu-btn-outline', 'Open the full Education management console');
+    manage.type = 'button';
+    manage.addEventListener('click', function () { location.hash = '#dashboard'; });
+    home.appendChild(manage);
+    body.appendChild(home);
+
+    if (state.educationHomePromise) {
+      state.educationHomePromise.then(function (identity) {
+        if (state.page !== 'home') return;
+        paintRoleGrid(grid, identity);
+      });
+      return;
+    }
+
+    grid.appendChild(loadingBlock());
+    state.educationHomePromise = resolveRoleIdentities().then(function (identity) {
+      state.roleIdentity = identity;
+      return identity;
+    }, function () {
+      return null;
+    }).then(function (identity) {
+      if (state.page !== 'home') return;
+      if (!identity) {
+        grid.innerHTML = '';
+        grid.appendChild(banner('error',
+          'The Education service could not resolve your account. Check your connection and try again.',
+          function () {
+            state.educationHomePromise = null;
+            renderEducationHome(body);
+          }));
+        return;
+      }
+      paintRoleGrid(grid, identity);
+    });
+  }
+
+  function paintRoleGrid(grid, identity) {
+    grid.innerHTML = '';
+    var linked = 0;
+    for (var i = 0; i < ROLE_CARDS.length; i++) {
+      var card = ROLE_CARDS[i];
+      // The Center role is an OPERATOR surface rather than a linked-person
+      // identity: it is reachable by whoever already holds the Center
+      // permission, so it is never gated on a /me link.
+      var result = card.key === 'center' ? { linked: true, record: null, status: 200 } : identity[card.key];
+      if (result && result.linked) linked++;
+      grid.appendChild(roleCardNode(card, result));
+    }
+    if (linked === 0) {
+      grid.appendChild(el('p', 'edu-empty',
+        'This account is not linked to a student, teacher or parent record yet. ' +
+        'A company administrator links it from the Education console.'));
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Parent workspace
+  // ---------------------------------------------------------------------------
+  //
+  // Read-only by construction: every call below is a GET against a link-scoped
+  // endpoint. The children list comes from /guardians/me/children, which the
+  // server derives from the guardian's own server-owned child relationship — the
+  // browser cannot ask for a different child.
+  function renderParentWorkspace(body) {
+    body.appendChild(el('h2', 'edu-section-title', 'Parent workspace'));
+
+    var host = el('div', 'edu-card');
+    host.id = 'edu-parent-detail';
+    body.appendChild(host);
+    host.appendChild(loadingBlock());
+
+    api('GET', '/guardians/me').then(function (guardian) {
+      if (state.page !== 'parent') return;
+      paintParentWorkspace(host, guardian);
+    }, function (err) {
+      if (state.page !== 'parent') return;
+      host.innerHTML = '';
+      var status = err && typeof err.status === 'number' ? err.status : 0;
+      if (status === 401) {
+        host.appendChild(stateBlock('empty', 'Sign in to open the Parent workspace.', 'Go to sign in', function () {
+          location.href = '../index.html';
+        }));
+        return;
+      }
+      if (status === 404) {
+        host.appendChild(stateBlock('empty',
+          'This account is not linked to a parent record yet. A company administrator ' +
+          'links an account to a parent from the Education console.',
+          'Open the Education console', function () { location.hash = '#dashboard'; }));
+        return;
+      }
+      host.appendChild(banner('error',
+        'The Parent workspace could not be loaded.', function () { renderParentWorkspace(body); }));
+    });
+  }
+
+  function paintParentWorkspace(host, guardian) {
+    host.innerHTML = '';
+
+    var who = [guardian.displayName, [guardian.firstName, guardian.lastName].filter(Boolean).join(' ')]
+      .filter(Boolean)[0];
+    if (who) host.appendChild(el('p', 'edu-role-identity', esc(who)));
+
+    var childrenHost = el('div', 'edu-card');
+    childrenHost.id = 'edu-parent-children';
+    host.appendChild(childrenHost);
+    childrenHost.appendChild(loadingBlock());
+
+    api('GET', '/guardians/me/children').then(function (children) {
+      if (state.page !== 'parent') return;
+      childrenHost.innerHTML = '';
+      childrenHost.appendChild(el('h3', 'edu-section-title', 'My Children'));
+      var list = children || [];
+      if (!list.length) {
+        childrenHost.appendChild(el('p', 'edu-empty',
+          'No children are linked to this parent account yet.'));
+        return;
+      }
+      for (var i = 0; i < list.length; i++) {
+        childrenHost.appendChild(parentChildCard(list[i]));
+      }
+    }, function () {
+      if (state.page !== 'parent') return;
+      childrenHost.innerHTML = '';
+      childrenHost.appendChild(banner('error', 'The children list could not be loaded.', function () {
+        renderParentWorkspace(host.parentNode);
+      }));
+    });
+  }
+
+  // One child: real progress counters from /students/:id/progress, then the real
+  // notifications from the guardian-scoped notifications endpoint.
+  function parentChildCard(child) {
+    var card = el('div', 'edu-child-card');
+    card.setAttribute('data-student-id', String(child.id));
+
+    var name = [child.displayName, [child.firstName, child.lastName].filter(Boolean).join(' ')]
+      .filter(Boolean)[0];
+    card.appendChild(el('h4', 'edu-child-name', esc(name || child.studentCode || 'Student')));
+    if (child.studentCode) card.appendChild(pillNode(child.studentCode));
+
+    var body = el('div', 'edu-child-body');
+    card.appendChild(body);
+    body.appendChild(loadingBlock());
+
+    var studentId = String(child.id);
+    Promise.all([
+      api('GET', '/students/' + encodeURIComponent(studentId) + '/progress'),
+      api('GET', '/education-notifications/children/' + encodeURIComponent(studentId) + '/notifications')
+    ]).then(function (results) {
+      if (state.page !== 'parent') return;
+      body.innerHTML = '';
+      var progress = results[0] || {};
+      var counts = progress.enrollments || {};
+      var attendance = progress.attendance || {};
+
+      var stats = el('div', 'edu-stat-row');
+      stats.appendChild(roleStat('Enrolled courses', counts.total || 0));
+      stats.appendChild(roleStat('Active', counts.active || 0));
+      stats.appendChild(roleStat('Sessions', progress.sessions ? progress.sessions.total || 0 : 0));
+      var attStats = attendanceStats(attendance);
+      for (var ai = 0; ai < attStats.length; ai++) {
+        stats.appendChild(roleStat(attStats[ai][0], attStats[ai][1]));
+      }
+      body.appendChild(stats);
+
+      var notes = (results[1] && results[1].items) || [];
+      body.appendChild(notificationList(notes, 'No notifications for this child right now.'));
+    }, function (err) {
+      if (state.page !== 'parent') return;
+      body.innerHTML = '';
+      var status = err && typeof err.status === 'number' ? err.status : 0;
+      if (status === 403) {
+        body.appendChild(el('p', 'edu-empty', 'This record is not available for your account.'));
+        return;
+      }
+      body.appendChild(banner('error', 'This child\'s details could not be loaded.', function () {
+        renderParentWorkspace(body.closest('.edu-page-body') || body);
+      }));
+    });
+
+    return card;
+  }
+
+  // A stat for the ROLE panels. Deliberately NOT statCard(): that helper stamps
+  // the sub-label "records in this tenant", which would be a false description
+  // of a rate, a session count or a child's own figure. This one carries only
+  // the value the server returned, and shows an em dash when there is nothing.
+  function roleStat(label, value) {
+    var stat = el('div', 'edu-stat');
+    stat.appendChild(el('span', 'edu-stat-label', esc(label)));
+    var shown = (value === undefined || value === null || value === '') ? '—' : String(value);
+    stat.appendChild(el('span', 'edu-stat-value', esc(shown)));
+    return stat;
+  }
+
+  // pill() returns an HTML STRING, not a node, so it must be inserted as markup
+  // rather than passed to appendChild. Used by the Phase 0 role panels.
+  function pillNode(value) {
+    var span = el('span', 'edu-pill', esc(String(value === undefined || value === null ? '' : value)));
+    return span;
+  }
+
+  // Attendance is shown as the RAW COUNTS the server returned and never as a
+  // derived percentage. This is a deliberate product rule of this codebase, not
+  // an omission: the Education surface reports what was RECORDED and never
+  // computes a rate, a GPA, a ranking or a completion figure on top of it. A
+  // percentage would be a number no teacher entered and nobody approved.
+  function attendanceStats(attendance) {
+    var a = attendance || {};
+    return [
+      ['Present', Number(a.present || 0)],
+      ['Late', Number(a.late || 0)],
+      ['Absent', Number(a.absent || 0)],
+      ['Excused', Number(a.excused || 0)]
+  ];
+}
+
+// Shared notification renderer used by the Parent workspace and the Student
+// workspace. Items come from the backend adapter; nothing is generated here.
+function notificationList(items, emptyText) {
+  var wrap = el('div', 'edu-notifications');
+  wrap.appendChild(el('h4', 'edu-notifications-title', 'Notifications'));
+  var list = items || [];
+  if (!list.length) {
+    wrap.appendChild(el('p', 'edu-empty', esc(emptyText)));
+    return wrap;
+  }
+  var ul = el('ul', 'edu-notification-list');
+  ul.setAttribute('role', 'list');
+  for (var i = 0; i < list.length; i++) {
+    var item = list[i];
+    var li = el('li', 'edu-notification');
+    li.setAttribute('data-kind', String(item.kind || ''));
+    // Every field here comes from the server adapter and is escaped before it
+    // reaches innerHTML: a note is free text and must never become markup.
+    li.appendChild(el('span', 'edu-notification-title', esc(item.title || '')));
+    if (item.detail) li.appendChild(el('span', 'edu-notification-detail', esc(item.detail)));
+    if (item.date) li.appendChild(el('span', 'edu-notification-date', esc(item.date)));
+    ul.appendChild(li);
+  }
+  wrap.appendChild(ul);
+  return wrap;
+}
+
+// ---------------------------------------------------------------------------
+// Student workspace — Phase 0 reshaping on top of the existing workspace
+// ---------------------------------------------------------------------------
+//
+// The existing workspace stays exactly where it is (an operator browsing a
+// student record). Phase 0 adds a role-scoped "my learning" panel that is only
+// rendered when the account IS linked to a student, and every section is fed
+// by the endpoints that already existed:
+//
+//   My Courses          -> /enrollments?studentId  joined with /courses
+//   Today's Learning    -> /scheduling?scheduledDate=today  (server-side date)
+//   Progress            -> /students/:id/progress   (real counts)
+//   Schedule            -> /scheduling?classId (per enrolled class)
+//   Notifications       -> /education-notifications/me (backend adapter)
+//
+function renderStudentPhase0(host, student) {
+  var panel = el('div', 'edu-role-panel');
+  panel.id = 'edu-student-phase0';
+  host.appendChild(panel);
+  panel.appendChild(loadingBlock());
+
+  var sid = String(student.id);
+  Promise.all([
+    api('GET', '/students/' + encodeURIComponent(sid) + '/progress'),
+    api('GET', '/enrollments?studentId=' + encodeURIComponent(sid)),
+    api('GET', '/education-notifications/me')
+  ]).then(function (results) {
+    if (state.page !== 'student') return;
+    panel.innerHTML = '';
+
+    var progress = results[0] || {};
+    var enrollments = results[1] || [];
+    var notifications = (results[2] && results[2].items) || [];
+
+    // --- My Courses -------------------------------------------------------
+    panel.appendChild(el('h3', 'edu-section-title', 'My Courses'));
+    if (!enrollments.length) {
+      panel.appendChild(el('p', 'edu-empty', 'You are not enrolled in any course yet.'));
+    } else {
+      var courses = el('ul', 'edu-plain-list');
+      for (var i = 0; i < enrollments.length; i++) {
+        var row = enrollments[i];
+        var li = el('li', 'edu-plain-item');
+        li.appendChild(el('span', null, text(enrollmentLabel(row))));
+        li.appendChild(pillNode(row.status || ''));
+        courses.appendChild(li);
+      }
+      panel.appendChild(courses);
+    }
+
+    // --- Progress (real counts only) -------------------------------------
+    panel.appendChild(el('h3', 'edu-section-title', 'Progress'));
+    var counts = progress.enrollments || {};
+    var attendance = progress.attendance || {};
+    var stats = el('div', 'edu-stat-row');
+    stats.appendChild(roleStat('Enrollments', counts.total || 0));
+    stats.appendChild(roleStat('Active', counts.active || 0));
+    stats.appendChild(roleStat('Sessions', progress.sessions ? progress.sessions.total || 0 : 0));
+    var attStats = attendanceStats(attendance);
+    for (var ai = 0; ai < attStats.length; ai++) {
+      stats.appendChild(roleStat(attStats[ai][0], attStats[ai][1]));
+    }
+    panel.appendChild(stats);
+
+    // --- Today's Learning (server-side today) ----------------------------
+    panel.appendChild(el('h3', 'edu-section-title', 'Today\'s Learning'));
+    var day = today();
+    var classIds = uniqueIds(enrollments.map(function (e) { return e.classId; }));
+    Promise.all(classIds.map(function (cid) {
+      return api('GET', '/scheduling?scheduledDate=' + encodeURIComponent(day) +
+        '&classId=' + encodeURIComponent(cid));
+    })).then(function (sessionGroups) {
+      if (state.page !== 'student') return;
+      var sessions = [];
+      for (var g = 0; g < sessionGroups.length; g++) {
+        sessions = sessions.concat(sessionGroups[g] || []);
+      }
+      if (!sessions.length) {
+        panel.appendChild(el('p', 'edu-empty', 'No sessions are scheduled for today.'));
+        return;
+      }
+      var ul = el('ul', 'edu-plain-list');
+      for (var s = 0; s < sessions.length; s++) {
+        panel.appendChild(sessionLine(sessions[s]));
+      }
+      panel.appendChild(ul);
+    });
+
+    // --- Schedule ---------------------------------------------------------
+    panel.appendChild(el('h3', 'edu-section-title', 'Schedule'));
+    if (!classIds.length) {
+      panel.appendChild(el('p', 'edu-empty', 'No classes to show a schedule for.'));
+    } else {
+      panel.appendChild(el('p', 'edu-empty-note',
+        'Open Calendar for the full timetable of every enrolled class.'));
+      var cal = el('button', 'edu-btn edu-btn-outline', 'Open Calendar');
+      cal.type = 'button';
+      cal.addEventListener('click', function () { location.hash = '#calendar'; });
+      panel.appendChild(cal);
+    }
+
+    // --- GAP, documented rather than rendered -----------------------------
+    // There is NO coursework/assignment entity anywhere in this backend, and the
+    // Education frontend is forbidden from even naming the concept (see
+    // education.test.cjs: no grading/assignment vocabulary may ship here).
+    // Phase 0 therefore does NOT add a section for it: an empty section would
+    // promise a feature the backend cannot back, and a "coming soon" panel would
+    // put the forbidden vocabulary back into the page. The gap is recorded in the
+    // Phase 0 report and in the source comments instead.
+
+    // --- Notifications ----------------------------------------------------
+    panel.appendChild(notificationList(notifications, 'No notifications right now.'));
+  }, function () {
+    if (state.page !== 'student') return;
+    panel.innerHTML = '';
+    panel.appendChild(banner('error', 'Your learning summary could not be loaded.', function () {
+      renderStudentPhase0(host, student);
+    }));
+  });
+}
+
+function uniqueIds(values) {
+  var seen = {};
+  var out = [];
+  for (var i = 0; i < (values || []).length; i++) {
+    var v = values[i];
+    if (!v) continue;
+    var key = String(v);
+    if (seen[key]) continue;
+    seen[key] = true;
+    out.push(key);
+  }
+  return out;
+}
+
+function sessionLine(session) {
+  var line = el('li', 'edu-plain-item');
+  var label = [session.title || '', session.startTime ? session.startTime + ' – ' + (session.endTime || '') : '']
+    .filter(Boolean).join(' · ');
+  line.appendChild(el('span', null, esc(label || String(session.id || ''))));
+  if (session.room) line.appendChild(pillNode(session.room));
+  return line;
+}
+
+// ---------------------------------------------------------------------------
+// Teacher workspace — Phase 0 reshaping on top of the existing workspace
+// ---------------------------------------------------------------------------
+//
+// The existing teacher workspace (an operator browsing a teacher record, with
+// its explicit picker) stays exactly where it is. When — and only when — the
+// account IS linked to a teacher, this panel opens on that teacher's OWN work,
+// fed entirely by endpoints that already existed:
+//
+//   My Classes       -> /classes?teacherId=      (declared filter)
+//   My Students      -> /enrollments?teacherId=  (declared DERIVED filter)
+//   Courses          -> the courses those classes belong to (/courses)
+//   Schedule         -> /scheduling?teacherId=   (declared filter)
+//   Gradebook        -> /grading?classId=        (declared DERIVED filter)
+//   Attendance       -> /attendance?classId=     (declared DERIVED filter)
+//
+// Every figure is a count or a verbatim record the server returned. No average,
+// no rate, no total column, and no entity the repository does not have.
+//
+// GAP, documented rather than rendered: there is NO coursework entity anywhere
+// in this backend and the Education frontend may not name the concept (see
+// education.test.cjs). So no section is added for it here either — an empty
+// section would advertise a capability the server cannot back. The gap is
+// recorded in the Phase 0 report and here in the source instead.
+function renderTeacherPhase0(host, teacher) {
+  var panel = el('div', 'edu-role-panel');
+  panel.id = 'edu-teacher-phase0';
+  host.appendChild(panel);
+  panel.appendChild(loadingBlock());
+
+  var teacherId = String(teacher.id);
+  Promise.all([
+    api('GET', '/classes?teacherId=' + encodeURIComponent(teacherId)),
+    api('GET', '/enrollments?teacherId=' + encodeURIComponent(teacherId)),
+    api('GET', '/scheduling?teacherId=' + encodeURIComponent(teacherId)),
+    loadRef('courses'),
+    loadRef('students')
+  ]).then(function (results) {
+    if (state.page !== 'teacher') return;
+    panel.innerHTML = '';
+
+    var classes = Array.isArray(results[0]) ? results[0] : [];
+    var enrollments = Array.isArray(results[1]) ? results[1] : [];
+    var sessions = Array.isArray(results[2]) ? results[2] : [];
+
+    var stats = el('div', 'edu-stat-row');
+    stats.appendChild(roleStat('Classes', classes.length));
+    stats.appendChild(roleStat('Students', uniqueIds(enrollments.map(function (e) { return e.studentId; })).length));
+    stats.appendChild(roleStat('Sessions', sessions.length));
+    panel.appendChild(stats);
+
+    // --- My Classes -------------------------------------------------
+    panel.appendChild(el('h3', 'edu-section-title', 'My Classes'));
+    if (!classes.length) {
+      panel.appendChild(el('p', 'edu-empty', 'No classes are assigned to you yet.'));
+    } else {
+      var classList = el('ul', 'edu-plain-list');
+      for (var i = 0; i < classes.length; i++) {
+        var klass = classes[i];
+        var li = el('li', 'edu-plain-item');
+        var names = [refName('classes', klass), refLabel('courses', klass.courseId)].filter(Boolean);
+        li.appendChild(el('span', null, esc(names.join(' · '))));
+        li.appendChild(pillNode(klass.status || ''));
+        classList.appendChild(li);
+      }
+      panel.appendChild(classList);
+    }
+
+    // --- My Students (distinct students behind this teacher's classes) --
+    panel.appendChild(el('h3', 'edu-section-title', 'My Students'));
+    var studentIds = uniqueIds(enrollments.map(function (e) { return e.studentId; }));
+    if (!studentIds.length) {
+      panel.appendChild(el('p', 'edu-empty', 'No students are enrolled in your classes yet.'));
+    } else {
+      var studentList = el('ul', 'edu-plain-list');
+      for (var s = 0; s < studentIds.length; s++) {
+        var sli = el('li', 'edu-plain-item');
+        sli.appendChild(el('span', null, text(refLabel('students', studentIds[s]))));
+        studentList.appendChild(sli);
+      }
+      panel.appendChild(studentList);
+    }
+
+    // --- Courses ------------------------------------------------------
+    var courseIds = uniqueIds(classes.map(function (k) { return k.courseId; }));
+    panel.appendChild(el('h3', 'edu-section-title', 'Courses'));
+    if (!courseIds.length) {
+      panel.appendChild(el('p', 'edu-empty', 'No courses are attached to your classes yet.'));
+    } else {
+      var courseList = el('ul', 'edu-plain-list');
+      for (var c = 0; c < courseIds.length; c++) {
+        var cli = el('li', 'edu-plain-item');
+        cli.appendChild(el('span', null, text(refLabel('courses', courseIds[c]))));
+        courseList.appendChild(cli);
+      }
+      panel.appendChild(courseList);
+    }
+
+    // --- Schedule ------------------------------------------------------
+    panel.appendChild(el('h3', 'edu-section-title', 'Schedule'));
+    if (!sessions.length) {
+      panel.appendChild(el('p', 'edu-empty', 'No sessions are scheduled for your classes.'));
+    } else {
+      var schedList = el('ul', 'edu-plain-list');
+      for (var q = 0; q < sessions.length; q++) {
+        schedList.appendChild(sessionLine(sessions[q]));
+      }
+      panel.appendChild(schedList);
+    }
+
+    // --- Gradebook and Attendance ------------------------------------
+    // Both are read per CLASS because the real routes accept `classId` as a
+    // DERIVED filter and nothing wider.
+    //
+    // A grade row and an attendance row each store ONLY `enrollmentId`; the
+    // class and the student behind them are resolved through the Enrollment on
+    // the server and are NOT returned on the row. So the class label here is
+    // joined from the enrollment list this panel already loaded, which is the
+    // same relationship the backend resolves — never a second guess.
+    //
+    // The records are shown verbatim: no per-student average, no class total
+    // and no attendance rate, because no such figure is approved anywhere in
+    // this codebase.
+    var classIds = uniqueIds(classes.map(function (k) { return k.id; }));
+    var enrollmentClass = {};
+    var enrollmentStudent = {};
+    for (var ei = 0; ei < enrollments.length; ei++) {
+      var enr = enrollments[ei];
+      if (enr.id) enrollmentClass[String(enr.id)] = enr.classId;
+      if (enr.id) enrollmentStudent[String(enr.id)] = enr.studentId;
+    }
+    if (classIds.length) {
+      Promise.all(classIds.map(function (cid) {
+        return Promise.all([
+          api('GET', '/grading?classId=' + encodeURIComponent(cid)).catch(function () { return []; }),
+          api('GET', '/attendance?classId=' + encodeURIComponent(cid)).catch(function () { return []; })
+        ]);
+      })).then(function (batches) {
+        if (state.page !== 'teacher') return;
+        var grades = [];
+        var marks = [];
+        for (var b = 0; b < batches.length; b++) {
+          if (Array.isArray(batches[b][0])) grades = grades.concat(batches[b][0]);
+          if (Array.isArray(batches[b][1])) marks = marks.concat(batches[b][1]);
+        }
+
+        panel.appendChild(el('h3', 'edu-section-title', 'Gradebook'));
+        if (!grades.length) {
+          panel.appendChild(el('p', 'edu-empty', 'No grades have been recorded for your classes yet.'));
+        } else {
+          panel.appendChild(simpleTable(
+            ['Date', 'Class', 'Student', 'Grade', 'Notes'],
+            grades.map(function (row) {
+              var eid = String(row.enrollmentId || '');
+              return [
+                code(row.gradingDate),
+                text(refLabel('classes', enrollmentClass[eid])),
+                text(refLabel('students', enrollmentStudent[eid])),
+                code(row.grade),
+                text(row.notes)
+              ];
+            })
+          ));
+        }
+
+        panel.appendChild(el('h3', 'edu-section-title', 'Attendance'));
+        var attStats = attendanceStats(countStatuses(marks, 'status'));
+        var attRow = el('div', 'edu-stat-row');
+        for (var ai = 0; ai < attStats.length; ai++) {
+          attRow.appendChild(roleStat(attStats[ai][0], attStats[ai][1]));
+        }
+        panel.appendChild(attRow);
+      }, function () {
+        if (state.page !== 'teacher') return;
+        panel.appendChild(banner('info',
+          'The gradebook and attendance summary could not be read for your classes. ' +
+          'Open Gradebook and Attendance from the navigation to work with them directly.'));
+      });
+    }
+  }, function () {
+    if (state.page !== 'teacher') return;
+    panel.innerHTML = '';
+    panel.appendChild(banner('error', 'Your teaching summary could not be loaded.', function () {
+      renderTeacherPhase0(host, teacher);
+    }));
+  });
+}
+
+// Count a status column across real rows. Used instead of deriving a rate: the
+// repository records what happened and never converts it into a percentage.
+function countStatuses(rows, field) {
+  var out = {};
+  var list = rows || [];
+  for (var i = 0; i < list.length; i++) {
+    var key = String((list[i] || {})[field] || '').trim().toLowerCase();
+    if (!key) continue;
+    out[key] = (out[key] || 0) + 1;
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Center workspace — Phase 0 reshaping on top of the existing workspace
+// ---------------------------------------------------------------------------
+//
+// The Center workspace is an OPERATOR surface rather than a linked-person
+// identity, so it is not gated on a /me probe the way Student, Teacher and
+// Parent are: whoever already holds the Center permission reaches it, and the
+// backend keeps enforcing tenant isolation and the strict permission gate on
+// every call below. This panel only gives that operator the six views the
+// role actually runs on, from the list routes that already existed:
+//
+//   Students   -> /students        Teachers  -> /teachers
+//   Groups     -> /classes         Schedule  -> /scheduling
+//   Attendance -> /attendance      Reports   -> the three existing reports
+//
+// The existing profile and summary cards stay below it, untouched.
+function renderCenterPhase0(host) {
+  var panel = el('div', 'edu-role-panel');
+  panel.id = 'edu-center-phase0';
+  host.appendChild(panel);
+  panel.appendChild(loadingBlock());
+
+  Promise.all([
+    api('GET', '/students'),
+    api('GET', '/teachers'),
+    api('GET', '/classes'),
+    api('GET', '/scheduling'),
+    api('GET', '/attendance')
+  ]).then(function (results) {
+    if (state.page !== 'center') return;
+    panel.innerHTML = '';
+
+    var students = Array.isArray(results[0]) ? results[0] : [];
+    var teachers = Array.isArray(results[1]) ? results[1] : [];
+    var classes = Array.isArray(results[2]) ? results[2] : [];
+    var sessions = Array.isArray(results[3]) ? results[3] : [];
+    var marks = Array.isArray(results[4]) ? results[4] : [];
+
+    var stats = el('div', 'edu-stat-row');
+    stats.appendChild(roleStat('Students', students.length));
+    stats.appendChild(roleStat('Teachers', teachers.length));
+    stats.appendChild(roleStat('Groups', classes.length));
+    stats.appendChild(roleStat('Sessions', sessions.length));
+    panel.appendChild(stats);
+
+    // --- Groups / Classes ------------------------------------------------
+    panel.appendChild(el('h3', 'edu-section-title', 'Groups'));
+    if (!classes.length) {
+      panel.appendChild(el('p', 'edu-empty', 'No groups have been created yet.'));
+    } else {
+      var groupList = el('ul', 'edu-plain-list');
+      for (var g = 0; g < classes.length; g++) {
+        var gli = el('li', 'edu-plain-item');
+        gli.appendChild(el('span', null, text(refLabel('classes', classes[g].id))));
+        gli.appendChild(pillNode(classes[g].status || ''));
+        groupList.appendChild(gli);
+      }
+      panel.appendChild(groupList);
+    }
+
+    // --- Attendance (recorded counts only, never a rate) -----------------
+    panel.appendChild(el('h3', 'edu-section-title', 'Attendance'));
+    var attStats = attendanceStats(countStatuses(marks, 'status'));
+    var attRow = el('div', 'edu-stat-row');
+    for (var ai = 0; ai < attStats.length; ai++) {
+      attRow.appendChild(roleStat(attStats[ai][0], attStats[ai][1]));
+    }
+    panel.appendChild(attRow);
+
+    // --- Reports ---------------------------------------------------------
+    // These are links, not new surfaces: each one already exists as a page in
+    // this router and reuses the list route behind it.
+    panel.appendChild(el('h3', 'edu-section-title', 'Reports'));
+    var reports = el('div', 'edu-home-actions');
+    var reportLinks = [
+      ['Attendance report', '#report-attendance'],
+      ['Grading report', '#report-grading'],
+      ['Session report', '#report-sessions']
+    ];
+    for (var r = 0; r < reportLinks.length; r++) {
+      var link = el('button', 'edu-btn edu-btn-outline edu-btn-sm', esc(reportLinks[r][0]));
+      link.type = 'button';
+      (function (hash) {
+        link.addEventListener('click', function () { location.hash = hash; });
+      }(reportLinks[r][1]));
+      reports.appendChild(link);
+    }
+    panel.appendChild(reports);
+  }, function () {
+    if (state.page !== 'center') return;
+    panel.innerHTML = '';
+    panel.appendChild(banner('error', 'The center overview could not be loaded.', function () {
+      renderCenterPhase0(host);
+    }));
+  });
+}
+
+    if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', boot);
   } else {
     boot();
