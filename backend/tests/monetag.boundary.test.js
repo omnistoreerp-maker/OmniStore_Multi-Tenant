@@ -299,16 +299,17 @@ describe('Monetag Multitag — official Get-tag integration (platform.html)', ()
     expect(connectLine).toContain("'https://094kk.com'");
     expect(connectLine).not.toContain('*');
     expect((connectLine.match(/https:\/\//g) || []).length).toBe(7);
-    // Intentional TikTok change: frame-src allows ONLY the official TikTok
-    // Embed Player origin so reels.html can play videos on TikTok's own player.
-    // This is deliberately NOT weakened to "frame-src exists" — the exact
-    // allowlist, the absence of a bare wildcard, and the continued absence of
-    // 'self' and of any unrelated origin are all asserted. The Monetag chain
-    // still gains NO ability to frame anything.
+    // Intentional TikTok change: frame-src allows the official TikTok Embed
+    // Player origin so reels.html can play videos on TikTok's own player.
+    // Online Games change: 'self' is additionally allowed so the portal can
+    // embed FIRST-PARTY /games/<slug>/ builds in a sandboxed iframe. The
+    // allowlist stays exact — no bare wildcard, exactly one external origin,
+    // and the Monetag chain still gains NO ability to frame anything.
     const frameLine = (SERVER_JS.match(/frameSrc: \[[^\]]*\]/) || [])[0];
     expect(frameLine).toBeTruthy();
     expect(frameLine).toContain("'https://www.tiktok.com'");
-    expect(frameLine).not.toContain("'self'");
+    expect(frameLine).toContain("'self'");
+    expect(frameLine.indexOf("'self'")).toBeLessThan(frameLine.indexOf('https://'));
     expect(frameLine).not.toContain("'none'");
     expect(frameLine).not.toMatch(/(^|[^.\w])\*/);
     expect((frameLine.match(/https:\/\//g) || []).length).toBe(1);

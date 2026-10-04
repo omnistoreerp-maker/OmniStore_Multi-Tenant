@@ -92,8 +92,7 @@ function _defaultDoc() {
         status: 'active',
         url: '/education/index.html',
         icon: 'fa-school'
-      },
-{
+      },      {
         id: 'game-hosting',
         title: 'Game Hosting',
         description: 'Host and manage game sessions and catalogs.',
@@ -101,6 +100,19 @@ function _defaultDoc() {
         url: null,
         icon: 'fa-gamepad'
       },
+      {
+        // Online Games (feature/online-games-portal-20261003): public,
+        // data-driven open-source HTML5 game portal served from /games/ and
+        // played via the first-party player page /online-games.html. The
+        // registry carries per-game license/attribution records.
+        id: 'online-games',
+        title: 'Online Games',
+        description: 'Free open-source HTML5 games playable instantly in the browser.',
+        status: 'active',
+        url: '/online-games.html',
+        icon: 'fa-dice'
+      },
+
       {
         id: 'media-reels',
         title: 'Media / Reels',
