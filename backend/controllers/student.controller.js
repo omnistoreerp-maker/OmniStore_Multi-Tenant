@@ -177,7 +177,15 @@ function getStudentProgress(req, res) {
       return _ownership403(res, 'Teachers may only view progress for their own students');
     }
 
-    const enrollments = enrollmentService.listEnrollments(ctx, { studentId }) || [];
+    // PROGRESS SCOPE — every count below is derived from THIS enrollment list,
+    // so the scope must be the teacher's own enrollments, not every enrollment
+    // a shared student has. `teacherId` is the server-resolved
+    // `req.teacherActor.id` (never a query/body value); when it is absent
+    // (Owner/Admin/Manager/operator or anonymous-in-legacy-mode) the filter is
+    // exactly the previous `{ studentId }`, so operator behavior is unchanged.
+    const enrollmentFilters = { studentId };
+    if (_teacherId(req)) enrollmentFilters.teacherId = _teacherId(req);
+    const enrollments = enrollmentService.listEnrollments(ctx, enrollmentFilters) || [];
     const enrollmentIds = new Set(enrollments.map((e) => String(e.id)));
     const classIds = new Set(
       enrollments
