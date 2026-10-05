@@ -23,6 +23,7 @@
 const { success, error } = require('../utils/apiResponse');
 const { trustedTenantId } = require('../middleware/authorize');
 const gradingService = require('../services/grading.service');
+const teacherOwnership = require('../middleware/teacherOwnership');
 const logger = require('../utils/logger');
 
 // Returns the trusted tenant id, or null after having already answered 400.
@@ -50,6 +51,35 @@ function _handleWriteError(res, err, message) {
   error(res, message, 500);
 }
 
+// TEACHER OWNERSHIP - a Grade row stores only `enrollmentId`, so the owning
+// teacher is resolved THROUGH the Enrollment and its Class. When
+// `req.teacherActor` is set:
+//   - listGrading is force-scoped to the Enrollment ids of that teacher's own
+//     classes (a query filter narrows within that set, never widens it);
+//   - getGrade / createGrade / updateGrade refuse an Enrollment of another
+//     teacher's class with 403 OWNERSHIP_DENIED. 404 still wins across tenants,
+//     so existence is never leaked (the row is loaded inside the trusted
+//     tenant BEFORE ownership is judged). An enrollmentId that does not
+//     resolve inside the trusted tenant answers the SAME 403 as a foreign one
+//     — never a 403/400 split — so the check is not an existence oracle.
+function _ownership403(res, message) {
+  error(res, message, 403, { code: 'OWNERSHIP_DENIED' });
+}
+
+function _present(v) {
+  return v !== undefined && v !== null && String(v).trim() !== '';
+}
+
+function _teacherId(req) {
+  return req && req.teacherActor && req.teacherActor.id ? String(req.teacherActor.id) : '';
+}
+
+function _teacherOwnsEnrollment(req, tenantId, enrollmentId) {
+  const teacherId = _teacherId(req);
+  if (!teacherId) return false;
+  return teacherOwnership.teacherOwnsEnrollment(tenantId, enrollmentId, teacherId);
+}
+
 function listGrading(req, res) {
   try {
     const tenantId = _tenantIdOr400(req, res);
@@ -69,7 +99,13 @@ function listGrading(req, res) {
       studentId: req.query ? req.query.studentId : undefined,
       classId: req.query ? req.query.classId : undefined
     };
-    success(res, gradingService.listGrading({ tenantId }, filters), 'Grading retrieved');
+    const rows = gradingService.listGrading({ tenantId }, filters);
+    // A LINKED teacher sees only grades for their own classes.
+    if (_teacherId(req)) {
+      const allowed = teacherOwnership.teacherEnrollmentIds(tenantId, _teacherId(req));
+      return success(res, teacherOwnership.filterRowsByEnrollment(rows, allowed), 'Grading retrieved');
+    }
+    success(res, rows, 'Grading retrieved');
   } catch (err) {
     logger.error('grading.listGrading error:', err.message);
     error(res, 'Failed to retrieve grading', 500);
@@ -84,6 +120,9 @@ function getGrade(req, res) {
     // A record owned by another tenant is reported as absent, never as
     // forbidden, so existence is not leaked across tenants.
     if (!found) return error(res, 'Grading record not found', 404);
+    if (_teacherId(req) && !_teacherOwnsEnrollment(req, tenantId, found.enrollmentId)) {
+      return _ownership403(res, 'Teachers may only view grades for their own classes');
+    }
     success(res, found, 'Grading record retrieved');
   } catch (err) {
     logger.error('grading.getGrade error:', err.message);
@@ -95,12 +134,18 @@ function createGrade(req, res) {
   try {
     const tenantId = _tenantIdOr400(req, res);
     if (!tenantId) return;
+    const body = req.body || {};
+    // A LINKED teacher records only against their own classes.
+    if (_teacherId(req) && _present(body.enrollmentId) &&
+        !_teacherOwnsEnrollment(req, tenantId, body.enrollmentId)) {
+      return _ownership403(res, 'Teachers may only record grades for their own classes');
+    }
     // The body is passed through untouched; the service whitelists writable
     // fields, rejects server-owned, derived and later-phase fields, resolves the
     // required Enrollment reference inside the trusted tenant, refuses a future
     // grading date, enforces one-grade-per-enrollment uniqueness and stamps the
     // trusted tenantId.
-    const created = gradingService.createGrade({ tenantId }, req.body || {});
+    const created = gradingService.createGrade({ tenantId }, body);
     success(res, created, 'Grading record created', 201);
   } catch (err) {
     _handleWriteError(res, err, 'Failed to create grading record');
@@ -113,7 +158,13 @@ function updateGrade(req, res) {
     if (!tenantId) return;
     // A re-mark. `grade`, `gradingDate` and `notes` are mutable;
     // `enrollmentId` is immutable and any attempt to supply it is rejected
-    // before the persisted record is touched.
+    // before the persisted record is touched. A LINKED teacher re-marks only
+    // their own rows, with the same load-first 404/403 ordering as the read.
+    const existing = gradingService.getGrade({ tenantId }, req.params.id);
+    if (!existing) return error(res, 'Grading record not found', 404);
+    if (_teacherId(req) && !_teacherOwnsEnrollment(req, tenantId, existing.enrollmentId)) {
+      return _ownership403(res, 'Teachers may only re-mark grades for their own classes');
+    }
     const updated = gradingService.updateGrade({ tenantId }, req.params.id, req.body || {});
     if (!updated) return error(res, 'Grading record not found', 404);
     success(res, updated, 'Grading record updated');
