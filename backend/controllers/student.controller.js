@@ -18,6 +18,7 @@ const enrollmentService = require('../services/enrollment.service');
 const classService = require('../services/class.service');
 const attendanceService = require('../services/attendance.service');
 const schedulingService = require('../services/scheduling.service');
+const teacherOwnership = require('../middleware/teacherOwnership');
 const logger = require('../utils/logger');
 
 // Returns the trusted tenant id, or null after having already answered 400.
@@ -30,6 +31,30 @@ function _tenantIdOr400(req, res) {
   return String(tenantId);
 }
 
+// TEACHER OWNERSHIP - a Student row stores no classId or centerId, so "the
+// students this teacher may read" is DERIVED: the Student ids reachable
+// through an Enrollment of one of that teacher's own Classes. When
+// `req.teacherActor` is set:
+//   - listStudents is force-scoped to that derived set;
+//   - getStudent / getStudentProgress refuse a Student the teacher does not
+//     teach with 403 OWNERSHIP_DENIED. 404 still wins across tenants, so
+//     existence is never leaked.
+// Creating and archiving students stays an operator action: `students` is
+// deliberately NOT on the teacher write bypass.
+function _ownership403(res, message) {
+  error(res, message, 403, { code: 'OWNERSHIP_DENIED' });
+}
+
+function _teacherId(req) {
+  return req && req.teacherActor && req.teacherActor.id ? String(req.teacherActor.id) : '';
+}
+
+function _teacherOwnsStudent(req, tenantId, studentId) {
+  const teacherId = _teacherId(req);
+  if (!teacherId) return false;
+  return teacherOwnership.teacherOwnsStudent(tenantId, studentId, teacherId);
+}
+
 function listStudents(req, res) {
   try {
     const tenantId = _tenantIdOr400(req, res);
@@ -39,7 +64,13 @@ function listStudents(req, res) {
       status: req.query ? req.query.status : undefined,
       search: req.query ? req.query.search : undefined
     };
-    success(res, studentService.listStudents({ tenantId }, filters), 'Students retrieved');
+    const rows = studentService.listStudents({ tenantId }, filters);
+    // A LINKED teacher sees only the students enrolled in their own classes.
+    if (_teacherId(req)) {
+      const allowed = teacherOwnership.teacherStudentIds(tenantId, _teacherId(req));
+      return success(res, teacherOwnership.filterStudentsByTeacher(rows, allowed), 'Students retrieved');
+    }
+    success(res, rows, 'Students retrieved');
   } catch (err) {
     logger.error('student.listStudents error:', err.message);
     error(res, 'Failed to retrieve students', 500);
@@ -54,6 +85,9 @@ function getStudent(req, res) {
     // A record owned by another tenant is reported as absent, never as
     // forbidden, so existence is not leaked across tenants.
     if (!found) return error(res, 'Student not found', 404);
+    if (_teacherId(req) && !_teacherOwnsStudent(req, tenantId, found.id)) {
+      return _ownership403(res, 'Teachers may only view their own students');
+    }
     success(res, found, 'Student retrieved');
   } catch (err) {
     logger.error('student.getStudent error:', err.message);
@@ -136,6 +170,12 @@ function getStudentProgress(req, res) {
     // existence is never leaked across tenants.
     const student = studentService.getStudent(ctx, studentId);
     if (!student) return error(res, 'Student not found', 404);
+
+    // A LINKED teacher reaches only the students they teach; the 404 above
+    // still precedes the 403 so existence is never leaked.
+    if (_teacherId(req) && !_teacherOwnsStudent(req, tenantId, student.id)) {
+      return _ownership403(res, 'Teachers may only view progress for their own students');
+    }
 
     const enrollments = enrollmentService.listEnrollments(ctx, { studentId }) || [];
     const enrollmentIds = new Set(enrollments.map((e) => String(e.id)));

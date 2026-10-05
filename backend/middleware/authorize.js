@@ -142,21 +142,26 @@ const PERMISSION_GUARDED_WRITE_ROUTES = new Set([
 // with a normal (Viewer-level) account could never confirm or cancel their own
 // booking: this gate would answer 'Insufficient role' before the route
 // permission was ever consulted. With it:
-//   - the bypass exists ONLY on the five TEACHER-OWNED education surfaces
-//     (bookings, ratings, classes, scheduling, enrollments) and ONLY for a
-//     caller whose link was created by an Owner/Admin — an unlinked account,
-//     an anonymous request, any other education surface (students, attendance,
-//     grading, programs, courses, centers, educationPack, teachers) and any
-//     other /api/v1 path keeps the full role restriction (all four 'fail
-//     closed' education suites pin that);
-//   - on those five surfaces the controllers enforce ownership: a linked
+//   - the bypass exists ONLY on the seven TEACHER-OWNED education surfaces
+//     (bookings, ratings, classes, scheduling, enrollments, attendance,
+//     grading) and ONLY for a caller whose link was created by an
+//     Owner/Admin — an unlinked account, an anonymous request, any other
+//     education surface (students, programs, courses, centers,
+//     educationPack, teachers) and any other /api/v1 path keeps the full role
+//     restriction (all four 'fail closed' education suites pin that);
+//   - `students` is deliberately NOT on the list: enrolling and creating
+//     students is an operator action, not a teacher's. A teacher reaches their
+//     own students through the READ paths, which are force-scoped.
+//   - on those seven surfaces the controllers enforce ownership: a linked
 //     teacher may write ONLY rows owned by their own teacher record (and the
 //     ratings controller refuses teacher writes outright — entering feedback
-//     is an operator action);
+//     is an operator action). `attendance` and `grading` store no `teacherId`,
+//     so their controllers resolve ownership through
+//     Enrollment -> Class -> teacherId via middleware/teacherOwnership;
 //   - the route's strict requirePermission still decides access (fails closed
 //     with no grant, unknown permissions refused).
 const TEACHER_OWNED_EDUCATION_SURFACES = new Set([
-  'bookings', 'ratings', 'classes', 'scheduling', 'enrollments'
+  'bookings', 'ratings', 'classes', 'scheduling', 'enrollments', 'attendance', 'grading'
 ]);
 function scopedWriteRoleGuard(...roles) {
   return function (req, res, next) {
