@@ -1740,5 +1740,58 @@ check('the report surfaces add no backend surface and no new permission', () => 
   }
 });
 
+// ---------------------------------------------------------------------------
+// 12. Workspace reachability and canonical data paths
+// ---------------------------------------------------------------------------
+// The P3-P7 workspaces are only real if the router lets a user onto them and
+// if the endpoint a data card reads actually exists. Both regressed once
+// already: the Center Workspace was left out of PAGES (so #center silently
+// fell back to the dashboard), and the Student Workspace read
+// GET /enrollments/:id/progress, a path that only ever existed on the removed
+// Education Core router and answered 404 forever, hiding its card.
+check('every navigation entry the page offers is a routed page', () => {
+  const at = RUNTIME.indexOf('var PAGES = [');
+  assert(at >= 0, 'the routed page list is missing');
+  const block = RUNTIME.slice(at, RUNTIME.indexOf('];', at) + 1);
+  const declared = new Set((block.match(/'([a-z-]+)'/g) || []).map((s) => s.slice(1, -1)));
+  const nav = PAGE.match(/data-edu-page="([^"]+)"/g) || [];
+  assert(nav.length >= 20, 'expected the full drawer and bottom nav, found ' + nav.length);
+  for (const raw of nav) {
+    const page = raw.slice('data-edu-page="'.length, -1);
+    assert(declared.has(page), 'the nav offers #' + page + ' but the router never routes it');
+  }
+  for (const workspace of ['center', 'teacher', 'student']) {
+    assert(declared.has(workspace),
+      'the ' + workspace + ' workspace is not in PAGES: #' + workspace + ' falls back to the dashboard');
+    assert(RUNTIME.includes("if (page === '" + workspace + "') render"),
+      'the router does not dispatch the ' + workspace + ' workspace');
+  }
+});
+
+check('the student workspace reads the canonical progress endpoint only', () => {
+  assert(RUNTIME.includes("api('GET', '/students/' + encodeURIComponent(studentId) + '/progress')"),
+    'the student workspace no longer reads GET /students/:id/progress');
+  assert(!RUNTIME.includes("/enrollments/' + encodeURIComponent(String(row.id || '')) + '/progress"),
+    'the page reads GET /enrollments/:id/progress, which no committed router declares');
+  const studentRoute = read('backend/routes/student.routes.js');
+  assert(studentRoute.includes("router.get('/students/:id/progress'"),
+    'the backend no longer declares the canonical progress route');
+  assert(!ALL_ROUTES.some((route) => route.path.indexOf('enrollments/:id/progress') >= 0),
+    'an enrollment progress route appeared; progress belongs to the student route');
+});
+
+check('the center summary never renders an unreadable figure as zero', () => {
+  const start = RUNTIME.indexOf('function renderCenterWorkspace');
+  const end = RUNTIME.indexOf('function renderTeacherWorkspace');
+  assert(start >= 0 && end > start, 'the center workspace block could not be located');
+  const block = RUNTIME.slice(start, end);
+  assert(!block.includes('.catch(function () { return []; })'),
+    'the center summary turns a failed read into an empty list, which renders as 0');
+  assert(block.includes('function readable('),
+    'the center summary no longer distinguishes an unreadable figure from an empty one');
+  assert(block.includes("banner('neutral', 'Some figures are not readable with this account.')"),
+    'the center summary no longer tells the user which figures are unreadable');
+});
+
 console.log('\neducation.test.cjs: ' + passed + ' passed, ' + failed + ' failed');
 if (failed > 0) process.exit(1);
