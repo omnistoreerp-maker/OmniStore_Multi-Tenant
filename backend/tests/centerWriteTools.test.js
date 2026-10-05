@@ -651,4 +651,17 @@ describe('Center G1 - write tools for Students, Teachers, Classes, Enrollments (
     var section = source.slice(start, end);
     expect(section).toContain('renderCenterWriteTools');
   });
+
+  test('Academic years page resolves to ENTITIES.academicYears (key mismatch fix)', function() {
+    var source = EDUCATION_JS;
+    // The PAGES array uses 'academic-years' (kebab-case) but the ENTITIES key
+    // is 'academicYears' (camelCase). entityFor must bridge the gap.
+    expect(source).toContain("'academic-years'");
+    expect(source).toContain('academicYears:');
+    // entityFor must have a mapping for academic-years -> academicYears
+    var entityForMatch = source.match(/function entityFor\(page\)[\s\S]*?return ENTITIES\[page\] \|\| null;/);
+    expect(entityForMatch).not.toBeNull();
+    expect(entityForMatch[0]).toContain("page === 'academic-years'");
+    expect(entityForMatch[0]).toContain('ENTITIES.academicYears');
+  });
 });

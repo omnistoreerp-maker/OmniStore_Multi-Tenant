@@ -1586,6 +1586,7 @@
   // same string. This is the single place that knows the difference.
   function entityFor(page) {
     if (page === 'schedule') return ENTITIES.scheduling;
+    if (page === 'academic-years') return ENTITIES.academicYears;
     return ENTITIES[page] || null;
   }
 
