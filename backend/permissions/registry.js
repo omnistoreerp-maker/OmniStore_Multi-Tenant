@@ -46,6 +46,7 @@ const REAL_GROUPS = [
   {
     group: 'education',
     permissions: [
+      'education.academicYears.view', 'education.academicYears.edit',
       'education.attendance.view', 'education.attendance.edit',
       'education.bookings.view', 'education.bookings.edit',
       'education.centers.view', 'education.centers.edit',
@@ -53,12 +54,15 @@ const REAL_GROUPS = [
       'education.courses.view', 'education.courses.edit',
       'education.enrollments.view', 'education.enrollments.edit',
       'education.grading.view', 'education.grading.edit',
+      'education.groups.view', 'education.groups.edit',
       'education.pack.view', 'education.pack.edit',
       'education.programs.view', 'education.programs.edit',
       'education.ratings.view', 'education.ratings.edit',
       'education.scheduling.view', 'education.scheduling.edit',
       'education.students.view', 'education.students.edit',
-      'education.teachers.view', 'education.teachers.edit'
+      'education.subjects.view', 'education.subjects.edit',
+      'education.teachers.view', 'education.teachers.edit',
+      'education.terms.view', 'education.terms.edit'
     ]
   }
 ];

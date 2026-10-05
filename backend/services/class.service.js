@@ -70,6 +70,8 @@ const storageAdapter = require('../repositories/storageAdapter');
 const courseService = require('./course.service');
 const teacherService = require('./teacher.service');
 const programService = require('./program.service');
+const termService = require('./term.service');
+const academicYearService = require('./academicYear.service');
 const logger = require('../utils/logger');
 
 const STORE_KEY = 'educationClasses';
@@ -86,6 +88,7 @@ const CLASS_STATUSES = Object.freeze(['active', 'inactive', 'archived']);
 const WRITABLE_FIELDS = Object.freeze({
   courseId: 'string',
   teacherId: 'string',
+  termId: 'string',
   classCode: 'string',
   name: 'string',
   displayName: 'string',
@@ -377,6 +380,40 @@ function _assertTeacherInTenant(tenantId, teacherId) {
   }
 }
 
+// The OPTIONAL Term reference (P1 academic foundation). When supplied it must
+// resolve inside the trusted tenant, must not be archived, and must sit in
+// the same center as the effective Course chain: both centers must be
+// non-empty and equal. A class whose course chain is centerless therefore
+// cannot name a term (fail closed — the operator assigns centers first). An
+// empty termId clears the link, which is always allowed. Unknown terms fail
+// exactly like unknown courses (ReferenceValidationError -> 400), so the
+// check is not an existence oracle beyond the service's own uniform 400.
+function _courseChainCenter(tenantId, courseId) {
+  const course = courseService.getCourse({ tenantId }, courseId);
+  if (!course || !course.programId) return '';
+  const program = programService.getProgram({ tenantId }, course.programId);
+  if (!program) return '';
+  return String(program.centerId || '').trim();
+}
+
+function _assertTermMatchesCourse(tenantId, termId, courseId) {
+  const term = String(termId || '').trim();
+  if (!term) return;
+  const found = termService.getTerm({ tenantId }, term);
+  if (!found) throw new ReferenceValidationError('termId does not reference a Term in this tenant');
+  if (found.status === 'archived') {
+    throw new ReferenceValidationError('termId must reference a non-archived Term');
+  }
+  const year = found.academicYearId;
+  const yearCenter = year
+    ? String(((academicYearService.getAcademicYear({ tenantId }, year) || {}).centerId) || '').trim()
+    : '';
+  const courseCenter = _courseChainCenter(tenantId, courseId);
+  if (!yearCenter || !courseCenter || yearCenter !== courseCenter) {
+    throw new ReferenceValidationError('termId must reference a Term of the same center as the Class course');
+  }
+}
+
 function _searchMatch(record, query) {
   const q = String(query || '').trim().toLowerCase();
   if (!q) return true;
@@ -469,6 +506,8 @@ function createClass(tenantContext, input) {
   // reach the store, and never leaves a code reserved as a side effect.
   _assertCourseInTenant(tid, clean.courseId);
   _assertTeacherInTenant(tid, clean.teacherId);
+  // Optional term link, same-center enforced (no-op when absent).
+  _assertTermMatchesCourse(tid, clean.termId, clean.courseId);
 
   const classCode = clean.classCode || _generateId('CLS').toUpperCase();
   _assertClassCodeAvailable(classes, tid, classCode);
@@ -493,6 +532,13 @@ function createClass(tenantContext, input) {
   // is unchanged), and revenue for it is unclaimable rather than 0.
   if (typeof clean.fee === 'string' && clean.fee !== '') {
     record.fee = clean.fee;
+  }
+  // `termId` follows the same rule: a Class outside any term carries NO
+  // termId key (so the pinned record shape for a term-less create is
+  // unchanged). Clearing the link stores '' through the update path, which
+  // always passes through `clean`.
+  if (typeof clean.termId === 'string' && clean.termId !== '') {
+    record.termId = clean.termId;
   }
   classes.push(record);
   _writeStore({ ...doc, classes });
@@ -521,6 +567,19 @@ function updateClass(tenantContext, id, input) {
   }
   if (Object.prototype.hasOwnProperty.call(clean, 'teacherId')) {
     _assertTeacherInTenant(tid, clean.teacherId);
+  }
+  // The EFFECTIVE term/course pair is re-validated on every update that
+  // touches either side: moving a class under another course, or naming a new
+  // term, must keep the same-center rule that create enforces. Clearing the
+  // link (termId: '') stays allowed.
+  if (Object.prototype.hasOwnProperty.call(clean, 'courseId') ||
+      Object.prototype.hasOwnProperty.call(clean, 'termId')) {
+    const base = classes[idx];
+    const effectiveCourse = Object.prototype.hasOwnProperty.call(clean, 'courseId')
+      ? clean.courseId : base.courseId;
+    const effectiveTerm = Object.prototype.hasOwnProperty.call(clean, 'termId')
+      ? clean.termId : base.termId;
+    _assertTermMatchesCourse(tid, effectiveTerm, effectiveCourse);
   }
   if (clean.classCode) {
     _assertClassCodeAvailable(classes, tid, clean.classCode, classes[idx].id);

@@ -39,6 +39,10 @@ const programService = require('../services/program.service');
 const courseService = require('../services/course.service');
 const classService = require('../services/class.service');
 const enrollmentService = require('../services/enrollment.service');
+const academicYearService = require('../services/academicYear.service');
+const termService = require('../services/term.service');
+const subjectService = require('../services/subject.service');
+const groupService = require('../services/group.service');
 
 function _present(v) {
   return v !== undefined && v !== null && String(v).trim() !== '';
@@ -306,7 +310,94 @@ function filterTeachersByCenter(teachers, allowedTeacherIds) {
   return teachers.filter((t) => t && _present(t.id) && allowedTeacherIds.has(String(t.id)));
 }
 
+// ---------------------------------------------------------------------------
+// P1 Academic Foundation: center derivation for years, terms, subjects,
+// groups. Years and subjects store their own centerId (like programs);
+// terms resolve through their year; groups resolve through their class.
+// ---------------------------------------------------------------------------
+
+// Direct field: the only academic rows that store their own center.
+function yearCenterId(tenantId, yearId) {
+  if (!_present(tenantId) || !_present(yearId)) return '';
+  const year = academicYearService.getAcademicYear({ tenantId: String(tenantId) }, String(yearId));
+  if (!year) return '';
+  return _id(year.centerId);
+}
+
+function subjectCenterId(tenantId, subjectId) {
+  if (!_present(tenantId) || !_present(subjectId)) return '';
+  const subject = subjectService.getSubject({ tenantId: String(tenantId) }, String(subjectId));
+  if (!subject) return '';
+  return _id(subject.centerId);
+}
+
+function termCenterId(tenantId, termId) {
+  if (!_present(tenantId) || !_present(termId)) return '';
+  const term = termService.getTerm({ tenantId: String(tenantId) }, String(termId));
+  if (!term || !_present(term.academicYearId)) return '';
+  return yearCenterId(tenantId, term.academicYearId);
+}
+
+function groupCenterId(tenantId, groupId) {
+  if (!_present(tenantId) || !_present(groupId)) return '';
+  const group = groupService.getGroup({ tenantId: String(tenantId) }, String(groupId));
+  if (!group || !_present(group.classId)) return '';
+  return classCenterId(tenantId, group.classId);
+}
+
+function centerTermIds(tenantId, centerId) {
+  const ids = new Set();
+  if (!_present(tenantId) || !_present(centerId)) return ids;
+  const terms = termService.listTerms({ tenantId: String(tenantId) }, {}) || [];
+  for (const term of terms) {
+    if (!_present(term.id)) continue;
+    if (termCenterId(tenantId, term.id) === String(centerId)) ids.add(String(term.id));
+  }
+  return ids;
+}
+
+function centerGroupIds(tenantId, centerId) {
+  const ids = new Set();
+  if (!_present(tenantId) || !_present(centerId)) return ids;
+  const groups = groupService.listGroups({ tenantId: String(tenantId) }, {}) || [];
+  for (const group of groups) {
+    if (!_present(group.id)) continue;
+    if (groupCenterId(tenantId, group.id) === String(centerId)) ids.add(String(group.id));
+  }
+  return ids;
+}
+
+function centerOwnsAcademicYear(tenantId, id, centerId) {
+  if (!_present(id) || !_present(centerId)) return false;
+  return yearCenterId(tenantId, id) === String(centerId);
+}
+
+function centerOwnsTerm(tenantId, id, centerId) {
+  if (!_present(id) || !_present(centerId)) return false;
+  return termCenterId(tenantId, id) === String(centerId);
+}
+
+function centerOwnsSubject(tenantId, id, centerId) {
+  if (!_present(id) || !_present(centerId)) return false;
+  return subjectCenterId(tenantId, id) === String(centerId);
+}
+
+function centerOwnsGroup(tenantId, id, centerId) {
+  if (!_present(id) || !_present(centerId)) return false;
+  return groupCenterId(tenantId, id) === String(centerId);
+}
+
 module.exports = {
+  yearCenterId,
+  subjectCenterId,
+  termCenterId,
+  groupCenterId,
+  centerTermIds,
+  centerGroupIds,
+  centerOwnsAcademicYear,
+  centerOwnsTerm,
+  centerOwnsSubject,
+  centerOwnsGroup,
   programCenterId,
   courseCenterId,
   classCenterId,

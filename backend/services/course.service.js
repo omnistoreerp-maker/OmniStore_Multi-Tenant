@@ -39,6 +39,7 @@
 
 const storageAdapter = require('../repositories/storageAdapter');
 const programService = require('./program.service');
+const subjectService = require('./subject.service');
 const logger = require('../utils/logger');
 
 const STORE_KEY = 'educationCourses';
@@ -51,9 +52,13 @@ const COURSE_STATUSES = Object.freeze(['active', 'inactive', 'archived']);
 const DURATION_UNITS = Object.freeze(['days', 'weeks', 'months']);
 
 // EXPLICIT WRITE WHITELIST with per-key kinds. `programId` is REQUIRED.
-// `durationValue` is the only numeric field; everything else is a string.
+// `subjectId` is OPTIONAL: a course may name the Subject it teaches, in which
+// case the subject must sit in the same center as the course's program (see
+// _assertSubjectMatchesProgram). `durationValue` is the only numeric field;
+// everything else is a string.
 const WRITABLE_FIELDS = Object.freeze({
   programId: 'string',
+  subjectId: 'string',
   courseCode: 'string',
   name: 'string',
   displayName: 'string',
@@ -323,6 +328,28 @@ function _assertProgramInTenant(tenantId, programId) {
   }
 }
 
+// The OPTIONAL Subject reference (P1 academic foundation). When supplied it
+// must resolve inside the trusted tenant AND must sit in the same center as
+// the effective Program: both centers must be non-empty and equal. A course
+// under a centerless program therefore cannot name a subject (fail closed —
+// the operator assigns the program a center first). An empty subjectId clears
+// the link, which is always allowed. Unknown subjects fail exactly like
+// unknown programs (ReferenceValidationError -> 400), so the check is not an
+// existence oracle beyond the service's own uniform 400.
+function _assertSubjectMatchesProgram(tenantId, subjectId, programId) {
+  const sid = String(subjectId || '').trim();
+  if (!sid) return;
+  const subject = subjectService.getSubject({ tenantId }, sid);
+  if (!subject) throw new ReferenceValidationError('subjectId does not reference a Subject in this tenant');
+  const program = programService.getProgram({ tenantId }, programId);
+  if (!program) throw new ReferenceValidationError('programId does not reference a Program in this tenant');
+  const subjectCenter = String(subject.centerId || '').trim();
+  const programCenter = String(program.centerId || '').trim();
+  if (!subjectCenter || !programCenter || subjectCenter !== programCenter) {
+    throw new ReferenceValidationError('subjectId must reference a Subject of the same center as the Course program');
+  }
+}
+
 function _searchMatch(course, query) {
   const q = String(query || '').trim().toLowerCase();
   if (!q) return true;
@@ -390,6 +417,8 @@ function createCourse(tenantContext, input) {
   // Relationship first: a cross-tenant, missing or archived Program must never
   // reach the store, and never leaves a code reserved as a side effect.
   _assertProgramInTenant(tid, clean.programId);
+  // Optional subject link, same-center enforced (no-op when absent).
+  _assertSubjectMatchesProgram(tid, clean.subjectId, clean.programId);
 
   const courseCode = clean.courseCode || _generateId('CRS').toUpperCase();
   _assertCourseCodeAvailable(courses, tid, courseCode);
@@ -399,6 +428,7 @@ function createCourse(tenantContext, input) {
     id: _generateId('crs'),
     tenantId: tid,
     programId: String(clean.programId).trim(),
+    subjectId: clean.subjectId !== undefined ? String(clean.subjectId).trim() : '',
     courseCode,
     name: clean.name,
     displayName: _displayName(clean),
@@ -433,6 +463,19 @@ function updateCourse(tenantContext, id, input) {
   // validation for any falsy value that slipped through.
   if (Object.prototype.hasOwnProperty.call(clean, 'programId')) {
     _assertProgramInTenant(tid, clean.programId);
+  }
+  // The EFFECTIVE subject/program pair is re-validated on every update that
+  // touches either side: moving a course under another program, or naming a
+  // new subject, must keep the same-center rule that create enforces.
+  // Clearing the link (subjectId: '') stays allowed.
+  if (Object.prototype.hasOwnProperty.call(clean, 'programId') ||
+      Object.prototype.hasOwnProperty.call(clean, 'subjectId')) {
+    const base = courses[idx];
+    const effectiveProgram = Object.prototype.hasOwnProperty.call(clean, 'programId')
+      ? clean.programId : base.programId;
+    const effectiveSubject = Object.prototype.hasOwnProperty.call(clean, 'subjectId')
+      ? clean.subjectId : base.subjectId;
+    _assertSubjectMatchesProgram(tid, effectiveSubject, effectiveProgram);
   }
   if (clean.courseCode) {
     _assertCourseCodeAvailable(courses, tid, clean.courseCode, courses[idx].id);

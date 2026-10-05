@@ -969,6 +969,158 @@
         csvColumn('Status', function (r) { return str(r.status); }),
         csvColumn('Comment', function (r) { return str(r.comment); })
       ])
+    },
+    academicYears: {
+      key: 'academicYears',
+      path: '/academic-years',
+      title: 'Academic Years',
+      icon: 'calendar',
+      addLabel: 'Add Academic Year',
+      archivePath: '/archive',
+      archiveLabel: 'Archive',
+      statuses: STATUS_VALUES,
+      filters: [
+        { name: 'status', label: 'Status', type: 'select', values: STATUS_VALUES },
+        { name: 'centerId', label: 'Center', type: 'ref', source: 'centers' },
+        { name: 'search', label: 'Search', type: 'search' }
+      ],
+      fields: [
+        refField('centerId', 'Center', 'centers', true),
+        textField('yearCode', 'Year Code'),
+        textField('name', 'Name', { required: true }),
+        textField('displayName', 'Display Name'),
+        { name: 'description', label: 'Description', type: 'textarea', maxLength: MAX_STRING_LEN },
+        { name: 'startDate', label: 'Start Date', type: 'date' },
+        { name: 'endDate', label: 'End Date', type: 'date' },
+        selectField('status', 'Status', STATUS_VALUES),
+        { name: 'notes', label: 'Notes', type: 'textarea', maxLength: MAX_STRING_LEN }
+      ],
+      columns: [
+        { label: 'Code', cell: function (r) { return code(r.yearCode); } },
+        { label: 'Name', cell: function (r) { return text(refName('academicYears', r)); } },
+        { label: 'Center', cell: function (r) { return code(r.centerId ? refLabel('centers', r.centerId) : ''); } },
+        { label: 'Dates', cell: function (r) { return text(dateRange(r)); } },
+        { label: 'Status', cell: function (r) { return pill(r.status); } }
+      ],
+      export: csvExport('education-academic-years', [
+        csvColumn('Code', function (r) { return str(r.yearCode); }),
+        csvColumn('Name', function (r) { return refName('academicYears', r); }),
+        csvColumn('Center', csvRef('centers', 'centerId')),
+        csvColumn('Dates', function (r) { return str(dateRange(r)); }),
+        csvColumn('Status', function (r) { return str(r.status); })
+      ])
+    },
+    terms: {
+      key: 'terms',
+      path: '/terms',
+      title: 'Terms',
+      icon: 'clipboard',
+      addLabel: 'Add Term',
+      archivePath: '/archive',
+      archiveLabel: 'Archive',
+      statuses: STATUS_VALUES,
+      filters: [
+        { name: 'status', label: 'Status', type: 'select', values: STATUS_VALUES },
+        { name: 'academicYearId', label: 'Academic Year', type: 'ref', source: 'academicYears' },
+        { name: 'search', label: 'Search', type: 'search' }
+      ],
+      fields: [
+        refField('academicYearId', 'Academic Year', 'academicYears', true),
+        textField('termCode', 'Term Code'),
+        textField('name', 'Name', { required: true }),
+        textField('displayName', 'Display Name'),
+        { name: 'description', label: 'Description', type: 'textarea', maxLength: MAX_STRING_LEN },
+        { name: 'startDate', label: 'Start Date', type: 'date' },
+        { name: 'endDate', label: 'End Date', type: 'date' },
+        selectField('status', 'Status', STATUS_VALUES),
+        { name: 'notes', label: 'Notes', type: 'textarea', maxLength: MAX_STRING_LEN }
+      ],
+      columns: [
+        { label: 'Code', cell: function (r) { return code(r.termCode); } },
+        { label: 'Name', cell: function (r) { return text(refName('terms', r)); } },
+        { label: 'Academic Year', cell: function (r) { return code(r.academicYearId ? refLabel('academicYears', r.academicYearId) : ''); } },
+        { label: 'Dates', cell: function (r) { return text(dateRange(r)); } },
+        { label: 'Status', cell: function (r) { return pill(r.status); } }
+      ],
+      export: csvExport('education-terms', [
+        csvColumn('Code', function (r) { return str(r.termCode); }),
+        csvColumn('Name', function (r) { return refName('terms', r); }),
+        csvColumn('Academic Year', csvRef('academicYears', 'academicYearId')),
+        csvColumn('Dates', function (r) { return str(dateRange(r)); }),
+        csvColumn('Status', function (r) { return str(r.status); })
+      ])
+    },
+    subjects: {
+      key: 'subjects',
+      path: '/subjects',
+      title: 'Subjects',
+      icon: 'book',
+      addLabel: 'Add Subject',
+      archivePath: '/archive',
+      archiveLabel: 'Archive',
+      statuses: STATUS_VALUES,
+      filters: [
+        { name: 'status', label: 'Status', type: 'select', values: STATUS_VALUES },
+        { name: 'centerId', label: 'Center', type: 'ref', source: 'centers' },
+        { name: 'search', label: 'Search', type: 'search' }
+      ],
+      fields: [
+        refField('centerId', 'Center', 'centers', true),
+        textField('subjectCode', 'Subject Code'),
+        textField('name', 'Name', { required: true }),
+        textField('displayName', 'Display Name'),
+        { name: 'description', label: 'Description', type: 'textarea', maxLength: MAX_STRING_LEN },
+        selectField('status', 'Status', STATUS_VALUES),
+        { name: 'notes', label: 'Notes', type: 'textarea', maxLength: MAX_STRING_LEN }
+      ],
+      columns: [
+        { label: 'Code', cell: function (r) { return code(r.subjectCode); } },
+        { label: 'Name', cell: function (r) { return text(refName('subjects', r)); } },
+        { label: 'Center', cell: function (r) { return code(r.centerId ? refLabel('centers', r.centerId) : ''); } },
+        { label: 'Status', cell: function (r) { return pill(r.status); } }
+      ],
+      export: csvExport('education-subjects', [
+        csvColumn('Code', function (r) { return str(r.subjectCode); }),
+        csvColumn('Name', function (r) { return refName('subjects', r); }),
+        csvColumn('Center', csvRef('centers', 'centerId')),
+        csvColumn('Status', function (r) { return str(r.status); })
+      ])
+    },
+    groups: {
+      key: 'groups',
+      path: '/groups',
+      title: 'Groups',
+      icon: 'users',
+      addLabel: 'Add Group',
+      archivePath: '/archive',
+      archiveLabel: 'Archive',
+      statuses: STATUS_VALUES,
+      filters: [
+        { name: 'status', label: 'Status', type: 'select', values: STATUS_VALUES },
+        { name: 'classId', label: 'Class', type: 'ref', source: 'classes' },
+        { name: 'search', label: 'Search', type: 'search' }
+      ],
+      fields: [
+        refField('classId', 'Class', 'classes', true, true),
+        textField('groupCode', 'Group Code'),
+        textField('name', 'Name', { required: true }),
+        textField('displayName', 'Display Name'),
+        { name: 'description', label: 'Description', type: 'textarea', maxLength: MAX_STRING_LEN },
+        selectField('status', 'Status', STATUS_VALUES),
+        { name: 'notes', label: 'Notes', type: 'textarea', maxLength: MAX_STRING_LEN }
+      ],
+      columns: [
+        { label: 'Code', cell: function (r) { return code(r.groupCode); } },
+        { label: 'Name', cell: function (r) { return text(refName('groups', r)); } },
+        { label: 'Class', cell: function (r) { return code(r.classId ? refLabel('classes', r.classId) : ''); } },
+        { label: 'Status', cell: function (r) { return pill(r.status); } }
+      ],
+      export: csvExport('education-groups', [
+        csvColumn('Code', function (r) { return str(r.groupCode); }),
+        csvColumn('Name', function (r) { return refName('groups', r); }),
+        csvColumn('Class', csvRef('classes', 'classId')),
+        csvColumn('Status', function (r) { return str(r.status); })
+      ])
     }
   };
 
@@ -1383,13 +1535,25 @@
     return esc(String(value).trim() + (unit ? ' ' + unit : ''));
   }
 
+  // A YYYY-MM-DD range for academic years and terms. Either bound may be
+  // empty (the backend treats dates as descriptive bounds, not a calendar
+  // engine); an entirely dateless row renders an em dash, never "undefined".
+  function dateRange(row) {
+    var from = String(row.startDate || '').trim();
+    var to = String(row.endDate || '').trim();
+    if (!from && !to) return '—';
+    if (from && to) return from + ' → ' + to;
+    return from || to;
+  }
+
   // ---------------------------------------------------------------------
   // Page state.
   // ---------------------------------------------------------------------
 
   var PAGES = ['dashboard', 'students', 'teachers', 'centers', 'programs', 'courses',
     'classes', 'roster', 'enrollments', 'attendance', 'register', 'schedule', 'calendar',
-    'grading', 'bookings', 'ratings', 'report-attendance', 'report-grading', 'report-sessions',
+    'grading', 'bookings', 'ratings', 'academic-years', 'terms', 'subjects', 'groups',
+    'report-attendance', 'report-grading', 'report-sessions',
     'settings', 'center', 'teacher', 'student'];
 
   var state = {
