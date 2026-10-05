@@ -55,7 +55,9 @@ DISASTER_RECOVERY.md).
 ## 0.2 Render (single service)
 
 `render.yaml` at the repo root is a complete Render blueprint: one Node web
-service that runs `npm install && npm start`, health-checks
+service that runs `npm install && npm run build:marketplace && npm start` (the marketplace
+build regenerates the gitignored `marketplace/dist` and republishes the tracked
+`marketplace/index.html` entry — it must never be skipped), health-checks
 `/api/v1/health`, and mounts a 1 GB disk at `backend/data` for persistence.
 Create a Render service from the Blueprint, then set `JWT_SECRET` in the
 dashboard (it is deliberately not stored in the file).

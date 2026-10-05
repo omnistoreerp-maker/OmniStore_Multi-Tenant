@@ -107,6 +107,12 @@ jobs:
       - name: Build (vite build)
         run: npm run build
 
+      # The tracked marketplace/index.html is the PRODUCTION entry served at
+      # GET /marketplace/. Fail the build if it references any ./dist asset that
+      # the fresh build did not emit (the 200 HTML + 404 JS/CSS blank-page class).
+      - name: Entry references only emitted assets
+        run: node scripts/verify-entry-assets.mjs
+
   # License / dependency gate for the Online Games roster. Pure node + git:
   # no install step, so a compromised or half-installed dependency tree can
   # never make this gate pass by accident. Fails the build if a blocked game
