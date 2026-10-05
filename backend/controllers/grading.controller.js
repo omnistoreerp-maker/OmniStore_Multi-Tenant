@@ -24,6 +24,7 @@ const { success, error } = require('../utils/apiResponse');
 const { trustedTenantId } = require('../middleware/authorize');
 const gradingService = require('../services/grading.service');
 const teacherOwnership = require('../middleware/teacherOwnership');
+const centerOwnership = require('../middleware/centerOwnership');
 const logger = require('../utils/logger');
 
 // Returns the trusted tenant id, or null after having already answered 400.
@@ -80,6 +81,21 @@ function _teacherOwnsEnrollment(req, tenantId, enrollmentId) {
   return teacherOwnership.teacherOwnsEnrollment(tenantId, enrollmentId, teacherId);
 }
 
+// CENTER OWNERSHIP — the server-resolved `req.centerActor.id` (never a
+// query/body value). A Grade row stores only `enrollmentId`, so the owning
+// center resolves THROUGH the Enrollment and its Class. A linked center sees
+// only its own grades. Unlinked callers (operators) are unchanged, and any
+// teacher narrowing composes by intersection.
+function _centerId(req) {
+  return req && req.centerActor && req.centerActor.id ? String(req.centerActor.id) : '';
+}
+
+function _centerOwnsEnrollment(req, tenantId, enrollmentId) {
+  const centerId = _centerId(req);
+  if (!centerId) return false;
+  return centerOwnership.centerOwnsGrade(tenantId, enrollmentId, centerId);
+}
+
 function listGrading(req, res) {
   try {
     const tenantId = _tenantIdOr400(req, res);
@@ -101,11 +117,18 @@ function listGrading(req, res) {
     };
     const rows = gradingService.listGrading({ tenantId }, filters);
     // A LINKED teacher sees only grades for their own classes.
+    let out = rows;
     if (_teacherId(req)) {
       const allowed = teacherOwnership.teacherEnrollmentIds(tenantId, _teacherId(req));
-      return success(res, teacherOwnership.filterRowsByEnrollment(rows, allowed), 'Grading retrieved');
+      out = teacherOwnership.filterRowsByEnrollment(out, allowed);
     }
-    success(res, rows, 'Grading retrieved');
+    // A LINKED center sees only grades for its own center. The post-filter
+    // composes with the teacher narrowing above (intersection).
+    if (_centerId(req)) {
+      const allowed = centerOwnership.centerEnrollmentIds(tenantId, _centerId(req));
+      out = out.filter((r) => r && allowed.has(String(r.enrollmentId || '')));
+    }
+    return success(res, out, 'Grading retrieved');
   } catch (err) {
     logger.error('grading.listGrading error:', err.message);
     error(res, 'Failed to retrieve grading', 500);
@@ -123,6 +146,10 @@ function getGrade(req, res) {
     if (_teacherId(req) && !_teacherOwnsEnrollment(req, tenantId, found.enrollmentId)) {
       return _ownership403(res, 'Teachers may only view grades for their own classes');
     }
+    // Same-tenant grade of another center: refused as forbidden.
+    if (_centerId(req) && !_centerOwnsEnrollment(req, tenantId, found.enrollmentId)) {
+      return _ownership403(res, 'Centers may only view grades for their own center');
+    }
     success(res, found, 'Grading record retrieved');
   } catch (err) {
     logger.error('grading.getGrade error:', err.message);
@@ -139,6 +166,14 @@ function createGrade(req, res) {
     if (_teacherId(req) && _present(body.enrollmentId) &&
         !_teacherOwnsEnrollment(req, tenantId, body.enrollmentId)) {
       return _ownership403(res, 'Teachers may only record grades for their own classes');
+    }
+    // A LINKED center records only against its own center. An enrollmentId
+    // that does not resolve inside the trusted tenant answers the SAME 403
+    // as a foreign one — never a 403/400 split — so the check is not an
+    // existence oracle.
+    if (_centerId(req) && _present(body.enrollmentId) &&
+        !_centerOwnsEnrollment(req, tenantId, body.enrollmentId)) {
+      return _ownership403(res, 'Centers may only record grades for their own center');
     }
     // The body is passed through untouched; the service whitelists writable
     // fields, rejects server-owned, derived and later-phase fields, resolves the
@@ -164,6 +199,9 @@ function updateGrade(req, res) {
     if (!existing) return error(res, 'Grading record not found', 404);
     if (_teacherId(req) && !_teacherOwnsEnrollment(req, tenantId, existing.enrollmentId)) {
       return _ownership403(res, 'Teachers may only re-mark grades for their own classes');
+    }
+    if (_centerId(req) && !_centerOwnsEnrollment(req, tenantId, existing.enrollmentId)) {
+      return _ownership403(res, 'Centers may only re-mark grades for their own center');
     }
     const updated = gradingService.updateGrade({ tenantId }, req.params.id, req.body || {});
     if (!updated) return error(res, 'Grading record not found', 404);

@@ -803,7 +803,22 @@ check('working-tree diff touches only intended platform files', () => {
       'education.html',
       'platform/education.js',
       'business.html',
-      'docs/EDUCATION_PRODUCTS_AUDIT.md'
+      'docs/EDUCATION_PRODUCTS_AUDIT.md',
+      // Education P0 security foundation: centerActor identity +
+      // centerOwnership derivation narrow every education controller to the
+      // linked center's rows (operators unchanged); pack writes stay
+      // operator-only; the student workspace calls the canonical progress
+      // route and the center ratings table uses the real rating shape.
+      'backend/controllers/student.controller.js',
+      'backend/controllers/center.controller.js',
+      'backend/controllers/program.controller.js',
+      'backend/controllers/course.controller.js',
+      'backend/controllers/attendance.controller.js',
+      'backend/controllers/grading.controller.js',
+      'backend/controllers/booking.controller.js',
+      'backend/controllers/rating.controller.js',
+      'backend/controllers/educationPack.controller.js',
+      'backend/tests/educationModuleHygiene.test.js'
     ]);
   const allowedUntracked = new Set([
   'backend/tests/controlCenterSecurityFixes.test.js',
@@ -811,6 +826,11 @@ check('working-tree diff touches only intended platform files', () => {
     // Online Games discoverability follow-up: catalog, lockdown policy and
     // license attribution are asserted from the shipped bytes.
     'backend/tests/onlineGames.catalog.test.js',
+    // Education P0 security foundation: the center identity middleware, the
+    // center-ownership derivation module and the isolation matrix suite.
+    'backend/middleware/centerActor.js',
+    'backend/middleware/centerOwnership.js',
+    'backend/tests/centerIsolation.test.js',
     'backend/tests/platformSections.students.test.js',
     // Support activation cycle: operator workflow tests.
     'backend/tests/internalChangeCenter.workflow.test.js',
@@ -957,7 +977,20 @@ check('working-tree diff touches only intended platform files', () => {
       'backend/tests/educationCore.routes.test.js',
       'backend/tests/educationCore.service.test.js',
       'backend/tests/educationCore.tenantIsolation.test.js',
-      'backend/tests/educationModuleHygiene.test.js'
+      'backend/tests/educationModuleHygiene.test.js',
+      // Education P0 security foundation: centerActor identity +
+      // centerOwnership derivation narrow every education controller to the
+      // linked center's rows (operators unchanged); pack writes stay
+      // operator-only.
+      'backend/controllers/student.controller.js',
+      'backend/controllers/center.controller.js',
+      'backend/controllers/program.controller.js',
+      'backend/controllers/course.controller.js',
+      'backend/controllers/attendance.controller.js',
+      'backend/controllers/grading.controller.js',
+      'backend/controllers/booking.controller.js',
+      'backend/controllers/rating.controller.js',
+      'backend/controllers/educationPack.controller.js'
     ]);
   // Negative boundaries: these must NEVER appear in a working-tree diff or be added.
   //

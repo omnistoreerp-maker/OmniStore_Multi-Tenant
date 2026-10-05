@@ -2939,7 +2939,8 @@
       api('GET', '/courses').catch(function () { return []; }),
       api('GET', '/classes').catch(function () { return []; }),
       api('GET', '/scheduling').catch(function () { return []; }),
-      api('GET', '/ratings').catch(function () { return []; })
+      api('GET', '/ratings').catch(function () { return []; }),
+      api('GET', '/teachers').catch(function () { return []; })
     ]).then(function (results) {
       if (state.page !== 'center') return;
       summaryHost.textContent = '';
@@ -2960,17 +2961,30 @@
       });
       summaryHost.appendChild(grid);
 
-      // Ratings detail (read-only, most recent 5)
+      // Ratings detail (read-only, most recent 5). A rating row carries
+      // {teacherId, studentId, classId, score, comment, status} — the teacher
+      // name is resolved through the teachers list, never read from fields
+      // the API does not return.
       if (Array.isArray(results[4]) && results[4].length) {
+        var teachersById = {};
+        if (Array.isArray(results[5])) {
+          results[5].forEach(function (t) {
+            if (t && t.id) {
+              teachersById[String(t.id)] = t.displayName ||
+                ((t.firstName || '') + ' ' + (t.lastName || '')).trim() ||
+                String(t.id);
+            }
+          });
+        }
         var ratingsCard = el('div', 'edu-card');
         ratingsCard.appendChild(el('h3', null, 'Recent ratings'));
         var recent = results[4].slice(0, 5);
         ratingsCard.appendChild(simpleTable(
-          ['Target', 'Rating', 'Status'],
+          ['Teacher', 'Score', 'Status'],
           recent.map(function (r) {
             return [
-              text(r.targetName || r.targetId || '—'),
-              text(r.rating || '—'),
+              text(teachersById[String(r.teacherId || '')] || r.teacherId || '—'),
+              text(r.score === undefined || r.score === null || r.score === '' ? '—' : String(r.score)),
               pill(r.status || 'active')
             ];
           })
@@ -3257,7 +3271,7 @@
       var enrollments = Array.isArray(results[2]) ? results[2] : [];
       var allSessions = Array.isArray(results[3]) ? results[3] : [];
       var attendance = [];
-      var progressData = [];
+      var progressSummary = null;
 
       host.textContent = '';
       host.appendChild(el('h2', null, 'Enrollments'));
@@ -3285,12 +3299,13 @@
         Promise.all(active.map(function (row) {
           return api('GET', '/attendance?enrollmentId=' + encodeURIComponent(String(row.id || '')));
         })),
-        Promise.all(active.map(function (row) {
-          return api('GET', '/enrollments/' + encodeURIComponent(String(row.id || '')) + '/progress').catch(function () { return null; });
-        }))
+        // The canonical progress endpoint is per-STUDENT
+        // (GET /students/:id/progress): there is no per-enrollment progress
+        // route, so a single call carries the whole raw-counts payload.
+        api('GET', '/students/' + encodeURIComponent(String(studentId || '')) + '/progress').catch(function () { return null; })
       ]).then(function (batches) {
         batches[0].forEach(function (batch) { if (Array.isArray(batch)) attendance = attendance.concat(batch); });
-        batches[1].forEach(function (p) { if (p) progressData.push(p); });
+        progressSummary = batches[1];
       });
     }).then(function () {
       if (state.page !== 'student') return;
@@ -3312,20 +3327,24 @@
         : stateBlock('empty', 'No attendance records for this student.'));
       host.appendChild(card);
 
-      // Raw progress - read-only counts from the canonical P2 progress endpoint.
-      if (progressData.length) {
+      // Raw progress - read-only counts from the canonical progress endpoint
+      // (GET /students/:id/progress). No percentage, score or grade is
+      // derived: the payload carries raw counts only.
+      if (progressSummary) {
         var progCard = el('div', 'edu-card');
         progCard.appendChild(el('h2', 'edu-section-title', 'Progress'));
         progCard.appendChild(el('p', 'edu-card-sub',
-          'Raw lesson completion counts per enrollment. No percentage, score or grade is derived.'));
-        var progRows = progressData.map(function (p) {
-          return [
-            text(p.enrollmentId || '—'),
-            text(String(p.completedLessons || 0) + ' / ' + String(p.totalLessons || 0)),
-            text(String(p.completedLessons || 0) + ' of ' + String(p.totalLessons || 0) + ' lessons')
-          ];
-        });
-        progCard.appendChild(simpleTable(['Enrollment', 'Completed', 'Detail'], progRows));
+          'Raw counts from the canonical progress endpoint. No percentage, score or grade is derived.'));
+        var progEnroll = progressSummary.enrollments || {};
+        var progAttend = progressSummary.attendance || {};
+        var progRows = [
+          ['Enrollments', text(String(progEnroll.total || 0) + ' total (' + String(progEnroll.active || 0) + ' active, ' + String(progEnroll.withdrawn || 0) + ' withdrawn)')],
+          ['Classes enrolled', text(String((progressSummary.classes || {}).enrolled || 0))],
+          ['Courses enrolled', text(String((progressSummary.courses || {}).enrolled || 0))],
+          ['Sessions scheduled', text(String((progressSummary.sessions || {}).scheduled || 0))],
+          ['Attendance', text(String(progAttend.present || 0) + ' present, ' + String(progAttend.absent || 0) + ' absent, ' + String(progAttend.late || 0) + ' late, ' + String(progAttend.excused || 0) + ' excused (' + String(progAttend.total || 0) + ' total)')]
+        ];
+        progCard.appendChild(simpleTable(['Metric', 'Count'], progRows));
         host.appendChild(progCard);
       }
     }).catch(function (err) {

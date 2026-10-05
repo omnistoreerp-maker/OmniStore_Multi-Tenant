@@ -16,6 +16,7 @@ const { notFound, serverError, requestPerfLogger } = require('./middleware/error
 const { authMiddleware, requireAuth } = require('./middleware/auth');
 const { scopedWriteRoleGuard } = require('./middleware/authorize');
 const { attachTeacherActor } = require('./middleware/teacherActor');
+const { attachCenterActor } = require('./middleware/centerActor');
 const { sanitizeBody, jsonParseErrorHandler, apiRateLimiter } = require('./middleware/security');
 const { validateResource } = require('./middleware/validate');
 const { configurePassport } = require('./middleware/passport');
@@ -382,6 +383,14 @@ app.get('/api-docs.json', authGate, (req, res) => {
 // teacher's writes even in legacy open mode, and for anonymous traffic the
 // resolution is a no-op.
 app.use('/api/v1/tenant/education', attachTeacherActor);
+
+// P0 Center isolation — resolve the linked-center identity (if any) for every
+// Education request at the same mount point and with the same contract as the
+// teacher actor above: `req.centerActor` is the resolved center record or null
+// (no signed-in user, no trusted tenant, no link), never a rejection. Center
+// scoping only ever NARROWS what the permission gate already allowed: there is
+// deliberately no center bypass in scopedWriteRoleGuard (least privilege).
+app.use('/api/v1/tenant/education', attachCenterActor);
 
 // Optional route protection (AUTH_REQUIRED=true).
 // Default is OFF: every route stays open exactly as before (legacy behavior).

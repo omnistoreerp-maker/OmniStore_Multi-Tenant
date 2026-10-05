@@ -36,6 +36,7 @@ const { success, error } = require('../utils/apiResponse');
 const { trustedTenantId } = require('../middleware/authorize');
 const schedulingService = require('../services/scheduling.service');
 const classService = require('../services/class.service');
+const centerOwnership = require('../middleware/centerOwnership');
 const logger = require('../utils/logger');
 
 // Returns the trusted tenant id, or null after having already answered 400.
@@ -67,6 +68,15 @@ function _ownership403(res, message) {
   error(res, message, 403, { code: 'OWNERSHIP_DENIED' });
 }
 
+// CENTER OWNERSHIP — the server-resolved `req.centerActor.id` (never a
+// query/body value). A session stores only `classId`, so the owning center
+// resolves THROUGH the Class (Session -> Class -> Course -> Program.centerId).
+// A linked center sees only its own timetable. Unlinked callers (operators)
+// are unchanged, and any teacher narrowing composes by intersection.
+function _centerId(req) {
+  return req && req.centerActor && req.centerActor.id ? String(req.centerActor.id) : '';
+}
+
 // Resolves the Class that owns a session for the ownership checks. Returns the
 // Class row, or null when the classId does not resolve inside the tenant (the
 // caller then falls through to the service's own 400/404 handling — no
@@ -95,7 +105,14 @@ function listScheduling(req, res) {
     // A LINKED teacher's timetable is force-scoped through their own classes:
     // the query `teacherId` is overridden by the linked record, never trusted.
     if (req.teacherActor) filters.teacherId = String(req.teacherActor.id);
-    success(res, schedulingService.listScheduling({ tenantId }, filters), 'Scheduling retrieved');
+    let rows = schedulingService.listScheduling({ tenantId }, filters);
+    // A LINKED center's timetable is narrowed to its own classes. The
+    // post-filter composes with the teacher override above (intersection).
+    if (_centerId(req)) {
+      const allowed = centerOwnership.centerClassIds(tenantId, _centerId(req));
+      rows = rows.filter((s) => s && allowed.has(String(s.classId || '')));
+    }
+    success(res, rows, 'Scheduling retrieved');
   } catch (err) {
     logger.error('scheduling.listScheduling error:', err.message);
     error(res, 'Failed to retrieve scheduling', 500);
@@ -116,6 +133,11 @@ function getSession(req, res) {
       if (owner && String(owner.teacherId) !== String(req.teacherActor.id)) {
         return _ownership403(res, 'Teachers may only access sessions of their own classes');
       }
+    }
+    // Same-tenant session of another center: forbidden — a linked center only
+    // ever reads its own timetable.
+    if (_centerId(req) && !centerOwnership.centerOwnsSession(tenantId, found.classId, _centerId(req))) {
+      return _ownership403(res, 'Centers may only access sessions of their own center');
     }
     success(res, found, 'Scheduling session retrieved');
   } catch (err) {
@@ -144,6 +166,17 @@ function createSession(req, res) {
         return _ownership403(res, 'Teachers may only schedule sessions for their own classes');
       }
     }
+    // A LINKED center schedules only INTO its own center: a classId that
+    // resolves to a known other-center class is refused here with 403, while
+    // an unresolvable classId falls through to the service's 400 so this
+    // check never becomes an existence oracle.
+    if (_centerId(req) && req.body && req.body.classId !== undefined &&
+        req.body.classId !== null && String(req.body.classId).trim() !== '') {
+      const target = classService.getClass({ tenantId }, req.body.classId);
+      if (target && centerOwnership.classCenterId(tenantId, target.id) !== _centerId(req)) {
+        return _ownership403(res, 'Centers may only schedule sessions for their own center');
+      }
+    }
     const created = schedulingService.createSession({ tenantId }, req.body || {});
     success(res, created, 'Scheduling session created', 201);
   } catch (err) {
@@ -168,6 +201,16 @@ function updateSession(req, res) {
       const owner = _classOfSession(tenantId, existing);
       if (owner && String(owner.teacherId) !== String(req.teacherActor.id)) {
         return _ownership403(res, 'Teachers may only correct sessions of their own classes');
+      }
+    }
+    // A LINKED center corrects only sessions of its own center: the row is
+    // loaded first so a foreign same-tenant session is refused BEFORE the
+    // update runs (404 across tenants still wins — no existence leak).
+    if (_centerId(req)) {
+      const existing = schedulingService.getSession({ tenantId }, req.params.id);
+      if (!existing) return error(res, 'Scheduling session not found', 404);
+      if (!centerOwnership.centerOwnsSession(tenantId, existing.classId, _centerId(req))) {
+        return _ownership403(res, 'Centers may only correct sessions of their own center');
       }
     }
     const updated = schedulingService.updateSession({ tenantId }, req.params.id, req.body || {});
