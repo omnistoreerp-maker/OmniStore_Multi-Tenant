@@ -34,6 +34,16 @@ jobs:
           done
           find $dirs -name '*.js' -exec node --check {} +
 
+      # The Education page ships a source-contract suite (route parity, write
+      # parity, vocabulary, i18n, workspace reachability) that needs no server,
+      # browser or network. It is a .cjs script outside jest's backend roots,
+      # so it only ran when someone invoked it by hand; run it here beside the
+      # other pure-source checks so a contract break fails the build.
+      - name: Education frontend contract (source tests)
+        run: |
+          node --check ../platform/education/education.js
+          node ../platform/education/education.test.cjs
+
       - name: Unit tests (fail on failure)
         run: npm test
 

@@ -146,15 +146,25 @@ describe('the legacy Education Center surface stays gone', () => {
     }
   });
 
-  test('the student workspace calls the canonical progress route', () => {
+  test('the student workspace reads progress from the canonical student route', () => {
     // Progress renders from GET /students/:id/progress — the only progress
     // route the backend serves. The old per-enrollment /enrollments/:id
-    // /progress shape 404s, so it must not come back; the canonical call
-    // stays failure-tolerant so a 403 degrades instead of breaking the
-    // workspace.
+    // /progress shape 404s, so it must not come back.
+    //
+    // The call must also stay failure-tolerant, so an unreadable progress
+    // endpoint degrades to a neutral banner instead of breaking the whole
+    // workspace. Tolerance is asserted BEHAVIOURALLY — the request settles with
+    // either data or an error, and the error branch is rendered — rather than
+    // by pinning one specific chaining style.
     const src = read('platform/education/education.js');
-    expect(src).toMatch(/api\('GET',\s*'\/students\/'\s*\+[^;]*?\+\s*'\/progress'\)\.catch\(/);
-    expect(src).not.toMatch(/\/enrollments\/'\s*\+[^;]*?\/progress/);
+    expect(src).toMatch(/api\('GET',\s*'\/students\/'\s*\+\s*encodeURIComponent\(studentId\)\s*\+\s*'\/progress'\)/);
+    expect(src).not.toMatch(/enrollments\/'\s*\+\s*encodeURIComponent\([^)]*\)\s*\+\s*'\/progress'/);
+    // The request settles with a handled error (second then arg, or a catch).
+    const call = src.match(/api\('GET',[^;]*?'\/progress'\)[\s\S]{0,200}/);
+    expect(call).toBeTruthy();
+    expect(call[0]).toMatch(/\}\s*,\s*function\s*\(err\)|\.catch\(/);
+    // ...and that handled error is rendered, not dropped silently.
+    expect(src).toMatch(/progress\.error[\s\S]{0,160}explain\(/);
   });
 
   test('no lesson entity is fabricated by the progress endpoint', () => {

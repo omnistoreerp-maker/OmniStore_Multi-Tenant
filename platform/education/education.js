@@ -1390,7 +1390,7 @@
   var PAGES = ['dashboard', 'students', 'teachers', 'centers', 'programs', 'courses',
     'classes', 'roster', 'enrollments', 'attendance', 'register', 'schedule', 'calendar',
     'grading', 'bookings', 'ratings', 'report-attendance', 'report-grading', 'report-sessions',
-    'settings', 'teacher', 'student'];
+    'settings', 'center', 'teacher', 'student'];
 
   var state = {
     page: 'dashboard',
@@ -2934,41 +2934,64 @@
     summaryHost.appendChild(loadingBlock());
     body.appendChild(summaryHost);
 
+    // Every figure is read through the canonical list endpoints. A request the
+    // account may not read is reported as UNREADABLE - it is never rendered as
+    // a zero, which would claim "no records" instead of "no access".
+    function readable(promise) {
+      return promise.then(function (rows) {
+        return { rows: Array.isArray(rows) ? rows : [] };
+      }, function (err) {
+        return { error: err };
+      });
+    }
+
     Promise.all([
-      api('GET', '/programs').catch(function () { return []; }),
-      api('GET', '/courses').catch(function () { return []; }),
-      api('GET', '/classes').catch(function () { return []; }),
-      api('GET', '/scheduling').catch(function () { return []; }),
-      api('GET', '/ratings').catch(function () { return []; }),
-      api('GET', '/teachers').catch(function () { return []; })
+      readable(api('GET', '/programs')),
+      readable(api('GET', '/courses')),
+      readable(api('GET', '/classes')),
+      readable(api('GET', '/scheduling')),
+      readable(api('GET', '/ratings')),
+      readable(api('GET', '/teachers'))
     ]).then(function (results) {
       if (state.page !== 'center') return;
       summaryHost.textContent = '';
       summaryHost.appendChild(el('h3', null, 'Summary'));
+      summaryHost.appendChild(el('p', 'edu-card-sub',
+        'Counts below are tenant-wide records, read from the Education services.'));
       var grid = el('div', 'edu-stats-grid');
       var items = [
-        ['Programs', Array.isArray(results[0]) ? results[0].length : 0],
-        ['Courses', Array.isArray(results[1]) ? results[1].length : 0],
-        ['Classes', Array.isArray(results[2]) ? results[2].length : 0],
-        ['Sessions', Array.isArray(results[3]) ? results[3].length : 0],
-        ['Ratings', Array.isArray(results[4]) ? results[4].length : 0]
+        ['Programs', results[0]],
+        ['Courses', results[1]],
+        ['Classes', results[2]],
+        ['Sessions', results[3]],
+        ['Ratings', results[4]]
       ];
+      var unreadable = [];
       items.forEach(function (item) {
+        if (item[1].error) {
+          unreadable.push(item[0]);
+          return;
+        }
         var stat = el('div', 'edu-stat');
-        stat.appendChild(el('div', 'edu-stat-value', String(item[1])));
+        stat.appendChild(el('div', 'edu-stat-value', String(item[1].rows.length)));
         stat.appendChild(el('div', 'edu-stat-label', item[0]));
         grid.appendChild(stat);
       });
-      summaryHost.appendChild(grid);
+      if (grid.children.length) summaryHost.appendChild(grid);
+      if (unreadable.length) {
+        var note = banner('neutral', 'Some figures are not readable with this account.');
+        note.appendChild(document.createTextNode(' ' + unreadable.join(', ')));
+        summaryHost.appendChild(note);
+      }
 
       // Ratings detail (read-only, most recent 5). A rating row carries
       // {teacherId, studentId, classId, score, comment, status} — the teacher
       // name is resolved through the teachers list, never read from fields
       // the API does not return.
-      if (Array.isArray(results[4]) && results[4].length) {
+      if (!results[4].error && results[4].rows.length) {
         var teachersById = {};
-        if (Array.isArray(results[5])) {
-          results[5].forEach(function (t) {
+        if (!results[5].error && Array.isArray(results[5].rows)) {
+          results[5].rows.forEach(function (t) {
             if (t && t.id) {
               teachersById[String(t.id)] = t.displayName ||
                 ((t.firstName || '') + ' ' + (t.lastName || '')).trim() ||
@@ -2978,7 +3001,7 @@
         }
         var ratingsCard = el('div', 'edu-card');
         ratingsCard.appendChild(el('h3', null, 'Recent ratings'));
-        var recent = results[4].slice(0, 5);
+        var recent = results[4].rows.slice(0, 5);
         ratingsCard.appendChild(simpleTable(
           ['Teacher', 'Score', 'Status'],
           recent.map(function (r) {
@@ -3262,16 +3285,26 @@
     host.textContent = '';
     host.appendChild(loadingBlock());
 
+    // PROGRESS — the canonical, read-only endpoint is /students/:id/progress.
+    // The service answers with raw counts derived from the records the operator
+    // already owns (enrollments, sessions, attendance) and reports lessons: 0
+    // because the canonical model has no lesson entity. It is requested once
+    // alongside the lists; a failure is surfaced as a neutral banner instead of
+    // being swallowed into a card that never renders.
+    var progress = null;
+
     Promise.all([
       loadRef('classes'),
       loadRef('enrollments'),
       api('GET', '/enrollments?studentId=' + encodeURIComponent(studentId)),
-      api('GET', '/scheduling').catch(function () { return []; })
+      api('GET', '/scheduling').catch(function () { return []; }),
+      api('GET', '/students/' + encodeURIComponent(studentId) + '/progress')
+        .then(function (data) { return { data: data }; }, function (err) { return { error: err }; })
     ]).then(function (results) {
       var enrollments = Array.isArray(results[2]) ? results[2] : [];
       var allSessions = Array.isArray(results[3]) ? results[3] : [];
       var attendance = [];
-      var progressSummary = null;
+      progress = results[4];
 
       host.textContent = '';
       host.appendChild(el('h2', null, 'Enrollments'));
@@ -3295,17 +3328,12 @@
       var activeClassIds = {};
       active.forEach(function (row) { activeClassIds[String(row.classId || '')] = true; });
 
-      return Promise.all([
-        Promise.all(active.map(function (row) {
+      return Promise.all(
+        active.map(function (row) {
           return api('GET', '/attendance?enrollmentId=' + encodeURIComponent(String(row.id || '')));
-        })),
-        // The canonical progress endpoint is per-STUDENT
-        // (GET /students/:id/progress): there is no per-enrollment progress
-        // route, so a single call carries the whole raw-counts payload.
-        api('GET', '/students/' + encodeURIComponent(String(studentId || '')) + '/progress').catch(function () { return null; })
-      ]).then(function (batches) {
-        batches[0].forEach(function (batch) { if (Array.isArray(batch)) attendance = attendance.concat(batch); });
-        progressSummary = batches[1];
+        })
+      ).then(function (batches) {
+        batches.forEach(function (batch) { if (Array.isArray(batch)) attendance = attendance.concat(batch); });
       });
     }).then(function () {
       if (state.page !== 'student') return;
@@ -3327,24 +3355,43 @@
         : stateBlock('empty', 'No attendance records for this student.'));
       host.appendChild(card);
 
-      // Raw progress - read-only counts from the canonical progress endpoint
-      // (GET /students/:id/progress). No percentage, score or grade is
-      // derived: the payload carries raw counts only.
-      if (progressSummary) {
+      // Raw progress - read-only counts from the canonical P2 progress
+      // endpoint (/students/:id/progress). Every number below is a count the
+      // service derived from real records; nothing is a percentage, score,
+      // grade or a fabricated lesson set. An unreadable endpoint shows a plain
+      // banner instead of hiding the card.
+      if (progress) {
         var progCard = el('div', 'edu-card');
         progCard.appendChild(el('h2', 'edu-section-title', 'Progress'));
-        progCard.appendChild(el('p', 'edu-card-sub',
-          'Raw counts from the canonical progress endpoint. No percentage, score or grade is derived.'));
-        var progEnroll = progressSummary.enrollments || {};
-        var progAttend = progressSummary.attendance || {};
-        var progRows = [
-          ['Enrollments', text(String(progEnroll.total || 0) + ' total (' + String(progEnroll.active || 0) + ' active, ' + String(progEnroll.withdrawn || 0) + ' withdrawn)')],
-          ['Classes enrolled', text(String((progressSummary.classes || {}).enrolled || 0))],
-          ['Courses enrolled', text(String((progressSummary.courses || {}).enrolled || 0))],
-          ['Sessions scheduled', text(String((progressSummary.sessions || {}).scheduled || 0))],
-          ['Attendance', text(String(progAttend.present || 0) + ' present, ' + String(progAttend.absent || 0) + ' absent, ' + String(progAttend.late || 0) + ' late, ' + String(progAttend.excused || 0) + ' excused (' + String(progAttend.total || 0) + ' total)')]
-        ];
-        progCard.appendChild(simpleTable(['Metric', 'Count'], progRows));
+        if (progress.data) {
+          var pdata = progress.data;
+          progCard.appendChild(el('p', 'edu-card-sub',
+            'Raw read-only counts from the Education service for this student. ' +
+            'No percentage, score or grade is derived.'));
+          progCard.appendChild(simpleTable(
+            ['Metric', 'Count', 'Detail'],
+            [
+              ['Enrollments', String(pdata.enrollments.total),
+                String(pdata.enrollments.active) + ' active, ' + String(pdata.enrollments.withdrawn) + ' withdrawn'],
+              ['Courses', String(pdata.courses.enrolled), 'enrolled courses'],
+              ['Classes', String(pdata.classes.enrolled), 'enrolled classes'],
+              ['Sessions', String(pdata.sessions.scheduled), 'scheduled for enrolled classes'],
+              ['Present', String(pdata.attendance.present),
+                'of ' + String(pdata.attendance.total) + ' attendance records'],
+              ['Absent', String(pdata.attendance.absent),
+                'of ' + String(pdata.attendance.total) + ' attendance records'],
+              ['Late', String(pdata.attendance.late),
+                'of ' + String(pdata.attendance.total) + ' attendance records'],
+              ['Excused', String(pdata.attendance.excused),
+                'of ' + String(pdata.attendance.total) + ' attendance records'],
+              ['Lessons', String(pdata.lessons.total), 'the canonical model has no lesson entity']
+            ].map(function (row) {
+              return [text(row[0]), text(row[1]), text(row[2])];
+            })
+          ));
+        } else if (progress.error) {
+          progCard.appendChild(banner('neutral', explain(progress.error)));
+        }
         host.appendChild(progCard);
       }
     }).catch(function (err) {
