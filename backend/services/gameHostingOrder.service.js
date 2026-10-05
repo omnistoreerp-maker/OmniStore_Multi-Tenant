@@ -53,8 +53,47 @@ function _rejectForeignTenantClaim(data, trustedTid) {
   return null;
 }
 
+// Internal read projection — every service-to-service call uses this shape,
+// so it MUST keep providerKey/idempotencyKey (provider idempotency is keyed on
+// providerKey) and providerInfo.details (operator diagnostics).
 function _publicOrder(order) {
   return Object.assign({}, order);
+}
+
+// Wire projection — the ONLY shape that may leave the server as an HTTP body.
+//
+// The raw record is an internal bookkeeping object, not a client DTO:
+//   - `providerKey` / `idempotencyKey` are internal correlation keys,
+//   - `providerInfo.details` is the provider's OWN envelope, echoed back
+//     verbatim. A real adapter legitimately returns tokens, tenant refs or
+//     account identifiers there, so forwarding it to a storefront client (or
+//     an operator browser session) is a credential-leak surface.
+//
+// The safe provider subset keeps what the customer actually needs (which
+// provider holds the server, its external id, the endpoint to connect to) and
+// drops the opaque payload.
+function _clientOrder(order) {
+  if (!order || typeof order !== 'object') return order;
+  const out = Object.assign({}, order);
+  delete out.providerKey;
+  delete out.idempotencyKey;
+  if (out.providerInfo && typeof out.providerInfo === 'object') {
+    const pi = out.providerInfo;
+    out.providerInfo = {
+      provider: pi.provider || null,
+      externalId: pi.externalId || null,
+      endpoint: pi.endpoint || null,
+      provisionedAt: pi.provisionedAt || null,
+      attempts: pi.attempts != null ? pi.attempts : null
+    };
+  }
+  return out;
+}
+
+// Array form for list endpoints.
+function toClientOrders(orders) {
+  if (!Array.isArray(orders)) return orders;
+  return orders.map(_clientOrder);
 }
 
 async function _load() {
@@ -420,5 +459,7 @@ module.exports = {
   applyRefund,
   transitionOrder,
   renewOrder,
-  expireDueOrders
+  expireDueOrders,
+  toClientOrder: _clientOrder,
+  toClientOrders
 };
