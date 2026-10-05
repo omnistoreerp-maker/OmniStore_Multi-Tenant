@@ -27,6 +27,20 @@ function _tenantIdOr400(req, res) {
   return String(tenantId);
 }
 
+function _centerId(req) {
+  return req && req.centerActor && req.centerActor.id ? String(req.centerActor.id) : '';
+}
+
+function _refuseCenterWrite(req, res) {
+  if (_centerId(req)) {
+    // Tenant-wide settings are an operator action: a linked center may read
+    // the pack but may not rewrite tenant settings that govern every center.
+    error(res, 'Centers may not change tenant education settings; this is an operator action', 403, { code: 'OWNERSHIP_DENIED' });
+    return true;
+  }
+  return false;
+}
+
 function getPack(req, res) {
   try {
     const tenantId = _tenantIdOr400(req, res);
@@ -42,6 +56,7 @@ function updatePack(req, res) {
   try {
     const tenantId = _tenantIdOr400(req, res);
     if (!tenantId) return;
+    if (_refuseCenterWrite(req, res)) return;
     // The body is passed through untouched to the service, which whitelists
     // writable fields and re-asserts the server-owned tenantId. A body
     // `tenantId` is ignored there.
@@ -57,6 +72,7 @@ function resetPack(req, res) {
   try {
     const tenantId = _tenantIdOr400(req, res);
     if (!tenantId) return;
+    if (_refuseCenterWrite(req, res)) return;
     const ok = educationPack.resetPack({ tenantId });
     if (!ok) return error(res, 'Education pack not found', 404);
     success(res, { ok: true }, 'Education pack reset');
@@ -68,6 +84,11 @@ function resetPack(req, res) {
 
 function listCapabilities(req, res) {
   try {
+    // The capability list is static, but the endpoint still answers only
+    // inside a trusted tenant like every other education read: without a
+    // tenant context there is nothing to scope capabilities against.
+    const tenantId = _tenantIdOr400(req, res);
+    if (!tenantId) return;
     success(res, educationPack.listCapabilities(), 'Education capabilities retrieved');
   } catch (err) {
     logger.error('educationPack.listCapabilities error:', err.message);

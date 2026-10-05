@@ -28,6 +28,10 @@
 const { success, error } = require('../utils/apiResponse');
 const { trustedTenantId } = require('../middleware/authorize');
 const bookingService = require('../services/booking.service');
+const classService = require('../services/class.service');
+const teacherService = require('../services/teacher.service');
+const studentService = require('../services/student.service');
+const centerOwnership = require('../middleware/centerOwnership');
 const logger = require('../utils/logger');
 
 // Declared query filters, honoured verbatim; any other query key is ignored.
@@ -44,6 +48,47 @@ function _tenantIdOr400(req, res) {
 
 function _ownership403(res, message) {
   error(res, message, 403, { code: 'OWNERSHIP_DENIED' });
+}
+
+// CENTER OWNERSHIP — the server-resolved `req.centerActor.id` (never a
+// query/body value). A booking touches the centers of its class chain when a
+// classId is stored, otherwise the centers of the classes its teacher
+// teaches. A linked center sees only its own bookings. Unlinked callers
+// (operators) are unchanged, and any teacher narrowing composes by
+// intersection.
+function _centerId(req) {
+  return req && req.centerActor && req.centerActor.id ? String(req.centerActor.id) : '';
+}
+
+function _present(v) {
+  return v !== undefined && v !== null && String(v).trim() !== '';
+}
+
+// Validates the effective refs of a booking write for a linked center: every
+// SUPPLIED ref that resolves must resolve inside the actor's center. Unknown
+// refs fall through to the service's own 400 (no oracle). Returns an error
+// message when refused, or null when the refs raise no center objection.
+function _bookingRefsCenterError(tenantId, centerId, refs) {
+  const r = (refs && typeof refs === 'object') ? refs : {};
+  if (_present(r.classId)) {
+    const cls = classService.getClass({ tenantId }, r.classId);
+    if (cls && centerOwnership.classCenterId(tenantId, cls.id) !== centerId) {
+      return 'Centers may only book classes of their own center';
+    }
+  }
+  if (_present(r.teacherId)) {
+    const teacher = teacherService.getTeacher({ tenantId }, r.teacherId);
+    if (teacher && !centerOwnership.teacherTeachesInCenter(tenantId, teacher.id, centerId)) {
+      return 'Centers may only book teachers of their own center';
+    }
+  }
+  if (_present(r.studentId)) {
+    const student = studentService.getStudent({ tenantId }, r.studentId);
+    if (student && !centerOwnership.centerStudentIds(tenantId, centerId).has(String(student.id))) {
+      return 'Centers may only book students of their own center';
+    }
+  }
+  return null;
 }
 
 // Maps the service's typed errors to the HTTP contract. Returns true when the
@@ -79,7 +124,14 @@ function listBookings(req, res) {
     // Server-authoritative scoping: a teacher actor's list is ALWAYS their
     // own, whatever the query asked for.
     if (req.teacherActor) filters.teacherId = String(req.teacherActor.id);
-    success(res, bookingService.listBookings({ tenantId }, filters), 'Bookings retrieved');
+    let rows = bookingService.listBookings({ tenantId }, filters);
+    // A LINKED center's list is narrowed to its own bookings. The post-filter
+    // composes with the teacher override above (intersection).
+    if (_centerId(req)) {
+      const filter = centerOwnership.centerBookingFilter(tenantId, _centerId(req));
+      rows = rows.filter((b) => centerOwnership.bookingRowInCenter(b, filter));
+    }
+    success(res, rows, 'Bookings retrieved');
   } catch (err) {
     logger.error('booking.listBookings error:', err.message);
     error(res, 'Failed to retrieve bookings', 500);
@@ -95,6 +147,10 @@ function getBooking(req, res) {
     if (req.teacherActor && String(found.teacherId) !== String(req.teacherActor.id)) {
       return _ownership403(res, 'Teachers may only access their own bookings');
     }
+    // Same-tenant booking of another center: refused as forbidden.
+    if (_centerId(req) && !centerOwnership.centerOwnsBooking(tenantId, found, _centerId(req))) {
+      return _ownership403(res, 'Centers may only access their own bookings');
+    }
     success(res, found, 'Booking retrieved');
   } catch (err) {
     logger.error('booking.getBooking error:', err.message);
@@ -108,6 +164,13 @@ function createBooking(req, res) {
     if (!tenantId) return;
     if (req.teacherActor) {
       return _ownership403(res, 'Teachers may not create bookings; creating is an operator action');
+    }
+    // A LINKED center books only inside its own center: every supplied ref
+    // that resolves must resolve in-center (unknown refs fall through to the
+    // service's own 400 — no oracle).
+    if (_centerId(req)) {
+      const refused = _bookingRefsCenterError(tenantId, _centerId(req), req.body || {});
+      if (refused) return _ownership403(res, refused);
     }
     const created = bookingService.createBooking({ tenantId }, req.body || {});
     success(res, created, 'Booking created', 201);
@@ -124,6 +187,21 @@ function updateBooking(req, res) {
     if (!tenantId) return;
     if (req.teacherActor) {
       return _ownership403(res, 'Teachers may not edit bookings; editing is an operator action');
+    }
+    // A LINKED center edits only its own bookings: the row is loaded first
+    // (404 still wins), then the EFFECTIVE refs (stored row overlaid with any
+    // supplied body refs) must all resolve in-center.
+    if (_centerId(req)) {
+      const existing = bookingService.getBooking({ tenantId }, req.params.id);
+      if (!existing) return error(res, 'Booking not found', 404);
+      const body = (req.body && typeof req.body === 'object') ? req.body : {};
+      const effective = {
+        teacherId: _present(body.teacherId) ? body.teacherId : existing.teacherId,
+        studentId: _present(body.studentId) ? body.studentId : existing.studentId,
+        classId: _present(body.classId) ? body.classId : existing.classId
+      };
+      const refused = _bookingRefsCenterError(tenantId, _centerId(req), effective);
+      if (refused) return _ownership403(res, refused);
     }
     const updated = bookingService.updateBooking({ tenantId }, req.params.id, req.body || {});
     if (!updated) return error(res, 'Booking not found', 404);
@@ -153,6 +231,11 @@ function transitionBooking(req, res) {
       if (body.status !== 'confirmed' && body.status !== 'cancelled') {
         return _ownership403(res, 'Teachers may only confirm or cancel their own bookings');
       }
+    }
+    // A LINKED center transitions only its own bookings (status changes move
+    // no refs, so the stored row predicate is complete).
+    if (_centerId(req) && !centerOwnership.centerOwnsBooking(tenantId, found, _centerId(req))) {
+      return _ownership403(res, 'Centers may only transition their own bookings');
     }
     const updated = bookingService.transitionBooking({ tenantId }, req.params.id, body.status);
     if (!updated) return error(res, 'Booking not found', 404);

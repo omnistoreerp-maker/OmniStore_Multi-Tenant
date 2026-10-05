@@ -28,6 +28,8 @@
 const { success, error } = require('../utils/apiResponse');
 const { trustedTenantId } = require('../middleware/authorize');
 const classService = require('../services/class.service');
+const courseService = require('../services/course.service');
+const centerOwnership = require('../middleware/centerOwnership');
 const logger = require('../utils/logger');
 
 // Returns the trusted tenant id, or null after having already answered 400.
@@ -42,6 +44,15 @@ function _tenantIdOr400(req, res) {
 
 function _ownership403(res, message) {
   error(res, message, 403, { code: 'OWNERSHIP_DENIED' });
+}
+
+// CENTER OWNERSHIP — the server-resolved `req.centerActor.id` (never a
+// query/body value). A Class carries no center of its own: it resolves
+// through its required Course (Class -> Course -> Program.centerId). A linked
+// center sees only its own classes. Unlinked callers (operators) are
+// unchanged, and any teacher narrowing composes by intersection.
+function _centerId(req) {
+  return req && req.centerActor && req.centerActor.id ? String(req.centerActor.id) : '';
 }
 
 function listClasses(req, res) {
@@ -60,7 +71,14 @@ function listClasses(req, res) {
       search: req.query ? req.query.search : undefined
     };
     if (req.teacherActor) filters.teacherId = String(req.teacherActor.id);
-    success(res, classService.listClasses({ tenantId }, filters), 'Classes retrieved');
+    let rows = classService.listClasses({ tenantId }, filters);
+    // A LINKED center's list is narrowed to its own classes. The post-filter
+    // composes with the teacher override above (intersection).
+    if (_centerId(req)) {
+      const allowed = centerOwnership.centerClassIds(tenantId, _centerId(req));
+      rows = rows.filter((c) => c && allowed.has(String(c.id)));
+    }
+    success(res, rows, 'Classes retrieved');
   } catch (err) {
     logger.error('class.listClasses error:', err.message);
     error(res, 'Failed to retrieve classes', 500);
@@ -79,6 +97,11 @@ function getClass(req, res) {
     // teacher only ever reads the rows they teach.
     if (req.teacherActor && String(found.teacherId) !== String(req.teacherActor.id)) {
       return _ownership403(res, 'Teachers may only access their own classes');
+    }
+    // Same-tenant Class of another center: refused as forbidden — a linked
+    // center only ever reads its own classes.
+    if (_centerId(req) && !centerOwnership.centerOwnsClass(tenantId, found.id, _centerId(req))) {
+      return _ownership403(res, 'Centers may only access their own classes');
     }
     success(res, found, 'Class retrieved');
   } catch (err) {
@@ -99,6 +122,17 @@ function createClass(req, res) {
     // overridden — a teacher creates their own classes, not someone else's.
     const body = { ...(req.body || {}) };
     if (req.teacherActor) body.teacherId = String(req.teacherActor.id);
+    // A LINKED center schedules only INTO its own center: a courseId that
+    // resolves to a known other-center course is refused here with 403, while
+    // an unresolvable courseId falls through to the service's 400 so this
+    // check never becomes an existence oracle.
+    if (_centerId(req) && body.courseId !== undefined && body.courseId !== null &&
+        String(body.courseId).trim() !== '') {
+      const target = courseService.getCourse({ tenantId }, body.courseId);
+      if (target && centerOwnership.courseCenterId(tenantId, target.id) !== _centerId(req)) {
+        return _ownership403(res, 'Centers may only create classes in their own center');
+      }
+    }
     const created = classService.createClass({ tenantId }, body);
     success(res, created, 'Class created', 201);
   } catch (err) {
@@ -124,6 +158,22 @@ function updateClass(req, res) {
       if (!existing) return error(res, 'Class not found', 404);
       if (String(existing.teacherId) !== String(req.teacherActor.id)) {
         return _ownership403(res, 'Teachers may only edit their own classes');
+      }
+    }
+    // A LINKED center edits only its own classes (load-first 404/403), and
+    // may not move a class under another center's course via the body.
+    if (_centerId(req)) {
+      const existing = classService.getClass({ tenantId }, req.params.id);
+      if (!existing) return error(res, 'Class not found', 404);
+      if (!centerOwnership.centerOwnsClass(tenantId, existing.id, _centerId(req))) {
+        return _ownership403(res, 'Centers may only edit their own classes');
+      }
+      const body = (req.body && typeof req.body === 'object') ? req.body : {};
+      if (body.courseId !== undefined && body.courseId !== null && String(body.courseId).trim() !== '') {
+        const target = courseService.getCourse({ tenantId }, body.courseId);
+        if (target && centerOwnership.courseCenterId(tenantId, target.id) !== _centerId(req)) {
+          return _ownership403(res, 'Centers may not move classes to another center');
+        }
       }
     }
     const updated = classService.updateClass({ tenantId }, req.params.id, req.body || {});
@@ -152,6 +202,14 @@ function archiveClass(req, res) {
       if (!existing) return error(res, 'Class not found', 404);
       if (String(existing.teacherId) !== String(req.teacherActor.id)) {
         return _ownership403(res, 'Teachers may only archive their own classes');
+      }
+    }
+    // A LINKED center archives only its own classes (load-first 404/403).
+    if (_centerId(req)) {
+      const existing = classService.getClass({ tenantId }, req.params.id);
+      if (!existing) return error(res, 'Class not found', 404);
+      if (!centerOwnership.centerOwnsClass(tenantId, existing.id, _centerId(req))) {
+        return _ownership403(res, 'Centers may only archive their own classes');
       }
     }
     const archived = classService.archiveClass({ tenantId }, req.params.id);

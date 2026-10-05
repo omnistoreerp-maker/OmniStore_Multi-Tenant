@@ -2950,7 +2950,8 @@
       readable(api('GET', '/courses')),
       readable(api('GET', '/classes')),
       readable(api('GET', '/scheduling')),
-      readable(api('GET', '/ratings'))
+      readable(api('GET', '/ratings')),
+      readable(api('GET', '/teachers'))
     ]).then(function (results) {
       if (state.page !== 'center') return;
       summaryHost.textContent = '';
@@ -2983,17 +2984,30 @@
         summaryHost.appendChild(note);
       }
 
-      // Ratings detail (read-only, most recent 5)
+      // Ratings detail (read-only, most recent 5). A rating row carries
+      // {teacherId, studentId, classId, score, comment, status} — the teacher
+      // name is resolved through the teachers list, never read from fields
+      // the API does not return.
       if (!results[4].error && results[4].rows.length) {
+        var teachersById = {};
+        if (!results[5].error && Array.isArray(results[5].rows)) {
+          results[5].rows.forEach(function (t) {
+            if (t && t.id) {
+              teachersById[String(t.id)] = t.displayName ||
+                ((t.firstName || '') + ' ' + (t.lastName || '')).trim() ||
+                String(t.id);
+            }
+          });
+        }
         var ratingsCard = el('div', 'edu-card');
         ratingsCard.appendChild(el('h3', null, 'Recent ratings'));
         var recent = results[4].rows.slice(0, 5);
         ratingsCard.appendChild(simpleTable(
-          ['Target', 'Rating', 'Status'],
+          ['Teacher', 'Score', 'Status'],
           recent.map(function (r) {
             return [
-              text(r.targetName || r.targetId || '—'),
-              text(r.rating || '—'),
+              text(teachersById[String(r.teacherId || '')] || r.teacherId || '—'),
+              text(r.score === undefined || r.score === null || r.score === '' ? '—' : String(r.score)),
               pill(r.status || 'active')
             ];
           })

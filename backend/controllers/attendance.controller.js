@@ -25,6 +25,7 @@ const { success, error } = require('../utils/apiResponse');
 const { trustedTenantId } = require('../middleware/authorize');
 const attendanceService = require('../services/attendance.service');
 const teacherOwnership = require('../middleware/teacherOwnership');
+const centerOwnership = require('../middleware/centerOwnership');
 const logger = require('../utils/logger');
 
 // Returns the trusted tenant id, or null after having already answered 400.
@@ -84,6 +85,21 @@ function _teacherOwnsEnrollment(req, tenantId, enrollmentId) {
   return teacherOwnership.teacherOwnsEnrollment(tenantId, enrollmentId, teacherId);
 }
 
+// CENTER OWNERSHIP — the server-resolved `req.centerActor.id` (never a
+// query/body value). An Attendance row stores only `enrollmentId`, so the
+// owning center resolves THROUGH the Enrollment and its Class. A linked
+// center sees only its own registers. Unlinked callers (operators) are
+// unchanged, and any teacher narrowing composes by intersection.
+function _centerId(req) {
+  return req && req.centerActor && req.centerActor.id ? String(req.centerActor.id) : '';
+}
+
+function _centerOwnsEnrollment(req, tenantId, enrollmentId) {
+  const centerId = _centerId(req);
+  if (!centerId) return false;
+  return centerOwnership.centerOwnsAttendance(tenantId, enrollmentId, centerId);
+}
+
 function listAttendance(req, res) {
   try {
     const tenantId = _tenantIdOr400(req, res);
@@ -104,11 +120,18 @@ function listAttendance(req, res) {
     };
     const rows = attendanceService.listAttendance({ tenantId }, filters);
     // A LINKED teacher sees only registers for their own classes.
+    let out = rows;
     if (!!_teacherId(req)) {
       const allowed = teacherOwnership.teacherEnrollmentIds(tenantId, _teacherId(req));
-      return success(res, teacherOwnership.filterRowsByEnrollment(rows, allowed), 'Attendance retrieved');
+      out = teacherOwnership.filterRowsByEnrollment(out, allowed);
     }
-    success(res, rows, 'Attendance retrieved');
+    // A LINKED center sees only registers for its own center. The post-filter
+    // composes with the teacher narrowing above (intersection).
+    if (!!_centerId(req)) {
+      const allowed = centerOwnership.centerEnrollmentIds(tenantId, _centerId(req));
+      out = out.filter((r) => r && allowed.has(String(r.enrollmentId || '')));
+    }
+    return success(res, out, 'Attendance retrieved');
   } catch (err) {
     logger.error('attendance.listAttendance error:', err.message);
     error(res, 'Failed to retrieve attendance', 500);
@@ -126,6 +149,10 @@ function getAttendance(req, res) {
     if (!!_teacherId(req) && !_teacherOwnsEnrollment(req, tenantId, found.enrollmentId)) {
       return _ownership403(res, 'Teachers may only view attendance for their own classes');
     }
+    // Same-tenant row of another center: refused as forbidden.
+    if (!!_centerId(req) && !_centerOwnsEnrollment(req, tenantId, found.enrollmentId)) {
+      return _ownership403(res, 'Centers may only view attendance for their own center');
+    }
     success(res, found, 'Attendance retrieved');
   } catch (err) {
     logger.error('attendance.getAttendance error:', err.message);
@@ -142,6 +169,15 @@ function createAttendance(req, res) {
     if (!!_teacherId(req) && _present(body.enrollmentId) &&
         !_teacherOwnsEnrollment(req, tenantId, body.enrollmentId)) {
       return _ownership403(res, 'Teachers may only record attendance for their own classes');
+    }
+    // A LINKED center records only against its own center. An enrollmentId
+    // that does not resolve inside the trusted tenant answers the SAME 403
+    // as a foreign one — never a 403/400 split — so the check is not an
+    // existence oracle. An ABSENT enrollmentId still falls through to the
+    // service's own 400.
+    if (!!_centerId(req) && _present(body.enrollmentId) &&
+        !_centerOwnsEnrollment(req, tenantId, body.enrollmentId)) {
+      return _ownership403(res, 'Centers may only record attendance for their own center');
     }
     // The body is passed through untouched; the service whitelists writable
     // fields, rejects server-owned and later-phase fields, resolves the
@@ -167,6 +203,9 @@ function updateAttendance(req, res) {
     if (!existing) return error(res, 'Attendance not found', 404);
     if (!!_teacherId(req) && !_teacherOwnsEnrollment(req, tenantId, existing.enrollmentId)) {
       return _ownership403(res, 'Teachers may only correct attendance for their own classes');
+    }
+    if (!!_centerId(req) && !_centerOwnsEnrollment(req, tenantId, existing.enrollmentId)) {
+      return _ownership403(res, 'Centers may only correct attendance for their own center');
     }
     const updated = attendanceService.updateAttendance({ tenantId }, req.params.id, req.body || {});
     if (!updated) return error(res, 'Attendance not found', 404);
@@ -195,6 +234,19 @@ function bulkCreateAttendance(req, res) {
         if (!_present(eid)) continue;
         if (!_teacherOwnsEnrollment(req, tenantId, eid)) {
           return _ownership403(res, 'Teachers may only record attendance for their own classes');
+        }
+      }
+    }
+    // A LINKED center's register is force-scoped BEFORE the service runs, so
+    // not one foreign row is ever validated or persisted. Same unknown ≡
+    // foreign 403 rule as the teacher path above.
+    if (!!_centerId(req)) {
+      const entries = Array.isArray(body.entries) ? body.entries : [];
+      for (const entry of entries) {
+        const eid = entry ? entry.enrollmentId : undefined;
+        if (!_present(eid)) continue;
+        if (!_centerOwnsEnrollment(req, tenantId, eid)) {
+          return _ownership403(res, 'Centers may only record attendance for their own center');
         }
       }
     }

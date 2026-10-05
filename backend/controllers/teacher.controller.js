@@ -18,6 +18,7 @@
 const { success, error } = require('../utils/apiResponse');
 const { trustedTenantId, resolveTenantRoleForRequest } = require('../middleware/authorize');
 const teacherService = require('../services/teacher.service');
+const centerOwnership = require('../middleware/centerOwnership');
 const logger = require('../utils/logger');
 
 // Returns the trusted tenant id, or null after having already answered 400.
@@ -44,6 +45,21 @@ function _refuseOtherTeacher(req, res, id) {
   return false;
 }
 
+// CENTER OWNERSHIP — the server-resolved `req.centerActor.id` (never a
+// query/body value). A linked center sees only teachers who teach at least
+// one of its own classes. Unlinked callers (operators) are unchanged.
+function _centerId(req) {
+  return req && req.centerActor && req.centerActor.id ? String(req.centerActor.id) : '';
+}
+
+function _refuseForeignCenterTeacher(req, res, tenantId, id) {
+  if (_centerId(req) && !centerOwnership.centerOwnsTeacher(tenantId, id, _centerId(req))) {
+    error(res, 'Centers may only access their own teachers', 403, { code: 'OWNERSHIP_DENIED' });
+    return true;
+  }
+  return false;
+}
+
 function listTeachers(req, res) {
   try {
     const tenantId = _tenantIdOr400(req, res);
@@ -59,6 +75,12 @@ function listTeachers(req, res) {
     if (req.teacherActor) {
       const own = String(req.teacherActor.id);
       rows = rows.filter(t => String(t.id) === own);
+    }
+    // A linked center's directory is the teachers of its own classes. Both
+    // narrowings compose (intersection) when both actors are present.
+    if (_centerId(req)) {
+      rows = centerOwnership.filterTeachersByCenter(
+        rows, centerOwnership.centerTeacherIds(tenantId, _centerId(req)));
     }
     success(res, rows, 'Teachers retrieved');
   } catch (err) {
@@ -76,6 +98,9 @@ function getTeacher(req, res) {
     // A record owned by another tenant is reported as absent, never as
     // forbidden, so existence is not leaked across tenants.
     if (!found) return error(res, 'Teacher not found', 404);
+    // Same-tenant teacher with no class in the linked center: refused as
+    // forbidden — a linked center only ever reads its own teachers.
+    if (_refuseForeignCenterTeacher(req, res, tenantId, found.id)) return;
     success(res, found, 'Teacher retrieved');
   } catch (err) {
     logger.error('teacher.getTeacher error:', err.message);
@@ -108,6 +133,14 @@ function updateTeacher(req, res) {
     const tenantId = _tenantIdOr400(req, res);
     if (!tenantId) return;
     if (_refuseOtherTeacher(req, res, req.params.id)) return;
+    // A LINKED center edits only teachers of its own center: the row is
+    // loaded first so a foreign same-tenant Teacher is refused BEFORE the
+    // update runs (404 across tenants still wins — no existence leak).
+    if (_centerId(req)) {
+      const existing = teacherService.getTeacher({ tenantId }, req.params.id);
+      if (!existing) return error(res, 'Teacher not found', 404);
+      if (_refuseForeignCenterTeacher(req, res, tenantId, existing.id)) return;
+    }
     const updated = teacherService.updateTeacher({ tenantId }, req.params.id, req.body || {});
     if (!updated) return error(res, 'Teacher not found', 404);
     success(res, updated, 'Teacher updated');
@@ -128,6 +161,12 @@ function archiveTeacher(req, res) {
     const tenantId = _tenantIdOr400(req, res);
     if (!tenantId) return;
     if (_refuseOtherTeacher(req, res, req.params.id)) return;
+    // Same load-first 404/403 ordering as the update path.
+    if (_centerId(req)) {
+      const existing = teacherService.getTeacher({ tenantId }, req.params.id);
+      if (!existing) return error(res, 'Teacher not found', 404);
+      if (_refuseForeignCenterTeacher(req, res, tenantId, existing.id)) return;
+    }
     const archived = teacherService.archiveTeacher({ tenantId }, req.params.id);
     if (!archived) return error(res, 'Teacher not found', 404);
     success(res, archived, 'Teacher archived');
