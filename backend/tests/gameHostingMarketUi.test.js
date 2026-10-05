@@ -200,8 +200,13 @@ describe('Market UI — Game Hosting order contract', () => {
     expect(src).toContain('async function pageGameHostingOrders(');
     expect(src).toContain('async function pageGameHostingOrderDetail(');
     expect(src).toContain('async function pageOperatorOrders(');
+    expect(src).toContain('async function pageOperatorOrderDetail(');
     expect(src).toContain('#/game-hosting/orders/');
-    expect(src).toContain("if (param === 'orders') return pageOperatorOrders();");
+    expect(src).toContain('#/operator/orders/');
+    // The operator board accepts a per-order detail route; both entry points
+    // stay behind isOperator() and the server-side requireOperator guard.
+    expect(src).toContain("location.hash.split('/')[3]");
+    expect(src).toContain('return pageOperatorOrders();');
   });
 
   test('the storefront plan card drives the order flow', () => {

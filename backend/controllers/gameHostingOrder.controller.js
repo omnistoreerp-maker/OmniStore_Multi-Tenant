@@ -29,6 +29,39 @@ function _isOperator(req) {
   return Boolean(req.customer && req.customer.role === 'operator');
 }
 
+// Wire projection: HTTP bodies never carry internal keys or the provider's own
+// payload (see gameHostingOrder.service.toClientOrder).
+function _wire(order) {
+  return orderService.toClientOrder(order);
+}
+
+function _wireList(orders) {
+  return orderService.toClientOrders(orders);
+}
+
+// Provider envelopes carry `raw` (the adapter's untouched response) and
+// `server.details` (adapter-defined payload — tokens/account refs in a real
+// adapter). Only the operational facts a client/operator needs go over the
+// wire.
+function _wireProviderEnvelope(env) {
+  if (!env || typeof env !== 'object') return env;
+  const out = {
+    ok: Boolean(env.ok),
+    provider: env.provider || null
+  };
+  if (env.status !== undefined) out.status = env.status;
+  if (env.code !== undefined) out.code = env.code;
+  if (env.message !== undefined) out.message = env.message;
+  if (env.retryable !== undefined) out.retryable = Boolean(env.retryable);
+  if (env.server && typeof env.server === 'object') {
+    out.server = {
+      externalId: env.server.externalId || null,
+      endpoint: env.server.endpoint || null
+    };
+  }
+  return out;
+}
+
 // Ownership guard for order actions: a customer may only act on their
 // own orders; operators may act tenant-wide. Foreign orders → 404.
 async function _ownedOrder(req, res) {
@@ -69,7 +102,7 @@ async function createOrder(req, res) {
       const status = ['Plan not found', 'Plan is not available for ordering', 'Plan has no valid price configured'].indexOf(result.error) !== -1 ? 404 : 400;
       return error(res, result.error, status);
     }
-    return success(res, result.order, result.idempotent ? 'Order retrieved (idempotent)' : 'Order created', result.idempotent ? 200 : 201);
+    return success(res, _wire(result.order), result.idempotent ? 'Order retrieved (idempotent)' : 'Order created', result.idempotent ? 200 : 201);
   } catch (err) {
     return error(res, 'Failed to create order', 500);
   }
@@ -80,7 +113,7 @@ async function listMyOrders(req, res) {
     const customerId = _isOperator(req) ? (req.query.customerId || null) : _customerId(req);
     const status = req.query.status || null;
     const orders = await orderService.listOrders({ tenantContext: _tenantContext(req), customerId, status });
-    return success(res, { orders }, 'Orders retrieved');
+    return success(res, { orders: _wireList(orders) }, 'Orders retrieved');
   } catch (err) {
     return error(res, 'Failed to list orders', 500);
   }
@@ -93,7 +126,7 @@ async function getMyOrder(req, res) {
     if (!_isOperator(req) && order.customerId && String(order.customerId) !== String(_customerId(req))) {
       return error(res, 'Order not found', 404);
     }
-    return success(res, order, 'Order retrieved');
+    return success(res, _wire(order), 'Order retrieved');
   } catch (err) {
     return error(res, 'Failed to get order', 500);
   }
@@ -122,7 +155,7 @@ async function payOrder(req, res) {
       meta: { channel: 'storefront', simulatedGateway: true }
     });
     if (result.error) return error(res, result.error, 400);
-    return success(res, result.order, 'Payment recorded');
+    return success(res, _wire(result.order), 'Payment recorded');
   } catch (err) {
     return error(res, 'Failed to record payment', 500);
   }
@@ -171,11 +204,11 @@ async function provisionOrder(req, res) {
         success: false,
         message: 'Provisioning failed: ' + (result.providerFailure && result.providerFailure.message || 'provider error'),
         statusCode: 502,
-        details: { orderId: result.order.id, providerFailure: result.providerFailure },
+        details: { orderId: result.order.id, providerFailure: _wireProviderEnvelope(result.providerFailure) },
         time: new Date().toISOString()
       });
     }
-    return success(res, result.order, result.noop ? 'Order already ' + result.order.status : 'Order provisioned');
+    return success(res, _wire(result.order), result.noop ? 'Order already ' + result.order.status : 'Order provisioned');
   } catch (err) {
     return error(res, 'Failed to provision order', 500);
   }
@@ -191,7 +224,7 @@ async function suspendOrder(req, res) {
       const status = result.error === 'Order not found' ? 404 : 409;
       return error(res, result.error, status);
     }
-    return success(res, result.order, 'Order suspended');
+    return success(res, _wire(result.order), 'Order suspended');
   } catch (err) {
     return error(res, 'Failed to suspend order', 500);
   }
@@ -206,7 +239,7 @@ async function resumeOrder(req, res) {
       const status = result.error === 'Order not found' ? 404 : 409;
       return error(res, result.error, status);
     }
-    return success(res, result.order, 'Order resumed');
+    return success(res, _wire(result.order), 'Order resumed');
   } catch (err) {
     return error(res, 'Failed to resume order', 500);
   }
@@ -221,7 +254,7 @@ async function terminateOrder(req, res) {
       const status = result.error === 'Order not found' ? 404 : 409;
       return error(res, result.error, status);
     }
-    return success(res, result.order, 'Order terminated');
+    return success(res, _wire(result.order), 'Order terminated');
   } catch (err) {
     return error(res, 'Failed to terminate order', 500);
   }
@@ -233,7 +266,10 @@ async function orderProviderStatus(req, res) {
     if (!order) return;
     const result = await provisioningService.getProviderStatus({ orderId: order.id, tenantContext: _tenantContext(req) });
     if (result.error) return error(res, result.error, result.error === 'Order not found' ? 404 : 400);
-    return success(res, result, 'Provider status retrieved');
+    return success(res, {
+      order: _wire(result.order),
+      provider: _wireProviderEnvelope(result.provider)
+    }, 'Provider status retrieved');
   } catch (err) {
     return error(res, 'Failed to get provider status', 500);
   }
@@ -246,7 +282,7 @@ async function renewOrder(req, res) {
     if (!order) return;
     const result = await orderService.renewOrder({ orderId: order.id, tenantContext: _tenantContext(req), billingPeriod: req.body && req.body.billingPeriod });
     if (result.error) return error(res, result.error, 409);
-    return success(res, result.order, 'Order renewed');
+    return success(res, _wire(result.order), 'Order renewed');
   } catch (err) {
     return error(res, 'Failed to renew order', 500);
   }
@@ -265,7 +301,7 @@ async function adminOverview(req, res) {
       provider: providerFacade.getStatus(),
       counts,
       total: orders.length,
-      orders
+      orders: _wireList(orders)
     }, 'Game hosting admin overview');
   } catch (err) {
     return error(res, 'Failed to build admin overview', 500);
@@ -286,11 +322,11 @@ async function adminRetryProvisioning(req, res) {
         success: false,
         message: 'Provisioning still failing: ' + (result.providerFailure && result.providerFailure.message || 'provider error'),
         statusCode: 502,
-        details: { orderId: result.order.id, providerFailure: result.providerFailure },
+        details: { orderId: result.order.id, providerFailure: _wireProviderEnvelope(result.providerFailure) },
         time: new Date().toISOString()
       });
     }
-    return success(res, result.order, 'Provisioning completed');
+    return success(res, _wire(result.order), 'Provisioning completed');
   } catch (err) {
     return error(res, 'Failed to retry provisioning', 500);
   }
@@ -319,7 +355,7 @@ async function adminRefund(req, res) {
       const status = result.error === 'Order not found' ? 404 : 409;
       return error(res, result.error, status);
     }
-    return success(res, result.order, 'Order refunded');
+    return success(res, _wire(result.order), 'Order refunded');
   } catch (err) {
     return error(res, 'Failed to refund order', 500);
   }

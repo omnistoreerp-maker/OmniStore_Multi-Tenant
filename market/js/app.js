@@ -1494,6 +1494,24 @@
     return '<div class="mk-banner ' + type + '">' + esc(msg) + '</div>';
   }
 
+  // Operator orders board helpers. The status filter lives in the hash so a
+  // filtered board is linkable and survives re-renders.
+  function opOrdersFilterFromHash() {
+    const q = location.hash.split('?')[1] || '';
+    const status = new URLSearchParams(q).get('status');
+    return status ? String(status) : '';
+  }
+  function opOrderShortId(v) {
+    return v ? String(v).slice(0, 8) : '-';
+  }
+  function opOrderDate(v) {
+    if (!v) return '-';
+    try { return new Date(v).toLocaleString(); } catch (_) { return String(v); }
+  }
+  function opOrderRow(label, value) {
+    return '<div class="mk-summary-row"><span>' + esc(label) + '</span><span>' + (value == null || value === '' ? '-' : esc(value)) + '</span></div>';
+  }
+
   async function pageOperatorPlans() {
     if (!window.MK_API.isOperator()) {
       setApp('<h1 class="mk-page-title">' + esc(t('op_plans')) + '</h1>' + opBanner('error', esc(t('gh_auth_required'))));
@@ -1937,11 +1955,32 @@
       setApp('<h1 class="mk-page-title">' + esc(t('op_orders_title')) + '</h1>' + opBanner('error', esc(t('gh_auth_required'))));
       return;
     }
+    // Loading state before the first paint: the operator never reads a stale
+    // board while the tenant-scoped overview is in flight.
     setApp('<h1 class="mk-page-title">' + esc(t('op_orders_title')) + '</h1><p><a class="mk-btn secondary" href="#/operator">' + esc(t('op_back_to_dashboard')) + '</a></p><div id="mk-op-orders">' + skeletonGameGrid(3) + '</div>');
+
+    const statusFilter = opOrdersFilterFromHash();
     let data = null;
-    try { data = await window.MK_API.ghAdminOverview().catch(() => null); } catch (_) {}
+    let loadError = null;
+    try {
+      data = await window.MK_API.ghAdminOverview(statusFilter ? { status: statusFilter } : {});
+    } catch (e) {
+      // Authorization (403) and transport errors must be visible, never
+      // silently downgraded into an "empty board".
+      loadError = (e && e.status === 403) ? t('op_orders_forbidden') : (ghLocalizedError(e) || t('op_orders_error'));
+    }
     const provider = (data && data.provider) || null;
     const orders = (data && data.orders) || [];
+
+    if (loadError) {
+      setApp('<h1 class="mk-page-title">' + esc(t('op_orders_title')) + '</h1>' +
+        opBanner('error', loadError) +
+        '<p><a class="mk-btn secondary" href="#/operator">' + esc(t('op_back_to_dashboard')) + '</a> ' +
+        '<button class="mk-btn" id="op-gh-reload">' + esc(t('op_orders_reload')) + '</button></p>');
+      const reloadBtn = document.getElementById('op-gh-reload');
+      if (reloadBtn) reloadBtn.addEventListener('click', () => { loadError = null; render(); });
+      return;
+    }
 
     let html = '<h1 class="mk-page-title">' + esc(t('op_orders_title')) + '</h1>';
     html += '<p><a class="mk-btn secondary" href="#/operator">' + esc(t('op_back_to_dashboard')) + '</a></p>';
@@ -1952,25 +1991,47 @@
     const counts = (data && data.counts) || {};
     html += '<div class="mk-summary-row"><span>' + esc(t('op_orders_counts')) + '</span><span>' + esc(Object.keys(counts).map((k) => k + ': ' + counts[k]).join(' · ') || '-') + '</span></div>';
     html += '</div>';
-    html += '<div style="margin-top:12px"><button class="mk-btn secondary" id="op-gh-sweep">' + esc(t('op_expiry_sweep')) + '</button> <span id="op-gh-sweep-msg"></span></div>';
+    html += '<div class="mk-toolbar mk-toolbar--filters">';
+    html += '<label for="op-gh-status-filter">' + esc(t('op_orders_filter_label')) + '</label>';
+    html += '<select class="mk-select mk-select--sm" id="op-gh-status-filter"><option value="">' + esc(t('op_orders_filter_all')) + '</option>';
+    ['pending', 'paid', 'provisioning', 'provisioning_failed', 'active', 'suspended', 'expired', 'terminated', 'cancelled'].forEach((s) => {
+      html += '<option value="' + esc(s) + '"' + (s === statusFilter ? ' selected' : '') + '>' + esc(s) + '</option>';
+    });
+    html += '</select>';
+    html += '<button class="mk-btn secondary" id="op-gh-sweep">' + esc(t('op_expiry_sweep')) + '</button> <span id="op-gh-sweep-msg"></span></div>';
     html += '<div id="op-gh-orders-msg" style="margin-top:12px"></div>';
 
+    // Empty state distinguishes "no orders at all" from "none in this filter".
     if (!orders.length) {
-      html += '<div class="mk-empty"><div class="mk-empty-title">' + esc(t('op_orders_empty')) + '</div></div>';
+      html += '<div class="mk-empty">' +
+        '<div class="mk-empty-title">' + esc(t('op_orders_empty')) + '</div>' +
+        '<div class="mk-empty-sub">' + esc(statusFilter ? t('op_orders_empty_filtered') : t('op_orders_empty_hint')) + '</div>' +
+        (statusFilter ? '<div class="mk-empty-actions"><a class="mk-btn secondary" href="#/operator/orders">' + esc(t('op_orders_filter_clear')) + '</a></div>' : '') +
+        '</div>';
     } else {
       html += '<div class="mk-grid" style="margin-top:16px">';
       orders.forEach((o) => {
+        // Offered actions follow the SERVER state machine. The buttons are a
+        // convenience only: every endpoint re-validates ownership, tenant and
+        // status, so a hand-crafted request still fails closed.
         const canRetry = ['paid', 'provisioning_failed'].indexOf(o.status) !== -1;
         const canRefund = o.paymentStatus === 'paid';
         html += '<div class="mk-card">' +
           '<div class="mk-card-body">' +
             '<div class="mk-card-name">' + esc(o.planName || o.planId) + '</div>' +
             '<div class="mk-card-stock">' + esc(t('gh_server_name')) + ': ' + esc(o.serverName || '-') + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('op_orders_order_id')) + ': ' + esc(opOrderShortId(o.id)) + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('op_orders_customer')) + ': ' + esc(opOrderShortId(o.customerId)) + '</div>' +
+            '<div class="mk-card-stock">' + esc(t('op_orders_created')) + ': ' + esc(opOrderDate(o.createdAt)) + '</div>' +
             '<div class="mk-card-stock">' + esc(t('gh_order_status')) + ': ' + ghOrderStatusLabel(o.status) + '</div>' +
             '<div class="mk-card-stock">' + esc(t('gh_payment_status')) + ': ' + ghPaymentStatusLabel(o.paymentStatus) + '</div>' +
             '<div class="mk-card-price">' + esc(money(o.amount, o.currency)) + '</div>' +
-            (canRetry ? '<button class="mk-btn" id="op-gh-retry-' + esc(o.id) + '">' + esc(t('op_order_retry')) + '</button> ' : '') +
-            (canRefund ? '<button class="mk-btn secondary" id="op-gh-refund-' + esc(o.id) + '">' + esc(t('op_order_refund')) + '</button>' : '') +
+            (o.status === 'provisioning_failed' && o.lastProvisionError ? '<div class="mk-card-stock">' + esc(t('op_order_last_error')) + ': ' + esc(o.lastProvisionError) + '</div>' : '') +
+            '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">' +
+              '<a class="mk-btn secondary" href="#/operator/orders/' + encodeURIComponent(o.id) + '">' + esc(t('op_order_details')) + '</a>' +
+              (canRetry ? '<button class="mk-btn" id="op-gh-retry-' + esc(o.id) + '">' + esc(t('op_order_retry')) + '</button>' : '') +
+              (canRefund ? '<button class="mk-btn secondary" id="op-gh-refund-' + esc(o.id) + '">' + esc(t('op_order_refund')) + '</button>' : '') +
+            '</div>' +
           '</div>' +
         '</div>';
       });
@@ -1992,6 +2053,14 @@
       }
       sweepBtn.disabled = false;
     });
+
+    const filterSel = document.getElementById('op-gh-status-filter');
+    if (filterSel) {
+      filterSel.addEventListener('change', () => {
+        const v = filterSel.value;
+        location.hash = '#/operator/orders' + (v ? '?status=' + encodeURIComponent(v) : '');
+      });
+    }
 
     orders.forEach((o) => {
       const retry = document.getElementById('op-gh-retry-' + o.id);
@@ -2030,6 +2099,132 @@
     });
   }
 
+  // Operator order detail.
+  //
+  // Reads the SAME tenant-scoped overview the board uses. `/orders/:id` is
+  // customer-scoped by design, so an operator who is not the buyer would get a
+  // 404 there; the overview is already filtered server-side by the trusted
+  // tenant context, so no operator toggle can widen the read scope.
+  async function pageOperatorOrderDetail(id) {
+    if (!window.MK_API.isOperator()) {
+      setApp('<h1 class="mk-page-title">' + esc(t('op_order_detail_title')) + '</h1>' + opBanner('error', t('gh_auth_required')));
+      return;
+    }
+    setApp('<div class="mk-loading">' + esc(t('loading')) + '</div>');
+
+    let data = null;
+    let loadError = null;
+    try {
+      data = await window.MK_API.ghAdminOverview({});
+    } catch (e) {
+      loadError = (e && e.status === 403) ? t('op_orders_forbidden') : (ghLocalizedError(e) || t('op_orders_error'));
+    }
+    const provider = (data && data.provider) || null;
+    const order = data ? (data.orders || []).find((o) => String(o.id) === String(id)) : null;
+
+    if (loadError || !order) {
+      setApp('<h1 class="mk-page-title">' + esc(t('op_order_detail_title')) + '</h1>' +
+        (loadError
+          ? opBanner('error', loadError)
+          : '<div class="mk-empty"><div class="mk-empty-title">' + esc(t('gh_order_not_found')) + '</div></div>') +
+        '<p><a class="mk-btn secondary" href="#/operator/orders">' + esc(t('op_back_to_orders')) + '</a></p>');
+      return;
+    }
+
+    const canRetry = ['paid', 'provisioning_failed'].indexOf(order.status) !== -1;
+    const canRefund = order.paymentStatus === 'paid';
+    const info = order.providerInfo || null;
+    const payments = Array.isArray(order.payments) ? order.payments : [];
+
+    let html = '<h1 class="mk-page-title">' + esc(t('op_order_detail_title')) + '</h1>';
+    html += '<p><a class="mk-btn secondary" href="#/operator/orders">' + esc(t('op_back_to_orders')) + '</a></p>';
+    if (['paid', 'provisioning', 'provisioning_failed'].indexOf(order.status) !== -1) html += ghFailClosedBanner(provider);
+    if (provider && provider.isRealProvider === false) html += ghBanner('warning', esc(t('op_order_not_real_provider')));
+    if (_ghFlash) {
+      html += ghBanner(_ghFlash.type, esc(_ghFlash.msg));
+      _ghFlash = null;
+    }
+
+    html += '<div class="mk-order-card">';
+    html += '<div class="mk-summary-title">' + esc(t('gh_order_summary_title')) + '</div>';
+    html += opOrderRow(t('op_orders_order_id'), order.id);
+    html += opOrderRow(t('op_orders_customer'), opOrderShortId(order.customerId));
+    html += opOrderRow(t('gh_plan_name'), order.planName || order.planId);
+    html += opOrderRow(t('gh_server_name'), order.serverName);
+    html += opOrderRow(t('gh_region'), order.region);
+    html += opOrderRow(t('gh_billing_period_label'), ghBillingLabel(order.billingPeriod));
+    html += opOrderRow(t('gh_total'), money(order.amount, order.currency));
+    html += opOrderRow(t('op_order_monthly'), money(order.monthlyPrice, order.currency));
+    html += '<div class="mk-summary-row"><span>' + esc(t('gh_order_status')) + '</span><span>' + ghOrderStatusLabel(order.status) + '</span></div>';
+    html += '<div class="mk-summary-row"><span>' + esc(t('gh_payment_status')) + '</span><span>' + ghPaymentStatusLabel(order.paymentStatus) + '</span></div>';
+    html += opOrderRow(t('op_order_payment_ref'), order.paymentRef);
+    html += opOrderRow(t('op_order_payments'), String(payments.length));
+    html += opOrderRow(t('op_order_provision_attempts'), String(order.provisioningAttempts || 0));
+    html += opOrderRow(t('op_order_last_error'), order.lastProvisionError);
+    html += opOrderRow(t('gh_period_start'), order.periodStartsAt ? opOrderDate(order.periodStartsAt) : null);
+    html += opOrderRow(t('gh_period_end'), order.periodEndsAt ? opOrderDate(order.periodEndsAt) : null);
+    html += opOrderRow(t('op_orders_created'), opOrderDate(order.createdAt));
+    html += opOrderRow(t('op_order_updated'), opOrderDate(order.updatedAt));
+    html += '</div>';
+
+    // Provider seam — the operator sees what the infrastructure will do.
+    html += '<div class="mk-order-card" style="margin-top:12px">';
+    html += '<div class="mk-summary-title">' + esc(t('gh_provider_status_title')) + '</div>';
+    html += opOrderRow(t('gh_provider_status_title'), provider ? provider.status : null);
+    html += opOrderRow(t('op_order_provider_kind'), provider ? (provider.providerKind || provider.configured) : null);
+    html += opOrderRow(t('op_order_provider_external'), info ? info.externalId : null);
+    html += opOrderRow(t('op_order_provider_endpoint'), info ? info.endpoint : null);
+    html += '</div>';
+
+    html += '<div class="mk-summary" style="margin-top:12px"><div class="mk-summary-row"><span>' + esc(t('gh_actions')) + '</span><span id="op-gh-order-actions"></span></div></div>';
+    html += '<div id="op-gh-order-msg" style="margin-top:12px"></div>';
+    setApp(html);
+
+    const msgEl = document.getElementById('op-gh-order-msg');
+    const actions = document.getElementById('op-gh-order-actions');
+    if (actions) {
+      let btns = '';
+      if (canRetry) btns += '<button class="mk-btn" id="op-gh-detail-retry">' + esc(t('op_order_retry')) + '</button>';
+      if (canRefund) btns += ' <button class="mk-btn secondary" id="op-gh-detail-refund">' + esc(t('op_order_refund')) + '</button>';
+      actions.innerHTML = btns || '-';
+    }
+
+    const retryBtn = document.getElementById('op-gh-detail-retry');
+    if (retryBtn) {
+      retryBtn.addEventListener('click', async () => {
+        msgEl.innerHTML = '';
+        retryBtn.disabled = true;
+        try {
+          await window.MK_API.ghAdminRetryProvisioning(order.id);
+          _ghFlash = { type: 'success', msg: t('op_order_retry_done') };
+          render();
+        } catch (e) {
+          let out = ghBanner('error', esc(ghLocalizedError(e) || t('gh_order_action_failed')));
+          if (provider && provider.status === 'BLOCKED') out += ghBanner('error', esc(t('op_order_retry_blocked')));
+          msgEl.innerHTML = out;
+          retryBtn.disabled = false;
+        }
+      });
+    }
+
+    const refundBtn = document.getElementById('op-gh-detail-refund');
+    if (refundBtn) {
+      refundBtn.addEventListener('click', async () => {
+        msgEl.innerHTML = '';
+        if (!await confirmDialog(t('op_order_refund') + '?')) return;
+        refundBtn.disabled = true;
+        try {
+          await window.MK_API.ghAdminRefund(order.id, { reason: t('op_order_refund_reason') });
+          _ghFlash = { type: 'success', msg: t('op_order_refund_done') };
+          render();
+        } catch (e) {
+          msgEl.innerHTML = ghBanner('error', esc(ghLocalizedError(e) || t('gh_order_action_failed')));
+          refundBtn.disabled = false;
+        }
+      });
+    }
+  }
+
   // ---------- Router ----------
 
   function debounce(fn, ms) {
@@ -2061,7 +2256,11 @@
         if (param === 'plans') return pageOperatorPlans();
         if (param === 'servers') return pageOperatorServers();
         if (param === 'queue') return pageOperatorQueue();
-        if (param === 'orders') return pageOperatorOrders();
+        if (param === 'orders') {
+          const orderId = decodeURIComponent((location.hash.split('/')[3] || '').split('?')[0] || '');
+          if (orderId) return pageOperatorOrderDetail(orderId);
+          return pageOperatorOrders();
+        }
         if (param === 'entitlements') return pageOperatorEntitlements();
         if (param === 'audit') return pageOperatorAudit();
         return pageGameHosting();
