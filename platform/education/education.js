@@ -3178,9 +3178,184 @@
         ));
         body.appendChild(ratingsCard);
       }
+
+      // Center write tools (G1): Students, Teachers, Classes, Enrollments.
+      // Rendered from the resolved center record that was loaded above. The
+      // writes go to the committed entity routes (/students, /teachers,
+      // /classes, /enrollments) with the same form payload the entity table
+      // pages already use — no new endpoint and no tenant/actor field in the
+      // payload: the server resolves tenant and actor server-side.
+      renderCenterWriteTools(body);
     });
   }
 
+  // ---------------------------------------------------------------------
+  // CENTER WRITE TOOLS (G1) — inline create forms for Students, Teachers,
+  // Classes and Enrollments.
+  //
+  // Connects the committed entity routes to a UI:
+  //   POST /students    → ENTITIES.students
+  //   POST /teachers    → ENTITIES.teachers
+  //   POST /classes     → ENTITIES.classes
+  //   POST /enrollments → ENTITIES.enrollments
+  //
+  // SECURITY. No tenant id, actor id or tenant header is ever sent: the
+  // signed session resolves both on the server. No client-side authorization
+  // is added here — the server's requirePermission gate decides each write.
+  // ---------------------------------------------------------------------
+
+  var CENTER_WRITE_SPECS = [ENTITIES.students, ENTITIES.teachers, ENTITIES.classes, ENTITIES.enrollments];
+
+  function renderCenterWriteTools(host) {
+    host.appendChild(el('h2', 'edu-section-title', 'Center management'));
+
+    CENTER_WRITE_SPECS.forEach(function (spec) {
+      var card = renderCenterCreateForm(spec);
+      host.appendChild(card);
+    });
+  }
+
+  function renderCenterCreateForm(spec) {
+    var card = el('div', 'edu-card');
+    card.id = 'edu-center-create-' + spec.key;
+    var title = spec.key === 'enrollments' ? 'Enroll a Student' :
+      spec.key === 'classes' ? 'Add a Class' :
+      spec.key === 'teachers' ? 'Add a Teacher' :
+      spec.key === 'students' ? 'Add a Student' :
+      'Add ' + spec.title.replace(/s$/, '');
+    card.appendChild(el('h3', null, title));
+
+    // Load reference collections needed for ref fields (courses, programs,
+    // students, teachers, classes).
+    var refSources = (spec.fields || []).filter(function (f) { return f.type === 'ref'; }).map(function (f) { return f.source; });
+    var uniqueSources = [];
+    refSources.forEach(function (s) { if (uniqueSources.indexOf(s) < 0) uniqueSources.push(s); });
+
+    var form = el('div', 'edu-center-form');
+    form.id = 'edu-center-form-' + spec.key;
+    card.appendChild(form);
+
+    // Build the controls from the ENTITY spec fields, reusing the same shape
+    // the entity table form uses so the two stay in lock-step.
+    var controls = {};
+    var requiredFields = [];
+    (spec.fields || []).forEach(function (field) {
+      var wrap = labelledControl(field.type === 'ref' || field.type === 'select' ? 'select' : (field.type === 'textarea' ? 'textarea' : 'input'),
+        'edu-center-' + spec.key + '-' + field.name,
+        field.label + (field.required ? ' *' : ''),
+        'edu-input');
+      if (field.type === 'select' || field.type === 'ref') {
+        wrap.node.innerHTML = '';
+        var blank = document.createElement('option');
+        blank.value = '';
+        blank.textContent = '—';
+        wrap.node.appendChild(blank);
+      }
+      if (field.maxLength) wrap.node.maxLength = field.maxLength;
+      if (field.type === 'date' || field.type === 'time' || field.type === 'number') wrap.node.dir = 'ltr';
+      if (field.type === 'number' && field.min !== undefined) wrap.node.min = String(field.min);
+      if (field.type === 'number' && field.max !== undefined) wrap.node.max = String(field.max);
+      if (field.hint) {
+        var hint = el('span', 'edu-field-hint', field.hint);
+        wrap.wrap.appendChild(hint);
+      }
+      // Populate ref / select options from cached lookups.
+      if (field.type === 'ref') {
+        var source = field.source;
+        populateRefOptions(wrap.node, source, '', REF[source] || []);
+      } else if (field.type === 'select' && field.values) {
+        field.values.forEach(function (v) {
+          var opt = document.createElement('option');
+          opt.value = v;
+          opt.textContent = v;
+          wrap.node.appendChild(opt);
+        });
+      }
+      form.appendChild(wrap.wrap);
+      controls[field.name] = wrap.node;
+      if (field.required) requiredFields.push(field.name);
+    });
+
+    var saveBtn = el('button', 'edu-btn edu-btn-primary', '<span>Save</span>');
+    saveBtn.type = 'button';
+    card.appendChild(saveBtn);
+
+    var state = { submitting: false };
+
+    saveBtn.addEventListener('click', function () {
+      if (state.submitting) return;
+      var payload = {};
+      var missing = [];
+      (spec.fields || []).forEach(function (field) {
+        var val = controls[field.name].value;
+        if (val && String(val).trim() !== '') {
+          payload[field.name] = String(val).trim();
+        } else if (field.required) {
+          missing.push(field.label);
+        }
+      });
+
+      // Date fields that the service validates as future-guarded: cap at today.
+      if (spec.key === 'attendance' || spec.key === 'grading') {
+        var dateField = payload[spec.key === 'attendance' ? 'attendanceDate' : 'gradingDate'];
+        if (dateField && dateField > today()) {
+          toast((spec.key === 'attendance' ? 'Attendance date' : 'Grading date') + ' cannot be in the future.', true);
+          return;
+        }
+      }
+
+      if (missing.length) {
+        toast('Missing required: ' + missing.join(', '), true);
+        return;
+      }
+
+      state.submitting = true;
+      saveBtn.disabled = true;
+
+      api('POST', spec.path, payload).then(function () {
+        reportWriteSuccess(spec.title.replace(/s$/, '') + ' created.');
+        Object.keys(controls).forEach(function (name) { controls[name].value = ''; });
+        invalidateRef(spec.key);
+        invalidateRef(null);
+        state.submitting = false;
+        saveBtn.disabled = false;
+      }, function (err) {
+        state.submitting = false;
+        saveBtn.disabled = false;
+        reportWriteFailure(err, spec.title.replace(/s$/, '') + ' could not be created.');
+      });
+    });
+
+    // Pre-populate reference-dependent fields once lookups resolve.
+    Promise.all(uniqueSources.map(function (s) { return loadRef(s); })).then(function () {
+      if (state.page !== 'center') return;
+      (spec.fields || []).forEach(function (field) {
+        if (field.type === 'ref') {
+          populateRefOptions(controls[field.name], field.source, '', REF[field.source] || []);
+        }
+      });
+    });
+
+    return card;
+  }
+
+  function populateRefOptions(select, source, selected, rows) {
+    select.innerHTML = '';
+    var blank = document.createElement('option');
+    blank.value = '';
+    blank.textContent = '—';
+    select.appendChild(blank);
+    rows.forEach(function (row) {
+      var opt = document.createElement('option');
+      opt.value = String(row.id || '');
+      opt.textContent = refName(source, row) + (row.centerCode ? ' (' + row.centerCode + ')' :
+        row.classCode ? ' (' + row.classCode + ')' :
+        row.teacherCode ? ' (' + row.teacherCode + ')' :
+        '');
+      if (String(selected || '') === String(row.id || '')) opt.selected = true;
+      select.appendChild(opt);
+    });
+  }
 
   // ---------------------------------------------------------------------
   // TEACHER WRITE TOOLS — attendance and grading.
