@@ -82,12 +82,13 @@ describe('the dead educationCore module stays gone', () => {
     // One of the mounts is the attachTeacherActor middleware, not a router.
     const mounted = all.filter((n) => n.endsWith('Routes'));
     expect(all).toContain('attachTeacherActor');
-    expect(mounted.length).toBe(13); // pack + 10 entities + booking + rating
+    expect(mounted.length).toBe(17); // pack + 10 entities + booking + rating + 4 P1 academic
     for (const name of mounted) expect(name).not.toMatch(/educationCore/i);
     for (const required of ['educationPackRoutes', 'studentRoutes', 'teacherRoutes',
       'centerRoutes', 'programRoutes', 'courseRoutes', 'classRoutes',
       'enrollmentRoutes', 'attendanceRoutes', 'schedulingRoutes', 'gradingRoutes',
-      'bookingRoutes', 'ratingRoutes']) {
+      'bookingRoutes', 'ratingRoutes', 'academicYearRoutes', 'termRoutes',
+      'subjectRoutes', 'groupRoutes']) {
       expect(mounted).toContain(required);
     }
   });

@@ -62,7 +62,7 @@ const SERVER_JS = read('backend/server.js');
 const EDUCATION_ROUTE_FILES = [
   'educationPack', 'student', 'teacher', 'center', 'program', 'course',
   'class', 'enrollment', 'attendance', 'scheduling', 'grading',
-  'booking', 'rating'
+  'booking', 'rating', 'academicYear', 'term', 'subject', 'group'
 ].map((name) => ({
   name,
   src: read('backend/routes/' + name + '.routes.js')
@@ -71,7 +71,7 @@ const EDUCATION_ROUTE_FILES = [
 const SERVICE_FILES = [
   'student', 'teacher', 'center', 'program', 'course', 'class',
   'enrollment', 'attendance', 'scheduling', 'grading',
-  'booking', 'rating'
+  'booking', 'rating', 'academicYear', 'term', 'subject', 'group'
 ].map((name) => ({
   name,
   src: read('backend/services/' + name + '.service.js')
@@ -91,7 +91,11 @@ const SERVICE_FOR_ENTITY = {
   scheduling: 'scheduling',
   grading: 'grading',
   bookings: 'booking',
-  ratings: 'rating'
+  ratings: 'rating',
+  academicYears: 'academicYear',
+  terms: 'term',
+  subjects: 'subject',
+  groups: 'group'
 };
 
 let passed = 0;
@@ -182,7 +186,8 @@ check('education page exposes every management view and all three workspaces', (
   const required = [
     'dashboard', 'students', 'teachers', 'centers', 'programs', 'courses',
     'classes', 'enrollments', 'attendance', 'schedule', 'grading',
-    'bookings', 'ratings', 'center', 'teacher', 'student'
+    'bookings', 'ratings', 'academic-years', 'terms', 'subjects', 'groups',
+    'center', 'teacher', 'student'
   ];
   for (const page of required) {
     assert(PAGE.includes('data-edu-page="' + page + '"'), 'navigation entry missing: ' + page);
@@ -336,7 +341,8 @@ check('the page issues only verbs the backend declares for each path', () => {
 check('the backend really mounts the Education routers this page depends on', () => {
   for (const route of ['programRoutes', 'courseRoutes', 'classRoutes', 'enrollmentRoutes',
     'attendanceRoutes', 'schedulingRoutes', 'gradingRoutes', 'studentRoutes', 'teacherRoutes',
-    'centerRoutes', 'educationPackRoutes', 'bookingRoutes', 'ratingRoutes']) {
+    'centerRoutes', 'educationPackRoutes', 'bookingRoutes', 'ratingRoutes',
+    'academicYearRoutes', 'termRoutes', 'subjectRoutes', 'groupRoutes']) {
     assert(SERVER_JS.includes('const ' + route + ' ='), 'the server does not import ' + route);
     assert(
       new RegExp("app\\.use\\('/api/v1/tenant/education',\\s*" + route + '\\)').test(SERVER_JS),
@@ -810,6 +816,7 @@ check('the dictionary covers the English text the page renders', () => {
   const drawerOnly = [
     'centers', 'programs', 'courses', 'roster', 'enrollments', 'attendance',
     'register', 'calendar', 'grading', 'bookings', 'ratings',
+    'academic-years', 'terms', 'subjects', 'groups',
     'report-attendance', 'report-grading', 'report-sessions',
     'settings', 'center', 'teacher', 'student'
   ];
@@ -1227,7 +1234,11 @@ check('every Education list exports its own visible columns and nothing else', (
     scheduling: 'education-scheduling',
     grading: 'education-grading',
     bookings: 'education-bookings',
-    ratings: 'education-ratings'
+    ratings: 'education-ratings',
+    academicYears: 'education-academic-years',
+    terms: 'education-terms',
+    subjects: 'education-subjects',
+    groups: 'education-groups'
   };
   for (const key of entities) {
     const block = entityBlock(key);
