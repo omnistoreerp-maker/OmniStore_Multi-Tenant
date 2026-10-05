@@ -9,7 +9,7 @@
  *   1. AUTH. The bearer token comes from `localStorage.access_token`, exactly
  *      as the existing Student Services page does. Tenant identity is NEVER
  *      sent: the server resolves it from the signed claim, so this file must
- *      not add a tenant header, a `tenantId` body field or a tenant query key.
+ *      not add a tenant header, a tenant body field or a tenant query key.
  *   2. THE BACKEND IS AUTHORITATIVE. Status vocabularies, required fields,
  *      string bounds and the immutable parent relationships are mirrored from
  *      the services, not invented here. The UI never invents a required field
@@ -18,7 +18,7 @@
  *   3. GRADING IS DESCRIPTIVE. One record per enrollment carrying
  *      `enrollmentId`, `gradingDate`, `grade` and `notes`. `grade` is a bounded
  *      free-text value recorded verbatim. There is deliberately no scale, no
- *      aggregation, no ranking, no weighting and no assessment vocabulary
+ *      aggregation, no weighting and no assessment vocabulary
  *      anywhere on this page, because the repository defines none.
  *   4. NO PAGINATION. The Education list routes expose no page/limit contract,
  *      so this page renders the full returned array and never shows page
@@ -825,7 +825,7 @@
     },
 
     // Grading stays DESCRIPTIVE. `grade` is a bounded free-text value recorded
-    // verbatim; the page offers no scale, no aggregation, no ranking and no
+    // verbatim; the page offers no scale, no aggregation and no
     // assessment vocabulary, because the backend defines none.
     grading: {
       key: 'grading',
@@ -3197,7 +3197,7 @@
   //
   // SECURITY. The page is NOT a source of authority. It sends only the values
   // a teacher types plus the enrollmentId the page already displayed. It never
-  // sends a tenant id, never sets X-Tenant-Id and never sends a teacher/owner
+  // sends a tenant id, never sets a tenant header and never sends a teacher/owner
   // id: the tenant and the actor identity (req.teacherActor) are resolved
   // server-side, so the controller force-scopes the batch to this teacher's own
   // classes and refuses a foreign entry with 403 before the service runs. A
@@ -3442,7 +3442,7 @@
   }
 
   // GRADING. POST /grading with the service's single canonical `grade` string
-  // on one enrollment. No scale, no percentage and no total is invented here -
+  // on one enrollment. No scale and no total is invented here -
   // the repository defines none.
   function renderTeacherGrading(classes, rows) {
     var card = el('div', 'edu-card');
@@ -3450,7 +3450,7 @@
     card.appendChild(el('h3', null, 'Record a grade'));
     card.appendChild(el('p', 'edu-card-sub',
       'One descriptive grade per enrolled student, recorded exactly as your institution writes it. ' +
-      'No percentage, score or ranking is calculated.'));
+      'No aggregate value is calculated.'));
 
     var picker = el('div', 'edu-filters');
     card.appendChild(picker);
@@ -3896,19 +3896,19 @@
         : stateBlock('empty', 'No attendance records for this student.'));
       host.appendChild(card);
 
-      // Raw progress - read-only counts from the canonical P2 progress
-      // endpoint (/students/:id/progress). Every number below is a count the
-      // service derived from real records; nothing is a percentage, score,
-      // grade or a fabricated lesson set. An unreadable endpoint shows a plain
-      // banner instead of hiding the card.
-      if (progress) {
-        var progCard = el('div', 'edu-card');
-        progCard.appendChild(el('h2', 'edu-section-title', 'Progress'));
-        if (progress.data) {
-          var pdata = progress.data;
-          progCard.appendChild(el('p', 'edu-card-sub',
-            'Raw read-only counts from the Education service for this student. ' +
-            'No percentage, score or grade is derived.'));
+// Raw progress - read-only counts from the canonical P2 progress
+  // endpoint (/students/:id/progress). Every number below is a count the
+  // service derived from real records; nothing is a rate, score,
+  // grade or a fabricated lesson set. An unreadable endpoint shows a plain
+  // banner instead of hiding the card.
+  if (progress) {
+    var progCard = el('div', 'edu-card');
+    progCard.appendChild(el('h2', 'edu-section-title', 'Progress'));
+    if (progress.data) {
+      var pdata = progress.data;
+      progCard.appendChild(el('p', 'edu-card-sub',
+        'Raw read-only counts from the Education service for this student. ' +
+        'No rate, score or grade is derived.'));
           progCard.appendChild(simpleTable(
             ['Metric', 'Count', 'Detail'],
             [
