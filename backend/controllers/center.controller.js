@@ -21,6 +21,7 @@
 const { success, error } = require('../utils/apiResponse');
 const { trustedTenantId } = require('../middleware/authorize');
 const centerService = require('../services/center.service');
+const centerOwnership = require('../middleware/centerOwnership');
 const logger = require('../utils/logger');
 
 // Returns the trusted tenant id, or null after having already answered 400.
@@ -33,6 +34,18 @@ function _tenantIdOr400(req, res) {
   return String(tenantId);
 }
 
+function _ownership403(res, message) {
+  error(res, message, 403, { code: 'OWNERSHIP_DENIED' });
+}
+
+// CENTER OWNERSHIP — the server-resolved `req.centerActor.id` (never a
+// query/body value). A linked center's directory is its own row: other
+// centers are neither listed, read, nor mutated. Unlinked callers
+// (operators) are unchanged.
+function _centerId(req) {
+  return req && req.centerActor && req.centerActor.id ? String(req.centerActor.id) : '';
+}
+
 function listCenters(req, res) {
   try {
     const tenantId = _tenantIdOr400(req, res);
@@ -42,7 +55,13 @@ function listCenters(req, res) {
       status: req.query ? req.query.status : undefined,
       search: req.query ? req.query.search : undefined
     };
-    success(res, centerService.listCenters({ tenantId }, filters), 'Centers retrieved');
+    let rows = centerService.listCenters({ tenantId }, filters);
+    // A LINKED center lists only itself, whatever the query asked.
+    if (_centerId(req)) {
+      const own = _centerId(req);
+      rows = rows.filter(c => String(c.id) === own);
+    }
+    success(res, rows, 'Centers retrieved');
   } catch (err) {
     logger.error('center.listCenters error:', err.message);
     error(res, 'Failed to retrieve centers', 500);
@@ -57,6 +76,11 @@ function getCenter(req, res) {
     // A record owned by another tenant is reported as absent, never as
     // forbidden, so existence is not leaked across tenants.
     if (!found) return error(res, 'Center not found', 404);
+    // Same-tenant, other center: refused as forbidden — a linked center only
+    // ever reads its own row.
+    if (_centerId(req) && !centerOwnership.centerOwnsCenter(tenantId, found.id, _centerId(req))) {
+      return _ownership403(res, 'Centers may only access their own record');
+    }
     success(res, found, 'Center retrieved');
   } catch (err) {
     logger.error('center.getCenter error:', err.message);
@@ -68,6 +92,11 @@ function createCenter(req, res) {
   try {
     const tenantId = _tenantIdOr400(req, res);
     if (!tenantId) return;
+    // Creating a center is an operator action: a linked center may not create
+    // sibling centers, so the actor path is refused outright.
+    if (_centerId(req)) {
+      return _ownership403(res, 'Centers may not create centers; creating is an operator action');
+    }
     // The body is passed through untouched; the service whitelists writable
     // fields, rejects server-owned fields and stamps the trusted tenantId.
     const created = centerService.createCenter({ tenantId }, req.body || {});
@@ -88,6 +117,15 @@ function updateCenter(req, res) {
   try {
     const tenantId = _tenantIdOr400(req, res);
     if (!tenantId) return;
+    // A LINKED center edits only its own row: loaded first so a foreign
+    // same-tenant Center is refused BEFORE the update runs.
+    if (_centerId(req)) {
+      const existing = centerService.getCenter({ tenantId }, req.params.id);
+      if (!existing) return error(res, 'Center not found', 404);
+      if (!centerOwnership.centerOwnsCenter(tenantId, existing.id, _centerId(req))) {
+        return _ownership403(res, 'Centers may only edit their own record');
+      }
+    }
     const updated = centerService.updateCenter({ tenantId }, req.params.id, req.body || {});
     if (!updated) return error(res, 'Center not found', 404);
     success(res, updated, 'Center updated');
@@ -107,6 +145,14 @@ function archiveCenter(req, res) {
   try {
     const tenantId = _tenantIdOr400(req, res);
     if (!tenantId) return;
+    // Same load-first 404/403 ordering as the update path.
+    if (_centerId(req)) {
+      const existing = centerService.getCenter({ tenantId }, req.params.id);
+      if (!existing) return error(res, 'Center not found', 404);
+      if (!centerOwnership.centerOwnsCenter(tenantId, existing.id, _centerId(req))) {
+        return _ownership403(res, 'Centers may only archive their own record');
+      }
+    }
     const archived = centerService.archiveCenter({ tenantId }, req.params.id);
     if (!archived) return error(res, 'Center not found', 404);
     success(res, archived, 'Center archived');

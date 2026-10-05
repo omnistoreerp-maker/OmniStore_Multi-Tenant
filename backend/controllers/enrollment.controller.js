@@ -32,6 +32,7 @@ const { success, error } = require('../utils/apiResponse');
 const { trustedTenantId } = require('../middleware/authorize');
 const enrollmentService = require('../services/enrollment.service');
 const classService = require('../services/class.service');
+const centerOwnership = require('../middleware/centerOwnership');
 const logger = require('../utils/logger');
 
 // Returns the trusted tenant id, or null after having already answered 400.
@@ -46,6 +47,15 @@ function _tenantIdOr400(req, res) {
 
 function _ownership403(res, message) {
   error(res, message, 403, { code: 'OWNERSHIP_DENIED' });
+}
+
+// CENTER OWNERSHIP — the server-resolved `req.centerActor.id` (never a
+// query/body value). An Enrollment carries no center of its own: it resolves
+// through its Class (Enrollment -> Class -> Course -> Program.centerId). A
+// linked center sees only its own enrollments. Unlinked callers (operators)
+// are unchanged, and any teacher narrowing composes by intersection.
+function _centerId(req) {
+  return req && req.centerActor && req.centerActor.id ? String(req.centerActor.id) : '';
 }
 
 function listEnrollments(req, res) {
@@ -67,7 +77,14 @@ function listEnrollments(req, res) {
       teacherId: req.query ? req.query.teacherId : undefined
     };
     if (req.teacherActor) filters.teacherId = String(req.teacherActor.id);
-    success(res, enrollmentService.listEnrollments({ tenantId }, filters), 'Enrollments retrieved');
+    let rows = enrollmentService.listEnrollments({ tenantId }, filters);
+    // A LINKED center's roster list is narrowed to its own enrollments. The
+    // post-filter composes with the teacher override above (intersection).
+    if (_centerId(req)) {
+      const allowed = centerOwnership.centerEnrollmentIds(tenantId, _centerId(req));
+      rows = rows.filter((e) => e && allowed.has(String(e.id)));
+    }
+    success(res, rows, 'Enrollments retrieved');
   } catch (err) {
     logger.error('enrollment.listEnrollments error:', err.message);
     error(res, 'Failed to retrieve enrollments', 500);
@@ -88,6 +105,11 @@ function getEnrollment(req, res) {
       if (owner && String(owner.teacherId) !== String(req.teacherActor.id)) {
         return _ownership403(res, 'Teachers may only view enrollments of their own classes');
       }
+    }
+    // Same-tenant Enrollment of another center: forbidden — a linked center
+    // only ever views its own enrollments.
+    if (_centerId(req) && !centerOwnership.centerOwnsEnrollment(tenantId, found.id, _centerId(req))) {
+      return _ownership403(res, 'Centers may only view enrollments of their own center');
     }
     success(res, found, 'Enrollment retrieved');
   } catch (err) {
@@ -113,6 +135,17 @@ function createEnrollment(req, res) {
       const target = classService.getClass({ tenantId }, req.body.classId);
       if (target && String(target.teacherId) !== String(req.teacherActor.id)) {
         return _ownership403(res, 'Teachers may only enroll students into their own classes');
+      }
+    }
+    // A LINKED center enrolls only INTO its own center: a classId that
+    // resolves to a known other-center class is refused here with 403, while
+    // an unresolvable classId falls through to the service's 400 so this
+    // check never becomes an existence oracle.
+    if (_centerId(req) && req.body && req.body.classId !== undefined &&
+        req.body.classId !== null && String(req.body.classId).trim() !== '') {
+      const target = classService.getClass({ tenantId }, req.body.classId);
+      if (target && centerOwnership.classCenterId(tenantId, target.id) !== _centerId(req)) {
+        return _ownership403(res, 'Centers may only enroll students into their own center');
       }
     }
     const created = enrollmentService.createEnrollment({ tenantId }, req.body || {});
@@ -144,6 +177,14 @@ function updateEnrollment(req, res) {
         return _ownership403(res, 'Teachers may only edit enrollments of their own classes');
       }
     }
+    // A LINKED center edits only its own enrollments (load-first 404/403).
+    if (_centerId(req)) {
+      const existing = enrollmentService.getEnrollment({ tenantId }, req.params.id);
+      if (!existing) return error(res, 'Enrollment not found', 404);
+      if (!centerOwnership.centerOwnsEnrollment(tenantId, existing.id, _centerId(req))) {
+        return _ownership403(res, 'Centers may only edit enrollments of their own center');
+      }
+    }
     const updated = enrollmentService.updateEnrollment({ tenantId }, req.params.id, req.body || {});
     if (!updated) return error(res, 'Enrollment not found', 404);
     success(res, updated, 'Enrollment updated');
@@ -172,6 +213,14 @@ function withdrawEnrollment(req, res) {
       const owner = existing.classId ? classService.getClass({ tenantId }, existing.classId) : null;
       if (owner && String(owner.teacherId) !== String(req.teacherActor.id)) {
         return _ownership403(res, 'Teachers may only withdraw enrollments of their own classes');
+      }
+    }
+    // A LINKED center withdraws only its own enrollments (load-first 404/403).
+    if (_centerId(req)) {
+      const existing = enrollmentService.getEnrollment({ tenantId }, req.params.id);
+      if (!existing) return error(res, 'Enrollment not found', 404);
+      if (!centerOwnership.centerOwnsEnrollment(tenantId, existing.id, _centerId(req))) {
+        return _ownership403(res, 'Centers may only withdraw enrollments of their own center');
       }
     }
     const withdrawn = enrollmentService.withdrawEnrollment({ tenantId }, req.params.id);

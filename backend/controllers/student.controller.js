@@ -19,6 +19,7 @@ const classService = require('../services/class.service');
 const attendanceService = require('../services/attendance.service');
 const schedulingService = require('../services/scheduling.service');
 const teacherOwnership = require('../middleware/teacherOwnership');
+const centerOwnership = require('../middleware/centerOwnership');
 const logger = require('../utils/logger');
 
 // Returns the trusted tenant id, or null after having already answered 400.
@@ -55,6 +56,13 @@ function _teacherOwnsStudent(req, tenantId, studentId) {
   return teacherOwnership.teacherOwnsStudent(tenantId, studentId, teacherId);
 }
 
+// CENTER OWNERSHIP — the server-resolved `req.centerActor.id` (never a
+// query/body value). A linked center sees only students enrolled in its own
+// classes. Unlinked callers (operators) are unchanged.
+function _centerId(req) {
+  return req && req.centerActor && req.centerActor.id ? String(req.centerActor.id) : '';
+}
+
 function listStudents(req, res) {
   try {
     const tenantId = _tenantIdOr400(req, res);
@@ -66,11 +74,18 @@ function listStudents(req, res) {
     };
     const rows = studentService.listStudents({ tenantId }, filters);
     // A LINKED teacher sees only the students enrolled in their own classes.
+    // A LINKED center sees only the students enrolled in its own classes.
+    // Both narrowings compose (intersection) when both actors are present.
+    let out = rows;
     if (_teacherId(req)) {
       const allowed = teacherOwnership.teacherStudentIds(tenantId, _teacherId(req));
-      return success(res, teacherOwnership.filterStudentsByTeacher(rows, allowed), 'Students retrieved');
+      out = teacherOwnership.filterStudentsByTeacher(out, allowed);
     }
-    success(res, rows, 'Students retrieved');
+    if (_centerId(req)) {
+      const allowed = centerOwnership.centerStudentIds(tenantId, _centerId(req));
+      out = centerOwnership.filterStudentsByCenter(out, allowed);
+    }
+    return success(res, out, 'Students retrieved');
   } catch (err) {
     logger.error('student.listStudents error:', err.message);
     error(res, 'Failed to retrieve students', 500);
@@ -87,6 +102,11 @@ function getStudent(req, res) {
     if (!found) return error(res, 'Student not found', 404);
     if (_teacherId(req) && !_teacherOwnsStudent(req, tenantId, found.id)) {
       return _ownership403(res, 'Teachers may only view their own students');
+    }
+    // Same-tenant student with no enrollment in the linked center: refused as
+    // forbidden — a linked center only ever reads its own students.
+    if (_centerId(req) && !centerOwnership.centerOwnsStudent(tenantId, found.id, _centerId(req))) {
+      return _ownership403(res, 'Centers may only view their own students');
     }
     success(res, found, 'Student retrieved');
   } catch (err) {
@@ -116,6 +136,18 @@ function updateStudent(req, res) {
   try {
     const tenantId = _tenantIdOr400(req, res);
     if (!tenantId) return;
+    // A LINKED center edits only students enrolled in its own classes: the
+    // row is loaded first so a foreign same-tenant Student is refused BEFORE
+    // the update runs (404 across tenants still wins — no existence leak).
+    // A student with no enrollment anywhere resolves to no center and is
+    // therefore uneditable by any center actor (fail closed).
+    if (_centerId(req)) {
+      const existing = studentService.getStudent({ tenantId }, req.params.id);
+      if (!existing) return error(res, 'Student not found', 404);
+      if (!centerOwnership.centerOwnsStudent(tenantId, existing.id, _centerId(req))) {
+        return _ownership403(res, 'Centers may only edit their own students');
+      }
+    }
     const updated = studentService.updateStudent({ tenantId }, req.params.id, req.body || {});
     if (!updated) return error(res, 'Student not found', 404);
     success(res, updated, 'Student updated');
@@ -132,6 +164,14 @@ function archiveStudent(req, res) {
   try {
     const tenantId = _tenantIdOr400(req, res);
     if (!tenantId) return;
+    // Same load-first 404/403 ordering as the update path.
+    if (_centerId(req)) {
+      const existing = studentService.getStudent({ tenantId }, req.params.id);
+      if (!existing) return error(res, 'Student not found', 404);
+      if (!centerOwnership.centerOwnsStudent(tenantId, existing.id, _centerId(req))) {
+        return _ownership403(res, 'Centers may only archive their own students');
+      }
+    }
     const archived = studentService.archiveStudent({ tenantId }, req.params.id);
     if (!archived) return error(res, 'Student not found', 404);
     success(res, archived, 'Student archived');
@@ -176,6 +216,11 @@ function getStudentProgress(req, res) {
     if (_teacherId(req) && !_teacherOwnsStudent(req, tenantId, student.id)) {
       return _ownership403(res, 'Teachers may only view progress for their own students');
     }
+    // A LINKED center reaches only the students enrolled in its own classes;
+    // the 404 above still precedes the 403 so existence is never leaked.
+    if (_centerId(req) && !centerOwnership.centerOwnsStudent(tenantId, student.id, _centerId(req))) {
+      return _ownership403(res, 'Centers may only view progress for their own students');
+    }
 
     // PROGRESS SCOPE — every count below is derived from THIS enrollment list,
     // so the scope must be the teacher's own enrollments, not every enrollment
@@ -185,7 +230,15 @@ function getStudentProgress(req, res) {
     // exactly the previous `{ studentId }`, so operator behavior is unchanged.
     const enrollmentFilters = { studentId };
     if (_teacherId(req)) enrollmentFilters.teacherId = _teacherId(req);
-    const enrollments = enrollmentService.listEnrollments(ctx, enrollmentFilters) || [];
+    let enrollments = enrollmentService.listEnrollments(ctx, enrollmentFilters) || [];
+    // CENTER SCOPE — every count below is derived from THIS enrollment list,
+    // so a linked center's report is intersected with its own enrollments.
+    // When both a teacher and a center actor are present the two narrowings
+    // compose (intersection), exactly like the list endpoint above.
+    if (_centerId(req)) {
+      const allowed = centerOwnership.centerEnrollmentIds(ctx.tenantId, _centerId(req));
+      enrollments = enrollments.filter((e) => e && allowed.has(String(e.id)));
+    }
     const enrollmentIds = new Set(enrollments.map((e) => String(e.id)));
     const classIds = new Set(
       enrollments

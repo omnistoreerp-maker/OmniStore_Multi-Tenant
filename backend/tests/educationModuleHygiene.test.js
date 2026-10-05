@@ -146,13 +146,15 @@ describe('the legacy Education Center surface stays gone', () => {
     }
   });
 
-  test('the one canonical /enrollments/:id/progress call is failure-tolerant', () => {
-    // The canonical Student workspace still asks for progress, but wraps it so a
-    // 404 degrades to null instead of breaking the workspace. Pin that so the
-    // call cannot become load-bearing while the route stays absent.
+  test('the student workspace calls the canonical progress route', () => {
+    // Progress renders from GET /students/:id/progress — the only progress
+    // route the backend serves. The old per-enrollment /enrollments/:id
+    // /progress shape 404s, so it must not come back; the canonical call
+    // stays failure-tolerant so a 403 degrades instead of breaking the
+    // workspace.
     const src = read('platform/education/education.js');
-    const call = src.match(/api\('GET',\s*'\/enrollments\/'[^\n]*?\/progress'\)\.catch\(/);
-    expect(call).toBeTruthy();
+    expect(src).toMatch(/api\('GET',\s*'\/students\/'\s*\+[^;]*?\+\s*'\/progress'\)\.catch\(/);
+    expect(src).not.toMatch(/\/enrollments\/'\s*\+[^;]*?\/progress/);
   });
 
   test('no lesson entity is fabricated by the progress endpoint', () => {
