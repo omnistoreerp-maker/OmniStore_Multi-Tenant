@@ -3182,6 +3182,373 @@
   }
 
 
+  // ---------------------------------------------------------------------
+  // TEACHER WRITE TOOLS — attendance and grading.
+  //
+  // This connects capabilities the backend ALREADY enforces to a UI. It adds
+  // no endpoint, no permission and no client-side authorization:
+  //
+  //   attendance -> POST /attendance/bulk  {attendanceDate, entries:[...]}
+  //   grading    -> POST /grading          {enrollmentId, grade}
+  //
+  // Both contracts are the committed ones (see backend/routes/attendance.routes.js,
+  // grading.routes.js and their services' WRITABLE_FIELDS). Nothing here
+  // widens what a teacher may do.
+  //
+  // SECURITY. The page is NOT a source of authority. It sends only the values
+  // a teacher types plus the enrollmentId the page already displayed. It never
+  // sends a tenant id, never sets X-Tenant-Id and never sends a teacher/owner
+  // id: the tenant and the actor identity (req.teacherActor) are resolved
+  // server-side, so the controller force-scopes the batch to this teacher's own
+  // classes and refuses a foreign entry with 403 before the service runs. A
+  // refused write is reported as refused - never retried, never worked around.
+  // ---------------------------------------------------------------------
+
+  // One success path for every write, through the toast infrastructure that
+  // already exists on this page (it also announces via the page live region).
+  function reportWriteSuccess(message) {
+    toast(message, false);
+  }
+
+  // 401 and 403 get plain, honest wording. The page does not invent a login
+  // flow: it points at the sign-in the project already has.
+  function reportWriteFailure(err, context) {
+    var status = err && err.status;
+    var message;
+    if (status === 401) {
+      message = 'انتهت الجلسة أو لم تسجل الدخول. ' +
+        (context || 'سجّل الدخول مرة أخرى ثم أعد المحاولة.') +
+        ' يمكنك استخدام زر تسجيل الدخول في الصفحة الرئيسية.';
+    } else if (status === 403) {
+      message = 'ليست لديك صلاحية لهذا الإجراء. ' +
+        (context || 'الإجراء مسموح ضمن صفوفك المسندة إليك فقط.');
+    } else {
+      message = explain(err);
+    }
+    toast(message, true);
+    return message;
+  }
+
+  // A labelled control shared by both tools, so every new input has a real
+  // <label for> association and the whole flow is keyboard reachable.
+  function labelledControl(tag, id, labelText, className) {
+    var wrap = el('div', 'edu-filter');
+    var label = el('label', null, labelText);
+    label.setAttribute('for', id);
+    wrap.appendChild(label);
+    var node = el(tag, className);
+    node.id = id;
+    wrap.appendChild(node);
+    return { wrap: wrap, node: node, label: label };
+  }
+  // ---------------------------------------------------------------------
+  // Teacher write tools. Rendered under the teacher's OWN class list, after
+  // the reads above resolved, so the classes and enrollments on screen are the
+  // very rows the page already displayed.
+  // ---------------------------------------------------------------------
+
+  function renderTeacherWriteTools(host, teacherId, classes, enrollments) {
+    host.appendChild(el('h2', 'edu-section-title', 'Teaching tools'));
+
+    var mine = classes.map(function (klass) { return String(klass.id); });
+    var rows = (enrollments || []).filter(function (row) {
+      return row && row.status === 'active' && mine.indexOf(String(row.classId || '')) >= 0;
+    });
+
+    if (!classes.length) {
+      host.appendChild(stateBlock('empty',
+        'You have no classes assigned yet, so there is nothing to record. ' +
+        'An Owner or Admin assigns classes to you.'));
+      return;
+    }
+    if (!rows.length) {
+      host.appendChild(stateBlock('empty',
+        'No student is enrolled in your classes yet. Enrollments are created from the Center workspace.'));
+      return;
+    }
+
+    host.appendChild(renderTeacherAttendance(classes, rows));
+    host.appendChild(renderTeacherGrading(classes, rows));
+  }
+
+  // ATTENDANCE. One save for the whole class, through the same bulk contract
+  // the operator Class Register already uses. Every student starts unmarked:
+  // nothing is marked on the user's behalf, and an unmarked row is simply not
+  // submitted. The statuses offered are the frozen ATTENDANCE_STATUSES list
+  // the service itself validates against.
+  function renderTeacherAttendance(classes, rows) {
+    var card = el('div', 'edu-card');
+    card.id = 'edu-teacher-attendance';
+    card.appendChild(el('h3', null, 'Record attendance'));
+
+    var picker = el('div', 'edu-filters');
+    card.appendChild(picker);
+
+    var classControl = labelledControl('select', 'edu-teacher-att-class', 'Class', 'edu-select');
+    classes.forEach(function (klass) {
+      var opt = el('option', null, esc(refLabel('classes', klass) + (klass.classCode ? ' ' + klass.classCode : '')));
+      opt.value = String(klass.id);
+      classControl.node.appendChild(opt);
+    });
+    picker.appendChild(classControl.wrap);
+
+    var dateControl = labelledControl('input', 'edu-teacher-att-date', 'Date', 'edu-input');
+    dateControl.node.type = 'date';
+    dateControl.node.dir = 'ltr';
+    // The service refuses a future day, so the control is capped rather than
+    // letting the request fail.
+    dateControl.node.max = today();
+    dateControl.node.value = today();
+    picker.appendChild(dateControl.wrap);
+
+    var allPresent = el('button', 'edu-btn edu-btn-outline', '<span>Mark all present</span>');
+    allPresent.type = 'button';
+    allPresent.setAttribute('aria-label', 'Mark every student in this class present');
+    card.appendChild(allPresent);
+
+    var listHost = el('div', null);
+    listHost.id = 'edu-teacher-att-rows';
+    card.appendChild(listHost);
+
+    var save = el('button', 'edu-btn edu-btn-primary', '<span>Save attendance</span>');
+    save.type = 'button';
+    save.disabled = true;
+    card.appendChild(save);
+
+    var state = { classId: classes[0] ? String(classes[0].id) : '', marks: {} };
+
+    function visibleRows() {
+      return rows.filter(function (row) { return String(row.classId || '') === state.classId; });
+    }
+
+    function paint() {
+      var list = visibleRows();
+      listHost.textContent = '';
+      if (!list.length) {
+        listHost.appendChild(stateBlock('empty', 'No active enrollment in this class.'));
+        save.disabled = true;
+        return;
+      }
+      var wrap = el('div', 'edu-table-wrap');
+      var table = el('table', 'edu-table');
+      table.innerHTML = '<thead><tr><th scope="col">Student</th><th scope="col">Status</th>' +
+        '<th scope="col">Notes</th></tr></thead>';
+      var tbody = document.createElement('tbody');
+      list.forEach(function (row) {
+        var tr = document.createElement('tr');
+        var who = document.createElement('td');
+        who.innerHTML = text(refLabel('students', row.studentId));
+        tr.appendChild(who);
+
+        var statusCell = document.createElement('td');
+        var statusId = 'edu-att-status-' + String(row.id);
+        var statusLabel = el('label', 'edu-sr-only', 'Attendance status for this student');
+        statusLabel.setAttribute('for', statusId);
+        var select = el('select', 'edu-select');
+        select.id = statusId;
+        var blank = el('option', null, 'Not marked');
+        blank.value = '';
+        select.appendChild(blank);
+        ATTENDANCE_STATUSES.forEach(function (value) {
+          var opt = el('option', null, esc(value));
+          opt.value = value;
+          select.appendChild(opt);
+        });
+        select.value = state.marks[row.id] && state.marks[row.id].status ? state.marks[row.id].status : '';
+        select.addEventListener('change', function () {
+          var current = state.marks[row.id] || {};
+          current.status = select.value;
+          state.marks[row.id] = current;
+          save.disabled = false;
+        });
+        statusCell.appendChild(statusLabel);
+        statusCell.appendChild(select);
+        tr.appendChild(statusCell);
+
+        var notesCell = document.createElement('td');
+        var notesId = 'edu-att-notes-' + String(row.id);
+        var notesLabel = el('label', 'edu-sr-only', 'Notes for this student');
+        notesLabel.setAttribute('for', notesId);
+        var notes = el('input', 'edu-input');
+        notes.id = notesId;
+        notes.maxLength = MAX_STRING_LEN;
+        notes.placeholder = 'Optional';
+        notes.value = state.marks[row.id] ? (state.marks[row.id].notes || '') : '';
+        notes.addEventListener('input', function () {
+          var current = state.marks[row.id] || {};
+          current.notes = notes.value;
+          state.marks[row.id] = current;
+        });
+        notesCell.appendChild(notesLabel);
+        notesCell.appendChild(notes);
+        tr.appendChild(notesCell);
+
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      wrap.appendChild(table);
+      listHost.appendChild(wrap);
+    }
+
+    classControl.node.value = state.classId;
+    classControl.node.addEventListener('change', function () {
+      state.classId = classControl.node.value;
+      paint();
+    });
+
+    allPresent.addEventListener('click', function () {
+      visibleRows().forEach(function (row) {
+        var current = state.marks[row.id] || {};
+        current.status = 'present';
+        state.marks[row.id] = current;
+      });
+      save.disabled = false;
+      paint();
+    });
+
+    save.addEventListener('click', function () {
+      var entries = [];
+      visibleRows().forEach(function (row) {
+        var mark = state.marks[row.id];
+        if (!mark || !mark.status) return;
+        entries.push({ enrollmentId: String(row.id), status: mark.status, notes: mark.notes || '' });
+      });
+      if (!entries.length) {
+        toast('Mark at least one student before saving.', true);
+        return;
+      }
+      var date = dateControl.node.value;
+      if (!date) {
+        toast('Choose a date before saving.', true);
+        return;
+      }
+      save.disabled = true;
+      // The payload carries NO tenant, NO actor and NO class identity: the
+      // server resolves all three from the signed session.
+      api('POST', '/attendance/bulk', { attendanceDate: date, entries: entries })
+        .then(function () {
+          reportWriteSuccess('Attendance saved for ' + entries.length + ' student(s).');
+          state.marks = {};
+          save.disabled = true;
+          paint();
+        }, function (err) {
+          save.disabled = false;
+          reportWriteFailure(err, 'Attendance could not be saved.');
+        });
+    });
+
+    paint();
+    return card;
+  }
+
+  // GRADING. POST /grading with the service's single canonical `grade` string
+  // on one enrollment. No scale, no percentage and no total is invented here -
+  // the repository defines none.
+  function renderTeacherGrading(classes, rows) {
+    var card = el('div', 'edu-card');
+    card.id = 'edu-teacher-grading';
+    card.appendChild(el('h3', null, 'Record a grade'));
+    card.appendChild(el('p', 'edu-card-sub',
+      'One descriptive grade per enrolled student, recorded exactly as your institution writes it. ' +
+      'No percentage, score or ranking is calculated.'));
+
+    var picker = el('div', 'edu-filters');
+    card.appendChild(picker);
+
+    var classControl = labelledControl('select', 'edu-teacher-grade-class', 'Class', 'edu-select');
+    classes.forEach(function (klass) {
+      var opt = el('option', null, esc(refLabel('classes', klass) + (klass.classCode ? ' ' + klass.classCode : '')));
+      opt.value = String(klass.id);
+      classControl.node.appendChild(opt);
+    });
+    picker.appendChild(classControl.wrap);
+
+    var listHost = el('div', null);
+    listHost.id = 'edu-teacher-grade-rows';
+    card.appendChild(listHost);
+
+    var state = { classId: classes[0] ? String(classes[0].id) : '', values: {} };
+
+    function visibleRows() {
+      return rows.filter(function (row) { return String(row.classId || '') === state.classId; });
+    }
+
+    function paint() {
+      var list = visibleRows();
+      listHost.textContent = '';
+      if (!list.length) {
+        listHost.appendChild(stateBlock('empty', 'No active enrollment in this class.'));
+        return;
+      }
+      var wrap = el('div', 'edu-table-wrap');
+      var table = el('table', 'edu-table');
+      table.innerHTML = '<thead><tr><th scope="col">Student</th><th scope="col">Grade</th>' +
+        '<th scope="col"><span class="edu-sr-only">Actions</span></th></tr></thead>';
+      var tbody = document.createElement('tbody');
+      list.forEach(function (row) {
+        var tr = document.createElement('tr');
+        var who = document.createElement('td');
+        who.innerHTML = text(refLabel('students', row.studentId));
+        tr.appendChild(who);
+
+        var gradeCell = document.createElement('td');
+        var inputId = 'edu-grade-value-' + String(row.id);
+        var gradeLabel = el('label', 'edu-sr-only', 'Grade for this student');
+        gradeLabel.setAttribute('for', inputId);
+        var input = el('input', 'edu-input');
+        input.id = inputId;
+        input.type = 'text';
+        input.maxLength = 32;
+        input.dir = 'ltr';
+        input.placeholder = 'Grade';
+        input.value = state.values[row.id] ? state.values[row.id] : '';
+        input.addEventListener('input', function () {
+          state.values[row.id] = input.value;
+        });
+        gradeCell.appendChild(gradeLabel);
+        gradeCell.appendChild(input);
+        tr.appendChild(gradeCell);
+
+        var actionCell = document.createElement('td');
+        var saveOne = el('button', 'edu-btn edu-btn-outline edu-btn-sm', '<span>Save</span>');
+        saveOne.type = 'button';
+        saveOne.setAttribute('aria-label', 'Save the grade for this student');
+        saveOne.addEventListener('click', function () {
+          var value = String(input.value || '').trim();
+          if (!value) {
+            toast('Enter a grade before saving.', true);
+            input.focus();
+            return;
+          }
+          saveOne.disabled = true;
+          api('POST', '/grading', { enrollmentId: String(row.id), grade: value })
+            .then(function () {
+              saveOne.disabled = false;
+              reportWriteSuccess('Grade saved.');
+            }, function (err) {
+              saveOne.disabled = false;
+              reportWriteFailure(err, 'The grade could not be saved.');
+            });
+        });
+        actionCell.appendChild(saveOne);
+        tr.appendChild(actionCell);
+
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      wrap.appendChild(table);
+      listHost.appendChild(wrap);
+    }
+
+    classControl.node.value = state.classId;
+    classControl.node.addEventListener('change', function () {
+      state.classId = classControl.node.value;
+      paint();
+    });
+
+    paint();
+    return card;
+  }
   // The linked teacher is resolved once through GET /teachers/me: a real
   // backend record, or null when no teacher is linked to this account. The
   // request is cached for the session so every visit shows the same answer.
@@ -3356,11 +3723,21 @@
       table.appendChild(tbody);
       wrap.appendChild(table);
       host.appendChild(wrap);
+
+      // Teacher write tools (G2): rendered for the LINKED teacher only. When
+      // the picker shows another teacher's record nothing writable is drawn,
+      // and even then the server would refuse it - teacherActor decides the
+      // scope, never this comparison. The classes and enrollments used here
+      // are the same arrays the page already resolved and displayed above.
+      if (state.portalTeacher && state.portalTeacher.id &&
+          String(state.portalTeacher.id) === String(teacherId)) {
+        renderTeacherWriteTools(host, teacherId, classes, enrollments);
+      }
     }).catch(function (err) {
       host.textContent = '';
       host.appendChild(banner('error', explain(err)));
     });
-  }
+}
 
   function renderStudentWorkspace(body) {
     body.appendChild(el('h2', 'edu-section-title', 'Student workspace'));
