@@ -818,7 +818,12 @@ check('working-tree diff touches only intended platform files', () => {
       'backend/controllers/booking.controller.js',
       'backend/controllers/rating.controller.js',
       'backend/controllers/educationPack.controller.js',
-      'backend/tests/educationModuleHygiene.test.js'
+      'backend/tests/educationModuleHygiene.test.js',
+      // Education P1 academic foundation: years/terms/subjects/groups
+      // entities, course.subjectId + class.termId same-center wiring, and the
+      // academic center-derivation extensions.
+      'backend/services/course.service.js',
+      'backend/middleware/centerOwnership.js'
     ]);
   const allowedUntracked = new Set([
   'backend/tests/controlCenterSecurityFixes.test.js',
@@ -831,6 +836,21 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/middleware/centerActor.js',
     'backend/middleware/centerOwnership.js',
     'backend/tests/centerIsolation.test.js',
+    // Education P1 academic foundation: years/terms/subjects/groups
+    // services, controllers, routes and the foundation matrix suite.
+    'backend/services/academicYear.service.js',
+    'backend/services/term.service.js',
+    'backend/services/subject.service.js',
+    'backend/services/group.service.js',
+    'backend/controllers/academicYear.controller.js',
+    'backend/controllers/term.controller.js',
+    'backend/controllers/subject.controller.js',
+    'backend/controllers/group.controller.js',
+    'backend/routes/academicYear.routes.js',
+    'backend/routes/term.routes.js',
+    'backend/routes/subject.routes.js',
+    'backend/routes/group.routes.js',
+    'backend/tests/academicFoundation.test.js',
     'backend/tests/platformSections.students.test.js',
     // Support activation cycle: operator workflow tests.
     'backend/tests/internalChangeCenter.workflow.test.js',
@@ -990,7 +1010,12 @@ check('working-tree diff touches only intended platform files', () => {
       'backend/controllers/grading.controller.js',
       'backend/controllers/booking.controller.js',
       'backend/controllers/rating.controller.js',
-      'backend/controllers/educationPack.controller.js'
+      'backend/controllers/educationPack.controller.js',
+      // Education P1 academic foundation: same-center wiring state lives in
+      // these two files (course.subjectId, class.termId, academic center
+      // derivation).
+      'backend/services/course.service.js',
+      'backend/middleware/centerOwnership.js'
     ]);
   // Negative boundaries: these must NEVER appear in a working-tree diff or be added.
   //

@@ -140,6 +140,7 @@ describe('registry structure', () => {
 // names are KNOWN to the registry, but no operator role is granted them by
 // default and nothing makes them discoverable in the Platform shell.
 const EDUCATION_PERMISSIONS = [
+  'education.academicYears.view', 'education.academicYears.edit',
   'education.attendance.view', 'education.attendance.edit',
   'education.bookings.view', 'education.bookings.edit',
   'education.centers.view', 'education.centers.edit',
@@ -147,12 +148,15 @@ const EDUCATION_PERMISSIONS = [
   'education.courses.view', 'education.courses.edit',
   'education.enrollments.view', 'education.enrollments.edit',
   'education.grading.view', 'education.grading.edit',
+  'education.groups.view', 'education.groups.edit',
   'education.pack.view', 'education.pack.edit',
   'education.programs.view', 'education.programs.edit',
   'education.ratings.view', 'education.ratings.edit',
   'education.scheduling.view', 'education.scheduling.edit',
   'education.students.view', 'education.students.edit',
-  'education.teachers.view', 'education.teachers.edit'
+  'education.subjects.view', 'education.subjects.edit',
+  'education.teachers.view', 'education.teachers.edit',
+  'education.terms.view', 'education.terms.edit'
 ];
 
 describe('education permission group', () => {
@@ -161,12 +165,12 @@ describe('education permission group', () => {
     expect(matches).toHaveLength(1);
   });
 
-  test('education exposes exactly 13 view/edit permission pairs', () => {
+  test('education exposes exactly 17 view/edit permission pairs', () => {
     const perms = registry.groups().find(g => g.group === 'education').permissions;
-    expect(perms).toHaveLength(26);
+    expect(perms).toHaveLength(34);
 
     const resources = perms.map(p => p.split('.')[1]);
-    expect(new Set(resources).size).toBe(13);
+    expect(new Set(resources).size).toBe(17);
 
     for (const resource of resources) {
       expect(perms).toContain(`education.${resource}.view`);
@@ -174,8 +178,8 @@ describe('education permission group', () => {
     }
   });
 
-  test('all 26 education permission names are registered and enforceable', () => {
-    expect(EDUCATION_PERMISSIONS).toHaveLength(26);
+  test('all 34 education permission names are registered and enforceable', () => {
+    expect(EDUCATION_PERMISSIONS).toHaveLength(34);
     const registered = registry.groups().flatMap(g => g.permissions);
     for (const permission of EDUCATION_PERMISSIONS) {
       expect(registered).toContain(permission);

@@ -452,8 +452,8 @@ describe('Education discoverability grants no access', () => {
     gateServer = null;
   });
 
-  test('the 26 education permissions are still registered and enforceable', () => {
-    expect(EDUCATION_PERMISSIONS).toHaveLength(26);
+  test('the 34 education permissions are still registered and enforceable', () => {
+    expect(EDUCATION_PERMISSIONS).toHaveLength(34);
     for (const permission of EDUCATION_PERMISSIONS) {
       expect(registryKnows(permission)).toBe(true);
     }
@@ -485,6 +485,10 @@ describe('Education discoverability grants no access', () => {
     '/api/v1/tenant/education/grading',
     '/api/v1/tenant/education/bookings',
     '/api/v1/tenant/education/ratings',
+    '/api/v1/tenant/education/academic-years',
+    '/api/v1/tenant/education/terms',
+    '/api/v1/tenant/education/subjects',
+    '/api/v1/tenant/education/groups',
     '/api/v1/tenant/education/pack'
   ];
 
