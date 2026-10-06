@@ -112,9 +112,7 @@ describe('GET /api/v1/platform-public', () => {
     expect(typeof res.body.data.visitorsNow).toBe('number');
     expect(typeof res.body.data.registeredUsers).toBe('number');
     expect(typeof res.body.data.activeBusinesses).toBe('number');
-    expect(typeof res.body.data.ordersToday).toBe('number');
-    expect(res.body.data.ordersToday).toBeGreaterThanOrEqual(0);
-    expect(Number.isInteger(res.body.data.ordersToday)).toBe(true);
+    expect(res.body.data.ordersToday).toBeNull();
     expect(res.body.data.registeredUsers).toBeGreaterThanOrEqual(1);
     expect(res.body.data.activeBusinesses).toBeGreaterThanOrEqual(1);
   });
@@ -327,15 +325,10 @@ describe('GET /api/v1/platform-public', () => {
     expect(raw).not.toContain('password');
   });
 
-  test('30: ordersToday is a safe aggregate number when the sales source is readable', async () => {
+  test('30: ordersToday is null when no safe source exists', async () => {
     const res = await request(server).get('/api/v1/platform-public/stats');
     expect(res.status).toBe(200);
-    expect(typeof res.body.data.ordersToday).toBe('number');
-    expect(res.body.data.ordersToday).toBeGreaterThanOrEqual(0);
-    expect(Number.isInteger(res.body.data.ordersToday)).toBe(true);
-    // Never leak invoice records / PII through the public metric.
-    expect(Array.isArray(res.body.data.ordersToday)).toBe(false);
-    expect(typeof res.body.data.ordersToday).not.toBe('object');
+    expect(res.body.data.ordersToday).toBeNull();
   });
 
   // ---------- public pricing ----------

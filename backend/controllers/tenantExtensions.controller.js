@@ -17,11 +17,11 @@ function _trustedTenantId(req) {
 
 // ---------------- add-ons ----------------
 
-async function listMyAddons(req, res) {
+function listMyAddons(req, res) {
   try {
     const tenantId = _trustedTenantId(req);
     if (!tenantId) return error(res, 'Tenant context required', 400);
-    const addons = await addonService.listAddonsForTenant(tenantId);
+    const addons = addonService.listAddonsForTenant(tenantId);
     success(res, { addons }, 'Add-ons retrieved');
   } catch (err) {
     logger.error('tenantExtensions.listMyAddons error:', err.message);
@@ -29,12 +29,12 @@ async function listMyAddons(req, res) {
   }
 }
 
-async function upsertMyAddon(req, res) {
+function upsertMyAddon(req, res) {
   try {
     const tenantId = _trustedTenantId(req);
     if (!tenantId) return error(res, 'Tenant context required', 400);
     const { addon_key, status, expires_at } = req.body || {};
-    const record = await addonService.upsertAddonForTenant(tenantId, addon_key, status, expires_at);
+    const record = addonService.upsertAddonForTenant(tenantId, addon_key, status, expires_at);
     if (!record) return error(res, 'Invalid addon key', 400);
     success(res, record, 'Add-on saved');
   } catch (err) {
@@ -43,11 +43,11 @@ async function upsertMyAddon(req, res) {
   }
 }
 
-async function deleteMyAddon(req, res) {
+function deleteMyAddon(req, res) {
   try {
     const tenantId = _trustedTenantId(req);
     if (!tenantId) return error(res, 'Tenant context required', 400);
-    const removed = await addonService.removeAddonForTenant(tenantId, req.params.addonKey);
+    const removed = addonService.removeAddonForTenant(tenantId, req.params.addonKey);
     if (!removed) return error(res, 'Add-on not found', 404);
     success(res, null, 'Add-on removed');
   } catch (err) {
@@ -58,13 +58,11 @@ async function deleteMyAddon(req, res) {
 
 // ---------------- custom domains ----------------
 
-async function listMyCustomDomains(req, res) {
+function listMyCustomDomains(req, res) {
   try {
     const tenantId = _trustedTenantId(req);
     if (!tenantId) return error(res, 'Tenant context required', 400);
-    const all = await domainService.listDomainsForAdmin();
-    // Server-side filter by the TRUSTED tenant id — a tenant only ever sees
-    // its own registered domains, never the platform-wide store.
+    const all = domainService.listDomainsForAdmin();
     const mine = all.filter(d => String(d.tenantId) === tenantId);
     success(res, { domains: mine }, 'Custom domains retrieved');
   } catch (err) {
@@ -73,14 +71,14 @@ async function listMyCustomDomains(req, res) {
   }
 }
 
-async function registerMyCustomDomain(req, res) {
+function registerMyCustomDomain(req, res) {
   try {
     const tenantId = _trustedTenantId(req);
     if (!tenantId) return error(res, 'Tenant context required', 400);
     const { custom_domain } = req.body || {};
     const domain = String(custom_domain || '').trim();
     if (!domain) return error(res, 'custom_domain is required', 400);
-    const record = await domainService.addCustomDomain({ tenantId, customDomain: domain });
+    const record = domainService.addCustomDomain({ tenantId, customDomain: domain });
     if (!record) return error(res, 'Failed to register domain', 500);
     success(res, record, 'Custom domain registered');
   } catch (err) {

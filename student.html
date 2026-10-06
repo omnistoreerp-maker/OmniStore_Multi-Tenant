@@ -119,6 +119,40 @@
       <div id="calcResult" style="margin-top:10px;font-size:13px;color:#334155;display:none"></div>
     </section>
 
+    <!-- Print Rates -->
+    <section class="card" aria-labelledby="rates-h">
+      <h2 id="rates-h">🏷️ Print Rates</h2>
+      <p class="sub">Configure pricing per paper size, print type, and duplex mode. Saving an existing combination updates it.</p>
+      <div id="ratesTable" class="table-wrap"></div>
+      <div class="grid-3" style="margin-top:12px">
+        <div class="form-group">
+          <label>Paper Size</label>
+          <select id="ratePaperSize"></select>
+        </div>
+        <div class="form-group">
+          <label>Print Type</label>
+          <select id="ratePrintType"></select>
+        </div>
+        <div class="form-group">
+          <label>Duplex</label>
+          <select id="rateDuplex"></select>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Price per Page (EGP) <span style="color:#ef4444">*</span></label>
+          <input id="ratePricePerPage" type="number" min="0.01" step="0.01" placeholder="0.25">
+        </div>
+        <div class="form-group">
+          <label>Binding Price (EGP)</label>
+          <input id="rateBindingPrice" type="number" min="0" step="0.01" value="0">
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary" type="button" onclick="submitRate()">Save Rate</button>
+      </div>
+    </section>
+
     <!-- New Print Order -->
     <section class="card" aria-labelledby="order-h">
       <h2 id="order-h">🖨️ New Print Order</h2>
@@ -424,6 +458,80 @@
         }
       };
 
+      var RATE_PAPER_SIZES = ['A4', 'A3', 'A5'];
+      var RATE_PRINT_TYPES = [
+        { value: 'bw', label: 'Black & White' },
+        { value: 'color', label: 'Color' }
+      ];
+      var RATE_DUPLEX = [
+        { value: 'single', label: 'Simplex' },
+        { value: 'double', label: 'Duplex' }
+      ];
+
+      function fillRateSelect(sel, items, valueKey, labelKey) {
+        sel.innerHTML = items.map(function (it) {
+          var v = typeof it === 'string' ? it : it[valueKey];
+          var l = typeof it === 'string' ? it : it[labelKey];
+          return '<option value="' + escapeHtml(v) + '">' + escapeHtml(l) + '</option>';
+        }).join('');
+      }
+
+      window.renderRates = async function () {
+        var container = document.getElementById('ratesTable');
+        try {
+          var rates = await apiCall('GET', '/rates');
+          if (!Array.isArray(rates) || !rates.length) {
+            container.innerHTML = '<div class="empty">No print rates configured yet. Add the first price below.</div>';
+            return;
+          }
+          var html = '<table><thead><tr><th>Paper</th><th>Type</th><th>Duplex</th><th>Price / Page</th><th>Binding</th><th>Actions</th></tr></thead><tbody>';
+          rates.forEach(function (r) {
+            html += '<tr>' +
+              '<td>' + escapeHtml(r.paperSize) + '</td>' +
+              '<td>' + escapeHtml(r.printType) + '</td>' +
+              '<td>' + escapeHtml(r.duplexType) + '</td>' +
+              '<td>EGP ' + Number(r.pricePerPage).toFixed(2) + '</td>' +
+              '<td>EGP ' + Number(r.bindingPrice || 0).toFixed(2) + '</td>' +
+              '<td><button class="btn btn-outline btn-sm" type="button" data-rate-id="' + escapeHtml(r.id) + '" onclick="deleteRate(this.getAttribute(\'data-rate-id\'))">Delete</button></td>' +
+              '</tr>';
+          });
+          html += '</tbody></table>';
+          container.innerHTML = html;
+        } catch (e) {
+          container.innerHTML = '<div class="empty">' + escapeHtml(e.message || 'Failed to load print rates.') + '</div>';
+        }
+      };
+
+      window.submitRate = async function () {
+        var data = {
+          paperSize: document.getElementById('ratePaperSize').value,
+          printType: document.getElementById('ratePrintType').value,
+          duplexType: document.getElementById('rateDuplex').value,
+          pricePerPage: parseFloat(document.getElementById('ratePricePerPage').value || '0'),
+          bindingPrice: parseFloat(document.getElementById('rateBindingPrice').value || '0')
+        };
+        if (!data.pricePerPage || data.pricePerPage <= 0) { toast('Price per page must be greater than 0', true); return; }
+        if (data.bindingPrice < 0) { toast('Binding price cannot be negative', true); return; }
+        try {
+          await apiCall('POST', '/rates', data);
+          toast('Print rate saved');
+          renderRates();
+        } catch (e) {
+          toast(e.message || 'Failed to save print rate', true);
+        }
+      };
+
+      window.deleteRate = async function (rateId) {
+        if (!rateId) return;
+        try {
+          await apiCall('DELETE', '/rates/' + encodeURIComponent(rateId));
+          toast('Print rate deleted');
+          renderRates();
+        } catch (e) {
+          toast(e.message || 'Failed to delete print rate', true);
+        }
+      };
+
       function escapeHtml(str) {
         return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
       }
@@ -445,6 +553,11 @@
       loadSettings();
       renderOrders();
       renderPasses();
+
+      fillRateSelect(document.getElementById('ratePaperSize'), RATE_PAPER_SIZES);
+      fillRateSelect(document.getElementById('ratePrintType'), RATE_PRINT_TYPES, 'value', 'label');
+      fillRateSelect(document.getElementById('rateDuplex'), RATE_DUPLEX, 'value', 'label');
+      renderRates();
     })();
   </script>
 </body>

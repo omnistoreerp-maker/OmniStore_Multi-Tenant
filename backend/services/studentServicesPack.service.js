@@ -60,9 +60,9 @@ function _findRate(rates, paperSize, printType, duplexType) {
 
 function listRates(tenantContext) {
   const tid = _tenantId(tenantContext);
-  if (!tid) throw new Error('Tenant context is required');
   const doc = _readStore();
   const rates = Array.isArray(doc.printRates) ? doc.printRates : [];
+  if (!tid) return rates.slice();
   return rates.filter(r => String(r.tenantId || '') === tid);
 }
 
@@ -126,10 +126,9 @@ function deleteRate(tenantContext, rateId) {
 
 function calculateCost(tenantContext, pages, copies, paperSize, printType, duplexType, hasBinding) {
   const tid = _tenantId(tenantContext);
-  if (!tid) throw new Error('Tenant context is required');
   const doc = _readStore();
   const rates = Array.isArray(doc.printRates) ? doc.printRates : [];
-  const tenantRates = rates.filter(r => String(r.tenantId || '') === tid);
+  const tenantRates = tid ? rates.filter(r => String(r.tenantId || '') === tid) : rates;
 
   const rate = _findRate(tenantRates, paperSize, printType, duplexType);
   if (!rate) throw new Error('No print rate configured for the selected options');
@@ -168,7 +167,7 @@ function createOrder(tenantContext, data) {
 
   if (!studentPhone) throw new Error('studentPhone is required');
 
-  const cost = calculateCost({ tenantId: tid }, totalPages, copies, paperSize, printType, duplexType, hasBinding);
+  const cost = calculateCost(tid, totalPages, copies, paperSize, printType, duplexType, hasBinding);
 
   const doc = _readStore();
   const orders = Array.isArray(doc.printOrders) ? doc.printOrders : [];
@@ -202,10 +201,12 @@ function createOrder(tenantContext, data) {
 
 function listOrders(tenantContext, query = {}) {
   const tid = _tenantId(tenantContext);
-  if (!tid) throw new Error('Tenant context is required');
   const doc = _readStore();
   let orders = Array.isArray(doc.printOrders) ? doc.printOrders : [];
-  orders = orders.filter(o => String(o.tenantId || '') === tid);
+
+  if (tid) {
+    orders = orders.filter(o => String(o.tenantId || '') === tid);
+  }
 
   const status = query.status;
   if (status) {
@@ -296,10 +297,12 @@ function createPass(tenantContext, data) {
 
 function listPasses(tenantContext, query = {}) {
   const tid = _tenantId(tenantContext);
-  if (!tid) throw new Error('Tenant context is required');
   const doc = _readStore();
   let passes = Array.isArray(doc.studentPasses) ? doc.studentPasses : [];
-  passes = passes.filter(p => String(p.tenantId || '') === tid);
+
+  if (tid) {
+    passes = passes.filter(p => String(p.tenantId || '') === tid);
+  }
 
   const month = String(query.month || '').trim();
   if (month) {
@@ -327,19 +330,14 @@ function listPasses(tenantContext, query = {}) {
   };
 }
 
-function _tenantSettings(doc, tid) {
-  const byTenant = doc.tenantSettings && typeof doc.tenantSettings === 'object' ? doc.tenantSettings : {};
-  const current = byTenant[tid] || {};
-  return {
-    whatsappNumber: String(current.whatsappNumber || ''),
-    currency: String(current.currency || 'EGP')
-  };
-}
-
 function getSettings(tenantContext) {
   const tid = _tenantId(tenantContext);
-  if (!tid) throw new Error('Tenant context is required');
-  return _tenantSettings(_readStore(), tid);
+  const doc = _readStore();
+  const settings = doc.settings || {};
+  return {
+    whatsappNumber: String(settings.whatsappNumber || ''),
+    currency: String(settings.currency || 'EGP')
+  };
 }
 
 function updateSettings(tenantContext, data) {
@@ -347,12 +345,12 @@ function updateSettings(tenantContext, data) {
   if (!tid) throw new Error('Tenant context is required');
 
   const doc = _readStore();
-  const current = _tenantSettings(doc, tid);
+  const current = doc.settings || {};
   const next = {
     whatsappNumber: String(data.whatsappNumber || current.whatsappNumber || '').trim(),
     currency: String(data.currency || current.currency || 'EGP').trim()
   };
-  doc.tenantSettings = Object.assign({}, doc.tenantSettings || {}, { [tid]: next });
+  doc.settings = next;
   _writeStore(doc);
   return next;
 }
@@ -366,7 +364,7 @@ async function sendOrderReceipt(tenantContext, orderId) {
   const order = orders.find(o => String(o.id) === String(orderId) && String(o.tenantId || '') === tid);
   if (!order) throw new Error('Order not found');
 
-  const settings = _tenantSettings(doc, tid);
+  const settings = doc.settings || {};
   const phone = String(settings.whatsappNumber || order.studentPhone || '').trim();
   if (!phone) throw new Error('No WhatsApp number configured');
 
