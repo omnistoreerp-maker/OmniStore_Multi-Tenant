@@ -1,0 +1,31 @@
+﻿:root {
+  --bg: #f7f9fb;
+  --surface: #ffffff;
+}
+body { font-family: system-ui, sans-serif; }
+.container { max-width: 900px; margin: 0 auto; padding: 24px 16px; }
+.site-header { background: linear-gradient(135deg, #0f172a, #1e293b); color: #fff; padding: 48px 16px; text-align: center; }
+.main-content { background: var(--surface); border: 1px solid #e5e7eb; border-radius: 16px; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08); margin: -40px auto 32px; padding: 48px 32px; }
+h1 { font-size: 32px; margin: 32px 0 16px; }
+h2 { font-size: 22px; margin: 28px 0 12px; color: #1e293b; }
+h3 { font-size: 16px; margin: 20px 0 8px; color: #374151; }
+p { margin: 0 0 1em; }
+ul { margin: 0 0 1em; padding-right: 20px; }
+li { margin-bottom: 4px; }
+.table-of-contents { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px 24px; margin: 24px 0; }
+.table-of-contents h2 { font-size: 16px; margin-top: 0; margin-bottom: 12px; color: #374151; }
+.table-of-contents ol { margin: 0; padding-right: 20px; }
+.table-of-contents li { margin-bottom: 6px; }
+.table-of-contents a { color: #0ea5e9; text-decoration: none; }
+.table-of-contents a:hover { text-decoration: underline; }
+.clause { margin-bottom: 24px; }
+.clause-title { font-size: 16px; font-weight: 700; margin-bottom: 8px; color: #1e293b; }
+.back-link { display: inline-flex; align-items: center; gap: 6px; color: #6b7280; text-decoration: none; font-size: 14px; margin-top: 32px; }
+.back-link:hover { color: #0ea5e9; }
+.site-footer { text-align: center; color: #6b7280; font-size: 13px; padding: 32px 0; }
+.site-footer .footer-links { display: flex; gap: 16px; justify-content: center; margin-bottom: 16px; flex-wrap: wrap; }
+.site-footer .footer-links a { color: #6b7280; text-decoration: none; font-size: 13px; }
+.site-footer .footer-links a:hover { color: #1f2937; }
+@media (max-width: 600px) { .main-content { padding: 32px 16px; } .site-header { padding: 32px 12px; } }
+[dir="rtl"] .main-content { direction: rtl; text-align: right; }
+[dir="rtl"] ul { padding-right: 0; padding-left: 20px; }

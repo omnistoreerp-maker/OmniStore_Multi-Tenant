@@ -323,7 +323,25 @@ body {
   text-align: center;
   color: var(--muted);
   font-size: 13px;
-  padding: 8px 0 32px;
+  padding: 16px 0 32px;
+}
+.footer-links {
+  display: flex;
+  gap: 24px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.footer-links a {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+.footer-links a:hover {
+  color: var(--accent);
+  text-decoration: underline;
 }
 
 @media (max-width: 880px) {
@@ -361,6 +379,7 @@ body {
 [dir="rtl"] .section-icon { margin-left: 0; margin-right: 0; }
 [dir="rtl"] .activity-card { text-align: right; }
 [dir="rtl"] .footer { text-align: center; }
+[dir="rtl"] .footer-links { justify-content: center; }
 [dir="rtl"] .cta { text-align: center; }
 [dir="rtl"] .activity-grid { direction: rtl; }
 

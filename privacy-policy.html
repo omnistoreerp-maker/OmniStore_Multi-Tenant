@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="OmniStore ERP Privacy Policy — how we collect, use, and protect your data.">
+  <title>Privacy Policy | OmniStore ERP</title>
+  <link rel="stylesheet" href="platform/legal.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <h1>OmniStore ERP</h1>
+      <p>Multi-Tenant Enterprise Resource Planning</p>
+    </div>
+  </header>
+
+  <main class="container">
+    <article class="main-content">
+      <p class="section-title">Privacy Policy</p>
+      <h1>Privacy Policy</h1>
+      <p style="margin-top: -16px; color: var(--muted); font-size: 14px;">
+        Last Updated: October 6, 2026
+      </p>
+
+      <p>This Privacy Policy ("Policy") describes how OmniStore ERP
+        ("we", "us", or "our") collects, uses, and shares information
+        about you when you access or use the OmniStore multi-tenant
+        enterprise resource planning platform and related services
+        (collectively, the "Service" or "OmniStore").</p>
+
+      <p>We are committed to protecting your personal information.
+        This Policy applies to information we collect through the
+        Service, including via third-party integrations such as
+        TikTok Login Kit (see Section 7 for details).</p>
+
+      <div class="table-of-contents">
+        <h2>Table of Contents</h2>
+        <ol>
+          <li><a href="#information-we-collect">1. Information We Collect</a></li>
+          <li><a href="#how-we-use">2. How We Use Information</a></li>
+          <li><a href="#storage-processing">3. Data Storage and Processing</a></li>
+          <li><a href="#cookies">4. Cookies and Tracking Technologies</a></li>
+          <li><a href="#third-party">5. Third-Party Services and Links</a></li>
+          <li><a href="#data-retention">6. Data Retention</a></li>
+          <li><a href="#user-rights">7. Your Rights and Choices</a></li>
+          <li><a href="#security">8. Security Measures</a></li>
+          <li><a href="#data-transfers">9. International Data Transfers</a></li>
+          <li><a href="#minors">10. Information About Children</a></li>
+          <li><a href="#changes">11. Changes to This Policy</a></li>
+          <li><a href="#contact">12. Contact Us</a></li>
+        </ol>
+      </div>
+
+      <div class="clause">
+        <h2 id="information-we-collect">1. Information We Collect</h2>
+        <p>We collect several types of information to provide and improve the
+          Service:</p>
+
+        <h3>Account Information</h3>
+        <p>When you register for an account, we collect information you
+          provide directly to us, including your email address, name,
+          company or organization name, phone number, and a password you
+          create. You may also provide optional information such as your
+          company logo, address, and billing details.</p>
+
+        <h3>Business Data</h3>
+        <p>You or your users may enter or upload various types of business
+          data into the Service, including sales transactions, inventory
+          records, customer information, supplier data, accounting records,
+          and other business-related content. This data is stored within the
+          multi-tenant database schema and is logically isolated per Tenant.</p>
+
+        <h3>Usage Information</h3>
+        <p>We automatically collect information about your interaction with
+          the Service, including your IP address, browser type and version,
+          operating system, the pages you visit, the time and date of your
+          visit, the referring URL, and other diagnostic data. We may also
+          collect aggregate usage metrics such as feature adoption and
+          session duration.</p>
+
+        <h3>TikTok Integration Data</h3>
+        <p>When you choose to connect your TikTok account to OmniStore using
+          TikTok's OAuth-based Login Kit, we receive the following from
+          TikTok:</p>
+        <ul>
+          <li>Your TikTok user ID (open_id) for identification purposes only;</li>
+          <li>Your TikTok display name;</li>
+          <li>Your TikTok profile avatar URL;</li>
+          <li>A list of your recent TikTok videos, including video titles,
+            descriptions, durations, cover image URLs, and TikTok-provided
+            embed links (<code>embed_link</code>).</li>
+        </ul>
+        <p>We request only the scopes <code>user.info.basic</code> and
+          <code>video.list</code>. TikTok access tokens and refresh tokens
+          are stored encrypted in your Tenant's data store and are never
+          shared with other Tenants or third parties.</p>
+      </div>
+
+      <div class="clause">
+        <h2 id="how-we-use">2. How We Use Information</h2>
+        <p>We use the information we collect for the following purposes:</p>
+        <ul>
+          <li><strong>To provide and operate the Service</strong>, including
+            processing transactions, managing accounts, and delivering core
+            ERP modules (sales, purchasing, inventory, accounting, customers,
+            suppliers);</li>
+          <li><strong>To display TikTok reels</strong> on your platform storefront
+            when you have connected a TikTok account. The reels are cached for
+            up to 12 hours and displayed using TikTok's official embed player
+            within an iframe. Reels are de-duplicated by TikTok video ID;</li>
+          <li><strong>To communicate with you</strong>, including sending
+            technical notices, security alerts, and support responses;</li>
+          <li><strong>To improve and personalize the Service</strong>,
+            including analyzing usage patterns and feature engagement;</li>
+          <li><strong>To protect the security and integrity</strong> of the
+            Service and detect fraud or abuse;</li>
+          <li><strong>To comply with legal obligations</strong> and respond to
+            lawful requests from authorities.</li>
+        </ul>
+      </div>
+
+      <div class="clause">
+        <h2 id="storage-processing">3. Data Storage and Processing</h2>
+        <p>The Service operates as a multi-tenant application. Each Tenant's
+          data is stored in logically isolated database schemas and file
+          storage buckets. Your business data, including TikTok reels cache
+          data, is stored in the region where the Service is deployed and is
+          accessible only to users authorized within your Tenant.</p>
+        <p>Data at rest and in transit is protected using industry-standard
+          encryption where applicable. TikTok OAuth tokens are stored encrypted
+          using the platform's secret management system.</p>
+        <p>We act as a data processor on behalf of Tenants for any personal
+          data contained within business records. Tenants act as data
+          controllers for their own business and customer data.</p>
+      </div>
+
+      <div class="clause">
+        <h2 id="cookies">4. Cookies and Tracking Technologies</h2>
+        <p>We use cookies and similar tracking technologies to:</p>
+        <ul>
+          <li>Maintain your authenticated session while you use the Service;</li>
+          <li>Remember your language and display preferences (e.g., LTR/RTL);</li>
+          <li>Enable core functionality of the web application.</li>
+        </ul>
+        <p>We do not use cookies for cross-site behavioral advertising. You
+          can control cookies through your browser settings, though disabling
+          them may affect your ability to use certain features of the Service.</p>
+        <p>The Service includes a Progressive Web App (PWA) service worker
+          (<code>sw.js</code>) that caches static assets and HTML pages for
+          offline access. This cache is local to your browser and does not
+          transmit data to third parties.</p>
+      </div>
+
+      <div class="clause">
+        <h2 id="third-party">5. Third-Party Services and Links</h2>
+        <p>The Service may contain links to or integrations with third-party
+          websites, services, and applications ("Third-Party Services").
+          This includes integrations such as TikTok Login Kit and Display
+          API, payment processors, and cloud service providers.</p>
+        <p>We do not control and assume no responsibility for the content,
+          privacy policies, or practices of any Third-Party Services. You
+          acknowledge and agree that we are not liable for any damage or
+          loss caused by your interaction with these services. We encourage
+          you to read the privacy policy of every Third-Party Service you
+          engage with.</p>
+      </div>
+
+      <div class="clause">
+        <h2 id="data-retention">6. Data Retention</h2>
+        <p>We retain information for as long as necessary to provide the
+          Service and fulfill the purposes described in this Policy, unless
+          a longer retention period is required or permitted by law.</p>
+        <ul>
+          <li><strong>Account data</strong> is retained for as long as your
+            account is active or as needed to provide the Service. You may
+            request account deletion at any time;</li>
+          <li><strong>Business data</strong> is retained according to your
+            Tenant's data retention settings and applicable legal
+            requirements;</li>
+          <li><strong>TikTok reels cache data</strong> is automatically
+            refreshed every 12 hours and is cleared if you disconnect your
+            TikTok account;</li>
+          <li><strong>Usage logs</strong> containing IP addresses and access
+            timestamps are retained for 90 days for security and debugging
+            purposes, then deleted or anonymized.</li>
+        </ul>
+      </div>
+
+      <div class="clause">
+        <h2 id="user-rights">7. Your Rights and Choices</h2>
+        <p>You have the right to:</p>
+        <ul>
+          <li><strong>Access and update your account information</strong> by
+            logging into your account settings;</li>
+          <li><strong>Request deletion of your account data</strong> by
+            contacting support;</li>
+          <li><strong>Disconnect your TikTok account</strong> at any time
+            using the disconnection feature in the platform. Upon
+            disconnection, your TikTok access tokens are permanently
+            revoked and deleted, and cached reels are cleared;</li>
+          <li><strong>Export your business data</strong> using the platform's
+            export tools;</li>
+          <li><strong>Opt out of promotional communications</strong> by
+            following the unsubscribe instructions included in each email;</li>
+          <li><strong>Request data portability</strong> for data you have
+            submitted through the Service.</li>
+        </ul>
+        <p>To exercise these rights, please contact us using the
+          information in Section 12 below. We may need to verify your
+          identity before fulfilling your request.</p>
+      </div>
+
+      <div class="clause">
+        <h2 id="security">8. Security Measures</h2>
+        <p>We implement reasonable and appropriate technical and organizational
+          measures to protect your information from unauthorized access,
+          alteration, disclosure, or destruction. These measures include:</p>
+        <ul>
+          <li>Transport Layer Security (TLS) for all data in transit;</li>
+          <li>Encryption of sensitive credentials at rest;</li>
+          <li>Role-based access controls (RBAC) scoped per Tenant;</li>
+          <li>Regular security audits and penetration testing;</li>
+          <li>Rate limiting and abuse detection on public endpoints.</li>
+        </ul>
+        <p>While we strive to protect your information, no method of
+          transmission over the internet or electronic storage is completely
+          secure. We cannot guarantee absolute security and encourage you to
+          use the Service only if you accept these security limitations.</p>
+      </div>
+
+      <div class="clause">
+        <h2 id="data-transfers">9. International Data Transfers</h2>
+        <p>Your information may be transferred to and processed in countries
+          where we or our service providers operate, which may have data
+          protection laws that differ from your jurisdiction. When we
+          transfer your data across borders, we implement appropriate
+          safeguards such as standard contractual clauses approved by
+          applicable data protection authorities.</p>
+      </div>
+
+      <div class="clause">
+        <h2 id="minors">10. Information About Children</h2>
+        <p>The Service is not intended for children under the age of 13.
+          We do not knowingly collect personal information from children
+          under 13. If we become aware that we have collected information
+          from a child under 13 without parental consent, we will take
+          steps to delete such information. If you believe we have collected
+          information from a child under 13, please contact us immediately.</p>
+      </div>
+
+      <div class="clause">
+        <h2 id="changes">11. Changes to This Policy</h2>
+        <p>We may update this Privacy Policy from time to time. When we do,
+          we will revise the "Last Updated" date at the top of this page.
+          We may also provide notice through the Service or via email where
+          reasonably possible. Your continued use of the Service after any
+          changes constitutes your acceptance of the updated Policy.</p>
+      </div>
+
+      <div class="clause">
+        <h2 id="contact">12. Contact Us</h2>
+        <p>If you have any questions about this Privacy Policy, your personal
+          data, or your rights, please contact us through the support
+          channels provided within the Service, or write to the contact
+          information available at
+          <a href="https://omnistoreerp.com">https://omnistoreerp.com</a>.</p>
+      </div>
+
+      <a href="/platform.html" class="back-link">&larr; Back to Platform Home</a>
+    </article>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-links">
+        <a href="/terms-of-service">Terms of Service</a>
+        <a href="/privacy-policy">Privacy Policy</a>
+        <a href="/platform.html">Platform Home</a>
+      </div>
+      <p>OmniStore ERP — Multi-Tenant Enterprise Resource Planning</p>
+    </div>
+  </footer>
+</body>
+</html>
