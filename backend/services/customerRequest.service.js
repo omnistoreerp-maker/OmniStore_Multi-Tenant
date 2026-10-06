@@ -37,7 +37,13 @@ const ALLOWED_TRANSITIONS = {
 function _readStore() {
   try {
     const raw = storageAdapter.read(STORE_KEY);
-    if (raw && Array.isArray(raw.requests)) return raw;
+    if (raw && Array.isArray(raw.requests)) {
+      // Normalize partial/legacy documents: a missing auxiliary array must
+      // not crash writes (e.g. store.audit.push on an undefined array).
+      if (!Array.isArray(raw.verifications)) raw.verifications = [];
+      if (!Array.isArray(raw.audit)) raw.audit = [];
+      return raw;
+    }
   } catch (err) {
     logger.warn('customerRequest.service: failed to read store', err.message);
   }

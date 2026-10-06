@@ -87,7 +87,10 @@ function transitionStatus(req, res) {
     if (!requestId) return error(res, 'Request ID is required', 400);
     const body = req.body || {};
     const toStatus = String(body.toStatus || '').toUpperCase();
-    const actor = body.actor || (req.user ? req.user.username : 'unknown');
+    // Audit-trail integrity: the actor is ALWAYS the authenticated user.
+    // Client-supplied actor values are ignored — otherwise any caller could
+    // forge audit history by posting { actor: 'someone-else' }.
+    const actor = req.user ? req.user.username : 'unknown';
     const note = body.note || '';
     const releaseId = body.releaseId || null;
     const result = customerRequest.transitionStatus(companyId, requestId, toStatus, actor, 'internal', note, releaseId);
