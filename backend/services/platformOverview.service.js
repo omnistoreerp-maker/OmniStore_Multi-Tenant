@@ -23,6 +23,7 @@ const presenceService = require('./presence.service');
 const platformActivity = require('./platformActivity.service');
 const ordersAggregator = require('./platformOrdersAggregator.service');
 const gameHostingProvider = require('../controllers/gameHostingProvider');
+const platformCatalog = require('./platformCatalog.service');
 const config = require('../config');
 const logger = require('../utils/logger');
 
@@ -336,6 +337,113 @@ function _services() {
   return out;
 }
 
+// Education slice — real counters from the student-services store.
+function _education() {
+  const store = _readStore(STUDENT_STORE, null);
+  if (!store.ok || !store.data || typeof store.data !== 'object') {
+    return { status: 'error', printRates: null, printOrders: null, studentPasses: null, hasSettings: null };
+  }
+  const d = store.data;
+  const len = (v) => (Array.isArray(v) ? v.length : null);
+  return {
+    status: 'operational',
+    printRates: len(d.printRates),
+    printOrders: len(d.printOrders),
+    studentPasses: len(d.studentPasses),
+    hasSettings: !!(d.settings && typeof d.settings === 'object')
+  };
+}
+
+// Communications slice — provider CONFIGURATION status only.
+//
+// Never reports delivery: whatsappClient falls back to `local_fallback`
+// (server-side log) when no API key is present and still returns ok:true.
+// That is NOT delivery, so this surface must say NOT_CONFIGURED instead of
+// implying a message reached WhatsApp.
+function _communications() {
+  const whatsappKeyPresent = Boolean(process.env.WHATSAPP_API_KEY);
+  const telegramKeyPresent = Boolean(process.env.TELEGRAM_BOT_TOKEN);
+  const store = _readStore('tenantNotifications', null);
+  const settings = store.ok && store.data && Array.isArray(store.data.settings)
+    ? store.data.settings.length
+    : null;
+
+  return {
+    whatsapp: {
+      status: whatsappKeyPresent ? 'CONFIGURED' : 'NOT_CONFIGURED',
+      provider: process.env.WHATSAPP_PROVIDER || 'local_fallback',
+      delivers: whatsappKeyPresent
+    },
+    telegram: {
+      status: telegramKeyPresent ? 'CONFIGURED' : 'NOT_CONFIGURED',
+      delivers: telegramKeyPresent
+    },
+    notificationSettings: settings,
+    note: whatsappKeyPresent
+      ? null
+      : 'No WhatsApp API key configured — messages are logged locally and are NOT delivered.'
+  };
+}
+
+// Media / section status — read from the platform catalog, the same source
+// the public catalog endpoint serves.
+function _mediaAndSections() {
+  let sections = [];
+  let source = 'store';
+  try {
+    const doc = platformCatalog.getCatalog();
+    sections = (doc && Array.isArray(doc.sections)) ? doc.sections : [];
+    // The platformPublic store in this deployment carries no `sections`
+    // array (GET /platform-public/sections answers []), so fall back to the
+    // catalog's own documented default and SAY SO — the caller can tell a
+    // stored value apart from the built-in default.
+    if (!sections.length) {
+      const dflt = platformCatalog.getDefaultDoc();
+      sections = (dflt && Array.isArray(dflt.sections)) ? dflt.sections : [];
+      source = 'default';
+    }
+  } catch (err) {
+    logger.warn('platformOverview: catalog sections failed', err.message);
+    return { ok: false, source: null, reels: null, gameHosting: null, studentServices: null, marketplace: null };
+  }
+
+  const rank = { active: 0, 'under-construction': 1, 'coming-soon': 2 };
+  const pick = (id) => {
+    const matches = sections.filter(s => s && s.id === id);
+    if (!matches.length) return null;
+    matches.sort((a, b) => (rank[a.status] ?? 9) - (rank[b.status] ?? 9));
+    const best = matches[0];
+    return { status: best.status || null, url: best.url || null, title: best.title || null };
+  };
+
+  return {
+    ok: true,
+    source,
+    reels: pick('media-reels'),
+    gameHosting: pick('game-hosting'),
+    studentServices: pick('student-services'),
+    marketplace: pick('marketplace')
+  };
+}
+
+// Monetization — reports CONFIGURATION state only, never revenue.
+// No Monetag zone is created, enabled or substituted here.
+function _monetization() {
+  const cfg = (config && config.monetag) || null;
+  const configured = !!(cfg && cfg.enabled && cfg.zoneId);
+  return {
+    monetag: {
+      status: configured ? 'CONFIGURED' : 'NOT_CONFIGURED',
+      enabled: Boolean(cfg && cfg.enabled),
+      zone: configured ? String(cfg.zoneId) : null,
+      revenue: null,
+      detail: configured
+        ? 'Configuration present — activation still requires owner approval.'
+        : 'No Monetag configuration exists. The integration boundary stays disabled until commercial readiness and explicit owner approval.'
+    }
+  };
+}
+
 function _alerts(sections) {
   const alerts = [];
   const push = (severity, code, message, count) => {
@@ -392,6 +500,11 @@ function getOverview() {
   const health = _health();
   const services = _services();
 
+  const education = _education();
+  const communications = _communications();
+  const media = _mediaAndSections();
+  const monetization = _monetization();
+
   const sections = { counts, orders, products, tickets, services, health };
 
   return {
@@ -404,6 +517,10 @@ function getOverview() {
     activity,
     services,
     health,
+    education,
+    communications,
+    media,
+    monetization,
     alerts: _alerts(sections)
   };
 }

@@ -85,7 +85,13 @@ function seedAll(dir) {
   });
 
   seed(dir, 'marketConfig', { currency: 'EGP' });
-  seed(dir, 'studentServicesPack', { settings: {}, rates: [] });
+  seed(dir, 'studentServicesPack', {
+    printRates: [],
+    printOrders: [{ id: 'PO-1', status: 'pending' }],
+    studentPasses: [],
+    settings: { currency: 'EGP' }
+  });
+  seed(dir, 'tenantNotifications', { settings: [], lastUpdated: now });
 }
 
 describe('Phase 1 — GET /api/v1/platform/overview', () => {
@@ -93,9 +99,13 @@ describe('Phase 1 — GET /api/v1/platform/overview', () => {
   let dir;
   let masterToken;
   let ownerToken;
+  let savedWhatsappKey;
 
   beforeAll(async () => {
     jest.resetModules();
+    savedWhatsappKey = process.env.WHATSAPP_API_KEY;
+    delete process.env.WHATSAPP_API_KEY;
+    delete process.env.WHATSAPP_PROVIDER;
     process.env.ENABLE_MULTI_COMPANY_LOGIN = 'true';
     process.env.ENABLE_TENANT_USER_MEMBERSHIP = 'true';
     process.env.ENABLE_TENANT_ROLES = 'true';
@@ -113,6 +123,8 @@ describe('Phase 1 — GET /api/v1/platform/overview', () => {
   });
 
   afterAll(() => {
+    if (savedWhatsappKey === undefined) delete process.env.WHATSAPP_API_KEY;
+    else process.env.WHATSAPP_API_KEY = savedWhatsappKey;
     tempDirs.forEach(d => {
       try { fs.rmSync(d, { recursive: true, force: true }); } catch (_) {}
     });
@@ -224,6 +236,43 @@ describe('Phase 1 — GET /api/v1/platform/overview', () => {
     expect(json).not.toMatch(/accessToken/i);
     expect(json).not.toMatch(/refreshToken/i);
     expect(json).not.toMatch(/Bearer /);
+  });
+
+  test('F1. education / communications / media / monetization report real config state', async () => {
+    const d = (await get('/api/v1/platform/overview', masterToken)).body.data;
+
+    expect(d.education.status).toBe('operational');
+    expect(d.education.printRates).toBe(0);
+    expect(d.education.printOrders).toBe(1);
+    expect(d.education.studentPasses).toBe(0);
+
+    // No WhatsApp key in this environment -> NOT_CONFIGURED and no delivery claim.
+    expect(d.communications.whatsapp.status).toBe('NOT_CONFIGURED');
+    expect(d.communications.whatsapp.delivers).toBe(false);
+    expect(d.communications.note).toMatch(/NOT delivered/i);
+    expect(d.communications.notificationSettings).toBe(0);
+
+    // Section status comes from the platform catalog, not from constants.
+    expect(d.media.ok).toBe(true);
+    expect(d.media.source).toBe('default'); // store carries no sections array
+    expect(d.media.reels.status).toBe('coming-soon');
+    expect(d.media.marketplace.status).toBe('active');
+    expect(d.media.gameHosting.status).toBe('under-construction');
+
+    expect(d.monetization.monetag.status).toBe('NOT_CONFIGURED');
+    expect(d.monetization.monetag.enabled).toBe(false);
+    expect(d.monetization.monetag.zone).toBeNull();
+    expect(d.monetization.monetag.revenue).toBeNull();
+  });
+
+  test('H. API responses are marked no-store (no cached auth responses)', async () => {
+    const ok = await get('/api/v1/platform/overview', masterToken);
+    expect(ok.statusCode).toBe(200);
+    expect(ok.headers['cache-control']).toBe('no-store');
+
+    const anon = await get('/api/v1/platform/overview');
+    expect(anon.statusCode).toBe(401);
+    expect(anon.headers['cache-control']).toBe('no-store');
   });
 
   test('G. the summary endpoint still answers (no regression)', async () => {
