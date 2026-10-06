@@ -48,7 +48,9 @@
     'منصة واحدة': 'One platform',
     'منظومة موحدة': 'Unified System',
     'نشاط المنصة': 'Platform Activity',
-    'وصول حسب الدور': 'Access by role'
+    'وصول حسب الدور': 'Access by role',
+    'شروط الخدمة': 'Terms of Service',
+    'سياسة الخصوصية': 'Privacy Policy'
   });
   OmniLang.registerDict('en', {
     'Core Modules': 'الوحدات الأساسية',
@@ -60,6 +62,8 @@
     'Platform highlights': 'أبرز مميزات المنصة',
     'Platform Overview': 'نظرة عامة على المنصة',
     'Platform Services': 'خدمات المنصة',
-    'Unable to load platform data. Please try again later.': 'تعذر تحميل بيانات المنصة. يرجى المحاولة لاحقاً.'
+    'Unable to load platform data. Please try again later.': 'تعذر تحميل بيانات المنصة. يرجى المحاولة لاحقاً.',
+    'Terms of Service': 'شروط الخدمة',
+    'Privacy Policy': 'سياسة الخصوصية'
   });
 })();
