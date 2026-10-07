@@ -4,7 +4,7 @@ const logger = require('../utils/logger');
 
 function listCenters(req, res) {
   try {
-    const result = educationService.listCenters(req.tenantContext);
+    const result = educationService.listCenters(req.tenantContext, req.user);
     success(res, result, 'Education centers retrieved');
   } catch (err) {
     logger.error('education.centers.list error:', err.message);
@@ -25,7 +25,7 @@ function getCenter(req, res) {
 
 function createCenter(req, res) {
   try {
-    const center = educationService.createCenter(req.tenantContext, req.body);
+    const center = educationService.createCenter(req.tenantContext, req.user);
     success(res, center, 'Education center created', 201);
   } catch (err) {
     logger.error('education.centers.create error:', err.message);
@@ -35,7 +35,7 @@ function createCenter(req, res) {
 
 function updateCenter(req, res) {
   try {
-    const center = educationService.updateCenter(req.tenantContext, req.params.id, req.body);
+    const center = educationService.updateCenter(req.tenantContext, req.user, req.params.id, req.body);
     if (!center) return error(res, 'Education center not found', 404);
     success(res, center, 'Education center updated');
   } catch (err) {
@@ -46,7 +46,7 @@ function updateCenter(req, res) {
 
 function listTeachers(req, res) {
   try {
-    const result = educationService.listTeachers(req.tenantContext, req.query);
+    const result = educationService.listTeachers(req.tenantContext, req.user);
     success(res, result, 'Teachers retrieved');
   } catch (err) {
     logger.error('education.teachers.list error:', err.message);
@@ -67,7 +67,7 @@ function getTeacher(req, res) {
 
 function createTeacher(req, res) {
   try {
-    const teacher = educationService.createTeacher(req.tenantContext, req.body);
+    const teacher = educationService.createTeacher(req.tenantContext, req.user);
     success(res, teacher, 'Teacher created', 201);
   } catch (err) {
     logger.error('education.teachers.create error:', err.message);
@@ -77,7 +77,7 @@ function createTeacher(req, res) {
 
 function updateTeacher(req, res) {
   try {
-    const teacher = educationService.updateTeacher(req.tenantContext, req.params.id, req.body);
+    const teacher = educationService.updateTeacher(req.tenantContext, req.user, req.params.id, req.body);
     if (!teacher) return error(res, 'Teacher not found', 404);
     success(res, teacher, 'Teacher updated');
   } catch (err) {
@@ -88,7 +88,7 @@ function updateTeacher(req, res) {
 
 function listStudents(req, res) {
   try {
-    const result = educationService.listStudents(req.tenantContext, req.query);
+    const result = educationService.listStudents(req.tenantContext, req.user);
     success(res, result, 'Students retrieved');
   } catch (err) {
     logger.error('education.students.list error:', err.message);
@@ -109,7 +109,7 @@ function getStudent(req, res) {
 
 function createStudent(req, res) {
   try {
-    const student = educationService.createStudent(req.tenantContext, req.body);
+    const student = educationService.createStudent(req.tenantContext, req.user);
     success(res, student, 'Student created', 201);
   } catch (err) {
     logger.error('education.students.create error:', err.message);
@@ -119,7 +119,7 @@ function createStudent(req, res) {
 
 function updateStudent(req, res) {
   try {
-    const student = educationService.updateStudent(req.tenantContext, req.params.id, req.body);
+    const student = educationService.updateStudent(req.tenantContext, req.user, req.params.id, req.body);
     if (!student) return error(res, 'Student not found', 404);
     success(res, student, 'Student updated');
   } catch (err) {
@@ -130,7 +130,7 @@ function updateStudent(req, res) {
 
 function listEnrollments(req, res) {
   try {
-    const result = educationService.listEnrollments(req.tenantContext, req.query);
+    const result = educationService.listEnrollments(req.tenantContext, req.user);
     success(res, result, 'Enrollments retrieved');
   } catch (err) {
     logger.error('education.enrollments.list error:', err.message);
@@ -151,7 +151,7 @@ function getEnrollment(req, res) {
 
 function createEnrollment(req, res) {
   try {
-    const enrollment = educationService.createEnrollment(req.tenantContext, req.body);
+    const enrollment = educationService.createEnrollment(req.tenantContext, req.user);
     success(res, enrollment, 'Enrollment created', 201);
   } catch (err) {
     logger.error('education.enrollments.create error:', err.message);
@@ -161,7 +161,7 @@ function createEnrollment(req, res) {
 
 function updateEnrollment(req, res) {
   try {
-    const enrollment = educationService.updateEnrollment(req.tenantContext, req.params.id, req.body);
+    const enrollment = educationService.updateEnrollment(req.tenantContext, req.user, req.params.id, req.body);
     if (!enrollment) return error(res, 'Enrollment not found', 404);
     success(res, enrollment, 'Enrollment updated');
   } catch (err) {

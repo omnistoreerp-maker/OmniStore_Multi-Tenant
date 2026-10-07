@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 const storageAdapter = require('../repositories/storageAdapter');
 const logger = require('../utils/logger');
@@ -64,6 +64,48 @@ function _filterByTenant(arr, tenantId) {
   return arr.filter(item => String(item.tenantId || '') === String(tenantId));
 }
 
+
+
+function _enforceScope(user, tenantId, requiredScope) {
+  if (!user) return { allowed: false, reason: 'unauthenticated' };
+  
+  const tid = String(tenantId || '');
+  if (!tid) return { allowed: false, reason: 'no_tenant' };
+  
+  // Platform admin can access everything
+  if (user.platformAdmin || user.isPlatformAdmin) {
+    return { allowed: true, scope: 'platform', reason: 'platform_admin' };
+  }
+  
+  // Check if user is tenant admin for THIS tenant only
+  const effectiveRole = user.tenantRoles && user.tenantRoles[tid] ? user.tenantRoles[tid] : null;
+  if (effectiveRole === 'Owner' || effectiveRole === 'Admin') {
+    return { allowed: true, scope: 'tenant', reason: 'tenant_admin' };
+  }
+  
+  // Check if user is center admin
+  const centerId = getCenterAdminCenterId(user, tid);
+  if (centerId) {
+    if (requiredScope === 'center' || requiredScope === 'teacher' || requiredScope === 'student') {
+      return { allowed: true, scope: 'center', centerId, reason: 'center_admin' };
+    }
+  }
+  
+  // Check if user is teacher
+  const teacherId = getTeacherIdForUser(user, tid);
+  if (teacherId && (requiredScope === 'teacher' || requiredScope === 'student')) {
+    return { allowed: true, scope: 'teacher', teacherId, reason: 'teacher' };
+  }
+  
+  // Check if user is student
+  const studentId = getStudentIdForUser(user, tid);
+  if (studentId && requiredScope === 'student') {
+    return { allowed: true, scope: 'student', studentId, reason: 'student' };
+  }
+  
+  return { allowed: false, reason: 'insufficient_permissions' };
+}
+
 function _findById(arr, id) {
   if (!Array.isArray(arr)) return null;
   const target = String(id);
@@ -72,22 +114,30 @@ function _findById(arr, id) {
 
 // Centers
 
-function listCenters(tenantContext) {
+function listCenters(tenantContext, user) {
+  const scope = _enforceScope(user, _tenantId(tenantContext), 'tenant');
+  if (!scope.allowed) throw new Error('Access denied');
   const tid = _tenantId(tenantContext);
   const doc = _readStore();
   return _filterByTenant(doc.centers, tid);
 }
 
-function getCenter(tenantContext, centerId) {
+function getCenter(tenantContext, centerId, user) {
+  const scope = _enforceScope(user, _tenantId(tenantContext), 'center');
+  if (!scope.allowed) throw new Error('Access denied');
   const tid = _tenantId(tenantContext);
   const doc = _readStore();
   const center = _findById(doc.centers, centerId);
   if (!center) return null;
+  if (scope.scope === 'center' && String(center.id || '') !== String(scope.centerId)) return null;
   if (tid && String(center.tenantId || '') !== String(tid)) return null;
   return center;
 }
 
-function createCenter(tenantContext, data) {
+function createCenter(tenantContext, user, data) {
+  if (!tenantContext || !_tenantId(tenantContext)) throw new Error('Tenant context is required');
+  const scope = _enforceScope(user, _tenantId(tenantContext), 'tenant');
+  if (!scope.allowed) throw new Error('Access denied');
   const tid = _ensureTenant(tenantContext);
   _rejectTenantIdInPayload(data);
 
@@ -108,13 +158,15 @@ function createCenter(tenantContext, data) {
 
   if (!center.name) throw new Error('Center name is required');
 
+  centers.push(center);
   doc.centers = centers;
-  doc.centers.push(center);
   _writeStore(doc);
   return center;
-}
+};
 
-function updateCenter(tenantContext, centerId, data) {
+function updateCenter(tenantContext, centerId, user, data) {
+  const scope = _enforceScope(user, _tenantId(tenantContext), 'tenant');
+  if (!scope.allowed) throw new Error('Access denied');
   const tid = _ensureTenant(tenantContext);
   _rejectTenantIdInPayload(data);
 
@@ -135,10 +187,16 @@ function updateCenter(tenantContext, centerId, data) {
 
 // Teachers
 
-function listTeachers(tenantContext, query = {}) {
+function listTeachers(tenantContext, user, query = {}) {
+  const scope = _enforceScope(user, _tenantId(tenantContext), 'teacher');
+  if (!scope.allowed) throw new Error('Access denied');
   const tid = _tenantId(tenantContext);
   const doc = _readStore();
   let teachers = _filterByTenant(doc.teachers, tid);
+
+  if (scope.scope === 'center') {
+    teachers = teachers.filter(t => String(t.centerId || '') === String(scope.centerId));
+  }
 
   if (query.centerId) {
     teachers = teachers.filter(t => String(t.centerId || '') === String(query.centerId));
@@ -155,16 +213,22 @@ function listTeachers(tenantContext, query = {}) {
   return teachers;
 }
 
-function getTeacher(tenantContext, teacherId) {
+function getTeacher(tenantContext, teacherId, user) {
+  const scope = _enforceScope(user, _tenantId(tenantContext), 'teacher');
+  if (!scope.allowed) throw new Error('Access denied');
   const tid = _tenantId(tenantContext);
   const doc = _readStore();
   const teacher = _findById(doc.teachers, teacherId);
   if (!teacher) return null;
   if (tid && String(teacher.tenantId || '') !== String(tid)) return null;
+  if (scope.scope === 'center' && String(teacher.centerId || '') !== String(scope.centerId)) return null;
   return teacher;
 }
 
-function createTeacher(tenantContext, data) {
+function createTeacher(tenantContext, user, data) {
+  if (!tenantContext || !_tenantId(tenantContext)) throw new Error('Tenant context is required');
+  const scope = _enforceScope(user, _tenantId(tenantContext), 'tenant');
+  if (!scope.allowed) throw new Error('Access denied');
   const tid = _ensureTenant(tenantContext);
   _rejectTenantIdInPayload(data);
 
@@ -193,7 +257,9 @@ function createTeacher(tenantContext, data) {
   return teacher;
 }
 
-function updateTeacher(tenantContext, teacherId, data) {
+function updateTeacher(tenantContext, teacherId, user, data) {
+  const scope = _enforceScope(user, _tenantId(tenantContext), 'tenant');
+  if (!scope.allowed) throw new Error('Access denied');
   const tid = _ensureTenant(tenantContext);
   _rejectTenantIdInPayload(data);
 
@@ -214,11 +280,18 @@ function updateTeacher(tenantContext, teacherId, data) {
 
 // Students
 
-function listStudents(tenantContext, query = {}) {
+function listStudents(tenantContext, user, query = {}) {
   const tid = _tenantId(tenantContext);
   const doc = _readStore();
+  const scope = _enforceScope(user, tid, 'student');
+  if (!scope.allowed) throw new Error('Access denied');
   let students = _filterByTenant(doc.students, tid);
-
+  if (scope.scope === 'center') {
+    students = students.filter(s => String(s.centerId || '') === String(scope.centerId));
+  }
+  if (scope.scope === 'student') {
+    students = students.filter(s => s.id === scope.studentId);
+  }
   if (query.centerId) {
     students = students.filter(s => String(s.centerId || '') === String(query.centerId));
   }
@@ -230,20 +303,26 @@ function listStudents(tenantContext, query = {}) {
       String(s.guardianName || '').toLowerCase().includes(q)
     );
   }
-
   return students;
 }
 
-function getStudent(tenantContext, studentId) {
+function getStudent(tenantContext, studentId, user) {
   const tid = _tenantId(tenantContext);
   const doc = _readStore();
-  const student = _findById(doc.students, studentId);
+  const scope = _enforceScope(user, tid, 'student');
+  if (!scope.allowed) throw new Error('Access denied');
+  let student = _findById(doc.students, studentId);
   if (!student) return null;
+  if (scope.scope === 'student' && student.id !== scope.studentId) return null;
   if (tid && String(student.tenantId || '') !== String(tid)) return null;
+  if (scope.scope === 'center' && String(student.centerId || '') !== String(scope.centerId)) return null;
   return student;
 }
 
-function createStudent(tenantContext, data) {
+function createStudent(tenantContext, user, data) {
+  if (!tenantContext || !_tenantId(tenantContext)) throw new Error('Tenant context is required');
+  const scope = _enforceScope(user, _tenantId(tenantContext), 'tenant');
+  if (!scope.allowed) throw new Error('Access denied');
   const tid = _ensureTenant(tenantContext);
   _rejectTenantIdInPayload(data);
 
@@ -294,10 +373,20 @@ function updateStudent(tenantContext, studentId, data) {
 
 // Enrollments
 
-function listEnrollments(tenantContext, query = {}) {
+function listEnrollments(tenantContext, user, query = {}) {
+  const scope = _enforceScope(user, _tenantId(tenantContext), 'teacher');
+  if (!scope.allowed) throw new Error('Access denied');
   const tid = _tenantId(tenantContext);
   const doc = _readStore();
   let enrollments = _filterByTenant(doc.enrollments, tid);
+
+  if (scope.scope === 'center') {
+    enrollments = enrollments.filter(e => String(e.centerId || '') === String(scope.centerId));
+  }
+
+  if (scope.scope === 'teacher') {
+    enrollments = enrollments.filter(e => String(e.teacherId || '') === String(scope.teacherId));
+  }
 
   if (query.studentId) {
     enrollments = enrollments.filter(e => String(e.studentId || '') === String(query.studentId));
@@ -312,16 +401,22 @@ function listEnrollments(tenantContext, query = {}) {
   return enrollments;
 }
 
-function getEnrollment(tenantContext, enrollmentId) {
+function getEnrollment(tenantContext, enrollmentId, user) {
+  const scope = _enforceScope(user, _tenantId(tenantContext), 'teacher');
+  if (!scope.allowed) throw new Error('Access denied');
   const tid = _tenantId(tenantContext);
   const doc = _readStore();
   const enrollment = _findById(doc.enrollments, enrollmentId);
   if (!enrollment) return null;
+  if (scope.scope === 'center' && String(enrollment.centerId || '') !== String(scope.centerId)) return null;
   if (tid && String(enrollment.tenantId || '') !== String(tid)) return null;
   return enrollment;
 }
 
-function createEnrollment(tenantContext, data) {
+function createEnrollment(tenantContext, user, data) {
+  if (!tenantContext || !_tenantId(tenantContext)) throw new Error('Tenant context is required');
+  const scope = _enforceScope(user, _tenantId(tenantContext), 'tenant');
+  if (!scope.allowed) throw new Error('Access denied');
   const tid = _ensureTenant(tenantContext);
   _rejectTenantIdInPayload(data);
 
@@ -380,6 +475,115 @@ function updateEnrollment(tenantContext, enrollmentId, data) {
   return updated;
 }
 
+
+
+// Center Admins
+
+function listCenterAdmins(tenantContext) {
+  const tid = _tenantId(tenantContext);
+  const doc = _readStore();
+  return _filterByTenant(doc.centerAdmins || [], tid);
+}
+
+function getCenterAdmin(tenantContext, centerAdminId) {
+  const tid = _tenantId(tenantContext);
+  const doc = _readStore();
+  const admin = _findById(doc.centerAdmins || [], centerAdminId);
+  if (!admin) return null;
+  if (tid && String(admin.tenantId || '') !== String(tid)) return null;
+  return admin;
+}
+
+function createCenterAdmin(tenantContext, data) {
+  const tid = _ensureTenant(tenantContext);
+  _rejectTenantIdInPayload(data);
+
+  const doc = _readStore();
+  const centerAdmins = Array.isArray(doc.centerAdmins) ? doc.centerAdmins : [];
+
+  const admin = {
+    id: data.id || _generateId('center-admin'),
+    tenantId: tid,
+    centerId: String(data.centerId || '').trim(),
+    userId: data.userId || null,
+    fullName: String(data.fullName || '').trim(),
+    email: data.email ? String(data.email).trim() : null,
+    status: String(data.status || 'active').toLowerCase(),
+    createdAt: _now(),
+    updatedAt: _now()
+  };
+
+  if (!admin.centerId) throw new Error('centerId is required');
+  if (!admin.fullName) throw new Error('fullName is required');
+
+  centerAdmins.push(admin);
+  doc.centerAdmins = centerAdmins;
+  _writeStore(doc);
+  return admin;
+}
+
+function updateCenterAdmin(tenantContext, centerAdminId, data) {
+  const tid = _ensureTenant(tenantContext);
+  _rejectTenantIdInPayload(data);
+
+  const doc = _readStore();
+  const centerAdmins = Array.isArray(doc.centerAdmins) ? doc.centerAdmins : [];
+  const idx = centerAdmins.findIndex(a => String(a.id) === String(centerAdminId) && String(a.tenantId || '') === String(tid));
+  if (idx === -1) return null;
+
+  const updated = { ...centerAdmins[idx], ...data, id: centerAdmins[idx].id, tenantId: tid, updatedAt: _now() };
+  if (updated.centerId !== undefined) updated.centerId = String(updated.centerId).trim();
+  if (updated.fullName !== undefined) updated.fullName = String(updated.fullName).trim();
+  if (!updated.centerId) throw new Error('centerId is required');
+  if (!updated.fullName) throw new Error('fullName is required');
+
+  centerAdmins[idx] = updated;
+  doc.centerAdmins = centerAdmins;
+  _writeStore(doc);
+  return updated;
+}
+
+function deleteCenterAdmin(tenantContext, centerAdminId) {
+  const tid = _ensureTenant(tenantContext);
+  const doc = _readStore();
+  const centerAdmins = Array.isArray(doc.centerAdmins) ? doc.centerAdmins : [];
+  const idx = centerAdmins.findIndex(a => String(a.id) === String(centerAdminId) && String(a.tenantId || '') === String(tid));
+  if (idx === -1) return false;
+  centerAdmins.splice(idx, 1);
+  doc.centerAdmins = centerAdmins;
+  _writeStore(doc);
+  return true;
+}
+
+// Scope helpers
+
+function getCenterAdminCenterId(user, tenantId) {
+  if (!user || !tenantId) return null;
+  const tid = String(tenantId);
+  const doc = _readStore();
+  const admins = (doc.centerAdmins || []).filter(a => String(a.tenantId || '') === tid && String(a.userId || '') === String(user.id || user.userId || '') && String(a.status || '') === 'active');
+  if (admins.length > 0) return admins[0].centerId;
+  return null;
+}
+
+function getTeacherIdForUser(user, tenantId) {
+  if (!user || !tenantId) return null;
+  const tid = String(tenantId);
+  const doc = _readStore();
+  const teachers = (doc.teachers || []).filter(t => String(t.tenantId || '') === tid && String(t.username || '') === String(user.username || '') && String(t.status || '') === 'active');
+  if (teachers.length > 0) return teachers[0].id;
+  return null;
+}
+
+function getStudentIdForUser(user, tenantId) {
+  if (!user || !tenantId) return null;
+  const tid = String(tenantId);
+  const doc = _readStore();
+  const students = (doc.students || []).filter(s => String(s.tenantId || '') === tid && String(s.userId || '') === String(user.id || user.userId || '') && String(s.status || '') === 'active');
+  if (students.length > 0) return students[0].id;
+  return null;
+}
+
 module.exports = {
   listCenters,
   getCenter,
@@ -396,5 +600,16 @@ module.exports = {
   listEnrollments,
   getEnrollment,
   createEnrollment,
-  updateEnrollment
+  updateEnrollment,
+  listCenterAdmins,
+  getCenterAdmin,
+  createCenterAdmin,
+  updateCenterAdmin,
+  deleteCenterAdmin,
+  getCenterAdminCenterId,
+  getTeacherIdForUser,
+  getStudentIdForUser
 };
+
+
+

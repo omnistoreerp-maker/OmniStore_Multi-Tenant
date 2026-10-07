@@ -70,6 +70,7 @@ const ROLE_RANK = {
   Cashier: 1,
   Technician: 1,
   Teacher: 1,
+  
   Teacher: [
     'education.centers.view',
     'education.teachers.view',
@@ -80,7 +81,6 @@ const ROLE_RANK = {
   WarehouseSales: 1,
   Sales: 1,
   Support: 0,
-  Teacher: 1,
   Viewer: 0
 };
 
