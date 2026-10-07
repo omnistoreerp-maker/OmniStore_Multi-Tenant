@@ -260,6 +260,21 @@
       navigation: [nav('car-rental', 'تأجير السيارات', '🚗', 'entertainment')],
       defaultSettings: { engineEnabled: false }
     }),
+    education: module({
+      id: 'education', name: 'Education', icon: '🎓', route: 'education',
+      permissions: ['education.centers.view', 'education.teachers.view', 'education.students.view', 'education.enrollments.view'],
+      navigation: [
+        nav('education', 'لوحة التعليم', '🎓', 'education'),
+        nav('education-centers', 'المراكز التعليمية', '🏫', 'education'),
+        nav('education-teachers', 'المعلمون', '👨‍🏫', 'education'),
+        nav('education-students', 'الطلاب', '🎓', 'education'),
+        nav('education-enrollments', 'التسجيلات', '📝', 'education')
+      ],
+      widgets: [
+        { id: 'education-dashboard', label: 'لوحة التعليم', icon: '🎓', route: 'education' }
+      ],
+      defaultSettings: { showDashboard: true }
+    }),
     settings: module({
       id: 'settings', name: 'Settings', icon: '⚙️', route: 'settings',
       permissions: ['manageSettings'],
