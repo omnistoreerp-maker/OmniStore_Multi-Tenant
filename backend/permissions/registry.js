@@ -38,7 +38,8 @@ const REAL_GROUPS = [
   },
   { group: 'audit', permissions: ['audit.view'] },
   { group: 'company', permissions: ['company.view', 'company.create'] },
-  { group: 'settings', permissions: ['settings.view', 'settings.edit'] }
+  { group: 'settings', permissions: ['settings.view', 'settings.edit'] },
+  { group: 'education', permissions: ['education.centers.view', 'education.centers.create', 'education.centers.edit', 'education.teachers.view', 'education.teachers.create', 'education.teachers.edit', 'education.students.view', 'education.students.create', 'education.students.edit', 'education.enrollments.view', 'education.enrollments.create', 'education.enrollments.edit'] },
 ];
 
 const PLANNED_GROUPS = [
@@ -68,9 +69,18 @@ const ROLE_RANK = {
   BranchManager: 1,
   Cashier: 1,
   Technician: 1,
+  Teacher: 1,
+  Teacher: [
+    'education.centers.view',
+    'education.teachers.view',
+    'education.students.view',
+    'education.enrollments.view',
+    'dashboard.view'
+  ],
   WarehouseSales: 1,
   Sales: 1,
   Support: 0,
+  Teacher: 1,
   Viewer: 0
 };
 
@@ -175,7 +185,7 @@ function realPermissions() {
 }
 
 function knownRoles() {
-  return ['Owner', 'Admin', 'Manager', 'BranchManager', 'Cashier', 'Technician', 'WarehouseSales', 'Sales', 'Support', 'Viewer'];
+  return ['Owner', 'Admin', 'Manager', 'BranchManager', 'Cashier', 'Technician', 'WarehouseSales', 'Sales', 'Support', 'Teacher', 'Viewer'];
 }
 
 module.exports = {
