@@ -20,6 +20,7 @@ const attendanceService = require('../services/attendance.service');
 const schedulingService = require('../services/scheduling.service');
 const teacherOwnership = require('../middleware/teacherOwnership');
 const centerOwnership = require('../middleware/centerOwnership');
+const studentOwnership = require('../middleware/studentOwnership');
 const logger = require('../utils/logger');
 
 // Returns the trusted tenant id, or null after having already answered 400.
@@ -63,6 +64,19 @@ function _centerId(req) {
   return req && req.centerActor && req.centerActor.id ? String(req.centerActor.id) : '';
 }
 
+// STUDENT SELF-SCOPE — the server-resolved `req.educationStudent.id` (the
+// Owner/Admin-created link resolved by middleware/studentActor from the signed
+// token + trusted tenant; NEVER a query/body value). When it is set the caller
+// is a LINKED student and every read below is narrowed to their OWN row:
+//   - listStudents is force-scoped to exactly that student;
+//   - getStudent / getStudentProgress refuse any other Student of the same
+//     tenant with 403 OWNERSHIP_DENIED. 404 still wins across tenants, so
+//     existence is never leaked.
+// The narrowings compose (intersection) with the teacher/center ones above.
+function _studentId(req) {
+  return req && req.educationStudent && req.educationStudent.id ? String(req.educationStudent.id) : '';
+}
+
 function listStudents(req, res) {
   try {
     const tenantId = _tenantIdOr400(req, res);
@@ -75,7 +89,8 @@ function listStudents(req, res) {
     const rows = studentService.listStudents({ tenantId }, filters);
     // A LINKED teacher sees only the students enrolled in their own classes.
     // A LINKED center sees only the students enrolled in its own classes.
-    // Both narrowings compose (intersection) when both actors are present.
+    // A LINKED student sees ONLY their own row.
+    // All narrowings compose (intersection) when several actors are present.
     let out = rows;
     if (_teacherId(req)) {
       const allowed = teacherOwnership.teacherStudentIds(tenantId, _teacherId(req));
@@ -84,6 +99,9 @@ function listStudents(req, res) {
     if (_centerId(req)) {
       const allowed = centerOwnership.centerStudentIds(tenantId, _centerId(req));
       out = centerOwnership.filterStudentsByCenter(out, allowed);
+    }
+    if (_studentId(req)) {
+      out = studentOwnership.filterStudentsByStudent(out, _studentId(req));
     }
     return success(res, out, 'Students retrieved');
   } catch (err) {
@@ -107,6 +125,12 @@ function getStudent(req, res) {
     // forbidden — a linked center only ever reads its own students.
     if (_centerId(req) && !centerOwnership.centerOwnsStudent(tenantId, found.id, _centerId(req))) {
       return _ownership403(res, 'Centers may only view their own students');
+    }
+    // Same-tenant student OTHER than the linked caller: refused as forbidden —
+    // a linked student only ever reads their own record (404 above already
+    // won for foreign tenants, so existence is never leaked).
+    if (_studentId(req) && String(found.id) !== _studentId(req)) {
+      return _ownership403(res, 'Students may only view their own record');
     }
     success(res, found, 'Student retrieved');
   } catch (err) {
@@ -221,6 +245,11 @@ function getStudentProgress(req, res) {
     if (_centerId(req) && !centerOwnership.centerOwnsStudent(tenantId, student.id, _centerId(req))) {
       return _ownership403(res, 'Centers may only view progress for their own students');
     }
+    // A LINKED student reaches only their OWN progress; the 404 above still
+    // precedes the 403 so existence is never leaked.
+    if (_studentId(req) && String(student.id) !== _studentId(req)) {
+      return _ownership403(res, 'Students may only view their own progress');
+    }
 
     // PROGRESS SCOPE — every count below is derived from THIS enrollment list,
     // so the scope must be the teacher's own enrollments, not every enrollment
@@ -330,6 +359,9 @@ function getStudentProgress(req, res) {
 // GET /students/me — the learner portal's identity endpoint. Mirrors
 // /teachers/me and /centers/me. Authorization is the LINK, not a permission
 // grant. Anonymous is 401; authenticated-but-unlinked is 404 STUDENT_NOT_LINKED.
+// The linked record prefers the server-resolved `req.educationStudent`
+// (middleware/studentActor) and falls back to the direct link lookup — both
+// are server-side resolutions; a client-supplied studentId is never consulted.
 //
 // BRANCH ISOLATION: same rule as center.getMe — when the user carries a
 // trusted branch scope and the linked student record carries a different
@@ -339,7 +371,8 @@ function getMe(req, res) {
     if (!req.user) return error(res, 'Authentication required', 401);
     const tenantId = _tenantIdOr400(req, res);
     if (!tenantId) return;
-    const student = studentService.getStudentByUserId({ tenantId }, req.user.id);
+    const student = req.educationStudent ||
+      studentService.getStudentByUserId({ tenantId }, req.user.id);
     if (!student) {
       return error(res, 'No student is linked to this account', 404, { code: 'STUDENT_NOT_LINKED' });
     }

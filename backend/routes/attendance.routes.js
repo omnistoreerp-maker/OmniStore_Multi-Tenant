@@ -37,14 +37,20 @@
 // fail closed; this file does NOT bypass the gate and does NOT weaken the
 // middleware. The global scopedWriteRoleGuard (Owner/Admin/Manager writes)
 // applies to these routes too.
+//
+// PHASE 2A — the two READ routes use `requirePermissionOrSelf`: a LINKED
+// student passes WITHOUT the operator view grant and the controller narrows
+// the rows to their OWN enrollments' registers (server-resolved
+// req.educationStudent). Writes keep strict `requirePermission` — a Student is
+// read-only.
 
 const router = require('express').Router();
 const ctrl = require('../controllers/attendance.controller');
 const asyncHandler = require('../utils/asyncHandler');
-const { requirePermission } = require('../middleware/authorize');
+const { requirePermission, requirePermissionOrSelf } = require('../middleware/authorize');
 
-router.get('/attendance', requirePermission('education.attendance.view'), asyncHandler(ctrl.listAttendance));
-router.get('/attendance/:id', requirePermission('education.attendance.view'), asyncHandler(ctrl.getAttendance));
+router.get('/attendance', requirePermissionOrSelf('education.attendance.view'), asyncHandler(ctrl.listAttendance));
+router.get('/attendance/:id', requirePermissionOrSelf('education.attendance.view'), asyncHandler(ctrl.getAttendance));
 router.post('/attendance', requirePermission('education.attendance.edit'), asyncHandler(ctrl.createAttendance));
 // One register, one request. Declared AFTER the literal `/attendance` path and
 // before any `/:id` path it could ever shadow; it is a POST while `/:id` is only

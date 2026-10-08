@@ -33,14 +33,20 @@
 // fail closed; this file does NOT bypass the gate and does NOT weaken the
 // middleware. The global scopedWriteRoleGuard (Owner/Admin/Manager writes)
 // applies to these routes too.
+//
+// PHASE 2A — the two READ routes use `requirePermissionOrSelf`: a LINKED
+// student passes WITHOUT the operator view grant and the controller narrows
+// the rows to their OWN enrollments' grades (server-resolved
+// req.educationStudent). Writes keep strict `requirePermission` — a Student is
+// read-only.
 
 const router = require('express').Router();
 const ctrl = require('../controllers/grading.controller');
 const asyncHandler = require('../utils/asyncHandler');
-const { requirePermission } = require('../middleware/authorize');
+const { requirePermission, requirePermissionOrSelf } = require('../middleware/authorize');
 
-router.get('/grading', requirePermission('education.grading.view'), asyncHandler(ctrl.listGrading));
-router.get('/grading/:id', requirePermission('education.grading.view'), asyncHandler(ctrl.getGrade));
+router.get('/grading', requirePermissionOrSelf('education.grading.view'), asyncHandler(ctrl.listGrading));
+router.get('/grading/:id', requirePermissionOrSelf('education.grading.view'), asyncHandler(ctrl.getGrade));
 router.post('/grading', requirePermission('education.grading.edit'), asyncHandler(ctrl.createGrade));
 router.put('/grading/:id', requirePermission('education.grading.edit'), asyncHandler(ctrl.updateGrade));
 

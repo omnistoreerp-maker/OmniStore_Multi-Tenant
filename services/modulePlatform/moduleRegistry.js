@@ -260,6 +260,21 @@
       navigation: [nav('car-rental', 'تأجير السيارات', '🚗', 'entertainment')],
       defaultSettings: { engineEnabled: false }
     }),
+    education: module({
+      id: 'education', name: 'Education', icon: '🎓', route: 'education',
+      permissions: ['education.centers.view', 'education.teachers.view', 'education.students.view', 'education.enrollments.view'],
+      navigation: [
+        nav('education', 'لوحة التعليم', '🎓', 'education'),
+        nav('education-centers', 'المراكز التعليمية', '🏫', 'education'),
+        nav('education-teachers', 'المعلمون', '👨‍🏫', 'education'),
+        nav('education-students', 'الطلاب', '🎓', 'education'),
+        nav('education-enrollments', 'التسجيلات', '📝', 'education')
+      ],
+      widgets: [
+        { id: 'education-dashboard', label: 'لوحة التعليم', icon: '🎓', route: 'education' }
+      ],
+      defaultSettings: { showDashboard: true }
+    }),
     settings: module({
       id: 'settings', name: 'Settings', icon: '⚙️', route: 'settings',
       permissions: ['manageSettings'],
@@ -268,22 +283,6 @@
         nav('pwa', 'تطبيق OmniStore ERP', '📲', 'admin')
       ],
       defaultSettings: { advancedMode: false }
-    }),
-    // Education & Student Services. Every route here resolves to a REAL,
-    // already-shipped page: student.html (print shop, catalog id
-    // student-services) and the Education module's hash-routed views
-    // (education/index.html#teachers / #centers). Registered so the loader
-    // knows the routes and the navigation builder can render, gate and
-    // disable them like every other module.
-    education_services: module({
-      id: 'education_services', name: 'Education & Student Services', icon: '🎓', route: 'student-services',
-      permissions: ['education.students.view', 'education.teachers.view', 'education.centers.view'],
-      navigation: [
-        nav('student-services', 'خدمات الطلاب والطباعة', '🎓', 'education'),
-        nav('education-teachers', 'المعلمون', '👨‍🏫', 'education'),
-        nav('education-centers', 'المراكز', '🏢', 'education')
-      ],
-      defaultSettings: {}
     })
   };
 

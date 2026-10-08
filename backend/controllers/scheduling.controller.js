@@ -37,6 +37,7 @@ const { trustedTenantId } = require('../middleware/authorize');
 const schedulingService = require('../services/scheduling.service');
 const classService = require('../services/class.service');
 const centerOwnership = require('../middleware/centerOwnership');
+const studentOwnership = require('../middleware/studentOwnership');
 const logger = require('../utils/logger');
 
 // Returns the trusted tenant id, or null after having already answered 400.
@@ -86,6 +87,22 @@ function _classOfSession(tenantId, session) {
   return classService.getClass({ tenantId }, session.classId);
 }
 
+// STUDENT SELF-SCOPE — the server-resolved `req.educationStudent.id` (never a
+// query/body value). A session belongs to a student only THROUGH an enrolled
+// Class, so a LINKED student sees only the timetable of THEIR OWN classes. The
+// post-filter runs after the query filters and after any teacher/center
+// narrowing (intersection), so no query key can widen past the self scope.
+// Unlinked callers (operators) are unchanged.
+function _studentId(req) {
+  return req && req.educationStudent && req.educationStudent.id ? String(req.educationStudent.id) : '';
+}
+
+function _studentOwnsClass(req, tenantId, classId) {
+  const studentId = _studentId(req);
+  if (!studentId) return false;
+  return studentOwnership.studentOwnsClass(tenantId, classId, studentId);
+}
+
 function listScheduling(req, res) {
   try {
     const tenantId = _tenantIdOr400(req, res);
@@ -110,6 +127,12 @@ function listScheduling(req, res) {
     // post-filter composes with the teacher override above (intersection).
     if (_centerId(req)) {
       const allowed = centerOwnership.centerClassIds(tenantId, _centerId(req));
+      rows = rows.filter((s) => s && allowed.has(String(s.classId || '')));
+    }
+    // A LINKED student's timetable is narrowed to their OWN classes. The
+    // post-filter runs LAST, so no filter above can widen past the self scope.
+    if (_studentId(req)) {
+      const allowed = studentOwnership.studentClassIds(tenantId, _studentId(req));
       rows = rows.filter((s) => s && allowed.has(String(s.classId || '')));
     }
     success(res, rows, 'Scheduling retrieved');
@@ -138,6 +161,11 @@ function getSession(req, res) {
     // ever reads its own timetable.
     if (_centerId(req) && !centerOwnership.centerOwnsSession(tenantId, found.classId, _centerId(req))) {
       return _ownership403(res, 'Centers may only access sessions of their own center');
+    }
+    // Same-tenant session of a class the linked student is NOT enrolled in:
+    // forbidden (404 already won across tenants).
+    if (_studentId(req) && !_studentOwnsClass(req, tenantId, found.classId)) {
+      return _ownership403(res, 'Students may only access sessions of their own classes');
     }
     success(res, found, 'Scheduling session retrieved');
   } catch (err) {

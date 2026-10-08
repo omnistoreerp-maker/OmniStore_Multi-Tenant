@@ -17,6 +17,7 @@ const { authMiddleware, requireAuth } = require('./middleware/auth');
 const { scopedWriteRoleGuard } = require('./middleware/authorize');
 const { attachTeacherActor } = require('./middleware/teacherActor');
 const { attachCenterActor } = require('./middleware/centerActor');
+const { attachStudentActor } = require('./middleware/studentActor');
 const { sanitizeBody, jsonParseErrorHandler, apiRateLimiter } = require('./middleware/security');
 const { validateResource } = require('./middleware/validate');
 const { configurePassport } = require('./middleware/passport');
@@ -395,6 +396,16 @@ app.use('/api/v1/tenant/education', attachTeacherActor);
 // scoping only ever NARROWS what the permission gate already allowed: there is
 // deliberately no center bypass in scopedWriteRoleGuard (least privilege).
 app.use('/api/v1/tenant/education', attachCenterActor);
+
+// P2 Learner portal — resolve the linked-student identity (if any) for every
+// Education request at the same mount point and with the same contract as the
+// teacher and center actors above: `req.educationStudent` is the resolved
+// student record or null (no signed-in user, no trusted tenant, no link),
+// never a guess, never a client-supplied studentId. Student scoping only ever
+// NARROWS what the route gate already allowed (SELF reads only); there is
+// deliberately no student bypass in scopedWriteRoleGuard — a Student stays
+// read-only (least privilege).
+app.use('/api/v1/tenant/education', attachStudentActor);
 
 // Optional route protection (AUTH_REQUIRED=true).
 // Default is OFF: every route stays open exactly as before (legacy behavior).

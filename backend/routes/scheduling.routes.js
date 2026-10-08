@@ -33,14 +33,20 @@
 // applies to these routes too — and a LINKED teacher (req.teacherActor) is
 // confined to sessions of their own classes by the controller; see
 // scheduling.controller.
+//
+// PHASE 2A — the two READ routes use `requirePermissionOrSelf`: a LINKED
+// student passes WITHOUT the operator view grant and the controller narrows
+// the timetable to their OWN classes' sessions (server-resolved
+// req.educationStudent). Writes keep strict `requirePermission` — a Student is
+// read-only.
 
 const router = require('express').Router();
 const ctrl = require('../controllers/scheduling.controller');
 const asyncHandler = require('../utils/asyncHandler');
-const { requirePermission } = require('../middleware/authorize');
+const { requirePermission, requirePermissionOrSelf } = require('../middleware/authorize');
 
-router.get('/scheduling', requirePermission('education.scheduling.view'), asyncHandler(ctrl.listScheduling));
-router.get('/scheduling/:id', requirePermission('education.scheduling.view'), asyncHandler(ctrl.getSession));
+router.get('/scheduling', requirePermissionOrSelf('education.scheduling.view'), asyncHandler(ctrl.listScheduling));
+router.get('/scheduling/:id', requirePermissionOrSelf('education.scheduling.view'), asyncHandler(ctrl.getSession));
 router.post('/scheduling', requirePermission('education.scheduling.edit'), asyncHandler(ctrl.createSession));
 router.put('/scheduling/:id', requirePermission('education.scheduling.edit'), asyncHandler(ctrl.updateSession));
 

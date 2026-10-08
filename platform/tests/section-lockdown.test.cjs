@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 // Platform section lockdown + Monetag boundary static regression checks.
 //
@@ -775,6 +775,8 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/services/class.service.js',
     'backend/services/teacher.service.js',
     'backend/tests/class.test.js',
+    // Center isolation matrix (student row scoping) regression suite.
+    'backend/tests/centerIsolation.test.js',
     'backend/tests/permissionRegistry.test.js',
     'backend/tests/platformSections.education.test.js',
 // Online Games license/dependency gate: CI wiring only (no app code).
@@ -818,6 +820,8 @@ check('working-tree diff touches only intended platform files', () => {
       'backend/controllers/booking.controller.js',
       'backend/controllers/rating.controller.js',
       'backend/controllers/educationPack.controller.js',
+      // Center isolation matrix suite (student row scoping regression).
+      'backend/tests/centerIsolation.test.js',
       'backend/tests/educationModuleHygiene.test.js',
       // Education P1 academic foundation: years/terms/subjects/groups
       // entities, course.subjectId + class.termId same-center wiring, and the
@@ -979,7 +983,9 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/services/class.service.js',
     'backend/services/teacher.service.js',
     'backend/tests/class.test.js',
-'backend/tests/permissionRegistry.test.js',
+    // Center isolation matrix (student row scoping) regression suite.
+    'backend/tests/centerIsolation.test.js',
+    'backend/tests/permissionRegistry.test.js',
       'backend/tests/platformSections.education.test.js',
       // Education module hygiene: `educationCore` was a SECOND parallel
       // Education implementation that was never mounted, behind
@@ -1101,3 +1107,5 @@ check('Marketplace, legacy market, sw.js, .env and backend/data show no working-
 
 console.log('\nsection-lockdown.test.cjs: ' + passed + ' passed, ' + failed + ' failed');
 if (failed > 0) process.exit(1);
+
+

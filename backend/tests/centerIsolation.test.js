@@ -439,8 +439,12 @@ describe('P0 Center isolation — allow own, deny foreign, spoofing fails closed
     expect(ids(await get('/students', ownerA()))).toEqual(['stu-1', 'stu-2']);
     expect(ids(await get('/classes', ownerA()))).toEqual(['cls-a0', 'cls-a1', 'cls-a2']);
     expect(ids(await get('/centers', ownerA()))).toEqual(['cen-a1', 'cen-a2', 'cen-a3', 'cen-a4']);
-    // Student-linked account without grants cannot escalate.
-    expect((await get('/students/stu-1', stu())).statusCode).toBe(403);
+    // A STUDENT-linked account reads ONLY its own row:
+    // /students/stu-1 is its own record (200), not escalation; any other
+    // student row is refused 403 and writes stay locked by the role gate.
+    expect((await get('/students/stu-1', stu())).statusCode).toBe(200);
+    expect((await get('/students/stu-1/progress', stu())).statusCode).toBe(200);
+    expect((await get('/students/stu-2', stu())).statusCode).toBe(403);
     expect((await post('/centers/cen-a1/link-user', stu(), { userId: 'u-stu' })).statusCode).toBe(403);
   });
 });

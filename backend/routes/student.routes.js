@@ -20,20 +20,31 @@
 // subtree — see the guard's own comment in backend/middleware/authorize.js.
 // The route permission still decides access either way.
 //
+// PHASE 2A — LEARNER PORTAL SELF SCOPE. The three READ routes below use
+// `requirePermissionOrSelf` (backend/middleware/authorize.js): a LINKED
+// student (req.educationStudent, resolved server-side by
+// middleware/studentActor from the signed token + trusted tenant + the
+// Owner/Admin-created link) passes WITHOUT an operator `education.students.*`
+// grant, and the controller force-narrows the result to that student's OWN
+// row. Everyone else — anonymous, unlinked accounts, operators — still faces
+// the strict permission gate. Every WRITE route keeps strict
+// `requirePermission` + the global role gate: a Student is read-only. The
+// link grants no permission; identity, role and ownership stay separate.
+//
 // Teacher, Guardian, Center, Program, Course, Class, Enrollment, Attendance,
 // schedule, grade and billing entities are deliberately NOT declared here.
 
 const router = require('express').Router();
 const ctrl = require('../controllers/student.controller');
 const asyncHandler = require('../utils/asyncHandler');
-const { requirePermission, requireRole } = require('../middleware/authorize');
+const { requirePermission, requirePermissionOrSelf, requireRole } = require('../middleware/authorize');
 
 // Portal identity — MUST stay above '/students/:id'.
 router.get('/students/me', asyncHandler(ctrl.getMe));
 
-router.get('/students', requirePermission('education.students.view'), asyncHandler(ctrl.listStudents));
-router.get('/students/:id', requirePermission('education.students.view'), asyncHandler(ctrl.getStudent));
-router.get('/students/:id/progress', requirePermission('education.students.view'), asyncHandler(ctrl.getStudentProgress));
+router.get('/students', requirePermissionOrSelf('education.students.view'), asyncHandler(ctrl.listStudents));
+router.get('/students/:id', requirePermissionOrSelf('education.students.view'), asyncHandler(ctrl.getStudent));
+router.get('/students/:id/progress', requirePermissionOrSelf('education.students.view'), asyncHandler(ctrl.getStudentProgress));
 router.post('/students', requirePermission('education.students.edit'), asyncHandler(ctrl.createStudent));
 router.put('/students/:id', requirePermission('education.students.edit'), asyncHandler(ctrl.updateStudent));
 router.patch('/students/:id/archive', requirePermission('education.students.edit'), asyncHandler(ctrl.archiveStudent));

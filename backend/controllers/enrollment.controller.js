@@ -33,6 +33,7 @@ const { trustedTenantId } = require('../middleware/authorize');
 const enrollmentService = require('../services/enrollment.service');
 const classService = require('../services/class.service');
 const centerOwnership = require('../middleware/centerOwnership');
+const studentOwnership = require('../middleware/studentOwnership');
 const logger = require('../utils/logger');
 
 // Returns the trusted tenant id, or null after having already answered 400.
@@ -56,6 +57,16 @@ function _ownership403(res, message) {
 // are unchanged, and any teacher narrowing composes by intersection.
 function _centerId(req) {
   return req && req.centerActor && req.centerActor.id ? String(req.centerActor.id) : '';
+}
+
+// STUDENT SELF-SCOPE — the server-resolved `req.educationStudent.id` (never a
+// query/body value). A LINKED student sees ONLY their own enrollments. The
+// query `studentId` runs in the service FIRST and this narrowing runs after it
+// (intersection), so `?studentId=<other>` answers an EMPTY list — a query can
+// narrow within the self scope, never widen it. Unlinked callers (operators)
+// are unchanged, and any teacher/center narrowing composes by intersection.
+function _studentId(req) {
+  return req && req.educationStudent && req.educationStudent.id ? String(req.educationStudent.id) : '';
 }
 
 function listEnrollments(req, res) {
@@ -84,6 +95,12 @@ function listEnrollments(req, res) {
       const allowed = centerOwnership.centerEnrollmentIds(tenantId, _centerId(req));
       rows = rows.filter((e) => e && allowed.has(String(e.id)));
     }
+    // A LINKED student's list is narrowed to their own enrollments — after
+    // every filter above, so no query key can widen past the self scope.
+    if (_studentId(req)) {
+      const sid = _studentId(req);
+      rows = rows.filter((e) => e && String(e.studentId || '') === sid);
+    }
     success(res, rows, 'Enrollments retrieved');
   } catch (err) {
     logger.error('enrollment.listEnrollments error:', err.message);
@@ -110,6 +127,12 @@ function getEnrollment(req, res) {
     // only ever views its own enrollments.
     if (_centerId(req) && !centerOwnership.centerOwnsEnrollment(tenantId, found.id, _centerId(req))) {
       return _ownership403(res, 'Centers may only view enrollments of their own center');
+    }
+    // Same-tenant Enrollment of ANOTHER student: forbidden — a linked student
+    // only ever views their own enrollment (the 404 above already won for
+    // foreign tenants).
+    if (_studentId(req) && String(found.studentId || '') !== _studentId(req)) {
+      return _ownership403(res, 'Students may only view their own enrollments');
     }
     success(res, found, 'Enrollment retrieved');
   } catch (err) {
