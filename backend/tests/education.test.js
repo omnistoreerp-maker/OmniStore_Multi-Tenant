@@ -183,7 +183,7 @@ describe('education module', () => {
       const fetched = service.getStudent(tenant, student.id, makeUser('Admin', 'tenant-crud'));
       expect(fetched.id).toBe(student.id);
 
-      const updated = service.updateStudent(tenant, student.id, { fullName: 'Student Updated', status: 'inactive' });
+      const updated = service.updateStudent(tenant, makeUser('Admin', 'tenant-crud'), student.id, { fullName: 'Student Updated', status: 'inactive' });
       expect(updated.fullName).toBe('Student Updated');
       expect(updated.status).toBe('inactive');
 
@@ -206,7 +206,7 @@ describe('education module', () => {
       const fetched = service.getEnrollment(tenant, enrollment.id, makeUser('Admin', 'tenant-crud'));
       expect(fetched.id).toBe(enrollment.id);
 
-      const updated = service.updateEnrollment(tenant, enrollment.id, { status: 'inactive' });
+      const updated = service.updateEnrollment(tenant, makeUser('Admin', 'tenant-crud'), enrollment.id, { status: 'inactive' });
       expect(updated.status).toBe('inactive');
 
       const list = service.listEnrollments(tenant, makeUser('Admin', 'tenant-crud'));
