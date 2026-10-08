@@ -133,7 +133,6 @@ function getCenter(tenantContext, centerId, user) {
   if (tid && String(center.tenantId || '') !== String(tid)) return null;
   return center;
 }
-
 function createCenter(tenantContext, user, data) {
   if (!tenantContext || !_tenantId(tenantContext)) throw new Error('Tenant context is required');
   const scope = _enforceScope(user, _tenantId(tenantContext), 'tenant');
@@ -214,7 +213,7 @@ function listTeachers(tenantContext, user, query = {}) {
 }
 
 function getTeacher(tenantContext, teacherId, user) {
-  const scope = _enforceScope(user, _tenantId(tenantContext), 'teacher');
+  const scope = _enforceScope(user, _tenantId(tenantContext), 'tenant');
   if (!scope.allowed) throw new Error('Access denied');
   const tid = _tenantId(tenantContext);
   const doc = _readStore();
@@ -307,18 +306,17 @@ function listStudents(tenantContext, user, query = {}) {
 }
 
 function getStudent(tenantContext, studentId, user) {
+  const scope = _enforceScope(user, _tenantId(tenantContext), 'student');
+  if (!scope.allowed) throw new Error('Access denied');
   const tid = _tenantId(tenantContext);
   const doc = _readStore();
-  const scope = _enforceScope(user, tid, 'student');
-  if (!scope.allowed) throw new Error('Access denied');
   let student = _findById(doc.students, studentId);
   if (!student) return null;
-  if (scope.scope === 'student' && student.id !== scope.studentId) return null;
   if (tid && String(student.tenantId || '') !== String(tid)) return null;
+  if (scope.scope === 'student' && student.id !== scope.studentId) return null;
   if (scope.scope === 'center' && String(student.centerId || '') !== String(scope.centerId)) return null;
   return student;
 }
-
 function createStudent(tenantContext, user, data) {
   if (!tenantContext || !_tenantId(tenantContext)) throw new Error('Tenant context is required');
   const scope = _enforceScope(user, _tenantId(tenantContext), 'tenant');
@@ -352,7 +350,9 @@ function createStudent(tenantContext, user, data) {
   return student;
 }
 
-function updateStudent(tenantContext, studentId, data) {
+function updateStudent(tenantContext, user, studentId, data) {
+  const scope = _enforceScope(user, _tenantId(tenantContext), 'tenant');
+  if (!scope.allowed) throw new Error('Access denied');
   const tid = _ensureTenant(tenantContext);
   _rejectTenantIdInPayload(data);
 
@@ -402,17 +402,15 @@ function listEnrollments(tenantContext, user, query = {}) {
 }
 
 function getEnrollment(tenantContext, enrollmentId, user) {
-  const scope = _enforceScope(user, _tenantId(tenantContext), 'teacher');
+  const scope = _enforceScope(user, _tenantId(tenantContext), 'tenant');
   if (!scope.allowed) throw new Error('Access denied');
   const tid = _tenantId(tenantContext);
   const doc = _readStore();
   const enrollment = _findById(doc.enrollments, enrollmentId);
   if (!enrollment) return null;
-  if (scope.scope === 'center' && String(enrollment.centerId || '') !== String(scope.centerId)) return null;
   if (tid && String(enrollment.tenantId || '') !== String(tid)) return null;
   return enrollment;
 }
-
 function createEnrollment(tenantContext, user, data) {
   if (!tenantContext || !_tenantId(tenantContext)) throw new Error('Tenant context is required');
   const scope = _enforceScope(user, _tenantId(tenantContext), 'tenant');
@@ -457,7 +455,9 @@ function createEnrollment(tenantContext, user, data) {
   return enrollment;
 }
 
-function updateEnrollment(tenantContext, enrollmentId, data) {
+function updateEnrollment(tenantContext, user, enrollmentId, data) {
+  const scope = _enforceScope(user, _tenantId(tenantContext), 'teacher');
+  if (!scope.allowed) throw new Error('Access denied');
   const tid = _ensureTenant(tenantContext);
   _rejectTenantIdInPayload(data);
 
@@ -465,6 +465,15 @@ function updateEnrollment(tenantContext, enrollmentId, data) {
   const enrollments = Array.isArray(doc.enrollments) ? doc.enrollments : [];
   const idx = enrollments.findIndex(e => String(e.id) === String(enrollmentId) && String(e.tenantId || '') === String(tid));
   if (idx === -1) return null;
+  if (scope.scope === 'teacher' && String(enrollment.teacherId || '') !== String(scope.teacherId)) {
+    throw new Error('Access denied');
+  }
+  if (scope.scope === 'center' && String(enrollment.centerId || '') !== String(scope.centerId)) {
+    throw new Error('Access denied');
+  }
+  if (scope.scope === 'student') {
+    throw new Error('Access denied');
+  }
 
   const updated = { ...enrollments[idx], ...data, id: enrollments[idx].id, tenantId: tid, updatedAt: _now() };
   if (updated.status !== undefined) updated.status = String(updated.status).toLowerCase();
@@ -610,6 +619,10 @@ module.exports = {
   getTeacherIdForUser,
   getStudentIdForUser
 };
+
+
+
+
 
 
 

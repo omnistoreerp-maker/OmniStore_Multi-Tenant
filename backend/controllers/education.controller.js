@@ -1,4 +1,4 @@
-﻿const educationService = require('../services/education.service');
+const educationService = require('../services/education.service');
 const { success, error } = require('../utils/apiResponse');
 const logger = require('../utils/logger');
 
@@ -14,7 +14,7 @@ function listCenters(req, res) {
 
 function getCenter(req, res) {
   try {
-    const center = educationService.getCenter(req.tenantContext, req.params.id);
+    const center = educationService.getCenter(req.tenantContext, req.params.id, req.user);
     if (!center) return error(res, 'Education center not found', 404);
     success(res, center, 'Education center retrieved');
   } catch (err) {
@@ -56,7 +56,7 @@ function listTeachers(req, res) {
 
 function getTeacher(req, res) {
   try {
-    const teacher = educationService.getTeacher(req.tenantContext, req.params.id);
+    const teacher = educationService.getTeacher(req.tenantContext, req.params.id, req.user);
     if (!teacher) return error(res, 'Teacher not found', 404);
     success(res, teacher, 'Teacher retrieved');
   } catch (err) {
@@ -98,7 +98,7 @@ function listStudents(req, res) {
 
 function getStudent(req, res) {
   try {
-    const student = educationService.getStudent(req.tenantContext, req.params.id);
+    const student = educationService.getStudent(req.tenantContext, req.params.id, req.user);
     if (!student) return error(res, 'Student not found', 404);
     success(res, student, 'Student retrieved');
   } catch (err) {
@@ -140,7 +140,7 @@ function listEnrollments(req, res) {
 
 function getEnrollment(req, res) {
   try {
-    const enrollment = educationService.getEnrollment(req.tenantContext, req.params.id);
+    const enrollment = educationService.getEnrollment(req.tenantContext, req.params.id, req.user);
     if (!enrollment) return error(res, 'Enrollment not found', 404);
     success(res, enrollment, 'Enrollment retrieved');
   } catch (err) {
