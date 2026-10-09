@@ -142,9 +142,9 @@ const PERMISSION_GUARDED_WRITE_ROUTES = new Set([
 // with a normal (Viewer-level) account could never confirm or cancel their own
 // booking: this gate would answer 'Insufficient role' before the route
 // permission was ever consulted. With it:
-//   - the bypass exists ONLY on the seven TEACHER-OWNED education surfaces
+//   - the bypass exists ONLY on the eight TEACHER-OWNED education surfaces
 //     (bookings, ratings, classes, scheduling, enrollments, attendance,
-//     grading) and ONLY for a caller whose link was created by an
+//     grading, assignments) and ONLY for a caller whose link was created by an
 //     Owner/Admin — an unlinked account, an anonymous request, any other
 //     education surface (students, programs, courses, centers,
 //     educationPack, teachers) and any other /api/v1 path keeps the full role
@@ -161,7 +161,7 @@ const PERMISSION_GUARDED_WRITE_ROUTES = new Set([
 //   - the route's strict requirePermission still decides access (fails closed
 //     with no grant, unknown permissions refused).
 const TEACHER_OWNED_EDUCATION_SURFACES = new Set([
-  'bookings', 'ratings', 'classes', 'scheduling', 'enrollments', 'attendance', 'grading'
+  'bookings', 'ratings', 'classes', 'scheduling', 'enrollments', 'attendance', 'grading', 'assignments'
 ]);
 function scopedWriteRoleGuard(...roles) {
   return function (req, res, next) {

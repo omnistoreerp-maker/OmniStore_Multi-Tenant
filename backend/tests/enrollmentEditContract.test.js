@@ -39,10 +39,18 @@ describe('inline enrollment editor matches the backend contract (static)', () =>
     expect(editFn).not.toMatch(/updateEnrollment\(id,\s*\{[^}]*status/);
   });
 
-  test('relationship and status selects are read-only while editing', () => {
-    for (const id of ['eeCenterId', 'eeTeacherId', 'eeStudentId', 'eeStatus']) {
-      expect(HTML).toContain(`document.getElementById('${id}').disabled = true`);
+  test('relationship selects are read-only while editing; the dead status control is gone', () => {
+    const editFn = HTML.slice(
+      HTML.indexOf('async function editEducationEnrollment'),
+      HTML.indexOf('async function loadEnrollmentTeachersAndStudents')
+    );
+    for (const id of ['eeCenterId', 'eeTeacherId', 'eeClassId', 'eeStudentId']) {
+      expect(editFn).toContain(`setReadOnlySelect('${id}'`);
     }
+    expect(HTML).toContain('select.disabled = true');
+    // The status dropdown offered states the backend never accepts; it was
+    // removed instead of left disabled so the form cannot imply otherwise.
+    expect(HTML).not.toContain('id="eeStatus"');
   });
 
   test('no PATCH goes to the plain update path; withdraw uses its own route', () => {

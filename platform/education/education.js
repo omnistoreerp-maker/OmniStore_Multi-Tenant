@@ -47,6 +47,9 @@
   var MAX_STRING_LEN = 160;
 
   var STATUS_VALUES = ['active', 'inactive', 'archived'];
+  // Assignments use the active/archived lifecycle only: there is no inactive
+  // state, mirroring the backend service contract.
+  var ASSIGNMENT_STATUSES = ['active', 'archived'];
   var EMPLOYMENT_TYPES = ['full_time', 'part_time', 'contract'];
   var DURATION_UNITS = ['days', 'weeks', 'months'];
   var ENROLLMENT_STATUSES = ['active', 'withdrawn'];
@@ -749,6 +752,40 @@
         csvColumn('Status', function (r) { return str(r.status); }),
         csvColumn('Enrolled', function (r) { return str(r.enrolledAt).slice(0, 10); }),
         csvColumn('Notes', function (r) { return str(r.notes); })
+      ])
+    },
+
+    assignments: {
+      key: 'assignments',
+      path: '/assignments',
+      title: 'Assignments',
+      icon: 'clipboard',
+      addLabel: 'Add Assignment',
+      archivePath: '/archive',
+      archiveLabel: 'Archive',
+      statuses: ASSIGNMENT_STATUSES,
+      filters: [
+        { name: 'status', label: 'Status', type: 'select', values: ASSIGNMENT_STATUSES },
+        { name: 'classId', label: 'Class', type: 'ref', source: 'classes' },
+        { name: 'search', label: 'Search', type: 'search' }
+      ],
+      fields: [
+        refField('classId', 'Class', 'classes', true, true),
+        textField('title', 'Title', { required: true }),
+        { name: 'description', label: 'Description', type: 'textarea', maxLength: 2000 },
+        { name: 'dueDate', label: 'Due Date', type: 'date' }
+      ],
+      columns: [
+        { label: 'Title', cell: function (r) { return text(r.title); } },
+        { label: 'Class', cell: function (r) { return text(refLabel('classes', r.classId)); } },
+        { label: 'Due Date', cell: function (r) { return code(r.dueDate); } },
+        { label: 'Status', cell: function (r) { return pill(r.status); } }
+      ],
+      export: csvExport('education-assignments', [
+        csvColumn('Title', function (r) { return str(r.title); }),
+        csvColumn('Class', csvRef('classes', 'classId')),
+        csvColumn('Due Date', function (r) { return str(r.dueDate); }),
+        csvColumn('Status', function (r) { return str(r.status); })
       ])
     },
 
@@ -1555,7 +1592,7 @@
   // ---------------------------------------------------------------------
 
   var PAGES = ['dashboard', 'students', 'teachers', 'centers', 'programs', 'courses',
-    'classes', 'roster', 'enrollments', 'attendance', 'register', 'schedule', 'calendar',
+    'classes', 'roster', 'enrollments', 'assignments', 'attendance', 'register', 'schedule', 'calendar',
     'grading', 'bookings', 'ratings', 'academic-years', 'terms', 'subjects', 'groups',
     'report-attendance', 'report-grading', 'report-sessions',
     'settings', 'center', 'teacher', 'student'];

@@ -7279,19 +7279,15 @@ document.addEventListener('DOMContentLoaded', function() {
       </div>
       <div class="form-group">
         <label>المعلم</label>
-        <select id="eeTeacherId" required><option value="">اختر معلم</option></select>
+        <select id="eeTeacherId" onchange="loadEnrollmentClasses()"><option value="">اختر معلم</option></select>
       </div>
       <div class="form-group">
         <label>الطالب</label>
         <select id="eeStudentId" required><option value="">اختر طالب</option></select>
       </div>
       <div class="form-group">
-        <label>الحالة</label>
-        <select id="eeStatus">
-          <option value="active">نشط</option>
-          <option value="inactive">متوقف</option>
-          <option value="completed">منتهي</option>
-        </select>
+        <label>الفصل</label>
+        <select id="eeClassId" required><option value="">اختر فصل</option></select>
       </div>
       <div class="form-group">
         <label>ملاحظات</label>
@@ -12279,7 +12275,10 @@ const backendOpQueue = {
     getEnrollment: (id) => USE_BACKEND ? backendApi._fetch('GET', '/tenant/education/enrollments/' + id) : null,
     createEnrollment: (data) => USE_BACKEND ? backendApi._fetch('POST', '/tenant/education/enrollments', data) : null,
     updateEnrollment: (id, data) => USE_BACKEND ? backendApi._fetch('PUT', '/tenant/education/enrollments/' + id, data) : null,
-    withdrawEnrollment: (id) => USE_BACKEND ? backendApi._fetch('PATCH', '/tenant/education/enrollments/' + id + '/withdraw') : null
+    withdrawEnrollment: (id) => USE_BACKEND ? backendApi._fetch('PATCH', '/tenant/education/enrollments/' + id + '/withdraw') : null,
+    getAllClasses: () => USE_BACKEND ? backendApi._fetch('GET', '/tenant/education/classes') : null,
+    getAllCourses: () => USE_BACKEND ? backendApi._fetch('GET', '/tenant/education/courses') : null,
+    getAllPrograms: () => USE_BACKEND ? backendApi._fetch('GET', '/tenant/education/programs') : null
   }
 };
 
@@ -44182,16 +44181,22 @@ function renderEducationPage() {
 }
 
 async function loadEducationData() {
-  const [centers, teachers, students, enrollments] = await Promise.all([
+  const [centers, teachers, students, enrollments, classes, courses, programs] = await Promise.all([
     backendApi.education?.getAllCenters?.() || Promise.resolve({ data: [], success: false }),
     backendApi.education?.getAllTeachers?.() || Promise.resolve({ data: [], success: false }),
     backendApi.education?.getAllStudents?.() || Promise.resolve({ data: [], success: false }),
-    backendApi.education?.getAllEnrollments?.() || Promise.resolve({ data: [], success: false })
+    backendApi.education?.getAllEnrollments?.() || Promise.resolve({ data: [], success: false }),
+    backendApi.education?.getAllClasses?.() || Promise.resolve({ data: [], success: false }),
+    backendApi.education?.getAllCourses?.() || Promise.resolve({ data: [], success: false }),
+    backendApi.education?.getAllPrograms?.() || Promise.resolve({ data: [], success: false })
   ]);
-  educationState.centers = centers?.data || centers?.success === false ? [] : (centers || []);
-  educationState.teachers = teachers?.data || teachers?.success === false ? [] : (teachers || []);
-  educationState.students = students?.data || students?.success === false ? [] : (students || []);
-  educationState.enrollments = enrollments?.data || enrollments?.success === false ? [] : (enrollments || []);
+  educationState.centers = Array.isArray(centers?.data) ? centers.data : [];
+  educationState.teachers = Array.isArray(teachers?.data) ? teachers.data : [];
+  educationState.students = Array.isArray(students?.data) ? students.data : [];
+  educationState.enrollments = Array.isArray(enrollments?.data) ? enrollments.data : [];
+  educationState.classes = Array.isArray(classes?.data) ? classes.data : [];
+  educationState.courses = Array.isArray(courses?.data) ? courses.data : [];
+  educationState.programs = Array.isArray(programs?.data) ? programs.data : [];
 }
 
 function renderEducationCentersPage() {
@@ -44561,37 +44566,67 @@ function renderEducationEnrollmentsPage() {
   `;
 }
 
-function openEducationEnrollmentModal() {
+async function openEducationEnrollmentModal() {
   document.getElementById('educationEnrollmentForm').reset();
   document.getElementById('eeId').value = '';
   document.getElementById('eeNotes').value = '';
   document.getElementById('eeCenterId').disabled = false;
   document.getElementById('eeTeacherId').disabled = false;
+  document.getElementById('eeClassId').disabled = false;
   document.getElementById('eeStudentId').disabled = false;
-  document.getElementById('eeStatus').disabled = false;
+  await loadEducationData();
   populateCenterDropdown('eeCenterId');
   document.getElementById('eeTeacherId').innerHTML = '<option value="">اختر معلم</option>';
+  document.getElementById('eeClassId').innerHTML = '<option value="">اختر فصل</option>';
   document.getElementById('eeStudentId').innerHTML = '<option value="">اختر طالب</option>';
+  loadEnrollmentTeachersAndStudents();
   openModal('educationEnrollmentModal');
 }
 
-function editEducationEnrollment(id) {
-  const enrollment = educationState.enrollments.find(e => e.id === id);
+function educationCourseById(id) {
+  return (educationState.courses || []).find(c => String(c.id) === String(id)) || null;
+}
+
+function educationProgramById(id) {
+  return (educationState.programs || []).find(p => String(p.id) === String(id)) || null;
+}
+
+// Center of a class, resolved through the same Class -> Course -> Program
+// chain the backend ownership helpers use. Empty when the chain cannot be
+// resolved from loaded state; callers then fall back to the full authorized
+// list and the server remains the authority on same-tenant references.
+function educationClassCenterId(cls) {
+  const course = cls && cls.courseId ? educationCourseById(cls.courseId) : null;
+  const program = course && course.programId ? educationProgramById(course.programId) : null;
+  return program && program.centerId ? String(program.centerId) : '';
+}
+
+function educationChainAvailable() {
+  return (educationState.courses || []).length > 0 && (educationState.programs || []).length > 0;
+}
+
+function setReadOnlySelect(selectId, label) {
+  const select = document.getElementById(selectId);
+  select.innerHTML = `<option value="">${escapeHtml(label)}</option>`;
+  select.disabled = true;
+}
+
+async function editEducationEnrollment(id) {
+  await loadEducationData();
+  const enrollment = (educationState.enrollments || []).find(e => e.id === id);
   if (!enrollment) return;
   document.getElementById('eeId').value = enrollment.id;
-  document.getElementById('eeCenterId').value = enrollment.centerId || '';
-  loadEnrollmentTeachersAndStudents();
-  document.getElementById('eeTeacherId').value = enrollment.teacherId || '';
-  document.getElementById('eeStudentId').value = enrollment.studentId || '';
-  document.getElementById('eeStatus').value = enrollment.status || 'active';
   document.getElementById('eeNotes').value = enrollment.notes || '';
-  // The backend update contract accepts notes only: relationship and status
-  // fields are read-only while editing so the request can never be refused
-  // for a field the server owns.
-  document.getElementById('eeCenterId').disabled = true;
-  document.getElementById('eeTeacherId').disabled = true;
-  document.getElementById('eeStudentId').disabled = true;
-  document.getElementById('eeStatus').disabled = true;
+  // Relationship fields are read-only while editing: display the linked rows.
+  const cls = (educationState.classes || []).find(c => String(c.id) === String(enrollment.classId));
+  const stu = (educationState.students || []).find(s => String(s.id) === String(enrollment.studentId));
+  const teacher = cls ? (educationState.teachers || []).find(t => String(t.id) === String(cls.teacherId)) : null;
+  const centerId = cls ? educationClassCenterId(cls) : '';
+  const center = centerId ? (educationState.centers || []).find(c => String(c.id) === centerId) : null;
+  setReadOnlySelect('eeCenterId', center ? center.name : '-');
+  setReadOnlySelect('eeTeacherId', teacher ? (teacher.displayName || [teacher.firstName, teacher.lastName].filter(Boolean).join(' ') || teacher.id) : '-');
+  setReadOnlySelect('eeClassId', cls ? (cls.displayName || cls.name || cls.id) : '-');
+  setReadOnlySelect('eeStudentId', stu ? ([stu.firstName, stu.lastName].filter(Boolean).join(' ') || stu.id) : '-');
   openModal('educationEnrollmentModal');
 }
 
@@ -44599,21 +44634,44 @@ async function loadEnrollmentTeachersAndStudents() {
   const centerId = document.getElementById('eeCenterId').value;
   const teacherSelect = document.getElementById('eeTeacherId');
   const studentSelect = document.getElementById('eeStudentId');
-  
-  teacherSelect.innerHTML = '<option value="">اختر معلم</option>';
-  studentSelect.innerHTML = '<option value="">اختر طالب</option>';
-  
-  if (!centerId) return;
-  
-  const teachers = educationState.teachers?.filter(t => t.centerId === centerId) || [];
-  const students = educationState.students?.filter(s => s.centerId === centerId) || [];
-  
-  teachers.forEach(t => {
-    teacherSelect.innerHTML += `<option value="${t.id}">${escapeHtml(t.fullName)}</option>`;
-  });
-  students.forEach(s => {
-    studentSelect.innerHTML += `<option value="${s.id}">${escapeHtml(s.fullName)}</option>`;
-  });
+  const keepTeacher = teacherSelect.value;
+  const classes = educationState.classes || [];
+  // Teacher records carry no center of their own: teachers are narrowed to
+  // those teaching a class in the selected center, resolved through the
+  // Class -> Course -> Program chain. When the chain cannot be resolved from
+  // loaded state, every authorized teacher stays selectable and the server —
+  // which validates same-tenant references — remains the authority.
+  const chainOk = educationChainAvailable();
+  const inCenter = (centerId && chainOk) ? classes.filter(c => educationClassCenterId(c) === String(centerId)) : classes.slice();
+  const teacherIds = new Set(inCenter.map(c => String(c.teacherId || '')).filter(Boolean));
+  const teachers = (educationState.teachers || []).filter(t => !centerId || !chainOk || teacherIds.has(String(t.id)));
+  const teacherName = (t) => t.displayName || [t.firstName, t.lastName].filter(Boolean).join(' ') || t.id;
+  teacherSelect.innerHTML = '<option value="">اختر معلم</option>' +
+    teachers.map(t => `<option value="${t.id}">${escapeHtml(teacherName(t))}</option>`).join('');
+  if ([...teacherSelect.options].some(o => o.value === keepTeacher)) teacherSelect.value = keepTeacher;
+  // Any tenant student may be enrolled into any tenant class, so students are
+  // listed without center narrowing (the list itself is already tenant-scoped
+  // by the backend for the signed-in account).
+  const studentName = (s) => [s.firstName, s.lastName].filter(Boolean).join(' ') || s.id;
+  studentSelect.innerHTML = '<option value="">اختر طالب</option>' +
+    (educationState.students || []).map(s => `<option value="${s.id}">${escapeHtml(studentName(s))}</option>`).join('');
+  loadEnrollmentClasses();
+}
+
+function loadEnrollmentClasses() {
+  const centerId = document.getElementById('eeCenterId').value;
+  const teacherId = document.getElementById('eeTeacherId').value;
+  const classSelect = document.getElementById('eeClassId');
+  const keepClass = classSelect.value;
+  const chainOk = educationChainAvailable();
+  let classes = educationState.classes || [];
+  if (centerId && chainOk) classes = classes.filter(c => educationClassCenterId(c) === String(centerId));
+  if (teacherId) classes = classes.filter(c => String(c.teacherId || '') === String(teacherId));
+  classSelect.innerHTML = (classes.length
+    ? '<option value="">اختر فصل</option>'
+    : '<option value="">لا توجد فصول متاحة</option>') +
+    classes.map(c => `<option value="${c.id}">${escapeHtml(c.displayName || c.name || c.id)}</option>`).join('');
+  if ([...classSelect.options].some(o => o.value === keepClass)) classSelect.value = keepClass;
 }
 
 async function saveEducationEnrollment(event) {
@@ -44643,16 +44701,20 @@ async function saveEducationEnrollment(event) {
     return;
   }
 
+  // Create mode only reaches here (edit mode returns above with a
+  // notes-only payload): the backend create contract requires a same-tenant
+  // student and class, so only those two references plus the optional notes
+  // are sent. Tenant scope stays server-authoritative.
   const data = {
-    centerId: document.getElementById('eeCenterId').value,
-    teacherId: document.getElementById('eeTeacherId').value,
     studentId: document.getElementById('eeStudentId').value,
-    status: document.getElementById('eeStatus').value
+    classId: document.getElementById('eeClassId').value,
+    notes: document.getElementById('eeNotes').value.trim()
   };
-  if (!data.centerId || !data.teacherId || !data.studentId) {
-    showToast('اختر المركز والمعلم والطالب', 'error');
+  if (!data.studentId || !data.classId) {
+    showToast('اختر الطالب والفصل', 'error');
     return;
   }
+  if (!data.notes) delete data.notes;
   
   let res = await backendApi.education.createEnrollment(data);
 
