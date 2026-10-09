@@ -12262,19 +12262,19 @@ const backendOpQueue = {
     getAllCenters: () => USE_BACKEND ? backendApi._fetch('GET', '/tenant/education/centers') : null,
     getCenter: (id) => USE_BACKEND ? backendApi._fetch('GET', '/tenant/education/centers/' + id) : null,
     createCenter: (data) => USE_BACKEND ? backendApi._fetch('POST', '/tenant/education/centers', data) : null,
-    updateCenter: (id, data) => USE_BACKEND ? backendApi._fetch('PATCH', '/tenant/education/centers/' + id, data) : null,
+    updateCenter: (id, data) => USE_BACKEND ? backendApi._fetch('PUT', '/tenant/education/centers/' + id, data) : null,
     getAllTeachers: () => USE_BACKEND ? backendApi._fetch('GET', '/tenant/education/teachers') : null,
     getTeacher: (id) => USE_BACKEND ? backendApi._fetch('GET', '/tenant/education/teachers/' + id) : null,
     createTeacher: (data) => USE_BACKEND ? backendApi._fetch('POST', '/tenant/education/teachers', data) : null,
-    updateTeacher: (id, data) => USE_BACKEND ? backendApi._fetch('PATCH', '/tenant/education/teachers/' + id, data) : null,
+    updateTeacher: (id, data) => USE_BACKEND ? backendApi._fetch('PUT', '/tenant/education/teachers/' + id, data) : null,
     getAllStudents: () => USE_BACKEND ? backendApi._fetch('GET', '/tenant/education/students') : null,
     getStudent: (id) => USE_BACKEND ? backendApi._fetch('GET', '/tenant/education/students/' + id) : null,
     createStudent: (data) => USE_BACKEND ? backendApi._fetch('POST', '/tenant/education/students', data) : null,
-    updateStudent: (id, data) => USE_BACKEND ? backendApi._fetch('PATCH', '/tenant/education/students/' + id, data) : null,
+    updateStudent: (id, data) => USE_BACKEND ? backendApi._fetch('PUT', '/tenant/education/students/' + id, data) : null,
     getAllEnrollments: () => USE_BACKEND ? backendApi._fetch('GET', '/tenant/education/enrollments') : null,
     getEnrollment: (id) => USE_BACKEND ? backendApi._fetch('GET', '/tenant/education/enrollments/' + id) : null,
     createEnrollment: (data) => USE_BACKEND ? backendApi._fetch('POST', '/tenant/education/enrollments', data) : null,
-    updateEnrollment: (id, data) => USE_BACKEND ? backendApi._fetch('PATCH', '/tenant/education/enrollments/' + id, data) : null
+    updateEnrollment: (id, data) => USE_BACKEND ? backendApi._fetch('PUT', '/tenant/education/enrollments/' + id, data) : null
   }
 };
 
