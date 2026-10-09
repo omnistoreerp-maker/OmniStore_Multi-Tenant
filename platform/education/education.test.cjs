@@ -1862,8 +1862,16 @@ check('phase 2D: student assignment strings exist in Arabic and English', () => 
   const strings = ['Assignments', 'Title', 'Class', 'Due Date',
     'No assignments for this student yet.'];
   for (const text of strings) {
-    assert(RUNTIME.includes("t('" + text + "')"),
-      'the runtime never renders through i18n: ' + text);
+    // The education page does NOT call a `t()` helper: education.js never
+    // imports OmniLang and has no such binding (calling one threw
+    // `ReferenceError: t is not defined` at runtime). Its real i18n contract
+    // is the one every other string in the file uses — a plain English literal
+    // in the DOM, which platform/omni-i18n.js rewrites through the dictionary
+    // via its MutationObserver. So assert the literal is rendered AND that the
+    // dictionary maps it to Arabic; asserting a `t('...')` call here would
+    // demand a convention this file never had.
+    assert(RUNTIME.includes("'" + text + "'"),
+      'the runtime never renders the string: ' + text);
     assert(DICT.includes('"' + text + '"'),
       'the dictionary has no entry for: ' + text);
   }

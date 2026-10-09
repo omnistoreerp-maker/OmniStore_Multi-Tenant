@@ -4051,6 +4051,26 @@
     // being swallowed into a card that never renders.
     var progress = null;
 
+    // ATTENDANCE is accumulated across two SIBLING promise callbacks below: the
+    // first request callback resolves the enrolled classes and returns the
+    // per-enrollment attendance batches, and the next `.then` renders the card
+    // from whatever was gathered. It must therefore be declared HERE, in
+    // paintStudentDetail's own scope, and not inside either callback: a `var`
+    // inside the first callback is invisible to the sibling, and reading it
+    // there threw `ReferenceError: attendance is not defined`, which the outer
+    // catch turned into a bare error banner — wiping the enrollments card and
+    // stopping renderStudentAssignments from ever running.
+    var attendance = [];
+
+    // ENROLLED CLASSES — the class rows this student detail already resolved
+    // (results[0] below is loadRef('classes')). renderStudentAssignments needs
+    // them to label an assignment's class, and it is called from the SECOND
+    // sibling callback, so the array has to live in this scope too. The
+    // previous code referenced a `classesHost` identifier that is not declared
+    // anywhere in this file, which would have thrown a second ReferenceError
+    // immediately after the attendance one was fixed.
+    var enrolledClasses = [];
+
     Promise.all([
       loadRef('classes'),
       loadRef('enrollments'),
@@ -4061,7 +4081,10 @@
     ]).then(function (results) {
       var enrollments = Array.isArray(results[2]) ? results[2] : [];
       var allSessions = Array.isArray(results[3]) ? results[3] : [];
-      var attendance = [];
+      // `attendance` and `enrolledClasses` are the hoisted values declared
+      // above, not fresh locals: the sibling callback that renders the
+      // attendance card and the assignments card reads these ones.
+      enrolledClasses = Array.isArray(results[0]) ? results[0] : [];
       progress = results[4];
 
       host.textContent = '';
@@ -4118,8 +4141,8 @@
       // returns only the linked student's enrolled-class rows. A 403/404 is
       // surfaced as an error and never converted into an empty success (that
       // would misreport denied as none). The only class label source is the
-      // enrolled-class list already held in classesHost.
-      renderStudentAssignments(host, classesHost);
+      // enrolled-class list resolved above in this same render.
+      renderStudentAssignments(host, enrolledClasses);
 
 // Raw progress - read-only counts from the canonical P2 progress
   // endpoint (/students/:id/progress). Every number below is a count the
@@ -4178,7 +4201,13 @@
   function renderStudentAssignments(host, enrolledClasses) {
     var box = el('div', 'edu-card');
     box.id = 'edu-student-assignments';
-    box.appendChild(el('h2', 'edu-section-title', t('Assignments')));
+    // Plain English literals, exactly like every other string in this file:
+    // the i18n pass (platform/omni-i18n.js) watches the DOM and rewrites text
+    // nodes and the listed attributes through the education dictionary. This
+    // IIFE imports no i18n module and declares no `t` binding, so a bare
+    // `t('Assignments')` threw `ReferenceError: t is not defined` and killed
+    // the whole render (and with it the entire assignments section).
+    box.appendChild(el('h2', 'edu-section-title', 'Assignments'));
     var listHost = el('div', 'edu-student-assignments-list');
     listHost.id = 'edu-student-assignments-list';
     listHost.setAttribute('aria-live', 'polite');
@@ -4194,10 +4223,10 @@
           return refName('classes', snaps[i]) || refLabel('classes', classId);
         }
       }
-      // classesHost is reassigned (concat) after this renderer is called, so
-      // the snapshot above may be the pre-resolution array. REF.classes is
-      // filled by the same paint chain before this async read resolves, and
-      // for a linked student it already holds exactly the enrolled classes.
+      // Second lookup: REF.classes is populated by the same paint chain and
+      // may hold rows the snapshot above missed, and for a linked student it
+      // already holds exactly the enrolled classes. Final fallback is the raw
+      // id, which the server never resolved inside this tenant.
       for (i = 0; i < live.length; i++) {
         if (String(live[i].id || '') === String(classId || '')) {
           return refName('classes', live[i]) || refLabel('classes', classId);
@@ -4211,11 +4240,11 @@
       var list = Array.isArray(rows) ? rows : [];
       if (!list.length) {
         listHost.appendChild(stateBlock('empty',
-          t('No assignments for this student yet.')));
+          'No assignments for this student yet.'));
         return;
       }
       listHost.appendChild(simpleTable(
-        [t('Title'), t('Class'), t('Due Date')],
+        ['Title', 'Class', 'Due Date'],
         list.map(function (row) {
           var due = row && row.dueDate ? String(row.dueDate).slice(0, 10) : '';
           return [
