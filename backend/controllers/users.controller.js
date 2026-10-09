@@ -7,6 +7,9 @@ const { trustedTenantId } = require('../middleware/authorize');
 const authorization = require('../services/authorization.service');
 const registry = require('../permissions/registry');
 const CompanyService = require('../services/company.service');
+const tenantMembership = require('../services/tenantMembership.service');
+const tenantRole = require('../services/tenantRole.service');
+const config = require('../config');
 
 // Phase: company-scoped user management — authenticated READ access to the
 // user directory requires `users.view` (Owner/Admin/Manager). Unauthenticated
@@ -174,6 +177,35 @@ function createTenantScoped(req, res, tenantId) {
   success(res, usersService.sanitizeUser(result.user), 'User created', 201);
 }
 
+function _canonicalTenantIds(value) {
+  if (value === undefined || value === null) return '';
+  const items = Array.isArray(value) ? value : [value];
+  return items.map((v) => String(v).trim()).filter(Boolean).sort().join(',');
+}
+
+function _canonicalTenantRoles(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return '';
+  return Object.keys(value)
+    .map((k) => String(k).trim() + ':' + String(value[k]).trim())
+    .filter((p) => p !== ':')
+    .sort()
+    .join(',');
+}
+
+function _tenantScopeChanged(target, payload) {
+  if (payload.tenantIds !== undefined) {
+    const before = _canonicalTenantIds(target.tenantIds);
+    const after = _canonicalTenantIds(config.tenantUserMembershipEnabled ? tenantMembership.normalize(payload.tenantIds) : payload.tenantIds);
+    if (before !== after) return true;
+  }
+  if (payload.tenantRoles !== undefined) {
+    const before = _canonicalTenantRoles(target.tenantRoles);
+    const after = _canonicalTenantRoles(config.tenantRolesEnabled ? tenantRole.normalize(payload.tenantRoles) : payload.tenantRoles);
+    if (before !== after) return true;
+  }
+  return false;
+}
+
 function update(req, res) {
   try {
     const targetId = String(req.params.id || '');
@@ -220,9 +252,19 @@ function update(req, res) {
       }
     }
 
+    const scopeRevoked = _tenantScopeChanged(target, updatePayload);
     const result = usersService.update(targetId, updatePayload);
     if (result.error === 'User not found') return error(res, result.error, 404);
     if (result.error) return error(res, result.error, 400);
+
+    // Tenant membership/role revocation must invalidate existing sessions: a
+    // genuine tenantIds/tenantRoles change bumps tokenVersion so outstanding
+    // access/refresh tokens fail closed. Omitted fields are never treated as
+    // removals, and identical values do not bump.
+    if (scopeRevoked) {
+      const bump = usersService.bumpTokenVersion(targetId);
+      if (bump.error) return error(res, bump.error, 400);
+    }
 
     if (tenantId && req.body && req.body.role !== undefined && req.body.role !== target.role) {
       try {
