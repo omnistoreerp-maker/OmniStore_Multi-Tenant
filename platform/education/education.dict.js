@@ -131,6 +131,7 @@
     "Teachers": "المعلمون",
     "Time": "الوقت",
     "Title": "العنوان",
+    "No assignments for this student yet.": "لا توجد واجبات لهذا الطالب بعد.",
     "Timezone": "المنطقة الزمنية",
     "To": "إلى",
     "Withdraw": "سحب التسجيل",

@@ -4113,6 +4113,14 @@
         : stateBlock('empty', 'No attendance records for this student.'));
       host.appendChild(card);
 
+      // PHASE 2D. Read-only assignments for the linked student. The server is
+      // the authority: plain GET /assignments with no client-sent scope
+      // returns only the linked student's enrolled-class rows. A 403/404 is
+      // surfaced as an error and never converted into an empty success (that
+      // would misreport denied as none). The only class label source is the
+      // enrolled-class list already held in classesHost.
+      renderStudentAssignments(host, classesHost);
+
 // Raw progress - read-only counts from the canonical P2 progress
   // endpoint (/students/:id/progress). Every number below is a count the
   // service derived from real records; nothing is a rate, score,
@@ -4156,6 +4164,83 @@
       host.textContent = '';
       host.appendChild(banner('error', explain(err)));
     });
+  }
+
+  // PHASE 2D. Student assignments, read-only. One plain GET /assignments per
+  // linked-student view: the backend self-scope narrows the rows to the
+  // classes of the student's own enrollments, so the page sends no studentId,
+  // tenantId or classId of its own. Only the rows the server returns are
+  // rendered — the page never filters foreign rows out of a wider payload,
+  // because the contract guarantees the payload is already narrowed.
+  // States: loading, success with rows, success with zero rows (empty), and
+  // request failure including 403/404 (error with retry). Due dates render as
+  // stored, with no overdue derivation in this phase.
+  function renderStudentAssignments(host, enrolledClasses) {
+    var box = el('div', 'edu-card');
+    box.id = 'edu-student-assignments';
+    box.appendChild(el('h2', 'edu-section-title', t('Assignments')));
+    var listHost = el('div', 'edu-student-assignments-list');
+    listHost.id = 'edu-student-assignments-list';
+    listHost.setAttribute('aria-live', 'polite');
+    box.appendChild(listHost);
+    host.appendChild(box);
+
+    var classNameOf = function (classId) {
+      var snaps = Array.isArray(enrolledClasses) ? enrolledClasses : [];
+      var live = REF.classes || [];
+      var i;
+      for (i = 0; i < snaps.length; i++) {
+        if (String(snaps[i].id || '') === String(classId || '')) {
+          return refName('classes', snaps[i]) || refLabel('classes', classId);
+        }
+      }
+      // classesHost is reassigned (concat) after this renderer is called, so
+      // the snapshot above may be the pre-resolution array. REF.classes is
+      // filled by the same paint chain before this async read resolves, and
+      // for a linked student it already holds exactly the enrolled classes.
+      for (i = 0; i < live.length; i++) {
+        if (String(live[i].id || '') === String(classId || '')) {
+          return refName('classes', live[i]) || refLabel('classes', classId);
+        }
+      }
+      return refLabel('classes', classId);
+    };
+
+    var paintRows = function (rows) {
+      listHost.textContent = '';
+      var list = Array.isArray(rows) ? rows : [];
+      if (!list.length) {
+        listHost.appendChild(stateBlock('empty',
+          t('No assignments for this student yet.')));
+        return;
+      }
+      listHost.appendChild(simpleTable(
+        [t('Title'), t('Class'), t('Due Date')],
+        list.map(function (row) {
+          var due = row && row.dueDate ? String(row.dueDate).slice(0, 10) : '';
+          return [
+            text(row && row.title ? row.title : ''),
+            text(classNameOf(row && row.classId)),
+            due ? code(due) : text('')
+          ];
+        })
+      ));
+    };
+
+    var load = function () {
+      if (state.page !== 'student') return;
+      listHost.textContent = '';
+      listHost.appendChild(loadingBlock());
+      api('GET', '/assignments').then(function (rows) {
+        if (state.page !== 'student') return;
+        paintRows(rows);
+      }).catch(function (err) {
+        if (state.page !== 'student') return;
+        listHost.textContent = '';
+        listHost.appendChild(banner('error', explain(err), load));
+      });
+    };
+    load();
   }
 
   function classOfEnrollment(enrollmentId) {

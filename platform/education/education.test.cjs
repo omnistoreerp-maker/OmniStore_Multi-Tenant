@@ -951,8 +951,10 @@ check('stale responses from a previous page are dropped', () => {
   // the teacher chain paints classes/sessions, the student chain paints
   // the attendance/progress records. Dropping either guard would let a
   // slow response repaint a workspace the user has already left.
+  // PHASE 2D adds one more student guard: the read-only assignments loader
+  // paints only while the student workspace is still open.
   assert(count(RUNTIME, "state.page !== 'teacher'") === 2, 'the teacher guard drifted');
-  assert(count(RUNTIME, "state.page !== 'student'") === 2, 'the student guard drifted');
+  assert(count(RUNTIME, "state.page !== 'student'") >= 3, 'the student guard drifted');
 });
 
 check('a renderer callback only reads the row variable it actually receives', () => {
@@ -1801,6 +1803,91 @@ check('the report surfaces add no backend surface and no new permission', () => 
 // ---------------------------------------------------------------------------
 // 12. Workspace reachability and canonical data paths
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// 13. PHASE 2D — student assignment visibility, read-only
+// ---------------------------------------------------------------------------
+// The student workspace shows the linked student's own assignments through the
+// EXISTING GET /assignments endpoint. The server is the authority: plain
+// GET /assignments (no client-sent studentId/tenantId/classId) is narrowed
+// server-side to the classes of the student's own enrollments.
+check('phase 2D: the student workspace reads only the existing server-scoped GET /assignments', () => {
+  assert(RUNTIME.includes("api('GET', '/assignments')"),
+    'the student workspace does not read the existing GET /assignments endpoint');
+  const scoped = RUNTIME.match(/\/assignments\?(studentId|tenantId|classId)=/g) || [];
+  assertEqual(scoped.length, 0,
+    'the student view sends a client scope to /assignments: ' + scoped.join(', '));
+  const start = RUNTIME.indexOf('function renderStudentWorkspace');
+  const end = RUNTIME.indexOf('function classOfEnrollment');
+  assert(start >= 0 && end > start, 'the student workspace block could not be located');
+  const block = RUNTIME.slice(start, end);
+  assert(block.includes("api('GET', '/assignments')"),
+    'GET /assignments is not read from the student workspace');
+  const routeSrc = read('backend/routes/assignment.routes.js');
+  assert(routeSrc.includes("router.get('/assignments', requirePermissionOrSelf('education.classes.view')"),
+    'the backend no longer exposes the link-scoped GET /assignments read');
+  for (const verb of ["router.post('/assignments', requirePermission(",
+    "router.put('/assignments/:id', requirePermission(",
+    "router.patch('/assignments/:id/archive', requirePermission("]) {
+    assert(routeSrc.includes(verb),
+      'a student-reachable assignment write appeared: ' + verb);
+  }
+});
+
+check('phase 2D: student assignments render title, class and due date with loading/empty/error states', () => {
+  assert(RUNTIME.includes('function renderStudentAssignments'),
+    'the student assignments renderer is missing');
+  assert(RUNTIME.includes('edu-student-assignments-list'),
+    'the student assignments list container is missing');
+  assert(RUNTIME.includes('No assignments for this student yet.'),
+    'the student assignments empty state is missing');
+  assert(RUNTIME.includes('loadingBlock()'), 'the student assignments loading state is missing');
+  const start = RUNTIME.indexOf('function renderStudentAssignments');
+  const end = RUNTIME.indexOf('function classOfEnrollment');
+  assert(start >= 0 && end > start, 'the student assignments block could not be located');
+  const block = stripComments(RUNTIME.slice(start, end));
+  assert(block.includes('row.title'), 'the assignment title is not rendered');
+  assert(block.includes('row.classId'), 'the assignment class is not rendered');
+  assert(block.includes('row.dueDate'), 'the assignment due date is not rendered');
+  assert(!/overdue/i.test(block),
+    'the student assignments derive an overdue state this phase must not ship');
+  assert(block.includes("banner('error'"), 'a failed assignments read has no error state');
+  assert(block.includes('explain(err'), 'a failed assignments read hides the server message');
+  assert(!block.includes('.catch(function () { return []; })'),
+    'a failed assignments read is converted into an empty success');
+  assert(!block.includes("api('GET', '/classes')"),
+    'the assignments view fetches classes instead of reusing the enrolled list');
+});
+
+check('phase 2D: student assignment strings exist in Arabic and English', () => {
+  const strings = ['Assignments', 'Title', 'Class', 'Due Date',
+    'No assignments for this student yet.'];
+  for (const text of strings) {
+    assert(RUNTIME.includes("t('" + text + "')"),
+      'the runtime never renders through i18n: ' + text);
+    assert(DICT.includes('"' + text + '"'),
+      'the dictionary has no entry for: ' + text);
+  }
+});
+
+check('phase 2D: no new permission strings and no student write surface', () => {
+  const start = RUNTIME.indexOf('function renderStudentWorkspace');
+  const end = RUNTIME.indexOf('function classOfEnrollment');
+  const block = stripComments(RUNTIME.slice(start, end));
+  for (const verb of ["api('POST'", "api('PUT'", "api('PATCH'", "api('DELETE'"]) {
+    assert(block.indexOf(verb) < 0, 'the student workspace writes to the backend: ' + verb);
+  }
+  const registry = read('backend/permissions/registry.js');
+  assert(!/education\.assignments\./.test(RUNTIME + DICT + registry),
+    'a new assignment permission string appeared; assignments reuse education.classes.view/edit');
+  assert(!block.includes('/submissions') && !block.includes('/grading'),
+    'the student assignments view reaches for a write/upload/grading surface');
+});
+
+check('phase 2D: assignment management for teacher/center keeps the class-owned contract', () => {
+  assert(RUNTIME.includes("path: '/assignments'"), 'the assignment management path drifted');
+  assert(RUNTIME.includes("refField('classId', 'Class', 'classes', true, true)"),
+    'the class-owned assignment parent drifted');
+});
 // The P3-P7 workspaces are only real if the router lets a user onto them and
 // if the endpoint a data card reads actually exists. Both regressed once
 // already: the Center Workspace was left out of PAGES (so #center silently
