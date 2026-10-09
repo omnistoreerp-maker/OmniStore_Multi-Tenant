@@ -55,6 +55,7 @@ backend/data/educationPrograms.json
 backend/data/educationCourses.json
 backend/data/educationClasses.json
 backend/data/educationEnrollments.json
+backend/data/educationAssignments.json
 backend/data/educationAttendance.json
 backend/data/educationScheduling.json
 backend/data/educationGrading.json

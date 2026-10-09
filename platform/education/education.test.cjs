@@ -64,7 +64,7 @@ const SERVER_JS = read('backend/server.js');
 
 const EDUCATION_ROUTE_FILES = [
   'educationPack', 'student', 'teacher', 'center', 'program', 'course',
-  'class', 'enrollment', 'attendance', 'scheduling', 'grading',
+  'class', 'enrollment', 'assignment', 'attendance', 'scheduling', 'grading',
   'booking', 'rating', 'academicYear', 'term', 'subject', 'group'
 ].map((name) => ({
   name,
@@ -73,7 +73,7 @@ const EDUCATION_ROUTE_FILES = [
 
 const SERVICE_FILES = [
   'student', 'teacher', 'center', 'program', 'course', 'class',
-  'enrollment', 'attendance', 'scheduling', 'grading',
+  'enrollment', 'assignment', 'attendance', 'scheduling', 'grading',
   'booking', 'rating', 'academicYear', 'term', 'subject', 'group'
 ].map((name) => ({
   name,
@@ -90,6 +90,7 @@ const SERVICE_FOR_ENTITY = {
   courses: 'course',
   classes: 'class',
   enrollments: 'enrollment',
+  assignments: 'assignment',
   attendance: 'attendance',
   scheduling: 'scheduling',
   grading: 'grading',
@@ -417,6 +418,7 @@ check('every field the page can write is a backend writable field', () => {
 check('the fields the page freezes on edit are exactly the ones the backend freezes', () => {
   const frozen = {
     enrollment: ['studentId', 'classId'],
+    assignment: ['classId'],
     attendance: ['enrollmentId'],
     scheduling: ['classId'],
     grading: ['enrollmentId'],
@@ -466,7 +468,7 @@ check('the page never offers a derived or later-phase reference as writable', ()
   // Everything behind the Class is derived through classId; storing a second
   // copy could silently disagree with it, and the backend refuses these.
   for (const derived of ['courseId', 'programId', 'teacherId', 'centerId', 'academicYear', 'studentIds', 'classIds']) {
-    const offers = (['attendance', 'scheduling', 'grading', 'enrollments']
+    const offers = (['attendance', 'scheduling', 'grading', 'enrollments', 'assignments']
       .map((name) => {
         const block = RUNTIME.slice(RUNTIME.indexOf('\n    ' + name + ': {'));
         const end = block.indexOf('\n    },');
@@ -624,10 +626,17 @@ check('no grading scale, aggregate or assessment vocabulary ships from the Educa
   // offers them would advertise a capability the platform does not have. The
   // scan reads executable source with comments removed, because the runtime's
   // own comments legitimately name these concepts to explain why they are absent.
+  //
+  // EXCEPTION, kept narrow on purpose: 'assignment' and 'assignments' name the
+  // real EDU-ASG entity (a class-owned title/description/due-date row backed by
+  // backend/services/assignment.service.js and pinned by backend/tests
+  // /assignment.test.js). That entity carries no grade, score, scale,
+  // aggregate or submission, so the two tokens denote ordinary content, not
+  // assessment — while every other token below stays banned.
   const forbidden = [
     'gpa', 'cgpa', 'ranking', 'rank', 'percentile', 'weight', 'weighted',
     'pass/fail', 'passfail', 'pass rate', 'fail rate',
-    'exam', 'exams', 'assessment', 'assessments', 'assignment', 'assignments',
+    'exam', 'exams', 'assessment', 'assessments',
     'coursework', 'questionbank', 'question bank', 'transcript',
     'overall score', 'total score', 'final score', 'average of grades',
     'average grade', 'class average', 'grade average'
@@ -829,12 +838,12 @@ check('the dictionary covers the English text the page renders', () => {
   const visible = [
     'Education', 'Education — OmniStore ERP', '← Business', 'Menu',
     'Dashboard', 'Students', 'Teachers', 'Centers', 'Programs', 'Courses',
-    'Classes', 'Enrollments', 'Attendance', 'Schedule', 'Grading',
+    'Classes', 'Enrollments', 'Assignments', 'Attendance', 'Schedule', 'Grading',
     'Roster', 'Class Register', 'Calendar', 'Settings',
     'Center Workspace', 'Teacher Workspace', 'Student Workspace',
     'Cancel', 'Save', 'Confirm',
-    'Bookings', 'Ratings', 'Add Booking', 'Add Rating',
-    'Score', 'Comment', 'Fee', 'Complete'
+    'Bookings', 'Ratings', 'Add Booking', 'Add Rating', 'Add Assignment',
+    'Score', 'Comment', 'Fee', 'Title', 'Due Date', 'Complete'
   ];
   for (const text of visible) {
     assert(DICT.includes('"' + text + '":'), 'the dictionary has no entry for: ' + text);
@@ -846,7 +855,7 @@ check('the dictionary covers the English text the page renders', () => {
     'dashboard', 'students', 'teachers', 'classes', 'schedule'
   ];
   const drawerOnly = [
-    'centers', 'programs', 'courses', 'roster', 'enrollments', 'attendance',
+    'centers', 'programs', 'courses', 'roster', 'enrollments', 'assignments', 'attendance',
     'register', 'calendar', 'grading', 'bookings', 'ratings',
     'academic-years', 'terms', 'subjects', 'groups',
     'report-attendance', 'report-grading', 'report-sessions',
@@ -1262,6 +1271,7 @@ check('every Education list exports its own visible columns and nothing else', (
     courses: 'education-courses',
     classes: 'education-classes',
     enrollments: 'education-enrollments',
+    assignments: 'education-assignments',
     attendance: 'education-attendance',
     scheduling: 'education-scheduling',
     grading: 'education-grading',
