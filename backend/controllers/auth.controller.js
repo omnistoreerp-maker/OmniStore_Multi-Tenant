@@ -6,6 +6,7 @@ const tenantRole = require('../services/tenantRole.service');
 const authorization = require('../services/authorization.service');
 const auditService = require('../services/audit.service');
 const CompanyService = require('../services/company.service');
+const loginTenant = require('../services/loginTenant.service');
 const { success, error } = require('../utils/apiResponse');
 const logger = require('../utils/logger');
 const { signAccessToken, signRefreshToken, verifyRefreshToken } = require('../utils/jwt');
@@ -93,19 +94,26 @@ function login(req, res) {
       }
     }
 
-    // PHASE 19 — secure tenant carry. Only bind a tenant into the signed
-    // tokens when (a) the feature is enabled, (b) a VALID, ACTIVE company was
-    // resolved into req.tenantContext, and (c) membership enforcement already
-    // passed. tenantId is taken EXCLUSIVELY from the server-resolved
-    // TenantContext — never from client-supplied fields. Legacy login (no /
-    // unknown / inactive company) signs an ordinary token with NO tenant claim,
-    // exactly as before.
-    const carryTenantId =
-      (config.tenantCarryEnabled &&
-       req.tenantContext &&
-       req.tenantContext.tenantId != null)
-        ? String(req.tenantContext.tenantId)
-        : undefined;
+    // PHASE 19 / P1 — secure tenant carry. Only bind a tenant into the signed
+    // tokens when (a) the feature is enabled and (b) the SERVER resolved an
+    // unambiguous tenant for this login. The resolution lives in
+    // services/loginTenant.service.js: an already validated ACTIVE company
+    // selection (membership-checked above), otherwise the user's stored
+    // membership / the single ACTIVE company — never an unhonored selection,
+    // never a platform/Master identity, and never for multi-company accounts
+    // (they must select explicitly). tenantId is taken EXCLUSIVELY from
+    // server-owned state (company catalog + stored user record) — never from
+    // client-supplied fields — and is signed here, so the claim is the
+    // server's, not the browser's. Legacy login (no resolvable tenant) signs
+    // an ordinary token with NO tenant claim, exactly as before.
+    const resolution = loginTenant.resolveLoginTenantId({
+      user,
+      requestedCompany: req.body && req.body.company,
+      selectedTenantId: req.tenantContext && req.tenantContext.tenantId
+    });
+    const carryTenantId = (config.tenantCarryEnabled && resolution.tenantId)
+      ? resolution.tenantId
+      : undefined;
 
     const tokenIdentity = carryTenantId ? { ...user, tenantId: carryTenantId } : user;
 

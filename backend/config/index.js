@@ -71,7 +71,14 @@ module.exports = {
   multiCompanyLoginEnabled: process.env.ENABLE_MULTI_COMPANY_LOGIN === 'true',
   tenantUserMembershipEnabled: process.env.ENABLE_TENANT_USER_MEMBERSHIP === 'true',
   tenantRolesEnabled: process.env.ENABLE_TENANT_ROLES === 'true',
-  tenantCarryEnabled: process.env.ENABLE_TENANT_CARRY === 'true',
+  // P1 (Education completion) — a NORMAL login must establish the trusted
+  // tenant claim that every tenant-scoped API (Education above all) requires,
+  // or shipped settings answer `400 Tenant context required` forever. The
+  // claim is resolved server-side at login (services/loginTenant.service.js)
+  // and only ever bound when unambiguous, so the safe posture is ON by
+  // default; ENABLE_TENANT_CARRY=false restores the legacy no-tenant behavior
+  // explicitly (opt-out, never implicit).
+  tenantCarryEnabled: process.env.ENABLE_TENANT_CARRY !== 'false',
   customDomainResolutionEnabled: process.env.ENABLE_CUSTOM_DOMAIN_RESOLUTION === 'true',
   platformDomain: process.env.PLATFORM_DOMAIN || 'app.omnistoreerp.com',
   // Branch-level isolation (Phase F). OPT-IN via ENABLE_BRANCH_ISOLATION.
