@@ -275,6 +275,12 @@
       ],
       defaultSettings: { showDashboard: true }
     }),
+    student_services: module({
+      id: 'student_services', name: 'Student Services', icon: '🎓', route: 'student-services',
+      permissions: ['settings.view', 'settings.edit'],
+      navigation: [nav('student-services', 'خدمات الطلاب والطباعة', '🎓', 'education')],
+      defaultSettings: {}
+    }),
     settings: module({
       id: 'settings', name: 'Settings', icon: '⚙️', route: 'settings',
       permissions: ['manageSettings'],

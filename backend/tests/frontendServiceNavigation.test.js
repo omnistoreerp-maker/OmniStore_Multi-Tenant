@@ -135,17 +135,15 @@ function buildNav(canAccessPage) {
 }
 
 describe('service surfaces registration (shipped moduleRegistry.js)', () => {
-  test('registers student/teacher/center routes under the education group', () => {
+  test('registers student-services as an independent module', () => {
     const registry = loadRegistry();
-    const mod = registry.education_services;
+    const mod = registry.student_services;
     expect(mod).toBeDefined();
     expect(mod.route).toBe('student-services');
     expect(mod.enabled).toBe(true);
     expect(mod.businessTypes).toBe('*');
     expect(mod.scope).toBe('tenant');
-    expect(mod.navigation.map(item => item.route)).toEqual([
-      'student-services', 'education-teachers', 'education-centers'
-    ]);
+    expect(mod.navigation.map(item => item.route)).toEqual(['student-services']);
     mod.navigation.forEach(item => expect(item.group).toBe('education'));
   });
 
@@ -156,7 +154,7 @@ describe('service surfaces registration (shipped moduleRegistry.js)', () => {
     vm.runInContext(REGISTRY_CODE, context, { filename: 'moduleRegistry.js' });
     vm.runInContext(fs.readFileSync(path.join(ROOT, 'services', 'modulePlatform', 'moduleLoader.js'), 'utf8'), context);
     context.OmniModuleLoader.boot();
-    const state = context.OmniModuleLoader.getModuleState('education_services');
+    const state = context.OmniModuleLoader.getModuleState('student_services');
     expect(state).toBeTruthy();
     expect(state.active).toBe(true);
     expect(state.compatible).toBe(true);

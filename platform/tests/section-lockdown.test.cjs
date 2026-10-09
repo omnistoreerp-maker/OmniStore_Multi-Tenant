@@ -1,4 +1,4 @@
-﻿'use strict';
+'use strict';
 
 // Platform section lockdown + Monetag boundary static regression checks.
 //
@@ -751,6 +751,9 @@ check('working-tree diff touches only intended platform files', () => {
     // the student/teacher/center entry points (real existing routes only).
     'services/modulePlatform/moduleRegistry.js',
     'services/modulePlatform/navigationBuilder.js',
+    // Service surfaces visibility: entry-point + permission gating test for
+    // student/teacher/center/master nav routes.
+    'backend/tests/frontendServiceNavigation.test.js',
     // P2 Teacher portal: bookings + ratings entities, teacher link-user
     // identity, teacher-actor ownership scoping for classes/scheduling/
     // enrollments, the 26-permission registry, route header refresh and the
@@ -895,9 +898,6 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/tests/tiktokReels.test.js',
     // Master Control visibility: admin-seed -> role -> access chain test.
     'backend/tests/platformAdminSeed.test.js',
-    // Service surfaces visibility: entry-point + permission gating test for
-    // student/teacher/center/master nav routes.
-    'backend/tests/frontendServiceNavigation.test.js',
     // P2 Teacher portal: bookings + ratings entities, the linked-teacher actor
     // middleware and their focused suites.
     'backend/controllers/booking.controller.js',
@@ -1107,5 +1107,3 @@ check('Marketplace, legacy market, sw.js, .env and backend/data show no working-
 
 console.log('\nsection-lockdown.test.cjs: ' + passed + ' passed, ' + failed + ' failed');
 if (failed > 0) process.exit(1);
-
-
