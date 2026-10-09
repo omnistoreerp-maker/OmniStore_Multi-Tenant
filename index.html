@@ -7293,6 +7293,10 @@ document.addEventListener('DOMContentLoaded', function() {
           <option value="completed">منتهي</option>
         </select>
       </div>
+      <div class="form-group">
+        <label>ملاحظات</label>
+        <textarea id="eeNotes" rows="2"></textarea>
+      </div>
       <input type="hidden" id="eeId">
       <button type="submit" class="btn btn-primary">حفظ</button>
     </form>
@@ -12274,7 +12278,8 @@ const backendOpQueue = {
     getAllEnrollments: () => USE_BACKEND ? backendApi._fetch('GET', '/tenant/education/enrollments') : null,
     getEnrollment: (id) => USE_BACKEND ? backendApi._fetch('GET', '/tenant/education/enrollments/' + id) : null,
     createEnrollment: (data) => USE_BACKEND ? backendApi._fetch('POST', '/tenant/education/enrollments', data) : null,
-    updateEnrollment: (id, data) => USE_BACKEND ? backendApi._fetch('PUT', '/tenant/education/enrollments/' + id, data) : null
+    updateEnrollment: (id, data) => USE_BACKEND ? backendApi._fetch('PUT', '/tenant/education/enrollments/' + id, data) : null,
+    withdrawEnrollment: (id) => USE_BACKEND ? backendApi._fetch('PATCH', '/tenant/education/enrollments/' + id + '/withdraw') : null
   }
 };
 
@@ -44546,7 +44551,7 @@ function renderEducationEnrollmentsPage() {
               <td style="direction:ltr">${e.enrolledAt ? new Date(e.enrolledAt).toLocaleDateString('ar-EG') : '-'}</td>
               <td>
                 <button class="btn btn-sm btn-outline" onclick="editEducationEnrollment('${e.id}')">تعديل</button>
-                <button class="btn btn-sm btn-outline" onclick="toggleEducationEnrollmentStatus('${e.id}')">${e.status === 'active' ? 'إيقاف' : 'تفعيل'}</button>
+                ${e.status === 'active' ? `<button class="btn btn-sm btn-outline" onclick="withdrawEducationEnrollment('${e.id}')">انسحاب</button>` : ''}
               </td>
             </tr>`;
           }).join('') || '<tr><td colspan="6" style="text-align:center">لا توجد تسجيلات</td></tr>'}
@@ -44559,6 +44564,11 @@ function renderEducationEnrollmentsPage() {
 function openEducationEnrollmentModal() {
   document.getElementById('educationEnrollmentForm').reset();
   document.getElementById('eeId').value = '';
+  document.getElementById('eeNotes').value = '';
+  document.getElementById('eeCenterId').disabled = false;
+  document.getElementById('eeTeacherId').disabled = false;
+  document.getElementById('eeStudentId').disabled = false;
+  document.getElementById('eeStatus').disabled = false;
   populateCenterDropdown('eeCenterId');
   document.getElementById('eeTeacherId').innerHTML = '<option value="">اختر معلم</option>';
   document.getElementById('eeStudentId').innerHTML = '<option value="">اختر طالب</option>';
@@ -44574,6 +44584,14 @@ function editEducationEnrollment(id) {
   document.getElementById('eeTeacherId').value = enrollment.teacherId || '';
   document.getElementById('eeStudentId').value = enrollment.studentId || '';
   document.getElementById('eeStatus').value = enrollment.status || 'active';
+  document.getElementById('eeNotes').value = enrollment.notes || '';
+  // The backend update contract accepts notes only: relationship and status
+  // fields are read-only while editing so the request can never be refused
+  // for a field the server owns.
+  document.getElementById('eeCenterId').disabled = true;
+  document.getElementById('eeTeacherId').disabled = true;
+  document.getElementById('eeStudentId').disabled = true;
+  document.getElementById('eeStatus').disabled = true;
   openModal('educationEnrollmentModal');
 }
 
@@ -44601,6 +44619,30 @@ async function loadEnrollmentTeachersAndStudents() {
 async function saveEducationEnrollment(event) {
   event.preventDefault();
   const id = document.getElementById('eeId').value;
+
+  // Edit mode: the backend update contract accepts notes only. Relationship
+  // and status fields are never sent here, so the request cannot be refused
+  // for a server-owned field. Nothing is sent when notes are unchanged.
+  if (id) {
+    const notes = document.getElementById('eeNotes').value.trim();
+    const current = ((educationState.enrollments || []).find(e => e.id === id) || {}).notes || '';
+    if (notes === current) {
+      showToast('لا توجد تغييرات للحفظ', 'error');
+      return;
+    }
+    const res = await backendApi.education.updateEnrollment(id, { notes });
+    if (res && res.success) {
+      showToast('تم تحديث التسجيل');
+      closeModal('educationEnrollmentModal');
+      loadEducationData();
+      renderEducationEnrollmentsPage();
+      renderEducationPage();
+    } else {
+      showToast(res?.message || 'فشل العملية', 'error');
+    }
+    return;
+  }
+
   const data = {
     centerId: document.getElementById('eeCenterId').value,
     teacherId: document.getElementById('eeTeacherId').value,
@@ -44612,15 +44654,10 @@ async function saveEducationEnrollment(event) {
     return;
   }
   
-  let res;
-  if (id) {
-    res = await backendApi.education.updateEnrollment(id, data);
-  } else {
-    res = await backendApi.education.createEnrollment(data);
-  }
-  
+  let res = await backendApi.education.createEnrollment(data);
+
   if (res && res.success) {
-    showToast(id ? 'تم تحديث التسجيل' : 'تم إنشاء التسجيل');
+    showToast('تم إنشاء التسجيل');
     closeModal('educationEnrollmentModal');
     loadEducationData();
     renderEducationEnrollmentsPage();
@@ -44630,18 +44667,20 @@ async function saveEducationEnrollment(event) {
   }
 }
 
-async function toggleEducationEnrollmentStatus(id) {
-  const enrollment = educationState.enrollments.find(e => e.id === id);
-  if (!enrollment) return;
-  const newStatus = enrollment.status === 'active' ? 'inactive' : 'active';
-  const res = await backendApi.education.updateEnrollment(id, { status: newStatus });
+async function withdrawEducationEnrollment(id) {
+  const enrollment = (educationState.enrollments || []).find(e => e.id === id);
+  if (!enrollment || enrollment.status !== 'active') return;
+  // Withdrawal is terminal and cannot be undone: confirm first, and a
+  // cancelled confirmation sends no request and changes nothing.
+  if (!confirm('تأكيد انسحاب هذا التسجيل؟ لا يمكن التراجع عن الانسحاب.')) return;
+  const res = await backendApi.education.withdrawEnrollment(id);
   if (res && res.success) {
-    showToast('تم تحديث الحالة');
+    showToast('تم الانسحاب');
     loadEducationData();
     renderEducationEnrollmentsPage();
     renderEducationPage();
   } else {
-    showToast(res?.message || 'فشل تحديث الحالة', 'error');
+    showToast(res?.message || 'فشل الانسحاب', 'error');
   }
 }
 
