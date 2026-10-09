@@ -38,9 +38,12 @@
 //      backend deliberately refuses.
 //   8. NO INVENTED PAGINATION. The Education list routes expose no page or
 //      limit contract, so the page must not send one or render pager controls.
-//   9. NO FAKE IDENTITY. The workspaces must not name a current teacher or a
-//      current student, because the backend links an authenticated user to
-//      neither.
+//   9. SERVER-RESOLVED IDENTITY, NO FABRICATION. An authenticated user MAY be
+//      linked to a Teacher or a Student (Owner/Admin-created link) and the
+//      backend resolves it through /teachers/me and /students/me. The page must
+//      use that server-supplied identity, must still offer the explicit picker
+//      as the unlinked fallback, and must never fabricate an identity from the
+//      token or a hidden field.
 //  10. BOUNDARY RESPECT. The Education page must not reach into any surface
 //      this device does not own, and the i18n dictionary must register through
 //      the shared runtime rather than defining a second one.
@@ -727,9 +730,9 @@ check('the page renders the full returned array and states the record count', ()
 });
 
 // ---------------------------------------------------------------------------
-// 9. No fake identity
+// 9. Server-resolved identity, no fabrication
 // ---------------------------------------------------------------------------
-check('the workspaces never name a current teacher or a current student', () => {
+check('the workspaces never fabricate an identity the backend did not supply', () => {
   assert(!/currentTeacher|activeTeacher|myTeacher|currentStudent|myStudent|loggedInStudent/i.test(RUNTIME),
     'the page fabricates an authenticated identity the backend does not supply');
   assert(RUNTIME.includes('does not link your signed-in account to a teacher record'),
@@ -739,6 +742,35 @@ check('the workspaces never name a current teacher or a current student', () => 
   assert(RUNTIME.includes('id="edu-teacher-picker"') || RUNTIME.includes("'edu-teacher-picker'"),
     'the teacher workspace must offer an explicit teacher picker');
   assert(RUNTIME.includes("'edu-student-picker'"), 'the student workspace must offer an explicit student picker');
+});
+
+check('identity is resolved SERVER-SIDE through the /me routes, never by the page', () => {
+  // The page consumes exactly the three link-based identity endpoints the
+  // backend exposes — it never invents a fourth, and it never derives the
+  // linked record itself.
+  for (const me of ["/teachers/me", "/students/me", "/centers/me"]) {
+    assert(RUNTIME.includes("api('GET', '" + me + "'"),
+      'the page must resolve identity through the backend ' + me + ' endpoint');
+  }
+  // ...and the backend really ships those endpoints with link-based
+  // authorization: /me has NO requirePermission (the LINK is the grant), while
+  // link-user stays Owner/Admin-only. Cross-checked from the committed route
+  // sources so this assertion cannot drift into a page-only text check.
+  const routes = {
+    student: read('backend/routes/student.routes.js'),
+    teacher: read('backend/routes/teacher.routes.js'),
+    center: read('backend/routes/center.routes.js')
+  };
+  assert(routes.student.includes("router.get('/students/me'"), 'the backend must expose /students/me');
+  assert(routes.teacher.includes("router.get('/teachers/me'"), 'the backend must expose /teachers/me');
+  assert(routes.center.includes("router.get('/centers/me'"), 'the backend must expose /centers/me');
+  for (const [name, src] of Object.entries(routes)) {
+    assert(/link-user',\s*requireRole\('Owner',\s*'Admin'\)/.test(src),
+      'the ' + name + ' link-user route must stay Owner/Admin-only');
+    const meLine = src.split('\n').find((l) => l.includes("/me'"));
+    assert(meLine && !meLine.includes('requirePermission'),
+      'the /' + name + '/me route must stay link-authorized, not permission-gated');
+  }
 });
 
 check('the page never derives a teacher or student identity from the access token', () => {
@@ -1741,7 +1773,12 @@ check('the report surfaces add no backend surface and no new permission', () => 
   for (const permission of named) {
     const service = permission.split('.')[1];
     const routeSrc = read('backend/routes/' + service + '.routes.js');
-    assert(routeSrc.includes("requirePermission('" + permission + "')"),
+    // Phase 2A: READ routes may be gated by requirePermissionOrSelf, which
+    // falls through to requirePermission for every caller without a server-
+    // resolved student link — the permission string it enforces is identical.
+    assert(
+      routeSrc.includes("requirePermission('" + permission + "')") ||
+      routeSrc.includes("requirePermissionOrSelf('" + permission + "')"),
       'the report names a permission its route does not require: ' + permission);
   }
   // No centralized reporting surface is reached for.

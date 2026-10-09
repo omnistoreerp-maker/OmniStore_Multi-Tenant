@@ -32,14 +32,20 @@
 // applies to these routes too — and a LINKED teacher (req.teacherActor) is
 // confined to their own classes' enrollments by the controller; see
 // enrollment.controller.
+//
+// PHASE 2A — the two READ routes use `requirePermissionOrSelf`: a LINKED
+// student passes WITHOUT the operator view grant and the controller narrows
+// the rows to their OWN enrollments (req.educationStudent is server-resolved;
+// a client `studentId` can narrow the query, never widen past self scope).
+// Writes keep strict `requirePermission` — a Student is read-only.
 
 const router = require('express').Router();
 const ctrl = require('../controllers/enrollment.controller');
 const asyncHandler = require('../utils/asyncHandler');
-const { requirePermission } = require('../middleware/authorize');
+const { requirePermission, requirePermissionOrSelf } = require('../middleware/authorize');
 
-router.get('/enrollments', requirePermission('education.enrollments.view'), asyncHandler(ctrl.listEnrollments));
-router.get('/enrollments/:id', requirePermission('education.enrollments.view'), asyncHandler(ctrl.getEnrollment));
+router.get('/enrollments', requirePermissionOrSelf('education.enrollments.view'), asyncHandler(ctrl.listEnrollments));
+router.get('/enrollments/:id', requirePermissionOrSelf('education.enrollments.view'), asyncHandler(ctrl.getEnrollment));
 router.post('/enrollments', requirePermission('education.enrollments.edit'), asyncHandler(ctrl.createEnrollment));
 router.put('/enrollments/:id', requirePermission('education.enrollments.edit'), asyncHandler(ctrl.updateEnrollment));
 router.patch('/enrollments/:id/withdraw', requirePermission('education.enrollments.edit'), asyncHandler(ctrl.withdrawEnrollment));

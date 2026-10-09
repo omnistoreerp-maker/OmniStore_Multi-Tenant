@@ -25,14 +25,20 @@
 // middleware. The global scopedWriteRoleGuard (Owner/Admin/Manager writes)
 // applies to these routes too — and a LINKED teacher (req.teacherActor) is
 // confined to their own rows by the controller; see class.controller.
+//
+// PHASE 2A — the two READ routes use `requirePermissionOrSelf`: a LINKED
+// student passes WITHOUT the operator view grant and the controller narrows
+// the list to the classes they are enrolled in (server-resolved
+// req.educationStudent). Writes keep strict `requirePermission` — a Student is
+// read-only.
 
 const router = require('express').Router();
 const ctrl = require('../controllers/class.controller');
 const asyncHandler = require('../utils/asyncHandler');
-const { requirePermission } = require('../middleware/authorize');
+const { requirePermission, requirePermissionOrSelf } = require('../middleware/authorize');
 
-router.get('/classes', requirePermission('education.classes.view'), asyncHandler(ctrl.listClasses));
-router.get('/classes/:id', requirePermission('education.classes.view'), asyncHandler(ctrl.getClass));
+router.get('/classes', requirePermissionOrSelf('education.classes.view'), asyncHandler(ctrl.listClasses));
+router.get('/classes/:id', requirePermissionOrSelf('education.classes.view'), asyncHandler(ctrl.getClass));
 router.post('/classes', requirePermission('education.classes.edit'), asyncHandler(ctrl.createClass));
 router.put('/classes/:id', requirePermission('education.classes.edit'), asyncHandler(ctrl.updateClass));
 router.patch('/classes/:id/archive', requirePermission('education.classes.edit'), asyncHandler(ctrl.archiveClass));

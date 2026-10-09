@@ -25,6 +25,7 @@ const { trustedTenantId } = require('../middleware/authorize');
 const gradingService = require('../services/grading.service');
 const teacherOwnership = require('../middleware/teacherOwnership');
 const centerOwnership = require('../middleware/centerOwnership');
+const studentOwnership = require('../middleware/studentOwnership');
 const logger = require('../utils/logger');
 
 // Returns the trusted tenant id, or null after having already answered 400.
@@ -96,6 +97,22 @@ function _centerOwnsEnrollment(req, tenantId, enrollmentId) {
   return centerOwnership.centerOwnsGrade(tenantId, enrollmentId, centerId);
 }
 
+// STUDENT SELF-SCOPE — the server-resolved `req.educationStudent.id` (never a
+// query/body value). A Grade row resolves to a student only THROUGH its
+// Enrollment, so a LINKED student sees only their OWN grades. The post-filter
+// runs after the query filters and after any teacher/center narrowing
+// (intersection), so no query key can widen past the self scope. Unlinked
+// callers (operators) are unchanged.
+function _studentId(req) {
+  return req && req.educationStudent && req.educationStudent.id ? String(req.educationStudent.id) : '';
+}
+
+function _studentOwnsEnrollment(req, tenantId, enrollmentId) {
+  const studentId = _studentId(req);
+  if (!studentId) return false;
+  return studentOwnership.studentOwnsEnrollment(tenantId, enrollmentId, studentId);
+}
+
 function listGrading(req, res) {
   try {
     const tenantId = _tenantIdOr400(req, res);
@@ -128,6 +145,12 @@ function listGrading(req, res) {
       const allowed = centerOwnership.centerEnrollmentIds(tenantId, _centerId(req));
       out = out.filter((r) => r && allowed.has(String(r.enrollmentId || '')));
     }
+    // A LINKED student sees only grades for their own enrollments. The
+    // post-filter runs LAST, so no filter above can widen past the self scope.
+    if (_studentId(req)) {
+      const allowed = studentOwnership.studentEnrollmentIds(tenantId, _studentId(req));
+      out = studentOwnership.filterRowsByEnrollment(out, allowed);
+    }
     return success(res, out, 'Grading retrieved');
   } catch (err) {
     logger.error('grading.listGrading error:', err.message);
@@ -149,6 +172,12 @@ function getGrade(req, res) {
     // Same-tenant grade of another center: refused as forbidden.
     if (_centerId(req) && !_centerOwnsEnrollment(req, tenantId, found.enrollmentId)) {
       return _ownership403(res, 'Centers may only view grades for their own center');
+    }
+    // Same-tenant grade of ANOTHER student's enrollment: refused as forbidden —
+    // a linked student only ever reads their own grades (404 already won
+    // across tenants).
+    if (_studentId(req) && !_studentOwnsEnrollment(req, tenantId, found.enrollmentId)) {
+      return _ownership403(res, 'Students may only view their own grades');
     }
     success(res, found, 'Grading record retrieved');
   } catch (err) {

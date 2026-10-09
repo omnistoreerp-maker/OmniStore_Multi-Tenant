@@ -187,4 +187,39 @@ function requirePermissionIfAuth(permission) {
   };
 }
 
-module.exports = { requireRole, requirePermission, requirePermissionIfAuth, writeRoleGuard, scopedWriteRoleGuard, resolveTenantRoleForRequest, trustedTenantId };
+// SELF-SCOPE permission gate — the smallest change that lets the permission
+// model express SELF for the learner portal WITHOUT inventing a second
+// authorization system and WITHOUT opening any education.* grant tenant-wide.
+//
+// THE PROBLEM IT SOLVES. The registry models flat, tenant-wide grants
+// (`education.students.view` etc.). A linked Student must read THEIR OWN
+// profile/enrollments/attendance/grades/schedule without holding an operator
+// grant — but granting them `education.students.view` would hand them the
+// whole tenant's student list, which is exactly what must never happen.
+//
+// THE DECISION. Authorization for SELF-scoped reads is the LINK itself — the
+// same precedent `/students/me` already established ("Authorization is the
+// LINK, not a permission grant"): an Owner/Admin created the
+// user<->student link inside one tenant (POST /students/:id/link-user), and
+// middleware/studentActor resolves it server-side from the signed token +
+// trusted tenant. This gate therefore:
+//   - passes ONLY when `req.educationStudent` was resolved server-side
+//     (never from query, body or header — studentActor reads none of them);
+//   - passes the request through to the controller, which force-NARROWS every
+//     result to that student's own rows (studentOwnership helpers). The gate
+//     opens SELF scope, never tenant scope: a linked student who ALSO holds
+//     the operator grant is still narrowed to their own rows by the controller;
+//   - falls through to the strict requirePermission for everyone else —
+//     anonymous (401), unlinked accounts (403 without the grant) and operators
+//     (permission decided by the authorization engine), exactly as before;
+//   - is attached to READ routes only. Every write route keeps the strict
+//     requirePermission plus the global scopedWriteRoleGuard, so a Student
+//     remains read-only regardless of this gate.
+function requirePermissionOrSelf(permission) {
+  return function (req, res, next) {
+    if (req.educationStudent) return next();
+    return requirePermission(permission)(req, res, next);
+  };
+}
+
+module.exports = { requireRole, requirePermission, requirePermissionIfAuth, requirePermissionOrSelf, writeRoleGuard, scopedWriteRoleGuard, resolveTenantRoleForRequest, trustedTenantId };

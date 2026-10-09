@@ -23,10 +23,14 @@
  *   4. NO PAGINATION. The Education list routes expose no page/limit contract,
  *      so this page renders the full returned array and never shows page
  *      controls that would lie about it.
- *   5. NO FAKE IDENTITY. The backend links an authenticated user to neither a
- *      Teacher nor a Student, so the workspaces are tenant-level views with an
- *      explicit picker, never a fabricated "current teacher" or "current
- *      student".
+ *   5. SERVER-RESOLVED IDENTITY. An authenticated account MAY be linked to a
+ *      Teacher, a Student or a Center: an Owner/Admin creates the link
+ *      (POST /teachers|students|centers/:id/link-user) and the backend resolves
+ *      it server-side through GET /teachers/me, /students/me and /centers/me.
+ *      The workspaces open on that linked record when one exists and otherwise
+ *      fall back to an explicit picker — the page never derives identity from
+ *      the token, from a hidden field or from a query key, and it never claims
+ *      a link the backend did not supply.
  *   6. NO CDN. Every icon is an inline SVG path defined below, so the page
  *      satisfies the production CSP (`script-src 'self' 'unsafe-inline'`).
  *

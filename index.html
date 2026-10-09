@@ -3646,6 +3646,61 @@ document.addEventListener('DOMContentLoaded', function() {
       <div class="modal-footer"><button class="btn btn-outline" onclick="closeModal('unifiedLedgerModal')">إغلاق</button></div>
     </div></div>
 
+    <!-- EDUCATION -->
+    <div class="page" id="page-education">
+      <div class="page-header">
+        <div>
+          <div class="page-title">🎓 لوحة التعليم</div>
+          <div style="font-size:.78rem;color:var(--text2)">نظرة عامة على المراكز والمعلمين والطلاب والتسجيلات</div>
+        </div>
+      </div>
+      <div id="education-dashboard-content"></div>
+    </div>
+
+    <div class="page" id="page-education-centers">
+      <div class="page-header">
+        <div>
+          <div class="page-title">🏫 المراكز التعليمية</div>
+          <div style="font-size:.78rem;color:var(--text2)">إدارة المراكز التعليمية</div>
+        </div>
+        <button class="btn btn-primary" onclick="openEducationCenterModal()">+ إضافة مركز</button>
+      </div>
+      <div id="education-centers-content"></div>
+    </div>
+
+    <div class="page" id="page-education-teachers">
+      <div class="page-header">
+        <div>
+          <div class="page-title">👨‍🏫 المعلمون</div>
+          <div style="font-size:.78rem;color:var(--text2)">إدارة المعلمين</div>
+        </div>
+        <button class="btn btn-primary" onclick="openEducationTeacherModal()">+ إضافة معلم</button>
+      </div>
+      <div id="education-teachers-content"></div>
+    </div>
+
+    <div class="page" id="page-education-students">
+      <div class="page-header">
+        <div>
+          <div class="page-title">🎓 الطلاب</div>
+          <div style="font-size:.78rem;color:var(--text2)">إدارة الطلاب</div>
+        </div>
+        <button class="btn btn-primary" onclick="openEducationStudentModal()">+ إضافة طالب</button>
+      </div>
+      <div id="education-students-content"></div>
+    </div>
+
+    <div class="page" id="page-education-enrollments">
+      <div class="page-header">
+        <div>
+          <div class="page-title">📝 التسجيلات</div>
+          <div style="font-size:.78rem;color:var(--text2)">إدارة تسجيلات الطلاب</div>
+        </div>
+        <button class="btn btn-primary" onclick="openEducationEnrollmentModal()">+ تسجيل جديد</button>
+      </div>
+      <div id="education-enrollments-content"></div>
+    </div>
+
     <!-- ACCOUNTING AUDIT CENTER — READ-ONLY SIMULATION -->
     <div class="page" id="page-accounting-audit">
       <div class="page-header">
@@ -7093,6 +7148,156 @@ document.addEventListener('DOMContentLoaded', function() {
     <button class="btn btn-accent" onclick="saveWarehouse()">💾 حفظ</button>
   </div>
 </div></div>
+
+<!-- Education Modals -->
+<div class="modal" id="educationCenterModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title">🏫 مركز تعليمي</div>
+      <button class="modal-close" onclick="closeModal('educationCenterModal')">✕</button>
+    </div>
+    <form id="educationCenterForm" onsubmit="saveEducationCenter(event)">
+      <div class="form-group">
+        <label>اسم المركز</label>
+        <input type="text" id="ecName" required placeholder="أدخل اسم المركز">
+      </div>
+      <div class="form-group">
+        <label>العنوان</label>
+        <input type="text" id="ecAddress" placeholder="العنوان">
+      </div>
+      <div class="form-group">
+        <label>الهاتف</label>
+        <input type="text" id="ecPhone" placeholder="رقم الهاتف">
+      </div>
+      <div class="form-group">
+        <label>البريد الإلكتروني</label>
+        <input type="email" id="ecEmail" placeholder="البريد الإلكتروني">
+      </div>
+      <div class="form-group">
+        <label>الحالة</label>
+        <select id="ecStatus">
+          <option value="active">نشط</option>
+          <option value="inactive">متوقف</option>
+        </select>
+      </div>
+      <input type="hidden" id="ecId">
+      <button type="submit" class="btn btn-primary">حفظ</button>
+    </form>
+  </div>
+</div>
+
+<div class="modal" id="educationTeacherModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title">👨‍🏫 معلم</div>
+      <button class="modal-close" onclick="closeModal('educationTeacherModal')">✕</button>
+    </div>
+    <form id="educationTeacherForm" onsubmit="saveEducationTeacher(event)">
+      <div class="form-group">
+        <label>الاسم الكامل</label>
+        <input type="text" id="etFullName" required placeholder="الاسم الكامل">
+      </div>
+      <div class="form-group">
+        <label>اسم المستخدم</label>
+        <input type="text" id="etUsername" placeholder="اسم المستخدم">
+      </div>
+      <div class="form-group">
+        <label>الهاتف</label>
+        <input type="text" id="etPhone" placeholder="رقم الهاتف">
+      </div>
+      <div class="form-group">
+        <label>التخصص</label>
+        <input type="text" id="etSpecialization" placeholder="التخصص">
+      </div>
+      <div class="form-group">
+        <label>المركز</label>
+        <select id="etCenterId"><option value="">اختر مركز</option></select>
+      </div>
+      <div class="form-group">
+        <label>الحالة</label>
+        <select id="etStatus">
+          <option value="active">نشط</option>
+          <option value="inactive">متوقف</option>
+        </select>
+      </div>
+      <input type="hidden" id="etId">
+      <button type="submit" class="btn btn-primary">حفظ</button>
+    </form>
+  </div>
+</div>
+
+<div class="modal" id="educationStudentModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title">🎓 طالب</div>
+      <button class="modal-close" onclick="closeModal('educationStudentModal')">✕</button>
+    </div>
+    <form id="educationStudentForm" onsubmit="saveEducationStudent(event)">
+      <div class="form-group">
+        <label>الاسم الكامل</label>
+        <input type="text" id="esFullName" required placeholder="الاسم الكامل">
+      </div>
+      <div class="form-group">
+        <label>الهاتف</label>
+        <input type="text" id="esPhone" placeholder="رقم الهاتف">
+      </div>
+      <div class="form-group">
+        <label>اسم ولي الأمر</label>
+        <input type="text" id="esGuardianName" placeholder="اسم ولي الأمر">
+      </div>
+      <div class="form-group">
+        <label>هاتف ولي الأمر</label>
+        <input type="text" id="esGuardianPhone" placeholder="هاتف ولي الأمر">
+      </div>
+      <div class="form-group">
+        <label>المركز</label>
+        <select id="esCenterId"><option value="">اختر مركز</option></select>
+      </div>
+      <div class="form-group">
+        <label>الحالة</label>
+        <select id="esStatus">
+          <option value="active">نشط</option>
+          <option value="inactive">متوقف</option>
+        </select>
+      </div>
+      <input type="hidden" id="esId">
+      <button type="submit" class="btn btn-primary">حفظ</button>
+    </form>
+  </div>
+</div>
+
+<div class="modal" id="educationEnrollmentModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title">📝 تسجيل طالب</div>
+      <button class="modal-close" onclick="closeModal('educationEnrollmentModal')">✕</button>
+    </div>
+    <form id="educationEnrollmentForm" onsubmit="saveEducationEnrollment(event)">
+      <div class="form-group">
+        <label>المركز</label>
+        <select id="eeCenterId" required onchange="loadEnrollmentTeachersAndStudents()"><option value="">اختر مركز</option></select>
+      </div>
+      <div class="form-group">
+        <label>المعلم</label>
+        <select id="eeTeacherId" required><option value="">اختر معلم</option></select>
+      </div>
+      <div class="form-group">
+        <label>الطالب</label>
+        <select id="eeStudentId" required><option value="">اختر طالب</option></select>
+      </div>
+      <div class="form-group">
+        <label>الحالة</label>
+        <select id="eeStatus">
+          <option value="active">نشط</option>
+          <option value="inactive">متوقف</option>
+          <option value="completed">منتهي</option>
+        </select>
+      </div>
+      <input type="hidden" id="eeId">
+      <button type="submit" class="btn btn-primary">حفظ</button>
+    </form>
+  </div>
+</div>
 
 <!-- Branch Modal -->
 <div class="modal-overlay" id="branchModal"><div class="modal">
@@ -12052,6 +12257,24 @@ const backendOpQueue = {
   },
   touch() {
     try { if (typeof renderLiveStatusPanel === 'function') renderLiveStatusPanel(); } catch (e) {}
+  },
+  education: {
+    getAllCenters: () => USE_BACKEND ? backendApi._fetch('GET', '/tenant/education/centers') : null,
+    getCenter: (id) => USE_BACKEND ? backendApi._fetch('GET', '/tenant/education/centers/' + id) : null,
+    createCenter: (data) => USE_BACKEND ? backendApi._fetch('POST', '/tenant/education/centers', data) : null,
+    updateCenter: (id, data) => USE_BACKEND ? backendApi._fetch('PATCH', '/tenant/education/centers/' + id, data) : null,
+    getAllTeachers: () => USE_BACKEND ? backendApi._fetch('GET', '/tenant/education/teachers') : null,
+    getTeacher: (id) => USE_BACKEND ? backendApi._fetch('GET', '/tenant/education/teachers/' + id) : null,
+    createTeacher: (data) => USE_BACKEND ? backendApi._fetch('POST', '/tenant/education/teachers', data) : null,
+    updateTeacher: (id, data) => USE_BACKEND ? backendApi._fetch('PATCH', '/tenant/education/teachers/' + id, data) : null,
+    getAllStudents: () => USE_BACKEND ? backendApi._fetch('GET', '/tenant/education/students') : null,
+    getStudent: (id) => USE_BACKEND ? backendApi._fetch('GET', '/tenant/education/students/' + id) : null,
+    createStudent: (data) => USE_BACKEND ? backendApi._fetch('POST', '/tenant/education/students', data) : null,
+    updateStudent: (id, data) => USE_BACKEND ? backendApi._fetch('PATCH', '/tenant/education/students/' + id, data) : null,
+    getAllEnrollments: () => USE_BACKEND ? backendApi._fetch('GET', '/tenant/education/enrollments') : null,
+    getEnrollment: (id) => USE_BACKEND ? backendApi._fetch('GET', '/tenant/education/enrollments/' + id) : null,
+    createEnrollment: (data) => USE_BACKEND ? backendApi._fetch('POST', '/tenant/education/enrollments', data) : null,
+    updateEnrollment: (id, data) => USE_BACKEND ? backendApi._fetch('PATCH', '/tenant/education/enrollments/' + id, data) : null
   }
 };
 
@@ -16438,8 +16661,11 @@ function canAccessPage(page) {
   // page once this check passes, so a permitted user lands on a working
   // surface and everyone else never sees the entry.
   if (page === 'student-services') return !!currentUser;
+  if (page === 'education') return canEffective('education.centers.view');
   if (page === 'education-teachers') return canEffective('education.teachers.view');
   if (page === 'education-centers') return canEffective('education.centers.view');
+  if (page === 'education-students') return canEffective('education.students.view');
+  if (page === 'education-enrollments') return canEffective('education.enrollments.view');
   if (page === 'capital-partners') return canViewCapitalPartners();
   if (page === 'customer-accounts') return canViewArApAccounts();
   if (page === 'supplier-accounts') return canViewArApAccounts() && _effectiveRole() !== 'Cashier';
@@ -20243,6 +20469,11 @@ function showPage(page, options = {}) {
   if (page === 'sync') renderSyncPage();
   if (page === 'cathnumber') initCathNumberPage();
   if (page === 'opshub') renderOpsSummary();
+  if (page === 'education') renderEducationPage();
+  if (page === 'education-centers') renderEducationCentersPage();
+  if (page === 'education-teachers') renderEducationTeachersPage();
+  if (page === 'education-students') renderEducationStudentsPage();
+  if (page === 'education-enrollments') renderEducationEnrollmentsPage();
   setTimeout(updateFloatingTableHeader, 0);
   const renderMs = Math.max(0, Math.round(perfNow() - renderStart));
   performanceState.renderTimes[page] = renderMs;
@@ -43894,6 +44125,543 @@ setInterval(() => {
   if (el) el.textContent = new Date().toLocaleTimeString('ar-EG', {hour:'2-digit', minute:'2-digit'});
 }, 30000);
 
+// ================= EDUCATION MODULE =================
+let educationState = {
+  centers: [],
+  teachers: [],
+  students: [],
+  enrollments: []
+};
+
+function renderEducationPage() {
+  if (!requirePermission('education.centers.view')) return;
+  loadEducationData();
+  const container = document.getElementById('education-dashboard-content');
+  if (!container) return;
+  
+  const centers = educationState.centers || [];
+  const teachers = educationState.teachers || [];
+  const students = educationState.students || [];
+  const enrollments = educationState.enrollments || [];
+  const activeEnrollments = enrollments.filter(e => e.status === 'active').length;
+  
+  container.innerHTML = `
+    <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:12px">
+      <div class="stat-card blue" style="padding:14px"><div class="stat-value" style="font-size:1.05rem">${centers.length}</div><div class="stat-label">المراكز</div></div>
+      <div class="stat-card green" style="padding:14px"><div class="stat-value" style="font-size:1.05rem">${teachers.length}</div><div class="stat-label">المعلمون</div></div>
+      <div class="stat-card yellow" style="padding:14px"><div class="stat-value" style="font-size:1.05rem">${students.length}</div><div class="stat-label">الطلاب</div></div>
+      <div class="stat-card purple" style="padding:14px"><div class="stat-value" style="font-size:1.05rem">${enrollments.length}</div><div class="stat-label">التسجيلات</div></div>
+      <div class="stat-card orange" style="padding:14px"><div class="stat-value" style="font-size:1.05rem">${activeEnrollments}</div><div class="stat-label">التسجيلات النشطة</div></div>
+    </div>
+    <div class="table-container">
+      <div class="table-header"><div class="table-title">📋 آخر التسجيلات</div></div>
+      <table class="table">
+        <thead><tr><th>الطالب</th><th>المعلم</th><th>المركز</th><th>الحالة</th><th>تاريخ التسجيل</th></tr></thead>
+        <tbody>
+          ${enrollments.slice(-10).reverse().map(e => {
+            const student = (students || []).find(s => s.id === e.studentId);
+            const teacher = (teachers || []).find(t => t.id === e.teacherId);
+            const center = (centers || []).find(c => c.id === e.centerId);
+            return `<tr>
+              <td>${escapeHtml(student?.fullName || '-')}</td>
+              <td>${escapeHtml(teacher?.fullName || '-')}</td>
+              <td>${escapeHtml(center?.name || '-')}</td>
+              <td><span class="badge ${e.status === 'active' ? 'badge-green' : e.status === 'inactive' ? 'badge-red' : 'badge-yellow'}">${e.status === 'active' ? 'نشط' : e.status === 'inactive' ? 'متوقف' : 'منتهي'}</span></td>
+              <td style="direction:ltr">${e.enrolledAt ? new Date(e.enrolledAt).toLocaleDateString('ar-EG') : '-'}</td>
+            </tr>`;
+          }).join('') || '<tr><td colspan="5" style="text-align:center">لا توجد تسجيلات</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+async function loadEducationData() {
+  const [centers, teachers, students, enrollments] = await Promise.all([
+    backendApi.education?.getAllCenters?.() || Promise.resolve({ data: [], success: false }),
+    backendApi.education?.getAllTeachers?.() || Promise.resolve({ data: [], success: false }),
+    backendApi.education?.getAllStudents?.() || Promise.resolve({ data: [], success: false }),
+    backendApi.education?.getAllEnrollments?.() || Promise.resolve({ data: [], success: false })
+  ]);
+  educationState.centers = centers?.data || centers?.success === false ? [] : (centers || []);
+  educationState.teachers = teachers?.data || teachers?.success === false ? [] : (teachers || []);
+  educationState.students = students?.data || students?.success === false ? [] : (students || []);
+  educationState.enrollments = enrollments?.data || enrollments?.success === false ? [] : (enrollments || []);
+}
+
+function renderEducationCentersPage() {
+  if (!requirePermission('education.centers.view')) return;
+  loadEducationData();
+  const container = document.getElementById('education-centers-content');
+  if (!container) return;
+  
+  const search = (document.getElementById('ecSearch')?.value || '').toLowerCase();
+  let centers = educationState.centers || [];
+  if (search) {
+    centers = centers.filter(c => (c.name || '').toLowerCase().includes(search) || (c.phone || '').includes(search));
+  }
+  
+  container.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;padding:10px;margin-bottom:12px">
+      <input class="search-input" id="ecSearch" value="${escapeHtml(search)}" placeholder="بحث..." oninput="renderEducationCentersPage()">
+      <select class="search-input" id="ecFilterStatus" onchange="renderEducationCentersPage()"><option value="">كل الحالات</option><option value="active">نشط</option><option value="inactive">متوقف</option></select>
+    </div>
+    <div class="table-container">
+      <table class="table">
+        <thead><tr><th>الاسم</th><th>الهاتف</th><th>البريد</th><th>الحالة</th><th>إجراءات</th></tr></thead>
+        <tbody>
+          ${centers.map(c => `
+            <tr>
+              <td><strong>${escapeHtml(c.name || '-')}</strong></td>
+              <td style="direction:ltr">${escapeHtml(c.phone || '-')}</td>
+              <td>${escapeHtml(c.email || '-')}</td>
+              <td><span class="badge ${c.status === 'active' ? 'badge-green' : 'badge-red'}">${c.status === 'active' ? 'نشط' : 'متوقف'}</span></td>
+              <td>
+                <button class="btn btn-sm btn-outline" onclick="editEducationCenter('${c.id}')">تعديل</button>
+                <button class="btn btn-sm btn-outline" onclick="toggleEducationCenterStatus('${c.id}')">${c.status === 'active' ? 'إيقاف' : 'تفعيل'}</button>
+              </td>
+            </tr>
+          `).join('') || '<tr><td colspan="5" style="text-align:center">لا توجد مراكز</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function openEducationCenterModal() {
+  document.getElementById('educationCenterForm').reset();
+  document.getElementById('ecId').value = '';
+  openModal('educationCenterModal');
+}
+
+function editEducationCenter(id) {
+  const center = educationState.centers.find(c => c.id === id);
+  if (!center) return;
+  document.getElementById('ecId').value = center.id;
+  document.getElementById('ecName').value = center.name || '';
+  document.getElementById('ecAddress').value = center.address || '';
+  document.getElementById('ecPhone').value = center.phone || '';
+  document.getElementById('ecEmail').value = center.email || '';
+  document.getElementById('ecStatus').value = center.status || 'active';
+  openModal('educationCenterModal');
+}
+
+async function saveEducationCenter(event) {
+  event.preventDefault();
+  const id = document.getElementById('ecId').value;
+  const data = {
+    name: document.getElementById('ecName').value.trim(),
+    address: document.getElementById('ecAddress').value.trim(),
+    phone: document.getElementById('ecPhone').value.trim(),
+    email: document.getElementById('ecEmail').value.trim(),
+    status: document.getElementById('ecStatus').value
+  };
+  if (!data.name) { showToast('أدخل اسم المركز', 'error'); return; }
+  
+  let res;
+  if (id) {
+    res = await backendApi.education.updateCenter(id, data);
+  } else {
+    res = await backendApi.education.createCenter(data);
+  }
+  
+  if (res && res.success) {
+    showToast(id ? 'تم تحديث المركز' : 'تم إنشاء المركز');
+    closeModal('educationCenterModal');
+    loadEducationData();
+    renderEducationCentersPage();
+    renderEducationPage();
+  } else {
+    showToast(res?.message || 'فشل العملية', 'error');
+  }
+}
+
+async function toggleEducationCenterStatus(id) {
+  const center = educationState.centers.find(c => c.id === id);
+  if (!center) return;
+  const newStatus = center.status === 'active' ? 'inactive' : 'active';
+  const res = await backendApi.education.updateCenter(id, { status: newStatus });
+  if (res && res.success) {
+    showToast('تم تحديث الحالة');
+    loadEducationData();
+    renderEducationCentersPage();
+    renderEducationPage();
+  } else {
+    showToast(res?.message || 'فشل تحديث الحالة', 'error');
+  }
+}
+
+function renderEducationTeachersPage() {
+  if (!requirePermission('education.teachers.view')) return;
+  loadEducationData();
+  const container = document.getElementById('education-teachers-content');
+  if (!container) return;
+  
+  const search = (document.getElementById('etSearch')?.value || '').toLowerCase();
+  let teachers = educationState.teachers || [];
+  if (search) {
+    teachers = teachers.filter(t => (t.fullName || '').toLowerCase().includes(search) || (t.username || '').toLowerCase().includes(search));
+  }
+  
+  container.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;padding:10px;margin-bottom:12px">
+      <input class="search-input" id="etSearch" value="${escapeHtml(search)}" placeholder="بحث..." oninput="renderEducationTeachersPage()">
+      <select class="search-input" id="etFilterStatus" onchange="renderEducationTeachersPage()"><option value="">كل الحالات</option><option value="active">نشط</option><option value="inactive">متوقف</option></select>
+    </div>
+    <div class="table-container">
+      <table class="table">
+        <thead><tr><th>الاسم</th><th>اسم المستخدم</th><th>الهاتف</th><th>التخصص</th><th>المركز</th><th>الحالة</th><th>إجراءات</th></tr></thead>
+        <tbody>
+          ${teachers.map(t => {
+            const center = (educationState.centers || []).find(c => c.id === t.centerId);
+            return `<tr>
+              <td><strong>${escapeHtml(t.fullName || '-')}</strong></td>
+              <td>${escapeHtml(t.username || '-')}</td>
+              <td style="direction:ltr">${escapeHtml(t.phone || '-')}</td>
+              <td>${escapeHtml(t.specialization || '-')}</td>
+              <td>${escapeHtml(center?.name || '-')}</td>
+              <td><span class="badge ${t.status === 'active' ? 'badge-green' : 'badge-red'}">${t.status === 'active' ? 'نشط' : 'متوقف'}</span></td>
+              <td>
+                <button class="btn btn-sm btn-outline" onclick="editEducationTeacher('${t.id}')">تعديل</button>
+                <button class="btn btn-sm btn-outline" onclick="toggleEducationTeacherStatus('${t.id}')">${t.status === 'active' ? 'إيقاف' : 'تفعيل'}</button>
+              </td>
+            </tr>`;
+          }).join('') || '<tr><td colspan="7" style="text-align:center">لا يوجد معلمون</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function openEducationTeacherModal() {
+  document.getElementById('educationTeacherForm').reset();
+  document.getElementById('etId').value = '';
+  populateCenterDropdown('etCenterId');
+  openModal('educationTeacherModal');
+}
+
+function editEducationTeacher(id) {
+  const teacher = educationState.teachers.find(t => t.id === id);
+  if (!teacher) return;
+  document.getElementById('etId').value = teacher.id;
+  document.getElementById('etFullName').value = teacher.fullName || '';
+  document.getElementById('etUsername').value = teacher.username || '';
+  document.getElementById('etPhone').value = teacher.phone || '';
+  document.getElementById('etSpecialization').value = teacher.specialization || '';
+  document.getElementById('etCenterId').value = teacher.centerId || '';
+  document.getElementById('etStatus').value = teacher.status || 'active';
+  populateCenterDropdown('etCenterId');
+  openModal('educationTeacherModal');
+}
+
+async function saveEducationTeacher(event) {
+  event.preventDefault();
+  const id = document.getElementById('etId').value;
+  const data = {
+    fullName: document.getElementById('etFullName').value.trim(),
+    username: document.getElementById('etUsername').value.trim(),
+    phone: document.getElementById('etPhone').value.trim(),
+    specialization: document.getElementById('etSpecialization').value.trim(),
+    centerId: document.getElementById('etCenterId').value || null,
+    status: document.getElementById('etStatus').value
+  };
+  if (!data.fullName) { showToast('أدخل الاسم الكامل', 'error'); return; }
+  
+  let res;
+  if (id) {
+    res = await backendApi.education.updateTeacher(id, data);
+  } else {
+    res = await backendApi.education.createTeacher(data);
+  }
+  
+  if (res && res.success) {
+    showToast(id ? 'تم تحديث المعلم' : 'تم إنشاء المعلم');
+    closeModal('educationTeacherModal');
+    loadEducationData();
+    renderEducationTeachersPage();
+    renderEducationPage();
+  } else {
+    showToast(res?.message || 'فشل العملية', 'error');
+  }
+}
+
+async function toggleEducationTeacherStatus(id) {
+  const teacher = educationState.teachers.find(t => t.id === id);
+  if (!teacher) return;
+  const newStatus = teacher.status === 'active' ? 'inactive' : 'active';
+  const res = await backendApi.education.updateTeacher(id, { status: newStatus });
+  if (res && res.success) {
+    showToast('تم تحديث الحالة');
+    loadEducationData();
+    renderEducationTeachersPage();
+    renderEducationPage();
+  } else {
+    showToast(res?.message || 'فشل تحديث الحالة', 'error');
+  }
+}
+
+function renderEducationStudentsPage() {
+  if (!requirePermission('education.students.view')) return;
+  loadEducationData();
+  const container = document.getElementById('education-students-content');
+  if (!container) return;
+  
+  const search = (document.getElementById('esSearch')?.value || '').toLowerCase();
+  let students = educationState.students || [];
+  if (search) {
+    students = students.filter(s => (s.fullName || '').toLowerCase().includes(search) || (s.phone || '').includes(search));
+  }
+  
+  container.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;padding:10px;margin-bottom:12px">
+      <input class="search-input" id="esSearch" value="${escapeHtml(search)}" placeholder="بحث..." oninput="renderEducationStudentsPage()">
+      <select class="search-input" id="esFilterStatus" onchange="renderEducationStudentsPage()"><option value="">كل الحالات</option><option value="active">نشط</option><option value="inactive">متوقف</option></select>
+    </div>
+    <div class="table-container">
+      <table class="table">
+        <thead><tr><th>الاسم</th><th>الهاتف</th><th>ولي الأمر</th><th>هاتف ولي الأمر</th><th>المركز</th><th>الحالة</th><th>إجراءات</th></tr></thead>
+        <tbody>
+          ${students.map(s => {
+            const center = (educationState.centers || []).find(c => c.id === s.centerId);
+            return `<tr>
+              <td><strong>${escapeHtml(s.fullName || '-')}</strong></td>
+              <td style="direction:ltr">${escapeHtml(s.phone || '-')}</td>
+              <td>${escapeHtml(s.guardianName || '-')}</td>
+              <td style="direction:ltr">${escapeHtml(s.guardianPhone || '-')}</td>
+              <td>${escapeHtml(center?.name || '-')}</td>
+              <td><span class="badge ${s.status === 'active' ? 'badge-green' : 'badge-red'}">${s.status === 'active' ? 'نشط' : 'متوقف'}</span></td>
+              <td>
+                <button class="btn btn-sm btn-outline" onclick="editEducationStudent('${s.id}')">تعديل</button>
+                <button class="btn btn-sm btn-outline" onclick="toggleEducationStudentStatus('${s.id}')">${s.status === 'active' ? 'إيقاف' : 'تفعيل'}</button>
+              </td>
+            </tr>`;
+          }).join('') || '<tr><td colspan="7" style="text-align:center">لا يوجد طلاب</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function openEducationStudentModal() {
+  document.getElementById('educationStudentForm').reset();
+  document.getElementById('esId').value = '';
+  populateCenterDropdown('esCenterId');
+  openModal('educationStudentModal');
+}
+
+function editEducationStudent(id) {
+  const student = educationState.students.find(s => s.id === id);
+  if (!student) return;
+  document.getElementById('esId').value = student.id;
+  document.getElementById('esFullName').value = student.fullName || '';
+  document.getElementById('esPhone').value = student.phone || '';
+  document.getElementById('esGuardianName').value = student.guardianName || '';
+  document.getElementById('esGuardianPhone').value = student.guardianPhone || '';
+  document.getElementById('esCenterId').value = student.centerId || '';
+  document.getElementById('esStatus').value = student.status || 'active';
+  populateCenterDropdown('esCenterId');
+  openModal('educationStudentModal');
+}
+
+async function saveEducationStudent(event) {
+  event.preventDefault();
+  const id = document.getElementById('esId').value;
+  const data = {
+    fullName: document.getElementById('esFullName').value.trim(),
+    phone: document.getElementById('esPhone').value.trim(),
+    guardianName: document.getElementById('esGuardianName').value.trim(),
+    guardianPhone: document.getElementById('esGuardianPhone').value.trim(),
+    centerId: document.getElementById('esCenterId').value || null,
+    status: document.getElementById('esStatus').value
+  };
+  if (!data.fullName) { showToast('أدخل اسم الطالب', 'error'); return; }
+  
+  let res;
+  if (id) {
+    res = await backendApi.education.updateStudent(id, data);
+  } else {
+    res = await backendApi.education.createStudent(data);
+  }
+  
+  if (res && res.success) {
+    showToast(id ? 'تم تحديث الطالب' : 'تم إنشاء الطالب');
+    closeModal('educationStudentModal');
+    loadEducationData();
+    renderEducationStudentsPage();
+    renderEducationPage();
+  } else {
+    showToast(res?.message || 'فشل العملية', 'error');
+  }
+}
+
+async function toggleEducationStudentStatus(id) {
+  const student = educationState.students.find(s => s.id === id);
+  if (!student) return;
+  const newStatus = student.status === 'active' ? 'inactive' : 'active';
+  const res = await backendApi.education.updateStudent(id, { status: newStatus });
+  if (res && res.success) {
+    showToast('تم تحديث الحالة');
+    loadEducationData();
+    renderEducationStudentsPage();
+    renderEducationPage();
+  } else {
+    showToast(res?.message || 'فشل تحديث الحالة', 'error');
+  }
+}
+
+function renderEducationEnrollmentsPage() {
+  if (!requirePermission('education.enrollments.view')) return;
+  loadEducationData();
+  const container = document.getElementById('education-enrollments-content');
+  if (!container) return;
+  
+  const search = (document.getElementById('eeSearch')?.value || '').toLowerCase();
+  let enrollments = educationState.enrollments || [];
+  if (search) {
+    enrollments = enrollments.filter(e => {
+      const student = (educationState.students || []).find(s => s.id === e.studentId);
+      const teacher = (educationState.teachers || []).find(t => t.id === e.teacherId);
+      return (student?.fullName || '').toLowerCase().includes(search) || (teacher?.fullName || '').toLowerCase().includes(search);
+    });
+  }
+  
+  container.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;padding:10px;margin-bottom:12px">
+      <input class="search-input" id="eeSearch" value="${escapeHtml(search)}" placeholder="بحث..." oninput="renderEducationEnrollmentsPage()">
+      <select class="search-input" id="eeFilterStatus" onchange="renderEducationEnrollmentsPage()"><option value="">كل الحالات</option><option value="active">نشط</option><option value="inactive">متوقف</option><option value="completed">منتهي</option></select>
+    </div>
+    <div class="table-container">
+      <table class="table">
+        <thead><tr><th>الطالب</th><th>المعلم</th><th>المركز</th><th>الحالة</th><th>تاريخ التسجيل</th><th>إجراءات</th></tr></thead>
+        <tbody>
+          ${enrollments.map(e => {
+            const student = (educationState.students || []).find(s => s.id === e.studentId);
+            const teacher = (educationState.teachers || []).find(t => t.id === e.teacherId);
+            const center = (educationState.centers || []).find(c => c.id === e.centerId);
+            return `<tr>
+              <td><strong>${escapeHtml(student?.fullName || '-')}</strong></td>
+              <td>${escapeHtml(teacher?.fullName || '-')}</td>
+              <td>${escapeHtml(center?.name || '-')}</td>
+              <td><span class="badge ${e.status === 'active' ? 'badge-green' : e.status === 'inactive' ? 'badge-red' : 'badge-yellow'}">${e.status === 'active' ? 'نشط' : e.status === 'inactive' ? 'متوقف' : 'منتهي'}</span></td>
+              <td style="direction:ltr">${e.enrolledAt ? new Date(e.enrolledAt).toLocaleDateString('ar-EG') : '-'}</td>
+              <td>
+                <button class="btn btn-sm btn-outline" onclick="editEducationEnrollment('${e.id}')">تعديل</button>
+                <button class="btn btn-sm btn-outline" onclick="toggleEducationEnrollmentStatus('${e.id}')">${e.status === 'active' ? 'إيقاف' : 'تفعيل'}</button>
+              </td>
+            </tr>`;
+          }).join('') || '<tr><td colspan="6" style="text-align:center">لا توجد تسجيلات</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function openEducationEnrollmentModal() {
+  document.getElementById('educationEnrollmentForm').reset();
+  document.getElementById('eeId').value = '';
+  populateCenterDropdown('eeCenterId');
+  document.getElementById('eeTeacherId').innerHTML = '<option value="">اختر معلم</option>';
+  document.getElementById('eeStudentId').innerHTML = '<option value="">اختر طالب</option>';
+  openModal('educationEnrollmentModal');
+}
+
+function editEducationEnrollment(id) {
+  const enrollment = educationState.enrollments.find(e => e.id === id);
+  if (!enrollment) return;
+  document.getElementById('eeId').value = enrollment.id;
+  document.getElementById('eeCenterId').value = enrollment.centerId || '';
+  loadEnrollmentTeachersAndStudents();
+  document.getElementById('eeTeacherId').value = enrollment.teacherId || '';
+  document.getElementById('eeStudentId').value = enrollment.studentId || '';
+  document.getElementById('eeStatus').value = enrollment.status || 'active';
+  openModal('educationEnrollmentModal');
+}
+
+async function loadEnrollmentTeachersAndStudents() {
+  const centerId = document.getElementById('eeCenterId').value;
+  const teacherSelect = document.getElementById('eeTeacherId');
+  const studentSelect = document.getElementById('eeStudentId');
+  
+  teacherSelect.innerHTML = '<option value="">اختر معلم</option>';
+  studentSelect.innerHTML = '<option value="">اختر طالب</option>';
+  
+  if (!centerId) return;
+  
+  const teachers = educationState.teachers?.filter(t => t.centerId === centerId) || [];
+  const students = educationState.students?.filter(s => s.centerId === centerId) || [];
+  
+  teachers.forEach(t => {
+    teacherSelect.innerHTML += `<option value="${t.id}">${escapeHtml(t.fullName)}</option>`;
+  });
+  students.forEach(s => {
+    studentSelect.innerHTML += `<option value="${s.id}">${escapeHtml(s.fullName)}</option>`;
+  });
+}
+
+async function saveEducationEnrollment(event) {
+  event.preventDefault();
+  const id = document.getElementById('eeId').value;
+  const data = {
+    centerId: document.getElementById('eeCenterId').value,
+    teacherId: document.getElementById('eeTeacherId').value,
+    studentId: document.getElementById('eeStudentId').value,
+    status: document.getElementById('eeStatus').value
+  };
+  if (!data.centerId || !data.teacherId || !data.studentId) {
+    showToast('اختر المركز والمعلم والطالب', 'error');
+    return;
+  }
+  
+  let res;
+  if (id) {
+    res = await backendApi.education.updateEnrollment(id, data);
+  } else {
+    res = await backendApi.education.createEnrollment(data);
+  }
+  
+  if (res && res.success) {
+    showToast(id ? 'تم تحديث التسجيل' : 'تم إنشاء التسجيل');
+    closeModal('educationEnrollmentModal');
+    loadEducationData();
+    renderEducationEnrollmentsPage();
+    renderEducationPage();
+  } else {
+    showToast(res?.message || 'فشل العملية', 'error');
+  }
+}
+
+async function toggleEducationEnrollmentStatus(id) {
+  const enrollment = educationState.enrollments.find(e => e.id === id);
+  if (!enrollment) return;
+  const newStatus = enrollment.status === 'active' ? 'inactive' : 'active';
+  const res = await backendApi.education.updateEnrollment(id, { status: newStatus });
+  if (res && res.success) {
+    showToast('تم تحديث الحالة');
+    loadEducationData();
+    renderEducationEnrollmentsPage();
+    renderEducationPage();
+  } else {
+    showToast(res?.message || 'فشل تحديث الحالة', 'error');
+  }
+}
+
+function populateCenterDropdown(selectId) {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+  const currentValue = select.value;
+  select.innerHTML = '<option value="">اختر مركز</option>' +
+    (educationState.centers || []).map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('');
+  select.value = currentValue;
+}
+
+// Add education pages to showPage
+const originalShowPage = showPage;
+showPage = function(page, options) {
+  if (['education', 'education-centers', 'education-teachers', 'education-students', 'education-enrollments'].includes(page)) {
+    if (!requirePermission('education.centers.view') && page !== 'education') return;
+  }
+  return originalShowPage(page, options);
+};
 </script>
 <style>
 #esoUpdateBanner{position:fixed;bottom:0;right:0;left:0;z-index:99999;background:#0f172a;color:#f8fafc;font-family:'Segoe UI',Tahoma,Arial,sans-serif;direction:rtl;padding:14px 18px;box-shadow:0 -4px 18px rgba(0,0,0,.35);display:none;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;font-size:14px}
@@ -44248,10 +45016,6 @@ setInterval(() => {
   window.lifecycleAction = lifecycleAction;
   window.state = state;
 })();
-
-function renderGameHostingPage() {
-  if (typeof showView === 'function') showView('plans');
-}
 </script>
 </body>
 </html>

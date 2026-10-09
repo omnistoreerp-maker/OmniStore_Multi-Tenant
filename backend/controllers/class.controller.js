@@ -30,6 +30,7 @@ const { trustedTenantId } = require('../middleware/authorize');
 const classService = require('../services/class.service');
 const courseService = require('../services/course.service');
 const centerOwnership = require('../middleware/centerOwnership');
+const studentOwnership = require('../middleware/studentOwnership');
 const logger = require('../utils/logger');
 
 // Returns the trusted tenant id, or null after having already answered 400.
@@ -55,6 +56,22 @@ function _centerId(req) {
   return req && req.centerActor && req.centerActor.id ? String(req.centerActor.id) : '';
 }
 
+// STUDENT SELF-SCOPE — the server-resolved `req.educationStudent.id` (never a
+// query/body value). A Class belongs to a student only THROUGH an Enrollment,
+// so a LINKED student sees only the classes they are enrolled in. The
+// post-filter runs after the query filters and after any teacher/center
+// narrowing (intersection), so no query key can widen past the self scope.
+// Unlinked callers (operators) are unchanged.
+function _studentId(req) {
+  return req && req.educationStudent && req.educationStudent.id ? String(req.educationStudent.id) : '';
+}
+
+function _studentOwnsClass(req, tenantId, classId) {
+  const studentId = _studentId(req);
+  if (!studentId) return false;
+  return studentOwnership.studentOwnsClass(tenantId, classId, studentId);
+}
+
 function listClasses(req, res) {
   try {
     const tenantId = _tenantIdOr400(req, res);
@@ -76,6 +93,12 @@ function listClasses(req, res) {
     // composes with the teacher override above (intersection).
     if (_centerId(req)) {
       const allowed = centerOwnership.centerClassIds(tenantId, _centerId(req));
+      rows = rows.filter((c) => c && allowed.has(String(c.id)));
+    }
+    // A LINKED student's list is narrowed to their OWN classes. The
+    // post-filter runs LAST, so no filter above can widen past the self scope.
+    if (_studentId(req)) {
+      const allowed = studentOwnership.studentClassIds(tenantId, _studentId(req));
       rows = rows.filter((c) => c && allowed.has(String(c.id)));
     }
     success(res, rows, 'Classes retrieved');
@@ -102,6 +125,11 @@ function getClass(req, res) {
     // center only ever reads its own classes.
     if (_centerId(req) && !centerOwnership.centerOwnsClass(tenantId, found.id, _centerId(req))) {
       return _ownership403(res, 'Centers may only access their own classes');
+    }
+    // Same-tenant Class the linked student is NOT enrolled in: refused as
+    // forbidden (404 already won across tenants).
+    if (_studentId(req) && !_studentOwnsClass(req, tenantId, found.id)) {
+      return _ownership403(res, 'Students may only access classes they are enrolled in');
     }
     success(res, found, 'Class retrieved');
   } catch (err) {
