@@ -72,12 +72,57 @@ function userRecords(password) {
 
 const TODAY = new Date().toISOString().slice(0, 10);
 
+// Anchored to the FROZEN `TODAY` above, never the live clock: every date in
+// this suite must be measured from one reference day, or a run crossing 00:00
+// UTC mid-execution silently shifts `dayOffset` a calendar day ahead of
+// `TODAY` (CI proved this: the Coverage step failed at 00:00:13Z after the
+// Unit-test step passed the same suite at 23:56:55Z).
 function dayOffset(days) {
-  const d = new Date(Date.now() + days * 86400000);
+  const d = new Date(Date.parse(TODAY + 'T00:00:00.000Z') + days * 86400000);
   return d.toISOString().slice(0, 10);
 }
 
 const dayAt = (day, hour) => day + 'T' + String(hour).padStart(2, '0') + ':00:00.000Z';
+
+// THE SUITE OWNS ITS CLOCK. -------------------------------------------------
+// `TODAY` above is frozen at import. If the real wall clock crossed 00:00 UTC
+// while this file runs, the LIVE clock — which `createEnrollment` stamps into
+// `enrolledAt` and `_today()` compares `attendanceDate` against — would
+// disagree with `TODAY`, and the (correct) period guard would reject marks
+// the suite believed were same-day: exactly the state that failed 17 tests in
+// CI's Coverage step (00:00:13Z) after the Unit-test step passed at 23:56:55Z.
+//
+// So this suite pins the environment `Date` to its OWN day at a midday base.
+// The fake clock still advances in real time (timestamps stay monotonic) but
+// starts and ends inside `TODAY`, so no run — whenever CI schedules it — can
+// observe a date the suite did not choose, and the services under test read
+// the very day the fixtures expect. ONLY `Date` is faked: every timer, socket
+// and I/O path stays real, and supertest/server behavior is untouched.
+//
+// ATT_CLOCK_BASE=HH:MM picks another SAME-DAY base for boundary verification.
+// The 00:02..23:55 bounds keep the pinned clock from crossing midnight itself
+// (a full run lasts ~2 minutes).
+const CLOCK_BASE = (() => {
+  const hhmm = String(process.env.ATT_CLOCK_BASE || '12:00').trim();
+  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hhmm);
+  if (!m) throw new Error('ATT_CLOCK_BASE must be HH:MM (24h), got: ' + hhmm);
+  const mins = Number(m[1]) * 60 + Number(m[2]);
+  if (mins < 2 || mins > 23 * 60 + 55) {
+    throw new Error('ATT_CLOCK_BASE must stay within 00:02..23:55 so the pinned clock cannot cross midnight during a run; got ' + hhmm);
+  }
+  return Date.parse(TODAY + 'T' + m[1] + ':' + m[2] + ':00.000Z');
+})();
+jest.useFakeTimers({
+  now: CLOCK_BASE,
+  doNotFake: [
+    'hrtime', 'nextTick', 'performance', 'queueMicrotask',
+    'requestAnimationFrame', 'cancelAnimationFrame',
+    'requestIdleCallback', 'cancelIdleCallback',
+    'setImmediate', 'clearImmediate',
+    'setInterval', 'clearInterval',
+    'setTimeout', 'clearTimeout'
+  ]
+});
 
 // ---------------------------------------------------------------------------
 // 1. SERVICE
@@ -1152,6 +1197,13 @@ describe('STU-8 attendance routes — authorization, tenant isolation and the da
       studentId: student.body.data.id, classId: chain.classId
     });
     expect(enrollment.statusCode).toBe(201);
+    // The STU-7 API stamps `enrolledAt` with the LIVE clock while `TODAY` is
+    // frozen at import, so a run crossing 00:00 UTC between import and this
+    // call would open the window a calendar day AFTER the frozen `TODAY` and
+    // the (correct) period guard would reject every mark made for `TODAY`.
+    // Pin the window to `TODAY` through the store rewrite already used by
+    // `setupHistoric` — fixture determinism only, no guard change.
+    backdate(enrollment.body.data.id, dayAt(TODAY, 9));
     return { ...chain, studentId: student.body.data.id, enrollmentId: enrollment.body.data.id };
   };
 
@@ -1861,6 +1913,10 @@ describe('STU-8 attendance routes — authorization, tenant isolation and the da
     const reenrolled = await post('/enrollments', ownerA())
       .send({ studentId: chain.studentId, classId: chain.classId });
     expect(reenrolled.statusCode).toBe(201);
+    // Live-clock stamp again — pin the new stint to the frozen `TODAY`, else a
+    // midnight-UTC crossing between setup and this call would make the
+    // same-day mark below fail the period guard.
+    backdate(reenrolled.body.data.id, dayAt(TODAY, 9));
     expect(reenrolled.body.data.id).not.toBe(chain.enrollmentId);
 
     // The new stint can be marked for the same calendar day without a conflict.
@@ -1928,6 +1984,19 @@ describe('EDUCATION CORE+ attendance bulk — one register, one request, all or 
       const enrollment = enrollments.createEnrollment(ctx, { studentId: student.id, classId: klass.id });
       rows.push({ student, enrollment });
     }
+    // `createEnrollment` stamps the LIVE clock (no override exists — that is
+    // correct production behavior); pin every window opened here to the
+    // frozen `TODAY` so a midnight-UTC crossing mid-run cannot move the
+    // enrollment day past the day the batch marks. Rewrite through
+    // storageAdapter so the read cache sees the same state the service does.
+    const doc = storage.read('educationEnrollments');
+    storage.write('educationEnrollments', {
+      ...doc,
+      enrollments: (doc.enrollments || []).map(e =>
+        rows.some(r => r.enrollment.id === e.id)
+          ? { ...e, enrolledAt: dayAt(TODAY, 9), createdAt: dayAt(TODAY, 9), updatedAt: dayAt(TODAY, 9) }
+          : e)
+    });
     return { program, course, teacher, klass, rows, classId: klass.id };
   };
 
@@ -2392,6 +2461,18 @@ describe('EDUCATION CORE+ attendance bulk routes — authorization, tenant isola
         .send({ studentId: student.body.data.id, classId: klass.body.data.id });
       rows.push({ studentId: student.body.data.id, enrollmentId: enrollment.body.data.id });
     }
+    // Pin every window to the frozen `TODAY` — same live-clock race as the
+    // STU-8 routes suite; storageAdapter refreshes the running server's cache.
+    const ids = rows.map(r => r.enrollmentId);
+    const storage = require('../repositories/storageAdapter');
+    const doc = storage.read('educationEnrollments');
+    storage.write('educationEnrollments', {
+      ...doc,
+      enrollments: (doc.enrollments || []).map(e =>
+        ids.indexOf(e.id) !== -1
+          ? { ...e, enrolledAt: dayAt(TODAY, 9), createdAt: dayAt(TODAY, 9), updatedAt: dayAt(TODAY, 9) }
+          : e)
+    });
     return { classId: klass.body.data.id, rows };
   };
 
@@ -2522,5 +2603,124 @@ describe('EDUCATION CORE+ attendance bulk routes — authorization, tenant isola
       .set('Authorization', `Bearer ${ownerA()}`).send({ status: 'excused' });
     expect(fixed.statusCode).toBe(200);
     expect(fixed.body.data.status).toBe('excused');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. MIDNIGHT-UTC RACE REGRESSION
+// ---------------------------------------------------------------------------
+// CI proved the hazard this describe locks down: the Coverage step crossed
+// 00:00 UTC and failed 17 tests with `attendanceDate is before the enrollment
+// period` after the Unit-test step had passed the same suite minutes earlier.
+// `TODAY` is frozen at import while `createEnrollment` stamps the LIVE clock,
+// so (a) every date helper must be measured from the frozen anchor and (b)
+// fixtures created over HTTP/service must be pinned to it. These tests hold
+// that contract without touching the production guard.
+describe('MIDNIGHT-UTC race regression — the suite measures dates from the frozen TODAY', () => {
+  test('dayOffset is derived from TODAY, never from the live clock', () => {
+    // The clock pin at the top of this file holds for the WHOLE run: whatever
+    // wall time CI scheduled this at, by the time this last describe executes
+    // the suite has only ever observed its own day — no drift, no crossing.
+    expect(new Date().toISOString().slice(0, 10)).toBe(TODAY);
+    expect(dayOffset(0)).toBe(TODAY);
+    expect(dayOffset(-1) < TODAY).toBe(true);
+    expect(dayOffset(1) > TODAY).toBe(true);
+
+    // Even if the wall clock jumps forward across midnight (or any distance),
+    // the anchor does not move: a mid-run UTC date change cannot rebase the
+    // calendar day this suite marks.
+    const realNow = Date.now;
+    try {
+      Date.now = () => realNow() + 86400000 * 7;
+      expect(dayOffset(0)).toBe(TODAY);
+      expect(dayOffset(-1) < TODAY).toBe(true);
+      Date.now = () => realNow() - 86400000 * 7;
+      expect(dayOffset(0)).toBe(TODAY);
+      expect(dayOffset(1) > TODAY).toBe(true);
+    } finally {
+      Date.now = realNow;
+    }
+  });
+
+  // The production guard, exercised against a window pinned exactly the way
+  // the fixture helpers now pin it: same calendar day accepted, day before
+  // rejected with the period error.
+  test('attendance ON the enrollment date is accepted when the window opens later that day', () => {
+    jest.resetModules();
+    const dir = makeTempDataDir('att-midnight');
+    process.env.DIGITRONICS_DATA_DIR = dir;
+    try {
+      const service = require('../services/attendance.service');
+      const enrollments = require('../services/enrollment.service');
+      const students = require('../services/student.service');
+      const classes = require('../services/class.service');
+      const courses = require('../services/course.service');
+      const programs = require('../services/program.service');
+      const teachers = require('../services/teacher.service');
+      const A = { tenantId: 'att-a' };
+
+      const program = programs.createProgram(A, { name: 'Midnight Track' });
+      const course = courses.createCourse(A, { programId: program.id, name: 'Midnight Course' });
+      const teacher = teachers.createTeacher(A, { firstName: 'M', lastName: 'T' });
+      const klass = classes.createClass(A, { courseId: course.id, teacherId: teacher.id, name: 'Midnight Class' });
+      const student = students.createStudent(A, { firstName: 'M', lastName: 'S' });
+      const enrollment = enrollments.createEnrollment(A, { studentId: student.id, classId: klass.id });
+      // Pin exactly like setup()/rosterIn()/rosterOverHttp() now do.
+      const storage = require('../repositories/storageAdapter');
+      const doc = storage.read('educationEnrollments');
+      storage.write('educationEnrollments', {
+        ...doc,
+        enrollments: (doc.enrollments || []).map(e =>
+          e.id === enrollment.id ? { ...e, enrolledAt: dayAt(TODAY, 23) } : e)
+      });
+
+      const row = service.createAttendance(A, {
+        enrollmentId: enrollment.id, attendanceDate: TODAY, status: 'present'
+      });
+      expect(row.attendanceDate).toBe(TODAY);
+    } finally {
+      try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}
+    }
+  });
+
+  test('attendance BEFORE the enrollment date is still rejected with the period error', () => {
+    jest.resetModules();
+    const dir = makeTempDataDir('att-midnight-before');
+    process.env.DIGITRONICS_DATA_DIR = dir;
+    try {
+      const service = require('../services/attendance.service');
+      const enrollments = require('../services/enrollment.service');
+      const students = require('../services/student.service');
+      const classes = require('../services/class.service');
+      const courses = require('../services/course.service');
+      const programs = require('../services/program.service');
+      const teachers = require('../services/teacher.service');
+      const A = { tenantId: 'att-a' };
+
+      const program = programs.createProgram(A, { name: 'Midnight Track' });
+      const course = courses.createCourse(A, { programId: program.id, name: 'Midnight Course' });
+      const teacher = teachers.createTeacher(A, { firstName: 'M', lastName: 'T' });
+      const klass = classes.createClass(A, { courseId: course.id, teacherId: teacher.id, name: 'Midnight Class' });
+      const student = students.createStudent(A, { firstName: 'M', lastName: 'S' });
+      const enrollment = enrollments.createEnrollment(A, { studentId: student.id, classId: klass.id });
+      const storage = require('../repositories/storageAdapter');
+      const doc = storage.read('educationEnrollments');
+      storage.write('educationEnrollments', {
+        ...doc,
+        enrollments: (doc.enrollments || []).map(e =>
+          e.id === enrollment.id ? { ...e, enrolledAt: dayAt(TODAY, 9) } : e)
+      });
+
+      let thrown = null;
+      try {
+        service.createAttendance(A, {
+          enrollmentId: enrollment.id, attendanceDate: dayOffset(-1), status: 'present'
+        });
+      } catch (err) { thrown = err; }
+      expect(thrown).not.toBeNull();
+      expect(thrown.message).toContain('before the enrollment period');
+    } finally {
+      try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}
+    }
   });
 });
