@@ -36,13 +36,11 @@ jobs:
 
       # The Education page ships a source-contract suite (route parity, write
       # parity, vocabulary, i18n, workspace reachability) that needs no server,
-      # browser or network. It is a .cjs script outside jest's backend roots,
-      # so it only ran when someone invoked it by hand; run it here beside the
-      # other pure-source checks so a contract break fails the build.
-      - name: Education frontend contract (source tests)
-        run: |
-          node --check ../platform/education/education.js
-          node ../platform/education/education.test.cjs
+      # browser or network. It runs natively with Node (no Jest), so we invoke it
+      # via the test:edu npm script rather than hard-coding a path; a contract
+      # break fails the build.
+      - name: Education frontend contract (81 checks, test:edu)
+        run: npm run test:edu
 
       - name: Unit tests (fail on failure)
         run: npm test

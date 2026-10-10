@@ -836,7 +836,7 @@ check('the dictionary covers the English text the page renders', () => {
   // The shared runtime translates by visible text rather than by the marker, so
   // the dictionary has to carry the literal English string the page shows.
   const visible = [
-    'Education', 'Education — OmniStore ERP', '← Business', 'Menu',
+    'Education', 'Education — OmniStore ERP', 'Business', 'Menu',
     'Dashboard', 'Students', 'Teachers', 'Centers', 'Programs', 'Courses',
     'Classes', 'Enrollments', 'Assignments', 'Attendance', 'Schedule', 'Grading',
     'Roster', 'Class Register', 'Calendar', 'Settings',
@@ -1946,5 +1946,71 @@ check('the center summary never renders an unreadable figure as zero', () => {
     'the center summary no longer tells the user which figures are unreadable');
 });
 
+
+// ---------------------------------------------------------------------------
+// 12. ARABIC/RTL PARITY (G-RTL-01) — source-level parity checks for RTL.
+// ---------------------------------------------------------------------------
+check('education page defaults to RTL (Arabic-first convention)', () => {
+  assert(PAGE.indexOf('dir="rtl"') >= 0, 'the page does not default to dir="rtl"');
+  assert(PAGE.indexOf('lang="ar"') >= 0, 'the page defaults to lang="ar"');
+});
+
+check('education back link is split into a decorative arrow span and an i18n label', () => {
+  assert(PAGE.includes('<span class="edu-back-arrow" aria-hidden="true">'), 'the mirrored back-arrow is not a separate span');
+  assert(PAGE.includes('<span data-i18n="back_business">Business</span>'), 'the back-link label is not i18n-translated');
+  assert(!PAGE.includes('>← Business</a>'), 'the old LTR-only back-link text is still present');
+});
+
+check('education back link i18n maps Business to Arabic', () => {
+  assert(DICT.includes('"Business": "الأعمال"'), 'the Arabic label for the back link is missing');
+  assert(!DICT.includes('"← Business"'), 'the stale LTR-only back-link key is still present');
+});
+
+check('education CSS mirrors the back-link arrow in RTL', () => {
+  assert(CSS.includes('[dir="rtl"] .edu-back-arrow'), 'no RTL rule for the back-arrow');
+  assert(CSS.includes('transform: rotate(180deg)'), 'the back-arrow is not mirrored');
+});
+
+check('education CSS mirrors calendar step arrows in RTL', () => {
+  assert(CSS.includes('[dir="rtl"] [aria-label="Earlier range"] .edu-icon'), 'no RTL rule for the Earlier-range icon');
+  assert(CSS.includes('[dir="rtl"] [aria-label="Later range"] .edu-icon'), 'no RTL rule for the Later-range icon');
+});
+
+check('education date-range and enrollment labels use an RTL-aware arrow join', () => {
+  assert(RUNTIME.includes('function arrowJoin'), 'the RTL-aware join helper is missing');
+  assert(RUNTIME.includes("document.dir === 'rtl'"), 'the join does not read the document direction');
+  assert(RUNTIME.indexOf('arrowJoin(student, klass)') >= 0, 'enrollmentLabel does not use arrowJoin');
+  assert(RUNTIME.indexOf('arrowJoin(from, to)') >= 0, 'dateRange does not use arrowJoin');
+});
+
+check('education CSS avoids direction-breaking layout (no float/left/right)', () => {
+  assert(!/float\s*:/.test(CSS), 'the page uses float; use logical properties');
+  assert(!/left\s*:/.test(CSS), 'the page uses left:; use inset-inline-start');
+  assert(!/right\s*:/.test(CSS), 'the page uses right:; use inset-inline-end');
+});
+
+check('education CSS has RTL drawer handling and uses logical offsets', () => {
+  assert(CSS.includes('[dir="rtl"].edu-drawer'), 'the RTL drawer rule is missing');
+  assert(CSS.includes('transform: translateX(-100%)'), 'the RTL drawer translate is missing');
+  assert(CSS.includes('inset-inline'), 'the page does not use logical positioning');
+});
+
+check('education date inputs are locked LTR (dates are not mirrored)', () => {
+  assert(RUNTIME.includes("if (def.type === 'date') input.dir = 'ltr'"), 'date inputs are not locked LTR');
+});
+
+check('the drawer slides from the inline-end edge in both directions', () => {
+  assert(CSS.includes('inset-inline-end: 0'), 'the drawer is not logically positioned');
+  assert(CSS.includes('transform: translateX(100%)'), 'the default drawer translate is missing');
+  // The base drawer rule must be the logical translateX(100%), not an LTR-only
+  // translateX that would override the RTL rule.
+  const baseMatch = CSS.match(/\.\edu-drawer\s*\{([\s\S]*?)\}/);
+  assert(
+    baseMatch &&
+      baseMatch[1].indexOf('translateX(100%)') >= 0 &&
+      baseMatch[1].indexOf('translateX(-100%)') < 0,
+    'base drawer rule is LTR-only'
+  );
+});
 console.log('\neducation.test.cjs: ' + passed + ' passed, ' + failed + ' failed');
 if (failed > 0) process.exit(1);

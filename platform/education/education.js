@@ -125,6 +125,13 @@
     return raw === '' ? '—' : esc(raw);
   }
 
+  // A join helper that mirrors its arrow in RTL: the arrow always points from
+  // a (the source/date-from) to b (the destination/date-to), and the operands
+  // reorder so the string reads naturally in either direction.
+  function arrowJoin(a, b) {
+    return (document.dir === 'rtl' ? b + '\u2190 ' + a : a + '\u2192 ' + b);
+  }
+
   function today() {
     var now = new Date();
     var m = String(now.getMonth() + 1);
@@ -418,7 +425,7 @@
     if (!row) return '—';
     var student = refLabel('students', row.studentId);
     var klass = refLabel('classes', row.classId);
-    return student + ' → ' + klass;
+    return arrowJoin(student, klass);
   }
 
   // ---------------------------------------------------------------------
@@ -1583,7 +1590,7 @@
     var from = String(row.startDate || '').trim();
     var to = String(row.endDate || '').trim();
     if (!from && !to) return '—';
-    if (from && to) return from + ' → ' + to;
+    if (from && to) return arrowJoin(from, to);
     return from || to;
   }
 
