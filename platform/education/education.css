@@ -688,6 +688,19 @@
 [dir="rtl"].edu-drawer.is-open {
   transform: translateX(0);
 }
+/* Mirrored directional elements in RTL. The back-link arrow flips to point
+   back in the RTL reading direction, and the calendar step icons flip so each
+   arrow points toward the dates it moves to (earlier dates sit on the
+   inline-end side of the grid when the page is RTL). */
+[dir="rtl"] .edu-back-arrow {
+  transform: rotate(180deg);
+}
+
+[dir="rtl"] [aria-label="Earlier range"] .edu-icon,
+[dir="rtl"] [aria-label="Later range"] .edu-icon {
+  transform: rotate(180deg);
+}
+
 
 .edu-drawer-header {
   padding: 16px;

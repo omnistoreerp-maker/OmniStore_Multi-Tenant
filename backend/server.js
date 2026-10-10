@@ -437,7 +437,7 @@ app.use('/api/v1/reports', validateResource('reports'), reportsRoutes);
 app.use('/api/v1/users', validateResource('users'), usersRoutes);
 app.use('/api/v1/loyalty', validateResource('loyalty'), loyaltyRoutes);
 app.use('/api/v1/tenant/student-services', studentServicesPackRoutes);
-// Education module. Additive and live: the 26 education.* permissions are
+// Education module. Additive and live: the 34 education.* permissions are
 // registered in backend/permissions/registry.js and the section is published in
 // the Platform catalog, navigation and section lockdown policy. Access is still
 // enforced per route by requirePermission, so mounting here grants nothing on

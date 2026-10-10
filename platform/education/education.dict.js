@@ -1,7 +1,7 @@
 (function () {
   if (!window.OmniLang) return;
   OmniLang.registerDict('en', {
-    "← Business": "← الأعمال",
+    "Business": "الأعمال",
     "Actions": "إجراءات",
     "Add Center": "إضافة مركز",
     "Add Class": "إضافة صف",
