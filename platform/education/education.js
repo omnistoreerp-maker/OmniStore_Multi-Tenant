@@ -4051,6 +4051,26 @@
     // being swallowed into a card that never renders.
     var progress = null;
 
+    // ATTENDANCE is accumulated across two SIBLING promise callbacks below: the
+    // first request callback resolves the enrolled classes and returns the
+    // per-enrollment attendance batches, and the next `.then` renders the card
+    // from whatever was gathered. It must therefore be declared HERE, in
+    // paintStudentDetail's own scope, and not inside either callback: a `var`
+    // inside the first callback is invisible to the sibling, and reading it
+    // there threw `ReferenceError: attendance is not defined`, which the outer
+    // catch turned into a bare error banner — wiping the enrollments card and
+    // stopping renderStudentAssignments from ever running.
+    var attendance = [];
+
+    // ENROLLED CLASSES — the class rows this student detail already resolved
+    // (results[0] below is loadRef('classes')). renderStudentAssignments needs
+    // them to label an assignment's class, and it is called from the SECOND
+    // sibling callback, so the array has to live in this scope too. The
+    // previous code referenced a `classesHost` identifier that is not declared
+    // anywhere in this file, which would have thrown a second ReferenceError
+    // immediately after the attendance one was fixed.
+    var enrolledClasses = [];
+
     Promise.all([
       loadRef('classes'),
       loadRef('enrollments'),
@@ -4061,7 +4081,10 @@
     ]).then(function (results) {
       var enrollments = Array.isArray(results[2]) ? results[2] : [];
       var allSessions = Array.isArray(results[3]) ? results[3] : [];
-      var attendance = [];
+      // `attendance` and `enrolledClasses` are the hoisted values declared
+      // above, not fresh locals: the sibling callback that renders the
+      // attendance card and the assignments card reads these ones.
+      enrolledClasses = Array.isArray(results[0]) ? results[0] : [];
       progress = results[4];
 
       host.textContent = '';
@@ -4113,6 +4136,14 @@
         : stateBlock('empty', 'No attendance records for this student.'));
       host.appendChild(card);
 
+      // PHASE 2D. Read-only assignments for the linked student. The server is
+      // the authority: plain GET /assignments with no client-sent scope
+      // returns only the linked student's enrolled-class rows. A 403/404 is
+      // surfaced as an error and never converted into an empty success (that
+      // would misreport denied as none). The only class label source is the
+      // enrolled-class list resolved above in this same render.
+      renderStudentAssignments(host, enrolledClasses);
+
 // Raw progress - read-only counts from the canonical P2 progress
   // endpoint (/students/:id/progress). Every number below is a count the
   // service derived from real records; nothing is a rate, score,
@@ -4156,6 +4187,89 @@
       host.textContent = '';
       host.appendChild(banner('error', explain(err)));
     });
+  }
+
+  // PHASE 2D. Student assignments, read-only. One plain GET /assignments per
+  // linked-student view: the backend self-scope narrows the rows to the
+  // classes of the student's own enrollments, so the page sends no studentId,
+  // tenantId or classId of its own. Only the rows the server returns are
+  // rendered — the page never filters foreign rows out of a wider payload,
+  // because the contract guarantees the payload is already narrowed.
+  // States: loading, success with rows, success with zero rows (empty), and
+  // request failure including 403/404 (error with retry). Due dates render as
+  // stored, with no overdue derivation in this phase.
+  function renderStudentAssignments(host, enrolledClasses) {
+    var box = el('div', 'edu-card');
+    box.id = 'edu-student-assignments';
+    // Plain English literals, exactly like every other string in this file:
+    // the i18n pass (platform/omni-i18n.js) watches the DOM and rewrites text
+    // nodes and the listed attributes through the education dictionary. This
+    // IIFE imports no i18n module and declares no `t` binding, so a bare
+    // `t('Assignments')` threw `ReferenceError: t is not defined` and killed
+    // the whole render (and with it the entire assignments section).
+    box.appendChild(el('h2', 'edu-section-title', 'Assignments'));
+    var listHost = el('div', 'edu-student-assignments-list');
+    listHost.id = 'edu-student-assignments-list';
+    listHost.setAttribute('aria-live', 'polite');
+    box.appendChild(listHost);
+    host.appendChild(box);
+
+    var classNameOf = function (classId) {
+      var snaps = Array.isArray(enrolledClasses) ? enrolledClasses : [];
+      var live = REF.classes || [];
+      var i;
+      for (i = 0; i < snaps.length; i++) {
+        if (String(snaps[i].id || '') === String(classId || '')) {
+          return refName('classes', snaps[i]) || refLabel('classes', classId);
+        }
+      }
+      // Second lookup: REF.classes is populated by the same paint chain and
+      // may hold rows the snapshot above missed, and for a linked student it
+      // already holds exactly the enrolled classes. Final fallback is the raw
+      // id, which the server never resolved inside this tenant.
+      for (i = 0; i < live.length; i++) {
+        if (String(live[i].id || '') === String(classId || '')) {
+          return refName('classes', live[i]) || refLabel('classes', classId);
+        }
+      }
+      return refLabel('classes', classId);
+    };
+
+    var paintRows = function (rows) {
+      listHost.textContent = '';
+      var list = Array.isArray(rows) ? rows : [];
+      if (!list.length) {
+        listHost.appendChild(stateBlock('empty',
+          'No assignments for this student yet.'));
+        return;
+      }
+      listHost.appendChild(simpleTable(
+        ['Title', 'Class', 'Due Date'],
+        list.map(function (row) {
+          var due = row && row.dueDate ? String(row.dueDate).slice(0, 10) : '';
+          return [
+            text(row && row.title ? row.title : ''),
+            text(classNameOf(row && row.classId)),
+            due ? code(due) : text('')
+          ];
+        })
+      ));
+    };
+
+    var load = function () {
+      if (state.page !== 'student') return;
+      listHost.textContent = '';
+      listHost.appendChild(loadingBlock());
+      api('GET', '/assignments').then(function (rows) {
+        if (state.page !== 'student') return;
+        paintRows(rows);
+      }).catch(function (err) {
+        if (state.page !== 'student') return;
+        listHost.textContent = '';
+        listHost.appendChild(banner('error', explain(err), load));
+      });
+    };
+    load();
   }
 
   function classOfEnrollment(enrollmentId) {
