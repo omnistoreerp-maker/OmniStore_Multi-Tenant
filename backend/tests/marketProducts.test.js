@@ -706,3 +706,66 @@ describe('Category integrity rules', () => {
   });
 });
 });
+describe('Drafts — includeDrafts filtering', () => {
+  let operatorToken;
+
+  beforeAll(async () => {
+    operatorToken = await loginAsOperator('default', 'drafts-op@market.test', 'Password#123');
+  });
+
+  test('list excludes unpublished drafts by default (includeDrafts not set)', async () => {
+    const postPub = await request(app)
+      .post('/api/v1/market/products')
+      .set(authH(operatorToken))
+      .send({ name: 'Draft (excluded by default)', sku: 'SKU-DRAFT-DEFAULT', categoryId: 'gaming', sellPrice: 10, published: true });
+
+    const postDraft = await request(app)
+      .post('/api/v1/market/products')
+      .set(authH(operatorToken))
+      .send({ name: 'Draft (excluded by default)', sku: 'SKU-DRAFT-DEFAULT2', categoryId: 'gaming', sellPrice: 10, published: false });
+
+    const { body: { data: { product: draft } } } = postDraft;
+    const { body: { data: { product: published } } } = postPub;
+
+    const without = await request(app)
+      .get('/api/v1/market/products')
+      .set('X-Tenant-Id', 'default')
+      .query({ includeOutOfStock: 'true', limit: '100' });
+    const ids = without.body.data?.products?.map((p) => p.id) || [];
+
+    expect(without.status).toBe(200);
+    expect(without.body.data.products.some((p) => p.id === draft.id)).toBe(false);
+    expect(without.body.data.products.some((p) => p.id === published.id)).toBe(true);
+
+    const explicitFalse = await request(app)
+      .get('/api/v1/market/products')
+      .set('X-Tenant-Id', 'default')
+      .query({ includeOutOfStock: 'true', includeDrafts: 'false', limit: '100' });
+    expect(explicitFalse.status).toBe(200);
+    expect(explicitFalse.body.data.products.some((p) => p.id === draft.id)).toBe(false);
+  });
+
+  test('list includes unpublished drafts when includeDrafts=true', async () => {
+    const postPub = await request(app)
+      .post('/api/v1/market/products')
+      .set(authH(operatorToken))
+      .send({ name: 'Published (still visible)', sku: 'SKU-PUBLISHED-TRUE', categoryId: 'gaming', sellPrice: 10, published: true });
+
+    const postDraft = await request(app)
+      .post('/api/v1/market/products')
+      .set(authH(operatorToken))
+      .send({ name: 'Draft (shown with includeDrafts)', sku: 'SKU-DRAFT-TRUE', categoryId: 'gaming', sellPrice: 10, published: false });
+
+    const { body: { data: { product: draft } } } = postDraft;
+    const { body: { data: { product: published } } } = postPub;
+
+    const withDrafts = await request(app)
+      .get('/api/v1/market/products')
+      .set('X-Tenant-Id', 'default')
+      .query({ includeOutOfStock: 'true', includeDrafts: 'true', limit: '100' });
+
+    expect(withDrafts.status).toBe(200);
+    expect(withDrafts.body.data.products.some((p) => p.id === draft.id)).toBe(true);
+    expect(withDrafts.body.data.products.some((p) => p.id === published.id)).toBe(true);
+  });
+});
