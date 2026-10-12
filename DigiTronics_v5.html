@@ -1449,37 +1449,11 @@ window.DIGITRONICS_SUPABASE = window.DIGITRONICS_SUPABASE || {
 <!-- Sync Status Pill -->
 <div id="syncPill" style="display:none;position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:rgba(15,23,42,.9);color:#fff;padding:7px 20px;border-radius:30px;font-size:0.76rem;font-family:'Cairo',sans-serif;z-index:9000;pointer-events:none;white-space:nowrap;transition:opacity .3s"></div>
 
-<!-- ===== FIRST-RUN TOKEN SETUP (يظهر مرة واحدة فقط عند أول تشغيل) ===== -->
-<div id="firstRunModal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.85);align-items:center;justify-content:center;padding:20px;font-family:'Cairo',sans-serif;">
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:22px;padding:32px 28px;width:100%;max-width:460px;box-shadow:0 0 80px rgba(0,102,255,.25);animation:fadeInUp .4s ease">
-    <div style="text-align:center;margin-bottom:6px;font-size:2rem">☁️</div>
-    <div style="text-align:center;font-size:1.3rem;font-weight:900;color:var(--accent);margin-bottom:4px">ربط المزامنة السحابية</div>
-    <div style="text-align:center;font-size:0.82rem;color:var(--text2);margin-bottom:22px;line-height:1.7">
-      أدخل بيانات GitHub مرة واحدة فقط — سيتم حفظها على هذا الجهاز<br>وستُزامن بياناتك تلقائياً مع كل الأجهزة الأخرى
-    </div>
-
-    <div class="form-group">
-      <label>🔑 GitHub Token <span style="color:var(--red)">*</span></label>
-      <input type="password" id="frTokenInput" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" style="direction:ltr;font-family:monospace;font-size:0.85rem" autocomplete="off">
-      <div style="font-size:0.7rem;color:var(--text2);margin-top:4px;line-height:1.6">
-        github.com → Settings → Developer Settings → Personal access tokens → Tokens (classic) → New → صلاحية <strong>gist</strong> فقط
-      </div>
-    </div>
-
-    <div class="form-group">
-      <label>🗄️ Gist ID <span style="color:var(--text2);font-size:0.72rem">(اتركه فارغاً لإنشاء gist جديد تلقائياً)</span></label>
-      <input type="text" id="frGistInput" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" style="direction:ltr;font-family:monospace;font-size:0.85rem" autocomplete="off">
-      <div style="font-size:0.7rem;color:var(--text2);margin-top:4px">اختياري: يمكنك إدخال Gist ID يدوياً، أو الاكتفاء بالـ Token وسيتم اكتشافه تلقائياً</div>
-    </div>
-
-    <div id="frStatus" style="font-size:0.82rem;min-height:24px;margin-bottom:12px;text-align:center;padding:6px;border-radius:8px;display:none"></div>
-
-    <button class="btn-primary" id="frConnectBtn" onclick="frConnect()">🔗 ربط وحفظ الإعدادات</button>
-    <button onclick="frSkip()" style="width:100%;margin-top:10px;background:transparent;border:1px solid var(--border);border-radius:10px;padding:10px;font-family:'Cairo',sans-serif;cursor:pointer;color:var(--text2);font-size:0.85rem;transition:background .2s" onmouseover="this.style.background='rgba(0,0,0,.05)'" onmouseout="this.style.background='transparent'">
-      استمرار بدون مزامنة (محلي فقط)
-    </button>
-  </div>
-</div>
+<!-- ===== FIRST-RUN TOKEN SETUP — REMOVED (server-side gist sync) =====
+     The GitHub PAT modal that used to appear here is gone. Provider
+     credentials are managed centrally by Platform Master; this local-only
+     twin keeps its silent sync path for devices that already hold a token.
+     See docs/GIST_SYNC_MIGRATION_PLAN.md. -->
 
 <!-- LOGIN -->
 <div id="loginScreen">
@@ -4748,44 +4722,22 @@ window.DIGITRONICS_SUPABASE = window.DIGITRONICS_SUPABASE || {
         <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
           <div style="font-size:3rem" id="syncStatusIcon">☁️</div>
           <div style="flex:1">
-            <div style="font-size:1.1rem;font-weight:700" id="syncStatusTitle">GitHub غير مفعّل</div>
-            <div style="font-size:0.8rem;color:var(--text2);margin-top:4px" id="syncStatusSub">البيانات محفوظة محلياً فقط — أدخل بيانات GitHub للمزامنة بين الأجهزة</div>
+            <div style="font-size:1.1rem;font-weight:700" id="syncStatusTitle">المزامنة السحابية</div>
+            <div style="font-size:0.8rem;color:var(--text2);margin-top:4px" id="syncStatusSub">البيانات محفوظة محلياً على هذا الجهاز</div>
           </div>
           <div id="syncConnectedDot" style="display:none;width:12px;height:12px;background:var(--green);border-radius:50%;box-shadow:0 0 8px var(--green)"></div>
         </div>
-
-        <!-- Gist ID display -->
-        <div id="syncGistDisplay" style="display:none;margin-top:14px;background:var(--surface2);border-radius:10px;padding:10px 14px;font-size:0.78rem;color:var(--text2)">
-          🗄️ Gist ID: <code id="syncGistId" style="color:var(--accent);word-break:break-all;font-size:0.78rem"></code>
-          <button onclick="navigator.clipboard.writeText(document.getElementById('syncGistId').textContent).then(()=>showToast('تم النسخ'))"
-            style="background:none;border:none;cursor:pointer;color:var(--accent);font-size:0.82rem;margin-right:8px">📋 نسخ</button>
-        </div>
       </div>
 
-      <!-- Setup Form -->
+      <!-- Owner-managed notice (no PAT entry) -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:22px;margin-bottom:16px">
-        <div style="font-size:0.95rem;font-weight:700;margin-bottom:14px;color:var(--accent)">⚙️ إعدادات الاتصال بـ GitHub</div>
-        <div class="form-group">
-          <label>🔑 Personal Access Token <span style="color:var(--red)">*</span></label>
-          <input type="password" id="syncTokenInput" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
-            style="direction:ltr;font-family:monospace;font-size:0.85rem" autocomplete="off">
-          <div style="font-size:0.72rem;color:var(--text2);margin-top:5px;line-height:1.7">
-            🔗 GitHub → Settings → Developer Settings → Personal access tokens → Tokens (classic) → New<br>
-            ✅ اختار صلاحية <strong>gist</strong> فقط — لا تحتاج أي صلاحيات أخرى
-          </div>
+        <div style="font-size:0.95rem;font-weight:700;margin-bottom:10px;color:var(--accent)">⚙️ إعداد المزامنة يديره إدارة المنصة</div>
+        <div style="font-size:0.82rem;color:var(--text2);line-height:1.9">
+          إدخال بيانات GitHub أُزيل من هذه الواجهة — المزامنة تُدار مركزياً من إدارة المنصة.<br>
+          إذا كان هذا الجهاز مرتبطاً بمزامنة سابقة، ستظل تعمل بصمت حتى تُلغى من هنا.
         </div>
-        <div class="form-group">
-          <label>🗄️ Gist ID <span style="color:var(--text2);font-size:0.72rem">(فارغ = إنشاء Gist جديد تلقائياً)</span></label>
-          <input type="text" id="syncGistInput" placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-            style="direction:ltr;font-family:monospace;font-size:0.85rem" autocomplete="off">
-          <div style="font-size:0.72rem;color:var(--text2);margin-top:4px">
-            💡 اختياري: اتركه فارغاً وسيتم العثور على Gist تلقائياً من نفس الحساب
-          </div>
-        </div>
-        <div id="syncSetupMsg" style="font-size:0.82rem;min-height:20px;margin-bottom:10px;color:var(--accent)"></div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <button class="btn btn-accent" onclick="syncPageConnect()" style="flex:1;min-width:140px;padding:12px;justify-content:center">🔗 ربط وتفعيل المزامنة</button>
-          <button class="btn btn-danger" onclick="syncPageDisconnect()" style="min-width:120px;padding:12px;justify-content:center">❌ إلغاء الاتصال</button>
+        <div id="syncLegacyDeviceRow" style="display:none;margin-top:14px">
+          <button class="btn btn-outline" onclick="syncPageDisconnect()" style="padding:10px 16px">🔓 إلغاء المزامنة من هذا الجهاز (نسخة محلية قديمة)</button>
         </div>
       </div>
 
@@ -4793,12 +4745,12 @@ window.DIGITRONICS_SUPABASE = window.DIGITRONICS_SUPABASE || {
       <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
         <div class="stat-card green" style="padding:18px;cursor:pointer" onclick="syncPagePull()">
           <div class="stat-icon">📥</div>
-          <div class="stat-value" style="font-size:0.95rem;color:var(--green)">استعادة من GitHub</div>
+          <div class="stat-value" style="font-size:0.95rem;color:var(--green)">استعادة من السحابة</div>
           <div class="stat-label">اجلب أحدث بيانات من السحابة الآن</div>
         </div>
         <div class="stat-card blue" style="padding:18px;cursor:pointer" onclick="syncPagePush()">
           <div class="stat-icon">📤</div>
-          <div class="stat-value" style="font-size:0.95rem">رفع للـ GitHub</div>
+          <div class="stat-value" style="font-size:0.95rem">رفع للسحابة</div>
           <div class="stat-label">ارفع بياناتك الحالية للسحابة الآن</div>
         </div>
         <div class="stat-card yellow" style="padding:18px">
@@ -4815,14 +4767,13 @@ window.DIGITRONICS_SUPABASE = window.DIGITRONICS_SUPABASE || {
 
       <!-- How to use -->
       <div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:18px;margin-top:8px">
-        <div style="font-size:0.88rem;font-weight:700;margin-bottom:10px">📖 خطوات إعداد المزامنة (مرة واحدة فقط)</div>
+        <div style="font-size:0.88rem;font-weight:700;margin-bottom:10px">📖 كيف تعمل المزامنة؟</div>
         <div style="font-size:0.8rem;color:var(--text2);line-height:2">
-          1️⃣ روح على <strong>github.com</strong> وسجل دخول (أو أنشئ حساب مجاناً)<br>
-          2️⃣ Settings → Developer Settings → Personal access tokens → Tokens (classic)<br>
-          3️⃣ اضغط <strong>Generate new token</strong> → ضع وصف → اختر صلاحية <strong>gist</strong> فقط<br>
-          4️⃣ انسخ الـ Token والصقه في الخانة فوق ← اضغط <strong>ربط وتفعيل</strong><br>
-          5️⃣ على أي جهاز جديد: فقط أدخل نفس <strong>Token</strong> وسيتم جلب نفس البيانات تلقائياً<br>
-          ✅ من الآن كل تغيير هيتزامن تلقائياً على كل الأجهزة!
+          1️⃣ إعداد المزامنة يتم مركزياً من إدارة المنصة — لا حاجة لإدخال أي بيانات هنا<br>
+          2️⃣ إذا كان هذا الجهاز مرتبطاً بمزامنة سابقة، ستظل تعمل بصمت تلقائياً<br>
+          3️⃣ استخدم <strong>استعادة من السحابة</strong> لجلب أحدث بيانات على هذا الجهاز<br>
+          4️⃣ استخدم <strong>رفع للسحابة</strong> لحفظ نسخة حالية من بياناتك<br>
+          ✅ البيانات محفوظة ومشفّرة — لا تشارك بيانات الدخول مع أي طرف
         </div>
       </div>
     </div>
@@ -13790,8 +13741,7 @@ function openGhSetup() {
 function ghDismissSetup() { /* stub - الـ modal محذوف */ }
 
 async function ghSaveSetup() {
-  // stub - المنطق انتقل لـ syncPageConnect في صفحة المزامنة
-  syncPageConnect();
+  // PAT entry removed — setup is managed server-side by Platform Master
 }
 
 async function ghPull(silent=false) {
@@ -13895,11 +13845,8 @@ async function backupGhRestore() {
 
 // ===== FIRST-RUN TOKEN SETUP FUNCTIONS =====
 function checkFirstRun() {
-  // لو مافيش token محفوظ، نعرض modal إعداد المزامنة
-  if (!ghToken()) {
-    const m = document.getElementById('firstRunModal');
-    if (m) m.style.display = 'flex';
-  }
+  // Phase: server-side-gist-sync — the GitHub PAT first-run modal is REMOVED.
+  // Legacy devices that already hold digi_gh_token keep their silent sync path.
 }
 
 async function autoPrepareGithubSync() {
@@ -13921,51 +13868,15 @@ async function autoPrepareGithubSync() {
 }
 
 function frSetStatus(msg, color='var(--accent)', bg='rgba(0,102,255,.08)') {
-  const s = document.getElementById('frStatus');
-  if (!s) return;
-  s.textContent = msg; s.style.color = color; s.style.background = bg; s.style.display = msg ? 'block' : 'none';
+  // first-run modal removed — kept as no-op for any residual callers
 }
 
 async function frConnect() {
-  const token  = (document.getElementById('frTokenInput').value || '').trim();
-  const gistId = (document.getElementById('frGistInput').value  || '').trim();
-  const btn    = document.getElementById('frConnectBtn');
-  if (!token) { frSetStatus('❌ أدخل الـ Token أولاً', 'var(--red)', 'rgba(229,57,53,.08)'); return; }
-  btn.disabled = true; btn.textContent = '⏳ جاري التحقق...';
-  frSetStatus('⏳ جاري التحقق من الـ Token...', 'var(--accent)', 'rgba(0,102,255,.08)');
-  try {
-    const r = await fetch('https://api.github.com/user', {headers:{'Authorization':'token '+token}});
-    if (!r.ok) throw new Error('Token غير صالح ('+r.status+')');
-    const ud = await r.json();
-    if (ghToken() && ghToken() !== token) localStorage.removeItem(GH_GIST_KEY);
-    localStorage.setItem(GH_TOKEN_KEY, token);
-    frSetStatus('✅ مرحباً '+(ud.name||ud.login)+'!', 'var(--green)', 'rgba(0,168,84,.08)');
-    frSetStatus('⏳ جاري تجهيز المزامنة على GitHub...', 'var(--accent)', 'rgba(0,102,255,.08)');
-    const finalGistId = await ghEnsureGistForToken(token, gistId);
-    localStorage.setItem(GH_GIST_KEY, finalGistId);
-    frSetStatus('⏳ جاري استعادة البيانات من GitHub...', 'var(--accent)', 'rgba(0,102,255,.08)');
-    const ok = await ghPull(true);
-    frSetStatus(
-      ok
-        ? '✅ تم ربط الحساب واستعادة البيانات بنجاح!'
-        : '✅ تم حفظ الإعدادات وتفعيل المزامنة. سيتم الجلب تلقائياً عند توفر بيانات سحابية.',
-      ok ? 'var(--green)' : 'var(--yellow)',
-      ok ? 'rgba(0,168,84,.08)' : 'rgba(249,168,37,.08)'
-    );
-    setTimeout(() => {
-      document.getElementById('firstRunModal').style.display = 'none';
-      updateGhStatusCard();
-      renderSyncPage();
-      if (ok) initApp();
-    }, 2000);
-  } catch(e) {
-    frSetStatus('❌ '+e.message, 'var(--red)', 'rgba(229,57,53,.08)');
-    btn.disabled = false; btn.textContent = '🔗 ربط وحفظ الإعدادات';
-  }
+  // PAT entry removed — provider credentials are managed server-side by Platform Master
 }
 
 function frSkip() {
-  document.getElementById('firstRunModal').style.display = 'none';
+  // first-run modal removed
 }
 
 // ===== AUTO SYNC ENGINE — كل 3 ثوانٍ Push + Pull =====
@@ -39573,79 +39484,44 @@ function renderSyncPage() {
   const title  = document.getElementById('syncStatusTitle');
   const sub    = document.getElementById('syncStatusSub');
   const dot    = document.getElementById('syncConnectedDot');
-  const gDisp  = document.getElementById('syncGistDisplay');
-  const gId    = document.getElementById('syncGistId');
-  const tInput = document.getElementById('syncTokenInput');
-  const gInput = document.getElementById('syncGistInput');
+  const legacyRow = document.getElementById('syncLegacyDeviceRow');
+  const autoLabel = document.getElementById('autoSyncLabel');
+
+  if (legacyRow) legacyRow.style.display = connected ? 'block' : 'none';
 
   let backendInfo = '';
   if (USE_BACKEND) {
     const bs = backendStatus.state === 'online' ? '🟢 الخادم متصل' : backendStatus.state === 'error' ? '🔴 خطأ في الخادم' : '⚪ الخادم غير متصل';
     backendInfo = ' • ' + bs;
   }
-  if(icon)  icon.textContent  = connected ? (isOnline ? '✅' : '📴') : hasToken ? '⚠️' : '☁️';
+  if(icon)  icon.textContent  = connected ? (isOnline ? '✅' : '📴') : '☁️';
   if(title) title.textContent = connected
-    ? (isOnline ? 'متصل بـ GitHub — مزامنة كل 3 ثواني 🟢' : 'وضع Offline — سيتم الرفع تلقائياً عند رجوع الإنترنت')
-    : hasToken ? 'Token مُدخل — جاري تجهيز المزامنة' : 'غير مفعّل';
+    ? (isOnline ? 'مزامنة هذا الجهاز (نسخة محلية قديمة)' : 'وضع Offline — سيتم الرفع عند رجوع الإنترنت')
+    : 'المزامنة السحابية غير مفعّلة';
   if(sub)   sub.textContent   = connected
     ? ((ghLastSaved ? 'آخر حفظ: '+ghLastSaved.toLocaleTimeString('ar-EG') : 'بانتظار أول تغيير...') + (pending > 0 ? ` • تغييرات محلية معلقة: ${pending}` : '') + backendInfo)
-    : 'أدخل بيانات GitHub للمزامنة بين أجهزتك' + backendInfo;
+    : 'البيانات محفوظة محلياً — المزامنة تُدار من إدارة المنصة' + backendInfo;
   if(dot)   dot.style.display = connected ? 'block' : 'none';
-  if(gDisp) gDisp.style.display = connected ? 'block' : 'none';
-  if(gId)   gId.textContent   = ghGistId();
-  if(tInput && !tInput.value) tInput.value = ghToken();
-  if(gInput && !gInput.value) gInput.value = ghGistId();
+  if(autoLabel) autoLabel.textContent = connected ? 'كل 3 ثواني عند تغيير البيانات' : 'تتوقف حتى تفعيل المزامنة';
 }
 
-async function syncPageConnect() {
-  const token  = document.getElementById('syncTokenInput').value.trim();
-  const gistId = document.getElementById('syncGistInput').value.trim();
-  const msg    = document.getElementById('syncSetupMsg');
-  if (!token) { msg.textContent='❌ أدخل الـ Token أولاً'; msg.style.color='var(--red)'; return; }
-  msg.textContent='⏳ جاري التحقق...'; msg.style.color='var(--accent)';
-  try {
-    const r = await fetch('https://api.github.com/user',{headers:{'Authorization':'token '+token}});
-    if (!r.ok) throw new Error('Token غير صالح ('+r.status+')');
-    const ud = await r.json();
-    if (ghToken() && ghToken() !== token) localStorage.removeItem(GH_GIST_KEY);
-    localStorage.setItem(GH_TOKEN_KEY, token);
-    msg.textContent = '✅ مرحباً '+(ud.name||ud.login)+'!';
-    msg.textContent += ' — جاري تجهيز المزامنة...';
-    const finalGistId = await ghEnsureGistForToken(token, gistId);
-    localStorage.setItem(GH_GIST_KEY, finalGistId);
-    msg.textContent = '⏳ جاري استعادة البيانات...';
-    const ok = await ghPull(true);
-    msg.textContent = ok ? '✅ تم الربط واستعادة البيانات بنجاح!' : '✅ تم تفعيل المزامنة. سيتم الجلب تلقائياً عند توفر بيانات سحابية.';
-    msg.style.color = ok ? 'var(--green)' : 'var(--yellow)';
-    if (ok) { initApp(); showToast('✅ تم جلب البيانات من GitHub'); }
-    renderSyncPage();
-    updateGhStatusCard();
-  } catch(e) {
-    msg.textContent='❌ '+e.message; msg.style.color='var(--red)';
-    console.error('syncPageConnect', e);
-  }
-}
-
-function syncPageDisconnect() {
-  if (!confirm('هل تريد إلغاء الاتصال بـ GitHub؟ البيانات ستبقى محلياً')) return;
+async function syncPageDisconnect() {
+  if (!confirm('هل تريد إلغاء المزامنة من هذا الجهاز؟ البيانات ستبقى محلياً')) return;
   localStorage.removeItem(GH_TOKEN_KEY);
   localStorage.removeItem(GH_GIST_KEY);
-  const t = document.getElementById('syncTokenInput'); if(t) t.value='';
-  const g = document.getElementById('syncGistInput');  if(g) g.value='';
-  const m = document.getElementById('syncSetupMsg');   if(m){m.textContent='✅ تم إلغاء الاتصال';m.style.color='var(--text2)';}
   renderSyncPage();
   updateGhStatusCard();
-  showToast('تم إلغاء الاتصال بـ GitHub');
+  showToast('تم إلغاء المزامنة من هذا الجهاز');
 }
 
 async function syncPagePull() {
-  if (!ghToken()||!ghGistId()) { showToast('أدخل بيانات GitHub أولاً','error'); return; }
+  if (!ghToken()||!ghGistId()) { showToast('المزامنة غير مفعّلة على هذا الجهاز','error'); return; }
   const ok = await ghPull(false);
   if (ok) { initApp(); renderSyncPage(); }
 }
 
 async function syncPagePush() {
-  if (!ghToken()||!ghGistId()) { showToast('أدخل بيانات GitHub أولاً','error'); return; }
+  if (!ghToken()||!ghGistId()) { showToast('المزامنة غير مفعّلة على هذا الجهاز','error'); return; }
   await ghPush(false);
   renderSyncPage();
 }
@@ -39882,8 +39758,7 @@ if (USE_BACKEND) {
   setInterval(function() { probeBackendHealth(); }, 30000);
 }
 setTimeout(updateGhStatusCard, 0);
-// أول تشغيل: لو مافيش Token محفوظ → اعرض modal الربط
-setTimeout(checkFirstRun, 300);
+// first-run modal removed — server-side sync manages cloud state instead
 setTimeout(() => { autoPrepareGithubSync(); }, 400);
 setTimeout(() => {
   try { cleanupPerformanceState(); } catch (error) { logAppError('performance.startup_cleanup', error); }
