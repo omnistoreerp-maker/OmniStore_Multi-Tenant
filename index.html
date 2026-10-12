@@ -14729,6 +14729,25 @@ function applyPlatformNavigation() {
   });
 }
 
+// Post-login deep link, written ONLY by our own login flows as a constant page
+// id (currently 'platform-master' for confirmed platform admins). Consumed
+// once and cleared immediately. The request is honored only when it names an
+// internal page the account is actually allowed to open — anything else,
+// including absolute URLs or foreign origins, is impossible by construction
+// because no caller input, URL parameter, or stored value ever reaches here
+// except the single constant above.
+function consumePostLoginRedirect() {
+  let pending = null;
+  try {
+    pending = sessionStorage.getItem('__omniPostLoginPage');
+    sessionStorage.removeItem('__omniPostLoginPage');
+  } catch (e) { return; }
+  if (pending === 'platform-master' && typeof canAccessPage === 'function'
+      && canAccessPage(pending) && typeof showPage === 'function') {
+    showPage(pending);
+  }
+}
+
 function refreshPlatformRole() {
   if (!USE_BACKEND || !backendApi || !backendApi.platform) {
     platformPermissions = [];
@@ -16348,7 +16367,7 @@ function doLogin() {
       if (d.effectiveRole !== undefined) currentUser.effectiveRole = d.effectiveRole;
       refreshEffectivePermissions();
       // Phase 33 — platform identity + presence heartbeat (server-authoritative).
-      refreshPlatformRole().then(() => { rebuildNavigation(); });
+      refreshPlatformRole().then(() => { rebuildNavigation(); consumePostLoginRedirect(); });
       startPlatformHeartbeat();
     }).catch(() => {
       document.getElementById('loginError').style.display = 'block';
@@ -16457,7 +16476,7 @@ function restoreSessionOnLoad() {
         applyPermissions();
         initApp();
         // Phase 33 — platform identity + presence heartbeat on session restore too.
-        refreshPlatformRole().then(() => { rebuildNavigation(); });
+        refreshPlatformRole().then(() => { rebuildNavigation(); consumePostLoginRedirect(); });
         startPlatformHeartbeat();
         scheduleSupabaseDiagnosticAutoTest('session-restore');
         showPage(getDefaultPageForCurrentRole());
