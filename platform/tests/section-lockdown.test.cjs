@@ -835,6 +835,9 @@ check('working-tree diff touches only intended platform files', () => {
   const allowedUntracked = new Set([
   'backend/tests/controlCenterSecurityFixes.test.js',
     'platform/tests/section-lockdown.test.cjs',
+    // Compact login + Master entry cycle: focused regression suite for the
+    // public homepage auth drawer and the post-login redirect contract.
+    'platform/tests/compact-login.test.cjs',
     // Online Games discoverability follow-up: catalog, lockdown policy and
     // license attribution are asserted from the shipped bytes.
     'backend/tests/onlineGames.catalog.test.js',
@@ -886,6 +889,9 @@ check('working-tree diff touches only intended platform files', () => {
     'marketplace/src/omni-lang.d.ts',
     // LANGUAGE: new e2e language-switcher test.
     'tests/e2e/verify-lang.js',
+    // Compact login + Master entry cycle: e2e drawer smoke against a temp
+    // backend (no production data, no real credentials).
+    'tests/e2e/verify-compact-login.js',
     // TikTok Display API / Reels integration repair cycle: new files.
     'reels.html',
     'backend/config/tiktok.js',

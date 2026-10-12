@@ -932,3 +932,116 @@ a { color: inherit; text-decoration: none; }
     scroll-behavior: auto !important;
   }
 }
+
+/* Compact auth entry: a small side drawer, never a blocking screen. Logical
+   properties keep it on the inline-end side (right in the Arabic RTL layout,
+   left in LTR) and fully visible behind it stays the public page. */
+.btn-login {
+  white-space: nowrap;
+}
+.auth-drawer-overlay[hidden],
+.auth-drawer[hidden] {
+  display: none;
+}
+.auth-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(2, 6, 16, 0.55);
+}
+.auth-drawer {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-end: 0;
+  z-index: 91;
+  width: min(360px, 92vw);
+  overflow-y: auto;
+  padding: 1.25rem;
+  border-start-start-radius: 1rem;
+  border-end-start-radius: 1rem;
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glass);
+}
+.auth-drawer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.auth-drawer-head h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+.auth-drawer-close {
+  border: 1px solid var(--glass-border);
+  background: transparent;
+  color: inherit;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+}
+.auth-drawer-sub {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.auth-field label {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.auth-field input {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--glass-border);
+  background: transparent;
+  color: inherit;
+  font-size: 1rem;
+}
+.auth-pass-wrap {
+  display: flex;
+  gap: 8px;
+}
+.auth-pass-wrap input {
+  flex: 1;
+  min-width: 0;
+}
+.auth-pass-toggle {
+  border: 1px solid var(--glass-border);
+  background: transparent;
+  color: inherit;
+  border-radius: 10px;
+  padding: 0 12px;
+  cursor: pointer;
+}
+.auth-error {
+  color: #f87171;
+  font-size: 0.85rem;
+  min-height: 1.2em;
+}
+.auth-error[hidden] {
+  display: none;
+}
+#platformAuthForm .btn-primary,
+#platformAuthForm .btn-secondary,
+#platformAuthLogout {
+  width: 100%;
+  margin-top: 8px;
+}
+#platformAuthLogout[hidden] {
+  display: none;
+}
+@media (max-width: 480px) {
+  .auth-drawer {
+    width: 100vw;
+    border-radius: 0;
+  }
+}

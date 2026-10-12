@@ -41,6 +41,17 @@
       nav_game_short: 'Games',
       nav_online_games_short: 'Online Games',
       nav_app_short: 'App',
+      nav_login: 'Sign in',
+      nav_logout: 'Sign out',
+      auth_title: 'Sign in',
+      auth_sub: 'Use your account to reach your dashboards.',
+      auth_user: 'Username',
+      auth_pass: 'Password',
+      auth_submit: 'Sign in',
+      auth_logout: 'Sign out',
+      auth_error_invalid: 'Incorrect username or password.',
+      auth_error_denied: 'Your account cannot access this company.',
+      auth_error_network: 'Network error. Please try again.',
       nav_soon: 'Soon',
       footer_text: 'OmniStore Platform v',
       footer_rights: 'All rights reserved',
@@ -112,6 +123,17 @@
       nav_game_short: 'الألعاب',
       nav_online_games_short: 'ألعاب أونلاين',
       nav_app_short: 'التطبيق',
+      nav_login: 'تسجيل الدخول',
+      nav_logout: 'تسجيل الخروج',
+      auth_title: 'تسجيل الدخول',
+      auth_sub: 'ادخل بيانات حسابك للوصول إلى لوحاتك.',
+      auth_user: 'اسم المستخدم',
+      auth_pass: 'كلمة المرور',
+      auth_submit: 'دخول',
+      auth_logout: 'تسجيل الخروج',
+      auth_error_invalid: 'بيانات الدخول غير صحيحة.',
+      auth_error_denied: 'لا يملك حسابك صلاحية الوصول.',
+      auth_error_network: 'تعذر الاتصال. حاول مجددًا.',
       nav_soon: 'قريباً',
       footer_text: 'منصة OmniStore إصدار',
       footer_rights: 'جميع الحقوق محفوظة',
@@ -654,9 +676,223 @@
     }
   }
 
+  // ------------------------------------------------------------------
+  // Compact auth entry (side drawer). The server is authoritative for
+  // identity and role: this module only stores the tokens the backend issued
+  // and asks GET /api/v1/platform/me who the session belongs to. Showing or
+  // hiding any UI here never grants anything; every protected surface and API
+  // re-checks server-side. No credentials are hardcoded anywhere in this file.
+  // ------------------------------------------------------------------
+  const AUTH_API = '/api/v1/auth';
+  const PLATFORM_API = '/api/v1/platform';
+  const TOKEN_KEY = 'access_token';
+  const REFRESH_KEY = 'refresh_token';
+  // Same session-username key the ERP app (index.html) reads on boot to
+  // restore a session. Reusing it — never a parallel mechanism — is what lets
+  // a drawer login hand off to the app entry without a second login screen.
+  const SESSION_USER_KEY = 'cairo_session_user';
+  const POST_LOGIN_PAGE = 'platform-master';
+  const POST_LOGIN_KEY = '__omniPostLoginPage';
+
+  function authText(key) {
+    const lang = getLang();
+    const table = TRANSLATIONS[lang] || TRANSLATIONS.en;
+    return table[key] !== undefined ? table[key] : (TRANSLATIONS.en[key] || key);
+  }
+
+  function authTokens() {
+    try {
+      return {
+        access: localStorage.getItem(TOKEN_KEY) || '',
+        refresh: localStorage.getItem(REFRESH_KEY) || ''
+      };
+    } catch (_) {
+      return { access: '', refresh: '' };
+    }
+  }
+
+  function storeAuthTokens(access, refresh) {
+    try {
+      if (access) localStorage.setItem(TOKEN_KEY, access);
+      if (refresh) localStorage.setItem(REFRESH_KEY, refresh);
+    } catch (_) {}
+  }
+
+  function clearAuthTokens() {
+    try {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(REFRESH_KEY);
+    } catch (_) {}
+  }
+
+  function resolvePostLoginTarget(platformRole) {
+    // Decision only — no navigation here so the rule stays unit-testable.
+    // The destination is always the in-app entry; a confirmed platform role
+    // additionally carries a one-shot INTERNAL page request that index.html
+    // consumes behind its own canAccessPage gate. No caller input, URL
+    // parameter, or stored value can change either half, so open redirect to
+    // an external origin is impossible by construction.
+    if (platformRole) return { href: 'index.html', postLoginPage: POST_LOGIN_PAGE };
+    return { href: 'index.html', postLoginPage: null };
+  }
+
+  function authError(msg) {
+    const el = document.getElementById('platformAuthError');
+    if (!el) return;
+    if (!msg) {
+      el.textContent = '';
+      el.setAttribute('hidden', '');
+      return;
+    }
+    el.textContent = msg;
+    el.removeAttribute('hidden');
+  }
+
+  function setAuthLoading(loading) {
+    const btn = document.getElementById('platformAuthSubmit');
+    if (!btn) return;
+    btn.disabled = !!loading;
+    btn.textContent = loading ? '⏳ …' : authText('auth_submit');
+  }
+
+  function refreshAuthDrawer() {
+    const hasSession = !!authTokens().access;
+    const form = document.getElementById('platformAuthForm');
+    const logoutBtn = document.getElementById('platformAuthLogout');
+    const loginBtn = document.getElementById('platformLoginBtn');
+    if (form) form.style.display = hasSession ? 'none' : '';
+    if (logoutBtn) {
+      if (hasSession) logoutBtn.removeAttribute('hidden');
+      else logoutBtn.setAttribute('hidden', '');
+    }
+    if (loginBtn) loginBtn.textContent = authText(hasSession ? 'nav_logout' : 'nav_login');
+  }
+
+  function openAuthDrawer() {
+    const overlay = document.getElementById('platformAuthOverlay');
+    const drawer = document.getElementById('platformAuthDrawer');
+    if (!overlay || !drawer) return;
+    authError(null);
+    refreshAuthDrawer();
+    overlay.removeAttribute('hidden');
+    drawer.removeAttribute('hidden');
+    const first = document.getElementById('platformAuthUser');
+    if (first && typeof first.focus === 'function') first.focus();
+  }
+
+  function closeAuthDrawer() {
+    const overlay = document.getElementById('platformAuthOverlay');
+    const drawer = document.getElementById('platformAuthDrawer');
+    if (overlay) overlay.setAttribute('hidden', '');
+    if (drawer) drawer.setAttribute('hidden', '');
+    const btn = document.getElementById('platformLoginBtn');
+    if (btn && typeof btn.focus === 'function') btn.focus();
+  }
+
+  async function submitAuthDrawer(event) {
+    if (event && typeof event.preventDefault === 'function') event.preventDefault();
+    const userEl = document.getElementById('platformAuthUser');
+    const passEl = document.getElementById('platformAuthPass');
+    const username = userEl ? userEl.value.trim() : '';
+    const password = passEl ? passEl.value : '';
+    if (!username || !password) {
+      authError(authText('auth_error_invalid'));
+      return;
+    }
+    authError(null);
+    setAuthLoading(true);
+    try {
+      const res = await fetch(AUTH_API + '/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data || !data.success || !data.data || !data.data.user) {
+        authError(res.status === 403 ? authText('auth_error_denied') : authText('auth_error_invalid'));
+        return;
+      }
+      storeAuthTokens(data.data.accessToken, data.data.refreshToken);
+      try {
+        if (data.data.user && data.data.user.username) {
+          localStorage.setItem(SESSION_USER_KEY, data.data.user.username);
+        }
+      } catch (_) {}
+      // Server-authoritative role probe: a username that merely matches a
+      // master account grants nothing — only a 200 here with a platformRole
+      // counts, and the Master surface re-verifies it independently.
+      let platformRole = null;
+      try {
+        const meRes = await fetch(PLATFORM_API + '/me', {
+          headers: { Authorization: 'Bearer ' + (data.data.accessToken || '') }
+        });
+        const meData = await meRes.json().catch(() => null);
+        if (meRes.ok && meData && meData.success && meData.data && meData.data.platformRole) {
+          platformRole = meData.data.platformRole;
+        }
+      } catch (_) {
+        platformRole = null;
+      }
+      const target = resolvePostLoginTarget(platformRole);
+      if (target.postLoginPage) {
+        try { sessionStorage.setItem(POST_LOGIN_KEY, target.postLoginPage); } catch (_) {}
+      }
+      refreshAuthDrawer();
+      window.location.href = target.href;
+    } catch (_) {
+      authError(authText('auth_error_network'));
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function logoutPlatform() {
+    const tokens = authTokens();
+    try {
+      await fetch(AUTH_API + '/logout', {
+        method: 'POST',
+        headers: tokens.access ? { Authorization: 'Bearer ' + tokens.access } : {}
+      });
+    } catch (_) {}
+    clearAuthTokens();
+    try { localStorage.removeItem(SESSION_USER_KEY); } catch (_) {}
+    refreshAuthDrawer();
+    closeAuthDrawer();
+  }
+
+  function initAuthDrawer() {
+    const btn = document.getElementById('platformLoginBtn');
+    if (btn) btn.addEventListener('click', openAuthDrawer);
+    const closeBtn = document.getElementById('platformAuthClose');
+    if (closeBtn) closeBtn.addEventListener('click', closeAuthDrawer);
+    const overlay = document.getElementById('platformAuthOverlay');
+    if (overlay) overlay.addEventListener('click', closeAuthDrawer);
+    document.addEventListener('keydown', function (e) {
+      if (e && e.key === 'Escape') {
+        const drawer = document.getElementById('platformAuthDrawer');
+        if (drawer && !drawer.hasAttribute('hidden')) closeAuthDrawer();
+      }
+    });
+    const form = document.getElementById('platformAuthForm');
+    if (form) form.addEventListener('submit', submitAuthDrawer);
+    const toggle = document.getElementById('platformAuthShowPass');
+    if (toggle) toggle.addEventListener('click', function () {
+      const pass = document.getElementById('platformAuthPass');
+      if (!pass) return;
+      const show = pass.type !== 'text';
+      pass.type = show ? 'text' : 'password';
+      toggle.setAttribute('aria-pressed', show ? 'true' : 'false');
+    });
+    const logoutBtn = document.getElementById('platformAuthLogout');
+    if (logoutBtn) logoutBtn.addEventListener('click', logoutPlatform);
+    refreshAuthDrawer();
+  }
+
   function bindEvents() {
+    initAuthDrawer();
     document.addEventListener('omnilangchange', function () {
       applyLang(getLang());
+      if (typeof refreshAuthDrawer === 'function') refreshAuthDrawer();
       rerenderDynamic();
     });
     bindVisibility();

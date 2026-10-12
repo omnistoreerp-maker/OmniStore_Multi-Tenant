@@ -45,6 +45,7 @@
 
       <div class="header-actions">
         <div id="lang-switch" data-omni-lang-slot></div>
+        <button type="button" id="platformLoginBtn" class="btn-secondary btn-login" data-i18n="nav_login">تسجيل الدخول</button>
       </div>
     </header>
   </div>
@@ -175,6 +176,36 @@
     <span class="bottom-nav-link is-soon" aria-disabled="true"><span data-i18n="nav_game_short">الألعاب</span><span class="nav-soon" data-i18n="nav_soon">قريباً</span></span>
     <a class="bottom-nav-link" href="index.html" data-i18n="nav_app_short">التطبيق</a>
   </nav>
+
+  <!-- Compact auth entry: a small side drawer, never a blocking screen. The
+       public page stays fully browsable without a session; the drawer opens
+       only on explicit user action and authenticates against the real
+       /api/v1/auth endpoints. No credentials are ever hardcoded here. -->
+  <div id="platformAuthOverlay" class="auth-drawer-overlay" hidden></div>
+  <aside id="platformAuthDrawer" class="auth-drawer" role="dialog" aria-modal="true"
+         aria-labelledby="platformAuthTitle" hidden>
+    <div class="auth-drawer-head">
+      <h2 id="platformAuthTitle" data-i18n="auth_title">تسجيل الدخول</h2>
+      <button type="button" id="platformAuthClose" class="auth-drawer-close" aria-label="إغلاق">✕</button>
+    </div>
+    <p class="auth-drawer-sub" data-i18n="auth_sub">ادخل بيانات حسابك للوصول إلى لوحاتك.</p>
+    <form id="platformAuthForm" novalidate>
+      <div class="auth-field">
+        <label for="platformAuthUser" data-i18n="auth_user">اسم المستخدم</label>
+        <input type="text" id="platformAuthUser" name="username" autocomplete="username" required>
+      </div>
+      <div class="auth-field">
+        <label for="platformAuthPass" data-i18n="auth_pass">كلمة المرور</label>
+        <div class="auth-pass-wrap">
+          <input type="password" id="platformAuthPass" name="password" autocomplete="current-password" required>
+          <button type="button" id="platformAuthShowPass" class="auth-pass-toggle" aria-label="إظهار أو إخفاء كلمة المرور">👁</button>
+        </div>
+      </div>
+      <p id="platformAuthError" class="auth-error" role="alert" hidden></p>
+      <button type="submit" id="platformAuthSubmit" class="btn-primary" data-i18n="auth_submit">دخول</button>
+    </form>
+    <button type="button" id="platformAuthLogout" class="btn-secondary" data-i18n="auth_logout" hidden>تسجيل الخروج</button>
+  </aside>
 
   <script src="platform/platform.js"></script>
   <!--
