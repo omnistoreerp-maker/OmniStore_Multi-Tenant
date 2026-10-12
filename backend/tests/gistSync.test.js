@@ -10,6 +10,10 @@
 //   U  UPSTREAM        — mocked fetch maps 401/404/5xx/network to safe codes.
 //   A  AUDIT           — audit entries carry metadata only, never tokens/dataset.
 //   L  LEGACY          — legacy v1 vault blob decrypts under the same key.
+//   R  REVISION_HARDENING — strict base proof, server stamp, read binding, lock.
+//   P  MASTER_OPS      — MCC surface: list-all, test, controlled pull/push, audit.
+//   M  MIGRATION_STATE — six-state legacy migration model (advisory report).
+//   G  DATA_INTEGRITY  — failed writes never advance state; no dataset/secrets at rest.
 
 const request = require('supertest');
 const { startServer } = require('./helpers/testServer');
@@ -88,6 +92,15 @@ function ghJson(status, body) {
     ok: status >= 200 && status < 300,
     status,
     text: () => Promise.resolve(typeof body === 'string' ? body : JSON.stringify(body))
+  });
+}
+
+// Static GitHub mock: GET returns the given remote content, PATCH succeeds.
+function mockGhStatic(remote) {
+  mockFetch((url, opts) => {
+    if (opts && opts.method === 'PATCH') return ghJson(200, { ok: true });
+    if (typeof url === 'string' && /\/gists\?/.test(url)) return ghJson(200, [{ id: 'x' }]);
+    return ghJson(200, { files: { 'digitronics_db.json': { content: remote } } });
   });
 }
 
@@ -653,6 +666,748 @@ describe('L. LEGACY — a pre-existing v1 vault blob decrypts under the same key
     expect(res.body.data.pull.content).toBe(DATASET);
     void server;
     restoreFetch();
+  });
+});
+
+// ---------------------------------------------------------------------- R
+
+describe('R. REVISION_HARDENING — strict base proof, server-side tenant stamp, read binding', () => {
+  let server;
+  let dataDir;
+  let masterToken;
+  let ownerToken;
+  let managerToken;
+
+  // Merge an entry into the live gistSyncState instead of overwriting it,
+  // so tests within this block do not wipe each other's bindings.
+  function upsertStateEntry(dir, entry) {
+    const cur = readStore(dir, 'gistSyncState') || { entries: [] };
+    const entries = Array.isArray(cur.entries) ? cur.entries : [];
+    const idx = entries.findIndex((e) => e.tenantId === entry.tenantId);
+    if (idx === -1) entries.push(entry);
+    else entries[idx] = entry;
+    seed(dir, 'gistSyncState', { entries });
+  }
+
+  beforeAll(async () => {
+    setFlags();
+    dataDir = makeTempDataDir('gist-revharden');
+    tempDirs.push(dataDir);
+    seedAll(dataDir);
+    server = await startServer(dataDir, { RATE_LIMIT_MAX: '10000', AUTH_REQUIRED: 'true' });
+    masterToken = (await login(server.app, 'master', PASSWORD)).accessToken;
+    ownerToken = (await login(server.app, 'digiOwner', PASSWORD, 'digi')).accessToken;
+    managerToken = (await login(server.app, 'digiManager', PASSWORD, 'digi')).accessToken;
+    await request(server.app)
+      .put('/api/v1/platform/sync/digi')
+      .set('Authorization', 'Bearer ' + masterToken)
+      .send({ token: 'ghp_revhard_0001', gistId: 'revgist0001' });
+  });
+
+  afterAll(() => { restoreFlags(); restoreFetch(); });
+
+  test('status exposes lastRevision (the push-base field), never a "revision" alias', async () => {
+    const res = await request(server.app)
+      .get('/api/v1/sync/status')
+      .set('Authorization', 'Bearer ' + ownerToken);
+    expect(res.status).toBe(200);
+    expect(res.body.data.status).toHaveProperty('lastRevision');
+    expect(res.body.data.status).not.toHaveProperty('revision');
+  });
+
+  test('bound gist + NULL baseRevision -> 409 CONFLICT (no silent last-write-wins)', async () => {
+    mockGhStatic(DATASET);
+    await request(server.app)
+      .post('/api/v1/sync/pull')
+      .set('Authorization', 'Bearer ' + ownerToken)
+      .send({});
+    restoreFetch();
+
+    mockGhStatic(DATASET);
+    const res = await request(server.app)
+      .post('/api/v1/sync/push')
+      .set('Authorization', 'Bearer ' + managerToken)
+      .send({ content: DATASET, baseRevision: null });
+    expect(res.status).toBe(409);
+    expect(res.body.details && res.body.details.code).toBe('CONFLICT');
+    expect(res.body.details.currentRevision).toBe(require('../services/gistSync.service')._sha256(DATASET));
+    const calls = global.fetch.mock.calls;
+    expect(calls.every((c) => !(c[1] && c[1].method === 'PATCH'))).toBe(true);
+    restoreFetch();
+  });
+
+  test('adopted gist (lastRevision null) forces pull-before-push: null and stale bases -> 409, then pull -> 200', async () => {
+    // Simulate Master adopting an existing legacy gist for nile.
+    const sync = require('../services/gistSync.service');
+    const enc = sync.encryptSecret('ghp_adopted_0001');
+    upsertStateEntry(dataDir, {
+      tenantId: 'nile',
+      provider: 'github-gist',
+      enabled: true,
+      encryptedToken: enc.value,
+      masked: '••••••••••••0001',
+      gistId: 'adoptgist01',
+      lastRevision: null,
+      lastPullAt: null,
+      lastPushAt: null,
+      lastErrorCode: null,
+      createdAt: stamp,
+      updatedAt: stamp,
+      updatedBy: 'master'
+    });
+    const s2 = await startServer(dataDir, { RATE_LIMIT_MAX: '10000', AUTH_REQUIRED: 'true' });
+    const nileToken = (await login(s2.app, 'nileOwner', PASSWORD, 'nile')).accessToken;
+    const nileContent = JSON.stringify({ _companyId: 'nile', products: [] });
+
+    mockGhStatic(nileContent);
+    const nullBase = await request(s2.app)
+      .post('/api/v1/sync/push')
+      .set('Authorization', 'Bearer ' + nileToken)
+      .send({ content: nileContent, baseRevision: null });
+    expect(nullBase.status).toBe(409);
+    const staleBase = await request(s2.app)
+      .post('/api/v1/sync/push')
+      .set('Authorization', 'Bearer ' + nileToken)
+      .send({ content: nileContent, baseRevision: 'b'.repeat(64) });
+    expect(staleBase.status).toBe(409);
+    restoreFetch();
+
+    let remoteNow = nileContent;
+    mockFetch((url, opts) => {
+      if (opts && opts.method === 'PATCH') {
+        remoteNow = JSON.parse(opts.body).files['digitronics_db.json'].content;
+        return ghJson(200, { ok: true });
+      }
+      return ghJson(200, { files: { 'digitronics_db.json': { content: remoteNow } } });
+    });
+    const pull = await request(s2.app)
+      .post('/api/v1/sync/pull')
+      .set('Authorization', 'Bearer ' + nileToken)
+      .send({});
+    expect(pull.status).toBe(200);
+    const base = pull.body.data.pull.revision;
+    const push = await request(s2.app)
+      .post('/api/v1/sync/push')
+      .set('Authorization', 'Bearer ' + nileToken)
+      .send({ content: nileContent, baseRevision: base });
+    expect(push.status).toBe(200);
+    restoreFetch();
+    void server;
+  });
+
+  test('server STAMPS the trusted _companyId: missing tag and "legacy" tag are rewritten on push', async () => {
+    mockGhStatic(DATASET);
+    await request(server.app)
+      .post('/api/v1/sync/pull')
+      .set('Authorization', 'Bearer ' + ownerToken)
+      .send({});
+    restoreFetch();
+
+    const sync = require('../services/gistSync.service');
+    let remoteNow = DATASET;
+    mockFetch((url, opts) => {
+      if (opts && opts.method === 'PATCH') {
+        remoteNow = JSON.parse(opts.body).files['digitronics_db.json'].content;
+        return ghJson(200, { ok: true });
+      }
+      return ghJson(200, { files: { 'digitronics_db.json': { content: remoteNow } } });
+    });
+
+    // Push 1: dataset with NO tag -> stamped with digi.
+    const untagged = JSON.stringify({ products: [{ id: 'p9' }], settings: { localVersion: 7 } });
+    const res = await request(server.app)
+      .post('/api/v1/sync/push')
+      .set('Authorization', 'Bearer ' + managerToken)
+      .send({ content: untagged, baseRevision: sync._sha256(DATASET) });
+    expect(res.status).toBe(200);
+    expect(JSON.parse(remoteNow)._companyId).toBe('digi');
+    expect(res.body.data.push.revision).toBe(sync._sha256(remoteNow));
+
+    // Push 2: 'legacy' placeholder tag -> replaced with the real tenant id.
+    const legacyTagged = JSON.stringify({ _companyId: 'legacy', products: [] });
+    const res2 = await request(server.app)
+      .post('/api/v1/sync/push')
+      .set('Authorization', 'Bearer ' + managerToken)
+      .send({ content: legacyTagged, baseRevision: res.body.data.push.revision });
+    expect(res2.status).toBe(200);
+    expect(JSON.parse(remoteNow)._companyId).toBe('digi');
+    expect(res2.body.data.push.revision).toBe(sync._sha256(remoteNow));
+    restoreFetch();
+  });
+
+  test('pull REFUSES a gist tagged for another company (403), state untouched; "legacy" tag stays readable', async () => {
+    const sync = require('../services/gistSync.service');
+    const enc = sync.encryptSecret('ghp_pullbind_001');
+    upsertStateEntry(dataDir, {
+      tenantId: 'nile',
+      provider: 'github-gist',
+      enabled: true,
+      encryptedToken: enc.value,
+      masked: '••••••••••••0001',
+      gistId: 'pullbind001',
+      lastRevision: null,
+      lastPullAt: null,
+      lastPushAt: null,
+      lastErrorCode: null,
+      createdAt: stamp,
+      updatedAt: stamp,
+      updatedBy: 'master'
+    });
+    const s3 = await startServer(dataDir, { RATE_LIMIT_MAX: '10000', AUTH_REQUIRED: 'true' });
+    const nileToken = (await login(s3.app, 'nileOwner', PASSWORD, 'nile')).accessToken;
+
+    mockGhStatic(DATASET); // tagged 'digi'
+    const denied = await request(s3.app)
+      .post('/api/v1/sync/pull')
+      .set('Authorization', 'Bearer ' + nileToken)
+      .send({});
+    expect(denied.status).toBe(403);
+    expect(denied.body.details && denied.body.details.code).toBe('CROSS_TENANT_PAYLOAD');
+    const after = readStore(dataDir, 'gistSyncState');
+    expect(after.entries.find((e) => e.tenantId === 'nile').lastRevision).toBe(null);
+    restoreFetch();
+
+    const legacyContent = JSON.stringify({ _companyId: 'legacy', products: [] });
+    mockGhStatic(legacyContent);
+    const ok = await request(s3.app)
+      .post('/api/v1/sync/pull')
+      .set('Authorization', 'Bearer ' + nileToken)
+      .send({});
+    expect(ok.status).toBe(200);
+    expect(ok.body.data.pull.content).toBe(legacyContent);
+    restoreFetch();
+    void server;
+  });
+
+  test('two concurrent pushes with the same base: exactly one 200 and one 409 (per-tenant lock)', async () => {
+    // Establish a known-good base for digi, then race two identical pushes.
+    mockGhStatic(DATASET);
+    const pull = await request(server.app)
+      .post('/api/v1/sync/pull')
+      .set('Authorization', 'Bearer ' + ownerToken)
+      .send({});
+    expect(pull.status).toBe(200);
+    const base = pull.body.data.pull.revision;
+    restoreFetch();
+
+    mockGhStatic(DATASET);
+    const payload = { content: JSON.stringify({ _companyId: 'digi', products: [{ id: 'race' }] }), baseRevision: base };
+    const [a, b] = await Promise.all([
+      request(server.app).post('/api/v1/sync/push').set('Authorization', 'Bearer ' + managerToken).send(payload),
+      request(server.app).post('/api/v1/sync/push').set('Authorization', 'Bearer ' + managerToken).send(payload)
+    ]);
+    const statuses = [a.status, b.status].sort();
+    expect(statuses).toEqual([200, 409]);
+    restoreFetch();
+  });
+});
+
+// ---------------------------------------------------------------------- P
+
+describe('P. MASTER_OPS — MCC surface: list-all, test, controlled pull/push, audit', () => {
+  let server;
+  let dataDir;
+  let masterToken;
+  let ownerToken;
+  let managerToken;
+
+  beforeAll(async () => {
+    setFlags();
+    dataDir = makeTempDataDir('gist-masterops');
+    tempDirs.push(dataDir);
+    seedAll(dataDir);
+    server = await startServer(dataDir, { RATE_LIMIT_MAX: '10000', AUTH_REQUIRED: 'true' });
+    masterToken = (await login(server.app, 'master', PASSWORD)).accessToken;
+    ownerToken = (await login(server.app, 'digiOwner', PASSWORD, 'digi')).accessToken;
+    managerToken = (await login(server.app, 'digiManager', PASSWORD, 'digi')).accessToken;
+  });
+
+  afterAll(() => { restoreFlags(); restoreFetch(); });
+
+  test('listConfigs returns ALL companies (unconfigured rows included) + vaultLocked + state field', async () => {
+    const res = await request(server.app)
+      .get('/api/v1/platform/sync')
+      .set('Authorization', 'Bearer ' + masterToken);
+    expect(res.status).toBe(200);
+    expect(res.body.data.vaultLocked).toBe(false);
+    const rows = res.body.data.configs;
+    const digi = rows.find((r) => r.tenantId === 'digi');
+    const nile = rows.find((r) => r.tenantId === 'nile');
+    expect(digi).toBeTruthy();
+    expect(nile).toBeTruthy();
+    expect(digi.state).toBe('NOT_CONFIGURED');
+    expect(nile.state).toBe('NOT_CONFIGURED');
+    expect(digi.companyName).toBe('DigiTronics');
+    expect(typeof res.body.data.vaultLocked).toBe('boolean');
+  });
+
+  test('configure digi -> state becomes CONNECTED after a successful connectivity test', async () => {
+    const put = await request(server.app)
+      .put('/api/v1/platform/sync/digi')
+      .set('Authorization', 'Bearer ' + masterToken)
+      .send({ token: 'ghp_masterops_0001', gistId: 'mogist00001' });
+    expect(put.status).toBe(200);
+
+    mockGhForTest();
+    const res = await request(server.app)
+      .post('/api/v1/platform/sync/digi/test')
+      .set('Authorization', 'Bearer ' + masterToken)
+      .send({});
+    expect(res.status).toBe(200);
+    const t = res.body.data.test;
+    expect(t.ok).toBe(true);
+    expect(t.credential).toBe('ok');
+    expect(t.gist).toBe('ok');
+    expect(t.binding).toBe('own');
+    expect(t.currentRevision).toMatch(/^[0-9a-f]{64}$/);
+    expect(typeof t.latencyMs).toBe('number');
+    expect(JSON.stringify(res.body)).not.toContain('ghp_masterops_0001');
+    restoreFetch();
+
+    const list = await request(server.app)
+      .get('/api/v1/platform/sync')
+      .set('Authorization', 'Bearer ' + masterToken);
+    expect(list.body.data.configs.find((r) => r.tenantId === 'digi').state).toBe('CONNECTED');
+  });
+
+  test('test on unconfigured tenant -> 404; upstream 401 -> 401 CREDENTIAL_INVALID (state ERROR)', async () => {
+    const missing = await request(server.app)
+      .post('/api/v1/platform/sync/nile/test')
+      .set('Authorization', 'Bearer ' + masterToken)
+      .send({});
+    expect(missing.status).toBe(404);
+
+    mockFetch(() => ghJson(401, { message: 'Bad credentials' }));
+    const bad = await request(server.app)
+      .post('/api/v1/platform/sync/digi/test')
+      .set('Authorization', 'Bearer ' + masterToken)
+      .send({});
+    expect(bad.status).toBe(401);
+    expect(bad.body.details && bad.body.details.code).toBe('CREDENTIAL_INVALID');
+    restoreFetch();
+
+    const list = await request(server.app)
+      .get('/api/v1/platform/sync')
+      .set('Authorization', 'Bearer ' + masterToken);
+    expect(list.body.data.configs.find((r) => r.tenantId === 'digi').state).toBe('ERROR');
+  });
+
+  test('successful test clears connectivity errors but PRESERVES a CONFLICT signal', async () => {
+    // digi lastErrorCode = CREDENTIAL_INVALID from the previous test.
+    mockGhForTest();
+    const res = await request(server.app)
+      .post('/api/v1/platform/sync/digi/test')
+      .set('Authorization', 'Bearer ' + masterToken)
+      .send({});
+    expect(res.status).toBe(200);
+    restoreFetch();
+    let rows = (await request(server.app).get('/api/v1/platform/sync').set('Authorization', 'Bearer ' + masterToken)).body.data.configs;
+    expect(rows.find((r) => r.tenantId === 'digi').state).toBe('CONNECTED');
+
+    // Force a CONFLICT code, then prove test does not wipe it.
+    const sync = require('../services/gistSync.service');
+    const cur = readStore(dataDir, 'gistSyncState');
+    const entry = cur.entries.find((e) => e.tenantId === 'digi');
+    entry.lastErrorCode = 'CONFLICT';
+    seed(dataDir, 'gistSyncState', cur);
+    mockGhForTest();
+    const res2 = await request(server.app)
+      .post('/api/v1/platform/sync/digi/test')
+      .set('Authorization', 'Bearer ' + masterToken)
+      .send({});
+    expect(res2.status).toBe(200);
+    restoreFetch();
+    rows = (await request(server.app).get('/api/v1/platform/sync').set('Authorization', 'Bearer ' + masterToken)).body.data.configs;
+    expect(rows.find((r) => r.tenantId === 'digi').state).toBe('CONFLICT');
+    void sync;
+  });
+
+  test('master pull returns revision/bytes/binding but NEVER dataset content', async () => {
+    mockGhForTest();
+    const res = await request(server.app)
+      .post('/api/v1/platform/sync/digi/pull')
+      .set('Authorization', 'Bearer ' + masterToken)
+      .send({});
+    expect(res.status).toBe(200);
+    const pull = res.body.data.pull;
+    expect(pull.revision).toMatch(/^[0-9a-f]{64}$/);
+    expect(typeof pull.bytes).toBe('number');
+    expect(pull.binding).toBe('own');
+    expect(pull.content).toBeUndefined();
+    expect(JSON.stringify(res.body)).not.toContain('Laptop');
+    restoreFetch();
+  });
+
+  test('master pull refuses a foreign-tagged gist (403)', async () => {
+    const foreign = JSON.stringify({ _companyId: 'nile', products: [] });
+    mockGhStatic(foreign);
+    const res = await request(server.app)
+      .post('/api/v1/platform/sync/digi/pull')
+      .set('Authorization', 'Bearer ' + masterToken)
+      .send({});
+    expect(res.status).toBe(403);
+    expect(res.body.details && res.body.details.code).toBe('CROSS_TENANT_PAYLOAD');
+    restoreFetch();
+  });
+
+  test('master push: null base -> 409, correct base -> 200, response has no content echo', async () => {
+    // Establish remote + base.
+    mockGhStatic(DATASET);
+    const pull = await request(server.app)
+      .post('/api/v1/platform/sync/digi/pull')
+      .set('Authorization', 'Bearer ' + masterToken)
+      .send({});
+    expect(pull.status).toBe(200);
+    restoreFetch();
+
+    const sync = require('../services/gistSync.service');
+    const upload = JSON.stringify({ products: [{ id: 'master-upload' }], settings: { localVersion: 7 } });
+
+    mockGhStatic(DATASET);
+    const nullBase = await request(server.app)
+      .post('/api/v1/platform/sync/digi/push')
+      .set('Authorization', 'Bearer ' + masterToken)
+      .send({ content: upload, baseRevision: null });
+    expect(nullBase.status).toBe(409);
+    expect(nullBase.body.details && nullBase.body.details.code).toBe('CONFLICT');
+    restoreFetch();
+
+    let remoteNow = DATASET;
+    mockFetch((url, opts) => {
+      if (opts && opts.method === 'PATCH') {
+        remoteNow = JSON.parse(opts.body).files['digitronics_db.json'].content;
+        return ghJson(200, { ok: true });
+      }
+      return ghJson(200, { files: { 'digitronics_db.json': { content: remoteNow } } });
+    });
+    const ok = await request(server.app)
+      .post('/api/v1/platform/sync/digi/push')
+      .set('Authorization', 'Bearer ' + masterToken)
+      .send({ content: upload, baseRevision: sync._sha256(DATASET) });
+    expect(ok.status).toBe(200);
+    expect(JSON.parse(remoteNow)._companyId).toBe('digi');
+    expect(JSON.parse(remoteNow).products[0].id).toBe('master-upload');
+    expect(ok.body.data.push.revision).toBe(sync._sha256(remoteNow));
+    expect(JSON.stringify(ok.body)).not.toContain('master-upload');
+    restoreFetch();
+  });
+
+  test('master push cross-tenant tag -> 403 before any upstream write', async () => {
+    mockFetch(() => { throw new Error('must not be called'); });
+    const res = await request(server.app)
+      .post('/api/v1/platform/sync/digi/push')
+      .set('Authorization', 'Bearer ' + masterToken)
+      .send({ content: JSON.stringify({ _companyId: 'nile' }), baseRevision: null });
+    expect(res.status).toBe(403);
+    expect(res.body.details && res.body.details.code).toBe('CROSS_TENANT_PAYLOAD');
+    expect(global.fetch).not.toHaveBeenCalled();
+    restoreFetch();
+  });
+
+  test('per-tenant sync audit endpoint: metadata-only entries, platform actions recorded, no secrets', async () => {
+    const res = await request(server.app)
+      .get('/api/v1/platform/sync/digi/audit')
+      .set('Authorization', 'Bearer ' + masterToken);
+    expect(res.status).toBe(200);
+    const entries = res.body.data.audit.entries;
+    expect(Array.isArray(entries)).toBe(true);
+    expect(entries.length).toBeGreaterThan(0);
+    const actions = entries.map((e) => e.action);
+    expect(actions).toContain('PLATFORM_SYNC_PULL');
+    expect(actions).toContain('PLATFORM_SYNC_PUSH');
+    expect(actions).toContain('SYNC_TESTED');
+    const raw = JSON.stringify(res.body);
+    expect(raw).not.toContain('ghp_masterops_0001');
+    expect(raw).not.toContain('master-upload');
+    // Only digi entries are returned.
+    expect(entries.every((e) => e.changes.tenantId === 'digi')).toBe(true);
+  });
+
+  test('tenant user cannot reach ANY master sync operation (403)', async () => {
+    for (const call of [
+      ['post', '/api/v1/platform/sync/digi/test'],
+      ['post', '/api/v1/platform/sync/digi/pull'],
+      ['post', '/api/v1/platform/sync/digi/push'],
+      ['get', '/api/v1/platform/sync/digi/audit']
+    ]) {
+      const res = await request(server.app)[call[0]](call[1])
+        .set('Authorization', 'Bearer ' + ownerToken)
+        .send({});
+      expect(res.status).toBe(403);
+    }
+  });
+});
+
+function mockGhForTest() {
+  mockFetch((url, opts) => {
+    if (opts && opts.method === 'PATCH') return ghJson(200, { ok: true });
+    if (typeof url === 'string' && /\/gists\?/.test(url)) return ghJson(200, [{ id: 'x' }]);
+    return ghJson(200, { files: { 'digitronics_db.json': { content: DATASET } } });
+  });
+}
+
+// ---------------------------------------------------------------------- M
+
+describe('M. MIGRATION_STATE — six-state legacy migration model (advisory report)', () => {
+  let server;
+  let dataDir;
+  let masterToken;
+  let nileToken;
+
+  beforeAll(async () => {
+    setFlags();
+    dataDir = makeTempDataDir('gist-migration');
+    tempDirs.push(dataDir);
+    seedAll(dataDir);
+    server = await startServer(dataDir, { RATE_LIMIT_MAX: '10000', AUTH_REQUIRED: 'true' });
+    masterToken = (await login(server.app, 'master', PASSWORD)).accessToken;
+    nileToken = (await login(server.app, 'nileOwner', PASSWORD, 'nile')).accessToken;
+  });
+
+  afterAll(() => { restoreFlags(); restoreFetch(); });
+
+  async function nileState() {
+    const res = await request(server.app)
+      .get('/api/v1/sync/status')
+      .set('Authorization', 'Bearer ' + nileToken);
+    return res.body.data.status.migrationState;
+  }
+
+  async function listRow(tenantId) {
+    const res = await request(server.app)
+      .get('/api/v1/platform/sync')
+      .set('Authorization', 'Bearer ' + masterToken);
+    return res.body.data.configs.find((r) => r.tenantId === tenantId);
+  }
+
+  test('fresh company: LEGACY_NOT_SEEN on both tenant status and master list', async () => {
+    expect(await nileState()).toBe('LEGACY_NOT_SEEN');
+    const row = await listRow('nile');
+    expect(row.migrationState).toBe('LEGACY_NOT_SEEN');
+  });
+
+  test('device reports holding the old PAT -> LEGACY_PRESENT_NOT_MIGRATED', async () => {
+    const res = await request(server.app)
+      .post('/api/v1/sync/legacy-report')
+      .set('Authorization', 'Bearer ' + nileToken)
+      .send({ holdsLegacyToken: true });
+    expect(res.status).toBe(200);
+    expect(res.body.data.report.holdsLegacyToken).toBe(true);
+    expect(res.body.data.report.migrationState).toBe('LEGACY_PRESENT_NOT_MIGRATED');
+    expect(await nileState()).toBe('LEGACY_PRESENT_NOT_MIGRATED');
+    expect((await listRow('nile')).migrationState).toBe('LEGACY_PRESENT_NOT_MIGRATED');
+  });
+
+  test('non-boolean or missing reports are rejected (400 INVALID_LEGACY_REPORT)', async () => {
+    for (const bad of [{ holdsLegacyToken: 'true' }, { holdsLegacyToken: 1 }, {}, { holdsLegacyToken: null }]) {
+      const res = await request(server.app)
+        .post('/api/v1/sync/legacy-report')
+        .set('Authorization', 'Bearer ' + nileToken)
+        .send(bad);
+      expect(res.status).toBe(400);
+      expect(res.body.details && res.body.details.code).toBe('INVALID_LEGACY_REPORT');
+    }
+  });
+
+  test('report is tenant-scoped by JWT only — injected tenant hints are ignored', async () => {
+    const res = await request(server.app)
+      .post('/api/v1/sync/legacy-report?tenantId=digi')
+      .set('Authorization', 'Bearer ' + nileToken)
+      .send({ holdsLegacyToken: true, tenantId: 'digi' });
+    expect(res.status).toBe(200);
+    expect(res.body.data.report.tenantId).toBe('nile');
+    const legacy = readStore(dataDir, 'legacyMigrationState');
+    expect(legacy.entries.every((e) => e.tenantId !== 'digi')).toBe(true);
+  });
+
+  test('token material in the report body is IGNORED — store keeps the boolean only', async () => {
+    const res = await request(server.app)
+      .post('/api/v1/sync/legacy-report')
+      .set('Authorization', 'Bearer ' + nileToken)
+      .send({ holdsLegacyToken: true, token: 'ghp_leakprobe_99', digi_gh_token: 'ghp_leakprobe_98' });
+    expect(res.status).toBe(200);
+    const legacy = readStore(dataDir, 'legacyMigrationState');
+    const raw = JSON.stringify(legacy);
+    expect(raw).not.toContain('ghp_leakprobe');
+    const rec = legacy.entries.find((e) => e.tenantId === 'nile');
+    expect(Object.keys(rec).sort()).toEqual(['holdsLegacyToken', 'reportedAt', 'tenantId', 'updatedAt']);
+  });
+
+  test('server binding without verification: SERVER_SYNC_AVAILABLE (no legacy held)', async () => {
+    const put = await request(server.app)
+      .put('/api/v1/platform/sync/digi')
+      .set('Authorization', 'Bearer ' + masterToken)
+      .send({ token: 'ghp_migtoken_0001', gistId: 'miggist0001' });
+    expect(put.status).toBe(200);
+    expect((await listRow('digi')).migrationState).toBe('SERVER_SYNC_AVAILABLE');
+  });
+
+  test('server binding while a device still holds the PAT stays LEGACY_PRESENT_NOT_MIGRATED', async () => {
+    const put = await request(server.app)
+      .put('/api/v1/platform/sync/nile')
+      .set('Authorization', 'Bearer ' + masterToken)
+      .send({ token: 'ghp_migtoken_0002', gistId: 'miggist0002' });
+    expect(put.status).toBe(200);
+    expect((await listRow('nile')).migrationState).toBe('LEGACY_PRESENT_NOT_MIGRATED');
+  });
+
+  test('pull + push observed -> MIGRATION_VERIFIED (digi, never reported legacy)', async () => {
+    const digiDataset = JSON.stringify({ _companyId: 'digi', products: [{ id: 'p1' }] });
+    mockGhStatic(digiDataset);
+    const pull = await request(server.app)
+      .post('/api/v1/sync/pull')
+      .set('Authorization', 'Bearer ' + (await login(server.app, 'digiOwner', PASSWORD, 'digi')).accessToken)
+      .send({});
+    expect(pull.status).toBe(200);
+    const push = await request(server.app)
+      .post('/api/v1/sync/push')
+      .set('Authorization', 'Bearer ' + (await login(server.app, 'digiManager', PASSWORD, 'digi')).accessToken)
+      .send({ content: JSON.stringify({ _companyId: 'digi', products: [{ id: 'p1' }, { id: 'p2' }] }), baseRevision: pull.body.data.pull.revision });
+    expect(push.status).toBe(200);
+    restoreFetch();
+    expect((await listRow('digi')).migrationState).toBe('MIGRATION_VERIFIED');
+  });
+
+  test('verified + device still holding PAT -> LEGACY_REVOCATION_PENDING, then report false -> LEGACY_REVOKED', async () => {
+    const nileDataset = JSON.stringify({ _companyId: 'nile', products: [] });
+    mockGhStatic(nileDataset);
+    const pull = await request(server.app)
+      .post('/api/v1/sync/pull')
+      .set('Authorization', 'Bearer ' + nileToken)
+      .send({});
+    expect(pull.status).toBe(200);
+    const push = await request(server.app)
+      .post('/api/v1/sync/push')
+      .set('Authorization', 'Bearer ' + nileToken)
+      .send({ content: JSON.stringify({ _companyId: 'nile', products: [{ id: 'n1' }] }), baseRevision: pull.body.data.pull.revision });
+    expect(push.status).toBe(200);
+    restoreFetch();
+    expect((await listRow('nile')).migrationState).toBe('LEGACY_REVOCATION_PENDING');
+
+    const clear = await request(server.app)
+      .post('/api/v1/sync/legacy-report')
+      .set('Authorization', 'Bearer ' + nileToken)
+      .send({ holdsLegacyToken: false });
+    expect(clear.status).toBe(200);
+    expect(clear.body.data.report.migrationState).toBe('LEGACY_REVOKED');
+    expect((await listRow('nile')).migrationState).toBe('LEGACY_REVOKED');
+    expect(await nileState()).toBe('LEGACY_REVOKED');
+  });
+});
+
+// ---------------------------------------------------------------------- G
+
+describe('G. DATA_INTEGRITY — failed writes never advance state; state store holds no dataset/secrets', () => {
+  let server;
+  let dataDir;
+  let masterToken;
+  let ownerToken;
+  let baseline;
+
+  beforeAll(async () => {
+    setFlags();
+    dataDir = makeTempDataDir('gist-integrity');
+    tempDirs.push(dataDir);
+    seedAll(dataDir);
+    server = await startServer(dataDir, { RATE_LIMIT_MAX: '10000', AUTH_REQUIRED: 'true' });
+    masterToken = (await login(server.app, 'master', PASSWORD)).accessToken;
+    ownerToken = (await login(server.app, 'digiOwner', PASSWORD, 'digi')).accessToken;
+    await request(server.app)
+      .put('/api/v1/platform/sync/digi')
+      .set('Authorization', 'Bearer ' + masterToken)
+      .send({ token: 'ghp_integrity_0001', gistId: 'intgist0001' });
+  });
+
+  afterAll(() => { restoreFlags(); restoreFetch(); });
+
+  async function digiStatus() {
+    const res = await request(server.app)
+      .get('/api/v1/sync/status')
+      .set('Authorization', 'Bearer ' + ownerToken);
+    expect(res.status).toBe(200);
+    return res.body.data.status;
+  }
+
+  test('baseline: successful pull records revision + pull time, push time still null', async () => {
+    mockGhStatic(DATASET);
+    const pull = await request(server.app)
+      .post('/api/v1/sync/pull')
+      .set('Authorization', 'Bearer ' + ownerToken)
+      .send({});
+    expect(pull.status).toBe(200);
+    restoreFetch();
+    baseline = await digiStatus();
+    expect(baseline.lastRevision).toBeTruthy();
+    expect(baseline.lastPullAt).toBeTruthy();
+    expect(baseline.lastPushAt).toBeNull();
+    expect(baseline.lastErrorCode).toBeNull();
+  });
+
+  test('upstream 500 during PUSH -> 502; revision/pull/push timestamps FROZEN, error recorded', async () => {
+    // Remote GET succeeds (content still matches the baseline revision),
+    // PATCH explodes: the write must fail without advancing any state field.
+    mockFetch((url, opts) => {
+      if (opts && opts.method === 'PATCH') return ghJson(500, { message: 'Server Error' });
+      return ghJson(200, { files: { 'digitronics_db.json': { content: DATASET } } });
+    });
+    const content = JSON.stringify({ _companyId: 'digi', products: [], settings: { localVersion: 7 }, integrityProbe: 'G5' });
+    const res = await request(server.app)
+      .post('/api/v1/sync/push')
+      .set('Authorization', 'Bearer ' + ownerToken)
+      .send({ content, baseRevision: baseline.lastRevision });
+    expect(res.status).toBe(502);
+    expect(res.body.details && res.body.details.code).toBe('UPSTREAM_UNAVAILABLE');
+    restoreFetch();
+
+    const after = await digiStatus();
+    expect(after.lastRevision).toBe(baseline.lastRevision);
+    expect(after.lastPullAt).toBe(baseline.lastPullAt);
+    expect(after.lastPushAt).toBe(baseline.lastPushAt); // still null
+    expect(after.lastErrorCode).toBe('UPSTREAM_UNAVAILABLE');
+  });
+
+  test('recovery: successful push advances revision + push time and clears the error', async () => {
+    mockGhStatic(DATASET);
+    const content = JSON.stringify({ _companyId: 'digi', products: [], settings: { localVersion: 7 }, integrityProbe: 'G5-recovered' });
+    const res = await request(server.app)
+      .post('/api/v1/sync/push')
+      .set('Authorization', 'Bearer ' + ownerToken)
+      .send({ content, baseRevision: baseline.lastRevision });
+    expect(res.status).toBe(200);
+    expect(res.body.data.push.revision).toBeTruthy();
+    restoreFetch();
+
+    const after = await digiStatus();
+    expect(after.lastRevision).toBe(res.body.data.push.revision);
+    expect(after.lastRevision).not.toBe(baseline.lastRevision);
+    expect(after.lastPushAt).toBeTruthy();
+    expect(after.lastErrorCode).toBeNull();
+    baseline = after;
+  });
+
+  test('conflict (stale base) also leaves state frozen — error recorded, no advance', async () => {
+    mockGhStatic(DATASET);
+    const res = await request(server.app)
+      .post('/api/v1/sync/push')
+      .set('Authorization', 'Bearer ' + ownerToken)
+      .send({ content: JSON.stringify({ _companyId: 'digi', stale: true }), baseRevision: 'deadbeef' });
+    expect(res.status).toBe(409);
+    expect(res.body.details && res.body.details.code).toBe('CONFLICT');
+    restoreFetch();
+
+    const after = await digiStatus();
+    expect(after.lastRevision).toBe(baseline.lastRevision);
+    expect(after.lastPushAt).toBe(baseline.lastPushAt);
+    expect(after.lastErrorCode).toBe('CONFLICT');
+  });
+
+  test('state store on disk: encrypted vault blob only — no dataset content, no plaintext token', async () => {
+    const raw = JSON.stringify(readStore(dataDir, 'gistSyncState'));
+    expect(raw).toContain('v1:');                        // vault ciphertext format
+    expect(raw).not.toContain('ghp_integrity_0001');     // plaintext token never persisted
+    expect(raw).not.toContain('Laptop');                 // seeded dataset marker absent
+    expect(raw).not.toContain('_companyId');             // no dataset payload in state
+    expect(raw).not.toContain('integrityProbe');         // pushed content absent from state
   });
 });
 

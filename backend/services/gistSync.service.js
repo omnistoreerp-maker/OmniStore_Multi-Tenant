@@ -17,9 +17,13 @@
 //   - The legacy platformIntegrations store (platform.service.js) keeps only a
 //     masked token marker (••••LAST4) and therefore CANNOT perform sync; this
 //     service keeps the encrypted secret separately in the gistSyncState store.
-//   - Pushes require baseRevision (content sha256) matching the last synced
-//     revision; mismatches return 409 SYNC_CONFLICT — never silent
-//     last-write-wins. Partial upstream failures leave state unchanged.
+//   - Pushes require a non-null baseRevision (content sha256) that matches
+//     BOTH the tracked lastRevision (when set) AND the current remote sha;
+//     any mismatch — including a missing base — returns 409 CONFLICT with
+//     currentRevision. Never silent last-write-wins. Partial upstream
+//     failures leave state unchanged. Per-tenant async lock serializes
+//     pull/push inside this process (single-writer); cross-process
+//     interleaving remains a documented limitation (GIST_SYNC_MIGRATION_PLAN).
 //   - Safe error codes only cross the boundary (VAULT_LOCKED, NOT_CONFIGURED,
 //     CREDENTIAL_INVALID, GIST_NOT_FOUND, UPSTREAM_UNAVAILABLE, UPSTREAM_TIMEOUT,
 //     TOO_LARGE, INVALID_PAYLOAD, CROSS_TENANT_PAYLOAD, CONFLICT). Provider
@@ -31,6 +35,7 @@ const auditService = require('./audit.service');
 const CompanyService = require('./company.service');
 
 const STATE_STORE = 'gistSyncState';
+const LEGACY_STORE = 'legacyMigrationState';
 const PROVIDER = 'github-gist';
 const GH_API = 'https://api.github.com';
 const VAULT_KEY_ENV = 'GIST_SYNC_VAULT_KEY';
@@ -125,11 +130,119 @@ function _upsert(entry) {
   return entry;
 }
 
+// ---------------------------------------------------------------------------
+// Legacy migration state model (GATE 4).
+//
+// Six states, derived server-side from SERVER evidence (binding + pull/push
+// history) plus a device-DECLARED legacy-presence boolean. The device report
+// is advisory only: it never grants access, never influences tenant
+// resolution (still trustedTenantId(req) exclusively) and NEVER carries token
+// material — only "does this device still hold the old localStorage PAT".
+//
+//   LEGACY_NOT_SEEN             no server binding, no legacy report
+//   LEGACY_PRESENT_NOT_MIGRATED device still holds the old PAT, migration
+//                               not yet verified
+//   SERVER_SYNC_AVAILABLE       server binding live, verification pending,
+//                               no lingering legacy PAT reported
+//   MIGRATION_VERIFIED          server pull + push both observed; legacy
+//                               report absent (unknown) or not yet cleared
+//   LEGACY_REVOCATION_PENDING   verified, but a device still reports the PAT
+//   LEGACY_REVOKED              verified and every report says cleared
+// ---------------------------------------------------------------------------
+
+function _readLegacy() {
+  const data = storageAdapter.read(LEGACY_STORE);
+  return (data && Array.isArray(data.entries)) ? data.entries : [];
+}
+
+function _findLegacy(tenantId) {
+  const id = String(tenantId);
+  return _readLegacy().find((e) => String(e.tenantId) === id) || null;
+}
+
+function _migrationState(entry, legacyRec) {
+  const serverAvail = !!(entry && entry.enabled && entry.encryptedToken);
+  const verified = !!(entry && entry.lastPullAt && entry.lastPushAt);
+  const reported = !!(legacyRec && legacyRec.reportedAt);
+  const holds = !!(legacyRec && legacyRec.holdsLegacyToken);
+  if (verified && holds) return 'LEGACY_REVOCATION_PENDING';
+  if (verified && reported && !holds) return 'LEGACY_REVOKED';
+  if (verified) return 'MIGRATION_VERIFIED';
+  if (holds) return 'LEGACY_PRESENT_NOT_MIGRATED';
+  if (serverAvail) return 'SERVER_SYNC_AVAILABLE';
+  return 'LEGACY_NOT_SEEN';
+}
+
+// Device report of legacy PAT presence (boolean only — advisory, never
+// trusted for identity or authorization).
+function reportLegacy(tenantId, body) {
+  const id = String(tenantId || '').trim();
+  if (!id) return { error: 'tenantId is required', status: 400, code: 'INVALID_TENANT' };
+  const holds = body && body.holdsLegacyToken;
+  if (typeof holds !== 'boolean') {
+    return { error: 'holdsLegacyToken must be a boolean', status: 400, code: 'INVALID_LEGACY_REPORT' };
+  }
+  const records = _readLegacy();
+  const now = new Date().toISOString();
+  let rec = records.find((e) => String(e.tenantId) === id);
+  if (!rec) {
+    rec = { tenantId: id, holdsLegacyToken: holds, reportedAt: now, updatedAt: now };
+    records.push(rec);
+  } else {
+    rec.holdsLegacyToken = holds;
+    rec.reportedAt = now;
+    rec.updatedAt = now;
+  }
+  storageAdapter.write(LEGACY_STORE, { entries: records });
+  _audit(null, 'LEGACY_REPORT', id, 'success', { holdsLegacyToken: holds });
+  return {
+    report: {
+      tenantId: id,
+      holdsLegacyToken: holds,
+      reportedAt: now,
+      migrationState: _migrationState(_find(id), rec)
+    }
+  };
+}
+
 function _maskToken(token) {
   const raw = String(token || '');
   if (!raw) return '';
   if (raw.length <= 8) return '••••';
   return '••••••••••••' + raw.slice(-4);
+}
+
+// Derived UI state (server is the single source of truth for the MCC):
+//   NOT_CONFIGURED | LOCKED | ERROR | CONFLICT | CONNECTED
+// SYNCING is a client-side transient while an action is in flight.
+const CONNECTIVITY_CODES = ['CREDENTIAL_INVALID', 'GIST_NOT_FOUND', 'UPSTREAM_UNAVAILABLE', 'UPSTREAM_TIMEOUT'];
+
+function _stateOf(entry, vaultIsLocked) {
+  if (!entry || !entry.enabled || !entry.encryptedToken) return 'NOT_CONFIGURED';
+  if (vaultIsLocked) return 'LOCKED';
+  const code = entry.lastErrorCode;
+  if (!code) return 'CONNECTED';
+  if (code === 'CONFLICT') return 'CONFLICT';
+  if (code === 'NOT_CONFIGURED') return 'NOT_CONFIGURED';
+  return 'ERROR';
+}
+
+// Per-tenant async operation lock. Conflict-check + upstream write must be
+// atomic with respect to other sync ops for the SAME tenant inside this
+// process; without it two interleaved pushes could both pass the conflict
+// probe and the second would silently win. Cross-process/replica runs are
+// NOT covered (documented limitation).
+const _opLocks = new Map();
+function _withTenantLock(tenantId, fn) {
+  const key = String(tenantId);
+  const prev = _opLocks.get(key) || Promise.resolve();
+  const run = prev.then(fn, fn);
+  const tail = run.then(() => undefined, () => undefined);
+  _opLocks.set(key, tail);
+  tail.then(() => {
+    if (_opLocks.get(key) === tail) _opLocks.delete(key);
+  });
+  return run;
 }
 
 function _audit(actor, action, tenantId, outcome, extra) {
@@ -245,22 +358,83 @@ function _companyExists(tenantId) {
   }
 }
 
+// Every company (from the companies store) plus any configured-but-orphaned
+// binding, so the MCC can show NOT_CONFIGURED rows too. Masked-only: no
+// encrypted token, no raw token, ever.
 function listConfigs() {
-  return _readState().map((e) => ({
-    tenantId: e.tenantId,
-    companyName: _companyExists(e.tenantId) ? (CompanyService.getCompany(e.tenantId) || {}).name || e.tenantId : e.tenantId,
-    provider: e.provider,
-    enabled: !!e.enabled,
-    hasCredential: !!e.encryptedToken,
-    masked: e.masked || '',
-    gistId: e.gistId || null,
-    lastRevision: e.lastRevision || null,
-    lastPullAt: e.lastPullAt || null,
-    lastPushAt: e.lastPushAt || null,
-    lastErrorCode: e.lastErrorCode || null,
-    updatedAt: e.updatedAt || null,
-    updatedBy: e.updatedBy || null
+  const locked = vaultLocked();
+  const entries = _readState();
+  const byTenant = {};
+  for (const e of entries) byTenant[String(e.tenantId)] = e;
+
+  let companies = [];
+  try { companies = CompanyService.listCompanies() || []; } catch (e) { companies = []; }
+
+  const ids = [];
+  const seen = {};
+  for (const c of companies) {
+    if (!c || c.id == null) continue;
+    const id = String(c.id);
+    if (seen[id]) continue;
+    seen[id] = true;
+    ids.push({ id, company: c });
+  }
+  for (const id of Object.keys(byTenant)) {
+    if (seen[id]) continue;
+    seen[id] = true;
+    ids.push({ id, company: null });
+  }
+
+  const legacyEntries = _readLegacy();
+  const legacyByTenant = {};
+  for (const l of legacyEntries) legacyByTenant[String(l.tenantId)] = l;
+
+  return ids.map(({ id, company }) => {
+    const e = byTenant[id] || null;
+    return {
+      tenantId: id,
+      companyName: (company && company.name) || id,
+      active: company ? company.active !== false : false,
+      provider: PROVIDER,
+      configured: !!(e && e.enabled && e.encryptedToken),
+      enabled: !!(e && e.enabled),
+      hasCredential: !!(e && e.encryptedToken),
+      vaultLocked: !!(e && e.encryptedToken && locked),
+      masked: (e && e.masked) || '',
+      gistId: (e && e.gistId) || null,
+      lastRevision: (e && e.lastRevision) || null,
+      lastPullAt: (e && e.lastPullAt) || null,
+      lastPushAt: (e && e.lastPushAt) || null,
+      lastErrorCode: (e && e.lastErrorCode) || null,
+      updatedAt: (e && e.updatedAt) || null,
+      updatedBy: (e && e.updatedBy) || null,
+      state: _stateOf(e, locked),
+      migrationState: _migrationState(e, legacyByTenant[id] || null)
+    };
+  });
+}
+
+// Per-tenant audit trail (gist-sync resource only), metadata-only entries.
+function listSyncAudit(tenantId, opts) {
+  const id = String(tenantId || '').trim();
+  if (!id) return { error: 'tenantId is required', status: 400, code: 'INVALID_TENANT' };
+  const limit = Math.min(Math.max(parseInt((opts && opts.limit) || 50, 10) || 50, 1), 200);
+  let entries = [];
+  try {
+    const q = auditService.query({ resource: 'gist-sync', page: 1, limit: 500 });
+    entries = ((q && q.entries) || []).filter((e) => String(e.resourceId) === id);
+  } catch (e) {
+    entries = [];
+  }
+  entries = entries.slice(0, limit).map((e) => ({
+    id: e.id || null,
+    timestamp: e.timestamp || null,
+    action: e.action || null,
+    userId: e.userId || null,
+    statusCode: e.statusCode || null,
+    changes: e.changes || {}
   }));
+  return { audit: { tenantId: id, entries } };
 }
 
 function configure(actor, tenantId, body) {
@@ -362,8 +536,9 @@ function _tenantEntry(tenantId) {
 
 function tenantStatus(tenantId) {
   const entry = _find(tenantId);
+  const migrationState = _migrationState(entry, _findLegacy(tenantId));
   if (!entry) {
-    return { status: { configured: false, provider: PROVIDER } };
+    return { status: { configured: false, provider: PROVIDER, migrationState } };
   }
   // No secrets, no gist id — tenants only learn whether sync is on and health.
   return {
@@ -371,6 +546,8 @@ function tenantStatus(tenantId) {
       configured: !!entry.enabled && !!entry.encryptedToken,
       provider: PROVIDER,
       enabled: !!entry.enabled,
+      migrationState,
+      vaultLocked: !!(entry.encryptedToken && vaultLocked()),
       lastRevision: entry.lastRevision || null,
       lastPullAt: entry.lastPullAt || null,
       lastPushAt: entry.lastPushAt || null,
@@ -390,30 +567,80 @@ function _safeFail(tenantId, errorCode, action, extra) {
   _audit(null, action, tenantId, 'error', Object.assign({ errorCode }, extra || {}));
 }
 
-async function tenantPull(tenantId) {
+// Shared pull core. opts.action = audit action, opts.actor = audit actor,
+// opts.includeContent = include dataset content in the result (tenant path
+// only — the Master/MCC path NEVER receives dataset contents).
+async function _doPull(tenantId, opts) {
+  const action = (opts && opts.action) || 'SYNC_PULL';
+  const actor = (opts && opts.actor) || null;
+  const includeContent = !!(opts && opts.includeContent);
   const auth = _tenantEntry(tenantId);
   if (auth.error) {
-    _safeFail(tenantId, auth.error, 'SYNC_PULL');
+    _safeFail(tenantId, auth.error, action);
     return { error: auth.error, status: auth.status };
   }
   const { entry, token } = auth;
   if (!entry.gistId) {
-    _safeFail(tenantId, 'NOT_CONFIGURED', 'SYNC_PULL');
+    _safeFail(tenantId, 'NOT_CONFIGURED', action);
     return { error: 'NOT_CONFIGURED', status: 404 };
   }
-  const r = await _ghGetGist(token, entry.gistId);
-  if (r.error) {
-    _safeFail(tenantId, r.error, 'SYNC_PULL');
-    return { error: r.error, status: r.status };
+  return _withTenantLock(tenantId, async () => {
+    const fresh = _find(tenantId) || entry;
+    const r = await _ghGetGist(token, fresh.gistId);
+    if (r.error) {
+      _safeFail(tenantId, r.error, action);
+      return { error: r.error, status: r.status };
+    }
+    // Binding guard on read: never return a gist tagged for a different
+    // real company (misconfigured gistId = cross-tenant leak). Absent tag
+    // and the legacy placeholder tag 'legacy' are allowed — legacy gists
+    // were written by the browser flow as <tenantId> || 'legacy', and
+    // index.html's client-side applyGhContent enforces the tenant binding.
+    const binding = _bindingOf(r.content, tenantId);
+    if (binding.error) {
+      _safeFail(tenantId, binding.error, action);
+      return { error: binding.error, status: binding.status };
+    }
+    const revision = _sha256(r.content);
+    const bytes = Buffer.byteLength(r.content, 'utf8');
+    fresh.lastRevision = revision;
+    fresh.lastPullAt = new Date().toISOString();
+    fresh.lastErrorCode = null;
+    fresh.updatedAt = fresh.lastPullAt;
+    _upsert(fresh);
+    _audit(actor, action, tenantId, 'success', { bytes, binding: binding.tag });
+    const pull = { revision, pulledAt: fresh.lastPullAt, bytes, binding: binding.tag };
+    if (includeContent) pull.content = r.content;
+    return { pull };
+  });
+}
+
+// Parse a dataset and classify its tenant binding:
+//   { tag: 'own'|'legacy'|'unbound' } or { error, status } on foreign tag.
+function _bindingOf(content, tenantId) {
+  let parsed;
+  try {
+    parsed = JSON.parse(content);
+  } catch (e) {
+    return { error: 'INVALID_PAYLOAD', status: 502 };
   }
-  const revision = _sha256(r.content);
-  entry.lastRevision = revision;
-  entry.lastPullAt = new Date().toISOString();
-  entry.lastErrorCode = null;
-  entry.updatedAt = entry.lastPullAt;
-  _upsert(entry);
-  _audit(null, 'SYNC_PULL', tenantId, 'success', { bytes: r.content.length });
-  return { pull: { content: r.content, revision, pulledAt: entry.lastPullAt } };
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return { error: 'INVALID_PAYLOAD', status: 502 };
+  }
+  if (parsed._companyId === undefined || parsed._companyId === null) return { tag: 'unbound' };
+  const bound = String(parsed._companyId);
+  if (bound === String(tenantId)) return { tag: 'own' };
+  if (bound === 'legacy') return { tag: 'legacy' };
+  return { error: 'CROSS_TENANT_PAYLOAD', status: 403 };
+}
+
+async function tenantPull(tenantId) {
+  return _doPull(tenantId, { action: 'SYNC_PULL', includeContent: true });
+}
+
+// Master pull (MCC): fetch + validate + record revision, NO dataset content.
+async function masterPull(actor, tenantId) {
+  return _doPull(tenantId, { action: 'PLATFORM_SYNC_PULL', actor, includeContent: false });
 }
 
 function _validatePushPayload(content, tenantId) {
@@ -438,66 +665,182 @@ function _validatePushPayload(content, tenantId) {
   return { parsed, bytes };
 }
 
-async function tenantPush(tenantId, body) {
+// Shared push core (tenant AND Master paths): strict conflict proof,
+// authoritative tenant stamping, per-tenant lock. opts.action/opts.actor
+// only differ in which audit trail the operation lands in.
+async function _doPush(tenantId, body, opts) {
+  const action = (opts && opts.action) || 'SYNC_PUSH';
+  const actor = (opts && opts.actor) || null;
   const auth = _tenantEntry(tenantId);
   if (auth.error) {
-    _safeFail(tenantId, auth.error, 'SYNC_PUSH');
+    _safeFail(tenantId, auth.error, action);
     return { error: auth.error, status: auth.status };
   }
-  const { entry, token } = auth;
+  const { token } = auth;
   const content = body && body.content;
-  const baseRevision = body && body.baseRevision != null ? String(body.baseRevision) : null;
+  // baseRevision is REQUIRED for every push against an already-bound gist.
+  // A missing/null base is treated as a conflict — never as "trust me".
+  const baseRevision = body && body.baseRevision != null && String(body.baseRevision).trim() !== ''
+    ? String(body.baseRevision).trim()
+    : null;
   const check = _validatePushPayload(content, tenantId);
   if (check.error) {
-    _safeFail(tenantId, check.error, 'SYNC_PUSH');
+    _safeFail(tenantId, check.error, action);
     return { error: check.error, status: check.status };
   }
 
-  // Conflict detection BEFORE any upstream write — never last-write-wins.
-  if (entry.gistId) {
-    const remote = await _ghGetGist(token, entry.gistId);
-    if (remote.error) {
-      _safeFail(tenantId, remote.error, 'SYNC_PUSH');
-      return { error: remote.error, status: remote.status };
+  // Authoritative tenant binding: the SERVER stamps the trusted tenant id
+  // onto the dataset (after the confused-deputy foreign-tag check above).
+  // Client-supplied 'legacy'/missing tags are replaced so every other
+  // device of this tenant passes its client-side binding guard on pull.
+  check.parsed._companyId = String(tenantId);
+  let stamped;
+  try {
+    stamped = JSON.stringify(check.parsed);
+  } catch (e) {
+    _safeFail(tenantId, 'INVALID_PAYLOAD', action);
+    return { error: 'INVALID_PAYLOAD', status: 400 };
+  }
+  const bytes = Buffer.byteLength(stamped, 'utf8');
+  if (bytes > MAX_PUSH_BYTES) {
+    _safeFail(tenantId, 'TOO_LARGE', action);
+    return { error: 'TOO_LARGE', status: 413 };
+  }
+
+  return _withTenantLock(tenantId, async () => {
+    const entry = _find(tenantId) || auth.entry;
+    if (!entry.enabled || !entry.encryptedToken) {
+      _safeFail(tenantId, 'NOT_CONFIGURED', action);
+      return { error: 'NOT_CONFIGURED', status: 404 };
     }
-    const remoteRevision = _sha256(remote.content);
-    if (entry.lastRevision && baseRevision && baseRevision !== entry.lastRevision) {
-      _safeFail(tenantId, 'CONFLICT', 'SYNC_PUSH');
-      return { error: 'CONFLICT', status: 409, details: { currentRevision: entry.lastRevision } };
+
+    // Strict conflict detection BEFORE any upstream write:
+    //   - bound gist  => base must be present AND equal to both the tracked
+    //     lastRevision (when one exists) AND the actual remote sha. This
+    //     closes (a) null-base silent overwrite, (b) never-pulled devices
+    //     echoing a status-seeded revision, (c) adopted gists being patched
+    //     before the first pull, (d) external divergence of the gist.
+    //   - unbound gist => bootstrap create (no remote to conflict with).
+    if (entry.gistId) {
+      const remote = await _ghGetGist(token, entry.gistId);
+      if (remote.error) {
+        _safeFail(tenantId, remote.error, action);
+        return { error: remote.error, status: remote.status };
+      }
+      const remoteRevision = _sha256(remote.content);
+      const serverBase = entry.lastRevision || remoteRevision;
+      if (!baseRevision || baseRevision !== serverBase || baseRevision !== remoteRevision) {
+        _safeFail(tenantId, 'CONFLICT', action);
+        return { error: 'CONFLICT', status: 409, details: { currentRevision: remoteRevision } };
+      }
+      const patched = await _ghPatchGist(token, entry.gistId, stamped);
+      if (patched.error) {
+        _safeFail(tenantId, patched.error, action);
+        return { error: patched.error, status: patched.status };
+      }
+      const revision = _sha256(stamped);
+      entry.lastRevision = revision;
+      entry.lastPushAt = new Date().toISOString();
+      entry.lastErrorCode = null;
+      entry.updatedAt = entry.lastPushAt;
+      _upsert(entry);
+      _audit(actor, action, tenantId, 'success', { bytes });
+      return { push: { revision, pushedAt: entry.lastPushAt } };
     }
-    if (!entry.lastRevision && baseRevision && baseRevision !== remoteRevision) {
-      _safeFail(tenantId, 'CONFLICT', 'SYNC_PUSH');
-      return { error: 'CONFLICT', status: 409, details: { currentRevision: remoteRevision } };
+
+    // No gist bound yet: create one server-side (bootstrap / migration adopt).
+    const created = await _ghCreateGist(token, stamped);
+    if (created.error) {
+      _safeFail(tenantId, created.error, action);
+      return { error: created.error, status: created.status };
     }
-    const patched = await _ghPatchGist(token, entry.gistId, content);
-    if (patched.error) {
-      _safeFail(tenantId, patched.error, 'SYNC_PUSH');
-      return { error: patched.error, status: patched.status };
-    }
-    const revision = _sha256(content);
-    entry.lastRevision = revision;
+    entry.gistId = created.gistId;
+    entry.lastRevision = _sha256(stamped);
     entry.lastPushAt = new Date().toISOString();
     entry.lastErrorCode = null;
     entry.updatedAt = entry.lastPushAt;
     _upsert(entry);
-    _audit(null, 'SYNC_PUSH', tenantId, 'success', { bytes: check.bytes });
-    return { push: { revision, pushedAt: entry.lastPushAt } };
+    _audit(actor, action, tenantId, 'success', { bytes, created: true });
+    return { push: { revision: entry.lastRevision, pushedAt: entry.lastPushAt } };
+  });
+}
+
+async function tenantPush(tenantId, body) {
+  return _doPush(tenantId, body, { action: 'SYNC_PUSH' });
+}
+
+// Master push (MCC): identical safety rules, audited as a platform action.
+async function masterPush(actor, tenantId, body) {
+  return _doPush(tenantId, body, { action: 'PLATFORM_SYNC_PUSH', actor });
+}
+
+// Master connectivity test (MCC): validates credential (and gist + binding
+// when bound) against the provider. Success clears a stale connectivity
+// error code; CONFLICT and payload codes are deliberately preserved.
+async function testConnection(actor, tenantId) {
+  const id = String(tenantId || '').trim();
+  if (!id) return { error: 'tenantId is required', status: 400, code: 'INVALID_TENANT' };
+  const auth = _tenantEntry(id);
+  if (auth.error) {
+    _safeFail(id, auth.error, 'SYNC_TESTED');
+    return { error: auth.error, status: auth.status };
+  }
+  const { entry, token } = auth;
+  const started = Date.now();
+
+  let result;
+  if (entry.gistId) {
+    const r = await _ghGetGist(token, entry.gistId);
+    if (r.error) {
+      _safeFail(id, r.error, 'SYNC_TESTED');
+      return { error: r.error, status: r.status };
+    }
+    const binding = _bindingOf(r.content, id);
+    if (binding.error) {
+      _safeFail(id, binding.error, 'SYNC_TESTED');
+      return { error: binding.error, status: binding.status };
+    }
+    result = {
+      ok: true,
+      latencyMs: Date.now() - started,
+      credential: 'ok',
+      gist: 'ok',
+      binding: binding.tag,
+      currentRevision: _sha256(r.content),
+      gistBound: true
+    };
+  } else {
+    // Credential-only probe: an authenticated, cheap list call.
+    const r = await _gh(token, GH_API + '/gists?per_page=1');
+    if (r.error) {
+      _safeFail(id, r.error, 'SYNC_TESTED');
+      return { error: r.error, status: r.status };
+    }
+    result = {
+      ok: true,
+      latencyMs: Date.now() - started,
+      credential: 'ok',
+      gist: 'not_bound',
+      binding: null,
+      currentRevision: null,
+      gistBound: false
+    };
   }
 
-  // No gist bound yet: create one server-side (bootstrap / migration adopt).
-  const created = await _ghCreateGist(token, content);
-  if (created.error) {
-    _safeFail(tenantId, created.error, 'SYNC_PUSH');
-    return { error: created.error, status: created.status };
+  // Clear only stale connectivity errors — keep CONFLICT/payload signals.
+  const entryNow = _find(id) || entry;
+  if (entryNow.lastErrorCode && CONNECTIVITY_CODES.indexOf(entryNow.lastErrorCode) !== -1) {
+    entryNow.lastErrorCode = null;
+    entryNow.updatedAt = new Date().toISOString();
+    _upsert(entryNow);
   }
-  entry.gistId = created.gistId;
-  entry.lastRevision = _sha256(content);
-  entry.lastPushAt = new Date().toISOString();
-  entry.lastErrorCode = null;
-  entry.updatedAt = entry.lastPushAt;
-  _upsert(entry);
-  _audit(null, 'SYNC_PUSH', tenantId, 'success', { bytes: check.bytes, created: true });
-  return { push: { revision: entry.lastRevision, pushedAt: entry.lastPushAt } };
+  result.checkedAt = new Date().toISOString();
+  _audit(actor, 'SYNC_TESTED', id, 'success', {
+    latencyMs: result.latencyMs,
+    gistBound: result.gistBound,
+    binding: result.binding
+  });
+  return { test: result };
 }
 
 module.exports = {
@@ -508,11 +851,16 @@ module.exports = {
   encryptSecret,
   decryptSecret,
   listConfigs,
+  listSyncAudit,
   configure,
   disconnect,
+  reportLegacy,
+  testConnection,
   tenantStatus,
   tenantPull,
   tenantPush,
+  masterPull,
+  masterPush,
   // exported for focused unit tests
   _sha256,
   _maskToken

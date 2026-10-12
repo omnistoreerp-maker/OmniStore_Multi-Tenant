@@ -22,6 +22,13 @@ const masterRouter = express.Router();
 masterRouter.get('/', admin, ctrl.listConfigs);
 masterRouter.put('/:tenantId', admin, ctrl.configure);
 masterRouter.delete('/:tenantId', admin, ctrl.disconnect);
+// MCC operations: connectivity test, controlled pull/push, audit trail.
+// Master pull NEVER returns dataset contents (summary only); master push
+// obeys the exact same conflict + stamping rules as the tenant path.
+masterRouter.post('/:tenantId/test', admin, ctrl.test);
+masterRouter.post('/:tenantId/pull', admin, ctrl.masterPull);
+masterRouter.post('/:tenantId/push', admin, ctrl.masterPush);
+masterRouter.get('/:tenantId/audit', admin, ctrl.syncAudit);
 
 const tenantRouter = express.Router();
 tenantRouter.get('/status', requireAuth, ctrl.status);
@@ -29,5 +36,7 @@ tenantRouter.get('/status', requireAuth, ctrl.status);
 // dataset mirror. Push mutates shared state: Owner/Admin/Manager only.
 tenantRouter.post('/pull', requireAuth, ctrl.pull);
 tenantRouter.post('/push', requireAuth, requireRole('Owner', 'Admin', 'Manager'), ctrl.push);
+// Advisory legacy-PAT presence report (boolean only; never identity).
+tenantRouter.post('/legacy-report', requireAuth, ctrl.legacyReport);
 
 module.exports = { masterRouter, tenantRouter };

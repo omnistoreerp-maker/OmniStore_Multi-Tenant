@@ -26,7 +26,10 @@ function _send(res, result, okMessage) {
 
 function listConfigs(req, res) {
   try {
-    return success(res, { configs: sync.listConfigs() }, 'Sync configurations retrieved');
+    return success(res, {
+      configs: sync.listConfigs(),
+      vaultLocked: sync.vaultLocked()
+    }, 'Sync configurations retrieved');
   } catch (err) {
     return error(res, 'Failed to retrieve sync configurations', 500);
   }
@@ -49,6 +52,45 @@ function disconnect(req, res) {
     return _send(res, result, 'Sync disconnected');
   } catch (err) {
     return error(res, 'Failed to disconnect sync', 500);
+  }
+}
+
+async function test(req, res) {
+  try {
+    const actor = req.platformAdmin || null;
+    const result = await sync.testConnection(actor, req.params.tenantId);
+    return _send(res, result, 'Connection verified');
+  } catch (err) {
+    return error(res, 'Connection test failed', 500);
+  }
+}
+
+async function masterPull(req, res) {
+  try {
+    const actor = req.platformAdmin || null;
+    const result = await sync.masterPull(actor, req.params.tenantId);
+    return _send(res, result, 'Sync pull complete');
+  } catch (err) {
+    return error(res, 'Sync pull failed', 500);
+  }
+}
+
+async function masterPush(req, res) {
+  try {
+    const actor = req.platformAdmin || null;
+    const result = await sync.masterPush(actor, req.params.tenantId, req.body || {});
+    return _send(res, result, 'Sync push complete');
+  } catch (err) {
+    return error(res, 'Sync push failed', 500);
+  }
+}
+
+function syncAudit(req, res) {
+  try {
+    const result = sync.listSyncAudit(req.params.tenantId, { limit: req.query.limit });
+    return _send(res, result, 'Sync audit retrieved');
+  } catch (err) {
+    return error(res, 'Failed to retrieve sync audit', 500);
   }
 }
 
@@ -87,4 +129,18 @@ async function push(req, res) {
   }
 }
 
-module.exports = { listConfigs, configure, disconnect, status, pull, push };
+// Device-declared legacy PAT presence (advisory boolean only). The tenant
+// still comes exclusively from trustedTenantId(req); any token material in
+// the body is ignored — only holdsLegacyToken (strict boolean) is read.
+function legacyReport(req, res) {
+  try {
+    const tenantId = trustedTenantId(req);
+    if (!tenantId) return error(res, 'No active company on this session', 400, { code: 'NO_TENANT' });
+    const result = sync.reportLegacy(tenantId, req.body || {});
+    return _send(res, result, 'Legacy report recorded');
+  } catch (err) {
+    return error(res, 'Failed to record legacy report', 500);
+  }
+}
+
+module.exports = { listConfigs, configure, disconnect, test, masterPull, masterPush, syncAudit, status, pull, push, legacyReport };
