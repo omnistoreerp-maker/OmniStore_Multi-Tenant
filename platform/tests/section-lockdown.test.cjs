@@ -926,7 +926,32 @@ check('working-tree diff touches only intended platform files', () => {
     // subtree allowance rather than 400 file names.
     'online-games/ROSTER_GATE.json',
     'online-games/INTEGRATION_BLUEPRINT.md',
-    'online-games/roster-gate.test.cjs'
+    'online-games/roster-gate.test.cjs',
+    // Homepage visual redesign cycle: static structural suite + browser smoke
+    // (screenshots, overflow matrix, drawer mechanics) for platform.html.
+    'platform/tests/homepage-visual.test.cjs',
+    'tests/e2e/verify-homepage-visual.js',
+    // Pre-existing local read-only audit artifacts from earlier candidate
+    // sessions — deliberately never committed, allowed to stay untracked.
+    'POST_MERGE_VERIFICATION.md',
+    'audit_searches.ps1',
+    'audit_searches.py',
+    'auth_sizes.py',
+    'capability_extract.py',
+    'context_check.py',
+    'docs/audit/EDUCATION_PHASE3_READ_ONLY_AUDIT.md',
+    'docs/audit/EDUCATION_PHASE4_READ_ONLY_PRODUCT_GAP_AUDIT.md',
+    'dump_lines.py',
+    'make_audit.py',
+    'matrix_verify.py',
+    'page_roles_check.py',
+    'payment_check.py',
+    'registry_extract.py',
+    'saas_check.py',
+    'saas_check2.py',
+    'schema_check.py',
+    'verify_header.py',
+    'webhook_check.py'
   ]);
   const git = (args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' }).stdout.split('\n').map((s) => s.trim()).filter(Boolean);
   const modified = git(['diff', '--name-only', 'HEAD']);
