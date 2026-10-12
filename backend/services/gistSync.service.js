@@ -50,6 +50,14 @@ const UPSTREAM_TIMEOUT_MS = 15000;
 const GH_FILENAME = 'digitronics_db.json';
 const GH_DESC = 'OmniStore tenant dataset (server-managed)';
 
+// Legacy-report evidence bounds (FIX A). Device ids are non-secret, stable
+// identifiers chosen by the client; the server validates and bounds every
+// client-supplied field and never accepts token material or dataset content.
+const MAX_REPORT_BODY_BYTES = 4096;
+const MAX_REPORT_DEVICES = 64;
+const MAX_INVENTORY_DEVICES = 64;
+const DEVICE_ID_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+
 // ---------------------------------------------------------------------------
 // Vault — AES-256-GCM, per-secret random salt, fail-closed.
 // ---------------------------------------------------------------------------
@@ -160,21 +168,84 @@ function _findLegacy(tenantId) {
   return _readLegacy().find((e) => String(e.tenantId) === id) || null;
 }
 
+function _normalizeDeviceId(value) {
+  if (typeof value !== 'string') return null;
+  const id = value.trim().toLowerCase();
+  if (!DEVICE_ID_RE.test(id)) return null;
+  return id;
+}
+
+// Effective "legacy PAT still held somewhere" OR across the device-less (v1)
+// slot and every per-device v2 record. Conservative by design: any device
+// still reporting holds=true keeps revocation incomplete.
+function _legacyHolds(rec) {
+  if (!rec) return false;
+  if (rec.holdsLegacyToken === true) return true;
+  const devices = rec.devices;
+  if (devices && typeof devices === 'object') {
+    const ids = Object.keys(devices);
+    for (let i = 0; i < ids.length; i++) {
+      const d = devices[ids[i]];
+      if (d && d.holds === true) return true;
+    }
+  }
+  return false;
+}
+
+// Revocation gate (FIX A). LEGACY_REVOKED requires ALL of:
+//   1. a platform-owner attested, server-authoritative device inventory
+//      (fail-closed: no inventory => never revoked), non-empty and well-formed;
+//   2. affirmative clearance (holds === false) from EVERY expected device;
+//   3. each clearance reported AFTER the attestation (stale evidence fails);
+//   4. no device-less v1 record claiming holds=true and no device record
+//      claiming holds=true (see _legacyHolds).
+// Evidence from devices outside the trusted inventory is ignored for
+// clearance and cannot shorten the gate; unknown devices reporting holds=true
+// still block via _legacyHolds.
+function _revocationGateClear(rec) {
+  if (!rec) return false;
+  const inv = rec.inventory;
+  if (!inv || !Array.isArray(inv.devices) || inv.devices.length === 0) return false;
+  const attestedMs = Date.parse(String(inv.attestedAt || ''));
+  if (!Number.isFinite(attestedMs)) return false;
+  const devices = (rec.devices && typeof rec.devices === 'object') ? rec.devices : {};
+  // Evidence from a device outside the trusted inventory means the attested
+  // inventory is incomplete => fail closed. (setDeviceInventory prunes stale
+  // unknown holds=false records on re-attestation so retired devices can be
+  // released by the owner; unknown holds=true records are retained.)
+  const reportedIds = Object.keys(devices);
+  for (let i = 0; i < reportedIds.length; i++) {
+    if (inv.devices.indexOf(reportedIds[i]) === -1) return false;
+  }
+  // Every expected device needs affirmative clearance recorded after
+  // the attestation (stale evidence fails the gate).
+  for (let i = 0; i < inv.devices.length; i++) {
+    const d = devices[inv.devices[i]];
+    if (!d || d.holds !== false) return false;
+    const clearedMs = Date.parse(String(d.reportedAt || ''));
+    if (!Number.isFinite(clearedMs) || clearedMs < attestedMs) return false;
+  }
+  return true;
+}
+
 function _migrationState(entry, legacyRec) {
   const serverAvail = !!(entry && entry.enabled && entry.encryptedToken);
   const verified = !!(entry && entry.lastPullAt && entry.lastPushAt);
   const reported = !!(legacyRec && legacyRec.reportedAt);
-  const holds = !!(legacyRec && legacyRec.holdsLegacyToken);
+  const holds = _legacyHolds(legacyRec);
   if (verified && holds) return 'LEGACY_REVOCATION_PENDING';
-  if (verified && reported && !holds) return 'LEGACY_REVOKED';
+  if (verified && reported && !holds && _revocationGateClear(legacyRec)) return 'LEGACY_REVOKED';
   if (verified) return 'MIGRATION_VERIFIED';
   if (holds) return 'LEGACY_PRESENT_NOT_MIGRATED';
   if (serverAvail) return 'SERVER_SYNC_AVAILABLE';
   return 'LEGACY_NOT_SEEN';
 }
 
-// Device report of legacy PAT presence (boolean only — advisory, never
-// trusted for identity or authorization).
+// Device report of legacy PAT presence (advisory, never trusted for identity
+// or authorization). v1 (device-less) reports write a single last-writer slot
+// and can NEVER establish LEGACY_REVOKED on their own; v2 reports carry a
+// validated non-secret deviceId and build the per-device evidence map the
+// revocation gate consumes. No token material or dataset content is accepted.
 function reportLegacy(tenantId, body) {
   const id = String(tenantId || '').trim();
   if (!id) return { error: 'tenantId is required', status: 400, code: 'INVALID_TENANT' };
@@ -182,25 +253,132 @@ function reportLegacy(tenantId, body) {
   if (typeof holds !== 'boolean') {
     return { error: 'holdsLegacyToken must be a boolean', status: 400, code: 'INVALID_LEGACY_REPORT' };
   }
+  if (body && body.reportVersion !== undefined && body.reportVersion !== 1 && body.reportVersion !== 2) {
+    return { error: 'Unsupported report version', status: 400, code: 'INVALID_LEGACY_REPORT' };
+  }
+  let raw = '';
+  try { raw = JSON.stringify(body) || ''; } catch (e) { raw = ''; }
+  if (raw.length > MAX_REPORT_BODY_BYTES) {
+    return { error: 'Report too large', status: 400, code: 'INVALID_LEGACY_REPORT' };
+  }
+  let device = null;
+  if (body && body.deviceId !== undefined && body.deviceId !== null) {
+    device = _normalizeDeviceId(body.deviceId);
+    if (!device) {
+      return { error: 'Invalid deviceId', status: 400, code: 'INVALID_LEGACY_REPORT' };
+    }
+  }
   const records = _readLegacy();
   const now = new Date().toISOString();
   let rec = records.find((e) => String(e.tenantId) === id);
   if (!rec) {
-    rec = { tenantId: id, holdsLegacyToken: holds, reportedAt: now, updatedAt: now };
+    rec = { tenantId: id, holdsLegacyToken: false, reportedAt: now, updatedAt: now };
     records.push(rec);
-  } else {
-    rec.holdsLegacyToken = holds;
-    rec.reportedAt = now;
-    rec.updatedAt = now;
   }
+  if (device) {
+    const existing = (rec.devices && typeof rec.devices === 'object') ? rec.devices : null;
+    const known = existing && Object.prototype.hasOwnProperty.call(existing, device);
+    if (!known && existing && Object.keys(existing).length >= MAX_REPORT_DEVICES) {
+      return { error: 'Device evidence limit reached', status: 400, code: 'INVALID_LEGACY_REPORT' };
+    }
+    rec.devices = Object.assign({}, existing || {});
+    rec.devices[device] = { holds, reportedAt: now };
+  } else {
+    // v1 device-less report: last-writer slot only; never device clearance.
+    rec.holdsLegacyToken = holds;
+  }
+  rec.reportedAt = now;
+  rec.updatedAt = now;
   storageAdapter.write(LEGACY_STORE, { entries: records });
-  _audit(null, 'LEGACY_REPORT', id, 'success', { holdsLegacyToken: holds });
+  const aggregate = _legacyHolds(rec);
+  _audit(null, 'LEGACY_REPORT', id, 'success', { holdsLegacyToken: aggregate, deviceId: device || null });
   return {
     report: {
       tenantId: id,
-      holdsLegacyToken: holds,
+      holdsLegacyToken: aggregate,
       reportedAt: now,
       migrationState: _migrationState(_find(id), rec)
+    }
+  };
+}
+
+// Trusted device inventory (FIX A). Server-authoritative and platform-owner
+// controlled: writable ONLY through the requirePlatformAdmin master surface,
+// never by tenant clients (devices cannot supply or override the expected
+// device set). Stored in legacyMigrationState per tenant; contains only
+// non-secret device ids + attestation metadata.
+function getDeviceInventory(actor, tenantId) {
+  const id = String(tenantId || '').trim();
+  if (!id) return { error: 'tenantId is required', status: 400, code: 'INVALID_TENANT' };
+  if (!_companyExists(id)) return { error: 'Unknown company', status: 400, code: 'UNKNOWN_TENANT' };
+  const rec = _findLegacy(id);
+  const inv = rec && rec.inventory;
+  return {
+    inventory: (inv && Array.isArray(inv.devices))
+      ? { tenantId: id, devices: inv.devices.slice(), attestedAt: inv.attestedAt || null, attestedBy: inv.attestedBy || null }
+      : { tenantId: id, devices: null, attestedAt: null, attestedBy: null }
+  };
+}
+
+function setDeviceInventory(actor, tenantId, body) {
+  const id = String(tenantId || '').trim();
+  if (!id) return { error: 'tenantId is required', status: 400, code: 'INVALID_TENANT' };
+  if (!_companyExists(id)) return { error: 'Unknown company', status: 400, code: 'UNKNOWN_TENANT' };
+  const raw = body && body.devices;
+  if (!Array.isArray(raw)) {
+    return { error: 'devices must be an array', status: 400, code: 'INVALID_DEVICE_INVENTORY' };
+  }
+  if (raw.length < 1 || raw.length > MAX_INVENTORY_DEVICES) {
+    return { error: 'devices must contain 1 to ' + MAX_INVENTORY_DEVICES + ' entries', status: 400, code: 'INVALID_DEVICE_INVENTORY' };
+  }
+  const ids = [];
+  const seen = {};
+  for (let i = 0; i < raw.length; i++) {
+    const d = _normalizeDeviceId(raw[i]);
+    if (!d) {
+      return { error: 'Invalid device id in inventory', status: 400, code: 'INVALID_DEVICE_INVENTORY' };
+    }
+    if (seen[d]) {
+      return { error: 'Duplicate device id in inventory', status: 400, code: 'INVALID_DEVICE_INVENTORY' };
+    }
+    seen[d] = true;
+    ids.push(d);
+  }
+  const now = new Date().toISOString();
+  const records = _readLegacy();
+  let rec = records.find((e) => String(e.tenantId) === id);
+  if (!rec) {
+    rec = { tenantId: id };
+    records.push(rec);
+  }
+  // Fresh attestation invalidates every clearance recorded before it (stale
+  // evidence cannot satisfy the gate). Unknown-device holds=false evidence is
+  // pruned so retired devices cannot pin a tenant forever; unknown-device
+  // holds=true evidence is intentionally retained and keeps revocation
+  // incomplete until that device clears or is attested and handled.
+  if (rec.devices && typeof rec.devices === 'object') {
+    const pruned = {};
+    for (const k of Object.keys(rec.devices)) {
+      const d = rec.devices[k];
+      if (seen[k]) pruned[k] = d;
+      else if (d && d.holds === true) pruned[k] = d;
+    }
+    rec.devices = pruned;
+  }
+  rec.inventory = {
+    devices: ids,
+    attestedAt: now,
+    attestedBy: actor && actor.username ? actor.username : null
+  };
+  rec.updatedAt = now;
+  storageAdapter.write(LEGACY_STORE, { entries: records });
+  _audit(actor, 'PLATFORM_DEVICE_INVENTORY_ATTESTED', id, 'success', { deviceCount: ids.length });
+  return {
+    inventory: {
+      tenantId: id,
+      devices: ids.slice(),
+      attestedAt: now,
+      attestedBy: rec.inventory.attestedBy
     }
   };
 }
@@ -855,6 +1033,8 @@ module.exports = {
   configure,
   disconnect,
   reportLegacy,
+  getDeviceInventory,
+  setDeviceInventory,
   testConnection,
   tenantStatus,
   tenantPull,

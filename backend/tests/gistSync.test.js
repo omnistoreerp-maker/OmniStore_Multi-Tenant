@@ -13,6 +13,8 @@
 //   R  REVISION_HARDENING — strict base proof, server stamp, read binding, lock.
 //   P  MASTER_OPS      — MCC surface: list-all, test, controlled pull/push, audit.
 //   M  MIGRATION_STATE — six-state legacy migration model (advisory report).
+//   M2 REVOCATION_GATE — per-device v2 evidence + master-attested trusted
+//      device inventory; single device-less reports can never claim REVOKED.
 //   G  DATA_INTEGRITY  — failed writes never advance state; no dataset/secrets at rest.
 
 const request = require('supertest');
@@ -1268,7 +1270,7 @@ describe('M. MIGRATION_STATE — six-state legacy migration model (advisory repo
     expect((await listRow('digi')).migrationState).toBe('MIGRATION_VERIFIED');
   });
 
-  test('verified + device still holding PAT -> LEGACY_REVOCATION_PENDING, then report false -> LEGACY_REVOKED', async () => {
+  test('verified + device holding PAT -> LEGACY_REVOCATION_PENDING; device-less v1 clear CANNOT establish LEGACY_REVOKED (fail-closed)', async () => {
     const nileDataset = JSON.stringify({ _companyId: 'nile', products: [] });
     mockGhStatic(nileDataset);
     const pull = await request(server.app)
@@ -1284,14 +1286,243 @@ describe('M. MIGRATION_STATE — six-state legacy migration model (advisory repo
     restoreFetch();
     expect((await listRow('nile')).migrationState).toBe('LEGACY_REVOCATION_PENDING');
 
+    // FIX A: a single device-less (v1) report saying "cleared" is no longer
+    // sufficient to claim LEGACY_REVOKED — with no attested device inventory
+    // the state stays MIGRATION_VERIFIED (fail-closed). The former behavior
+    // (single report => LEGACY_REVOKED) is replaced; see M2 for the gate.
     const clear = await request(server.app)
       .post('/api/v1/sync/legacy-report')
       .set('Authorization', 'Bearer ' + nileToken)
       .send({ holdsLegacyToken: false });
     expect(clear.status).toBe(200);
-    expect(clear.body.data.report.migrationState).toBe('LEGACY_REVOKED');
-    expect((await listRow('nile')).migrationState).toBe('LEGACY_REVOKED');
-    expect(await nileState()).toBe('LEGACY_REVOKED');
+    expect(clear.body.data.report.migrationState).toBe('MIGRATION_VERIFIED');
+    expect((await listRow('nile')).migrationState).toBe('MIGRATION_VERIFIED');
+    expect(await nileState()).toBe('MIGRATION_VERIFIED');
+  });
+});
+
+// ---------------------------------------------------------------------- M2
+
+describe('M2. REVOCATION_GATE - per-device evidence + trusted inventory (FIX A)', () => {
+  let server;
+  let dataDir;
+  let masterToken;
+  let nileToken;
+  let digiToken;
+
+  beforeAll(async () => {
+    setFlags();
+    dataDir = makeTempDataDir('gist-revocation-gate');
+    tempDirs.push(dataDir);
+    seedAll(dataDir);
+    server = await startServer(dataDir, { RATE_LIMIT_MAX: '10000', AUTH_REQUIRED: 'true' });
+    masterToken = (await login(server.app, 'master', PASSWORD)).accessToken;
+    nileToken = (await login(server.app, 'nileOwner', PASSWORD, 'nile')).accessToken;
+    digiToken = (await login(server.app, 'digiOwner', PASSWORD, 'digi')).accessToken;
+    // Bind both companies (server-authoritative verification prerequisite).
+    const nileCfg = await request(server.app)
+      .put('/api/v1/platform/sync/nile')
+      .set('Authorization', 'Bearer ' + masterToken)
+      .send({ token: 'ghp_gatetoken_0001', gistId: 'gatgist0001' });
+    expect(nileCfg.status).toBe(200);
+    const digiCfg = await request(server.app)
+      .put('/api/v1/platform/sync/digi')
+      .set('Authorization', 'Bearer ' + masterToken)
+      .send({ token: 'ghp_gatetoken_0002', gistId: 'gatgist0002' });
+    expect(digiCfg.status).toBe(200);
+  });
+
+  afterAll(() => { restoreFlags(); restoreFetch(); });
+
+  async function state(token) {
+    const res = await request(server.app)
+      .get('/api/v1/sync/status')
+      .set('Authorization', 'Bearer ' + token);
+    return res.body.data.status.migrationState;
+  }
+
+  async function listState(tenantId) {
+    const res = await request(server.app)
+      .get('/api/v1/platform/sync')
+      .set('Authorization', 'Bearer ' + masterToken);
+    return res.body.data.configs.find((r) => r.tenantId === tenantId).migrationState;
+  }
+
+  function attest(tenantId, devices) {
+    return request(server.app)
+      .put('/api/v1/platform/sync/' + tenantId + '/device-inventory')
+      .set('Authorization', 'Bearer ' + masterToken)
+      .send({ devices });
+  }
+
+  function report(token, body) {
+    return request(server.app)
+      .post('/api/v1/sync/legacy-report')
+      .set('Authorization', 'Bearer ' + token)
+      .send(body);
+  }
+
+  async function verify(tenantId, token) {
+    const dataset = JSON.stringify({ _companyId: tenantId, products: [] });
+    mockGhStatic(dataset);
+    const pull = await request(server.app)
+      .post('/api/v1/sync/pull')
+      .set('Authorization', 'Bearer ' + token)
+      .send({});
+    expect(pull.status).toBe(200);
+    const push = await request(server.app)
+      .post('/api/v1/sync/push')
+      .set('Authorization', 'Bearer ' + token)
+      .send({ content: JSON.stringify({ _companyId: tenantId, products: [{ id: 'x1' }] }), baseRevision: pull.body.data.pull.revision });
+    expect(push.status).toBe(200);
+    restoreFetch();
+  }
+
+  test('device A reports true while device B reports false -> LEGACY_REVOCATION_PENDING, never revoked', async () => {
+    await verify('nile', nileToken);
+    const att = await attest('nile', ['dev-a', 'dev-b']);
+    expect(att.status).toBe(200);
+    expect((await report(nileToken, { holdsLegacyToken: true, reportVersion: 2, deviceId: 'dev-a' })).status).toBe(200);
+    const b = await report(nileToken, { holdsLegacyToken: false, reportVersion: 2, deviceId: 'dev-b' });
+    expect(b.status).toBe(200);
+    expect(b.body.data.report.holdsLegacyToken).toBe(true); // conservative aggregate stays true
+    expect(await state(nileToken)).toBe('LEGACY_REVOCATION_PENDING');
+    expect(await listState('nile')).toBe('LEGACY_REVOCATION_PENDING');
+  });
+
+  test('one expected device cleared while another has not reported -> not revoked', async () => {
+    const att = await attest('nile', ['dev-a', 'dev-b']); // fresh attestation resets clearances
+    expect(att.status).toBe(200);
+    const a = await report(nileToken, { holdsLegacyToken: false, reportVersion: 2, deviceId: 'dev-a' });
+    expect(a.status).toBe(200);
+    expect(await state(nileToken)).toBe('MIGRATION_VERIFIED');
+    expect(await listState('nile')).not.toBe('LEGACY_REVOKED');
+  });
+
+  test('complete attested inventory + every expected device cleared -> LEGACY_REVOKED eligible', async () => {
+    const att = await attest('nile', ['dev-a', 'dev-b']);
+    expect(att.status).toBe(200);
+    expect((await report(nileToken, { holdsLegacyToken: false, reportVersion: 2, deviceId: 'dev-a' })).status).toBe(200);
+    const b = await report(nileToken, { holdsLegacyToken: false, reportVersion: 2, deviceId: 'dev-b' });
+    expect(b.status).toBe(200);
+    expect(b.body.data.report.migrationState).toBe('LEGACY_REVOKED');
+    expect(await state(nileToken)).toBe('LEGACY_REVOKED');
+    expect(await listState('nile')).toBe('LEGACY_REVOKED');
+  });
+
+  test('device-less v1 reports can never establish LEGACY_REVOKED', async () => {
+    const att = await attest('nile', ['dev-a', 'dev-b']); // resets clearances -> all stale
+    expect(att.status).toBe(200);
+    const clear = await report(nileToken, { holdsLegacyToken: false });
+    expect(clear.status).toBe(200);
+    expect(clear.body.data.report.migrationState).toBe('MIGRATION_VERIFIED');
+    expect(await state(nileToken)).toBe('MIGRATION_VERIFIED');
+    expect(await listState('nile')).not.toBe('LEGACY_REVOKED');
+    const hold = await report(nileToken, { holdsLegacyToken: true });
+    expect(hold.status).toBe(200);
+    expect(await state(nileToken)).toBe('LEGACY_REVOCATION_PENDING');
+  });
+
+  test('trusted inventory absent or incomplete -> cleared devices still not revoked (fail-closed)', async () => {
+    await verify('digi', digiToken);
+    // (a) no trusted inventory at all
+    const r1 = await report(digiToken, { holdsLegacyToken: false, reportVersion: 2, deviceId: 'ghost' });
+    expect(r1.status).toBe(200);
+    expect(await state(digiToken)).toBe('MIGRATION_VERIFIED');
+    expect(await listState('digi')).not.toBe('LEGACY_REVOKED');
+    // (b) attested inventory that does not cover a reporting device -> incomplete
+    expect((await attest('digi', ['dev-only'])).status).toBe(200);
+    expect((await report(digiToken, { holdsLegacyToken: false, reportVersion: 2, deviceId: 'dev-only' })).status).toBe(200);
+    const r2 = await report(digiToken, { holdsLegacyToken: false, reportVersion: 2, deviceId: 'ghost' });
+    expect(r2.status).toBe(200);
+    expect(await state(digiToken)).toBe('MIGRATION_VERIFIED');
+    expect(await listState('digi')).not.toBe('LEGACY_REVOKED');
+  });
+
+  test('re-attestation prunes unknown cleared evidence; fresh clearance then revokes', async () => {
+    expect((await attest('digi', ['dev-only'])).status).toBe(200); // prunes unknown holds=false evidence
+    // dev-only clearance predates this attestation => stale
+    expect(await state(digiToken)).toBe('MIGRATION_VERIFIED');
+    expect(await listState('digi')).not.toBe('LEGACY_REVOKED');
+    const r = await report(digiToken, { holdsLegacyToken: false, reportVersion: 2, deviceId: 'dev-only' });
+    expect(r.body.data.report.migrationState).toBe('LEGACY_REVOKED');
+    expect(await state(digiToken)).toBe('LEGACY_REVOKED');
+    expect(await listState('digi')).toBe('LEGACY_REVOKED');
+  });
+
+  test('clearance recorded BEFORE attestation is stale and cannot bypass the gate', async () => {
+    expect((await attest('digi', ['dev-only', 'dev-fresh'])).status).toBe(200);
+    // dev-fresh clears, but dev-only clearance predates this attestation
+    const r1 = await report(digiToken, { holdsLegacyToken: false, reportVersion: 2, deviceId: 'dev-fresh' });
+    expect(r1.body.data.report.migrationState).toBe('MIGRATION_VERIFIED');
+    expect(await listState('digi')).not.toBe('LEGACY_REVOKED');
+    // fresh re-clearance for dev-only completes the gate
+    const r2 = await report(digiToken, { holdsLegacyToken: false, reportVersion: 2, deviceId: 'dev-only' });
+    expect(r2.body.data.report.migrationState).toBe('LEGACY_REVOKED');
+    expect(await listState('digi')).toBe('LEGACY_REVOKED');
+  });
+
+  test('inventory is master-only: tenant sessions cannot read or write it', async () => {
+    const put = await request(server.app)
+      .put('/api/v1/platform/sync/nile/device-inventory')
+      .set('Authorization', 'Bearer ' + nileToken)
+      .send({ devices: ['evil-device'] });
+    expect(put.status).toBe(403);
+    const get = await request(server.app)
+      .get('/api/v1/platform/sync/nile/device-inventory')
+      .set('Authorization', 'Bearer ' + nileToken);
+    expect(get.status).toBe(403);
+    const legacy = readStore(dataDir, 'legacyMigrationState');
+    const nileRec = legacy.entries.find((e) => e.tenantId === 'nile');
+    expect(JSON.stringify((nileRec && nileRec.inventory) || {})).not.toContain('evil-device');
+  });
+
+  test('spoofed tenant scope is safely scoped (JWT only) and a true report reopens revocation', async () => {
+    const res = await report(digiToken, { holdsLegacyToken: true, reportVersion: 2, deviceId: 'dev-spoof', tenantId: 'nile' });
+    expect(res.status).toBe(200);
+    expect(res.body.data.report.tenantId).toBe('digi');
+    const legacy = readStore(dataDir, 'legacyMigrationState');
+    const nileRec = legacy.entries.find((e) => e.tenantId === 'nile');
+    expect(!nileRec.devices || nileRec.devices['dev-spoof']).toBeFalsy();
+    expect(await state(digiToken)).toBe('LEGACY_REVOCATION_PENDING');
+    expect(await listState('digi')).toBe('LEGACY_REVOCATION_PENDING');
+  });
+
+  test('malformed, oversized, duplicate or invalid evidence is rejected (400)', async () => {
+    const badBodies = [
+      { holdsLegacyToken: 'false', reportVersion: 2, deviceId: 'dev-a' },
+      { holdsLegacyToken: false, reportVersion: 99, deviceId: 'dev-a' },
+      { holdsLegacyToken: false, reportVersion: 2, deviceId: 'DEV/A' },
+      { holdsLegacyToken: false, reportVersion: 2, deviceId: '../../etc/passwd' },
+      { holdsLegacyToken: false, reportVersion: 2, deviceId: 'x'.repeat(65) },
+      { holdsLegacyToken: false, reportVersion: 2, deviceId: 123 },
+      { holdsLegacyToken: false, reportVersion: 2, deviceId: '' },
+      { holdsLegacyToken: false, reportVersion: 2, deviceId: 'dev-a', padding: 'y'.repeat(5000) }
+    ];
+    for (const b of badBodies) {
+      const res = await report(nileToken, b);
+      expect(res.status).toBe(400);
+      expect(res.body.details && res.body.details.code).toBe('INVALID_LEGACY_REPORT');
+    }
+    // duplicate (case-insensitive) inventory ids rejected
+    expect((await attest('nile', ['dev-a', 'DEV-A'])).status).toBe(400);
+    // empty / non-array / oversized inventories rejected
+    expect((await attest('nile', [])).status).toBe(400);
+    expect((await attest('nile', 'dev-a')).status).toBe(400);
+    const many = [];
+    for (let i = 0; i < 65; i++) many.push('dev-' + i);
+    expect((await attest('nile', many)).status).toBe(400);
+    // per-device evidence map is bounded at 64 entries
+    const legacy0 = readStore(dataDir, 'legacyMigrationState');
+    const nileRec0 = legacy0.entries.find((e) => e.tenantId === 'nile');
+    const have = Object.keys(nileRec0.devices || {}).length;
+    for (let i = have; i < 64; i++) {
+      const ok = await report(nileToken, { holdsLegacyToken: false, reportVersion: 2, deviceId: 'evi-' + i });
+      expect(ok.status).toBe(200);
+    }
+    const over = await report(nileToken, { holdsLegacyToken: false, reportVersion: 2, deviceId: 'evi-overflow' });
+    expect(over.status).toBe(400);
+    expect(over.body.details && over.body.details.code).toBe('INVALID_LEGACY_REPORT');
   });
 });
 
