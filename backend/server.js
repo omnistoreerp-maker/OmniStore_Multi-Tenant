@@ -230,6 +230,7 @@ const internalChangeCenterRoutes = require('./routes/internalChangeCenter.routes
 const platformIntegrationRoutes = require('./routes/platformIntegration.routes');
 const platformAdminRoutes = require('./routes/platformAdmin.routes');
 const platformControlCenterRoutes = require('./routes/platformControlCenter.routes');
+const gistSyncRoutes = require('./routes/gistSync.routes');
 const tenantExtensionsRoutes = require('./routes/tenantExtensions.routes');
 const tenantOnboardingRoutes = require('./routes/tenantOnboarding.routes');
 const tenantPaymentsRoutes = require('./routes/tenantPayments.routes');
@@ -282,6 +283,11 @@ app.use('/api/v1/platform', platformRoutes);
 // granular platform permission middleware; authorization is never taken from
 // query/body/headers. Separate from every tenant scope.
 app.use('/api/v1/platform/control-center', platformControlCenterRoutes);
+// Server-side cloud sync — Master-owned provider configuration (encrypted at
+// rest) plus tenant-scoped status/pull/push. Tenant identity comes only from
+// the signed token context; provider credentials never leave the server.
+app.use('/api/v1/platform/sync', gistSyncRoutes.masterRouter);
+app.use('/api/v1/sync', gistSyncRoutes.tenantRouter);
 // Tenant Onboarding Wizard — guided setup + one-click demo data.
 app.use('/api/v1/tenant/onboarding', tenantOnboardingRoutes);
 // Public platform homepage — read-only catalog, no auth required.

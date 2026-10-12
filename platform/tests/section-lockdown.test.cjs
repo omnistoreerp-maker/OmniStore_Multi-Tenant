@@ -830,7 +830,21 @@ check('working-tree diff touches only intended platform files', () => {
       // entities, course.subjectId + class.termId same-center wiring, and the
       // academic center-derivation extensions.
       'backend/services/course.service.js',
-      'backend/middleware/centerOwnership.js'
+      'backend/middleware/centerOwnership.js',
+      // Server-side gist sync cycle (feature/server-side-gist-sync-and-tenant-login):
+      // Master-owned encrypted credentials + tenant pull/push surface, the
+      // removal of the tenant-facing GitHub PAT prompt from both frontend
+      // shells, the migration plan and the two focused suites that pin all of it.
+      'backend/services/gistSync.service.js',
+      'backend/controllers/gistSync.controller.js',
+      'backend/routes/gistSync.routes.js',
+      'backend/.env.example',
+      'DigiTronics_v5.html',
+      'docs/GIST_SYNC_MIGRATION_PLAN.md',
+      'backend/tests/gistSync.test.js',
+      'platform/tests/tenant-git-prompt-removal.test.cjs',
+      // GATE 8: e2e harness repair (runtime-config override + CORS allowlist)
+      'tests/e2e/backend-sync.spec.js'
     ]);
   const allowedUntracked = new Set([
   'backend/tests/controlCenterSecurityFixes.test.js',
@@ -951,7 +965,18 @@ check('working-tree diff touches only intended platform files', () => {
     'saas_check2.py',
     'schema_check.py',
     'verify_header.py',
-    'webhook_check.py'
+    'webhook_check.py',
+    // Server-side gist sync cycle (feature/server-side-gist-sync-and-tenant-login):
+    // new focused suites that pin the tenant-PAT-prompt removal and the
+    // server-authoritative sync surface.
+    'backend/tests/gistSync.test.js',
+    'backend/services/gistSync.service.js',
+    'backend/controllers/gistSync.controller.js',
+    'backend/routes/gistSync.routes.js',
+    'platform/tests/tenant-git-prompt-removal.test.cjs',
+    'platform/tests/master-gist-sync-ui.test.cjs',
+    'backend/tests/gistSync.realprovider.test.js',
+    'docs/GIST_SYNC_MIGRATION_PLAN.md'
   ]);
   const git = (args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' }).stdout.split('\n').map((s) => s.trim()).filter(Boolean);
   const modified = git(['diff', '--name-only', 'HEAD']);
@@ -1052,7 +1077,15 @@ check('working-tree diff touches only intended platform files', () => {
       // these two files (course.subjectId, class.termId, academic center
       // derivation).
       'backend/services/course.service.js',
-      'backend/middleware/centerOwnership.js'
+      'backend/middleware/centerOwnership.js',
+      // Server-side gist sync cycle (feature/server-side-gist-sync-and-tenant-login):
+      // Master-owned encrypted credentials, tenant pull/push surface and the
+      // server.js mounts for both routers.
+      'backend/services/gistSync.service.js',
+      'backend/controllers/gistSync.controller.js',
+      'backend/routes/gistSync.routes.js',
+      'backend/.env.example',
+      'backend/tests/gistSync.test.js'
     ]);
   // Negative boundaries: these must NEVER appear in a working-tree diff or be added.
   //
