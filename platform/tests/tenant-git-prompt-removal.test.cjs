@@ -161,6 +161,23 @@ check('index.html: syncPagePull/Push route server-first, legacy fallback', () =>
   assert(push.indexOf('ghPush') !== -1, 'syncPagePush lost its legacy fallback');
 });
 
+check('index.html: push baseRevision is proof-of-read — only pull/push responses set it', () => {
+  // The push base must never be seeded from a status poll: a revision this
+  // device never observed (or a wrong field name) would let it acknowledge
+  // freshness it never read. Only serverSyncPull/serverSyncPush responses
+  // may assign to syncServerRevision.
+  const assignments = [];
+  const re = /syncServerRevision\s*=\s*([^;]+);/g;
+  let m;
+  while ((m = re.exec(INDEX_HTML)) !== null) assignments.push(m[1]);
+  assert(assignments.length >= 3, 'syncServerRevision assignments missing (expected let + pull + push)');
+  const seeded = assignments.filter((rhs) => !/r\.data\./.test(rhs) && !/^\s*null\s*$/.test(rhs));
+  assert(seeded.length === 0, 'syncServerRevision seeded from an unproven source: ' + seeded.join(' | '));
+  assert(!/syncServerRevision\s*=\s*status\./.test(INDEX_HTML), 'syncServerRevision seeded from status poll');
+  const pushBody = extractFunction(INDEX_HTML, 'serverSyncPush');
+  assert(pushBody && pushBody.indexOf('baseRevision') !== -1, 'serverSyncPush does not send baseRevision');
+});
+
 check('index.html: no raw GitHub token placeholder in ordinary tenant journey', () => {
   // The only remaining ghp_ placeholders may be inside comments explaining the
   // removal — no live input may ask for one.
@@ -175,6 +192,57 @@ check('DigiTronics_v5.html: legacy engine preserved for existing token devices',
   assert(/async function ghPull\s*\(/.test(V5_HTML), 'ghPull missing');
   assert(/async function ghPush\s*\(/.test(V5_HTML), 'ghPush missing');
   assert(/async function autoPrepareGithubSync\s*\(/.test(V5_HTML), 'autoPrepareGithubSync missing');
+});
+
+// ---------------------------------------------------------------------------
+// GATE 4 — six-state legacy migration model (advisory, boolean-only report)
+// ---------------------------------------------------------------------------
+const MIGRATION_STATES = [
+  'LEGACY_NOT_SEEN',
+  'LEGACY_PRESENT_NOT_MIGRATED',
+  'SERVER_SYNC_AVAILABLE',
+  'MIGRATION_VERIFIED',
+  'LEGACY_REVOCATION_PENDING',
+  'LEGACY_REVOKED'
+];
+
+check('index.html: all six migration states are represented in the UI map', () => {
+  for (const s of MIGRATION_STATES) {
+    assert(INDEX_HTML.indexOf(s) !== -1, 'missing migration state: ' + s);
+  }
+});
+
+check('index.html: legacy report sends ONLY a boolean presence flag (no token value)', () => {
+  const body = extractFunction(INDEX_HTML, 'serverSyncLegacyReport');
+  assert(body !== null, 'serverSyncLegacyReport not found');
+  // holds must be a strict boolean coercion — the token VALUE must never
+  // travel in the payload, only its presence.
+  assert(/holds\s*=\s*!!ghToken\(\)/.test(body), 'holds is not a !!ghToken() boolean coercion');
+  assert(/holdsLegacyToken:\s*holds/.test(body), 'payload does not carry holdsLegacyToken: holds');
+  // Exactly one body field in the request payload.
+  const payloadMatch = body.match(/_fetch\(\s*['"]POST['"]\s*,\s*['"]\/sync\/legacy-report['"]\s*,\s*\{([^}]*)\}/);
+  assert(payloadMatch, 'legacy report POST body not found');
+  const fields = payloadMatch[1].split(',').map((s) => s.trim()).filter(Boolean);
+  assert(fields.length === 1, 'legacy report body must contain exactly one field, got: ' + payloadMatch[1]);
+  assert(/^holdsLegacyToken:/.test(fields[0]), 'unexpected field in legacy report body');
+  // No localStorage.getItem value may be interpolated into the payload.
+  assert(!/holdsLegacyToken:\s*localStorage/.test(body), 'raw localStorage value sent as report');
+  assert(!/holdsLegacyToken:\s*ghToken\(\)/.test(body), 'token value (not boolean) sent as report');
+});
+
+check('index.html: legacy report fired from renderSyncPage (backend path only)', () => {
+  const render = extractFunction(INDEX_HTML, 'renderSyncPage');
+  assert(render !== null, 'renderSyncPage not found');
+  assert(render.indexOf('serverSyncLegacyReport()') !== -1, 'report not fired from renderSyncPage');
+  const body = extractFunction(INDEX_HTML, 'serverSyncLegacyReport');
+  assert(body.indexOf('if (!USE_BACKEND) return;') !== -1, 'report not gated to backend mode');
+});
+
+check('index.html: legacy localStorage keys RETAINED (migration keeps old devices working)', () => {
+  // Migration contract: legacy keys must NOT be removed by this PR — devices
+  // still holding them must keep their silent local path until step 9.
+  assert(/const\s+GH_TOKEN_KEY\s*=\s*['"]digi_gh_token['"]/.test(INDEX_HTML), 'digi_gh_token key removed/renamed');
+  assert(/digi_gh_gist_id/.test(INDEX_HTML), 'digi_gh_gist_id key reference removed');
 });
 
 console.log('\n' + passed + ' passed, ' + failed + ' failed');

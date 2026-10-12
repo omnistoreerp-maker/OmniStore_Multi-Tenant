@@ -74,6 +74,7 @@
     item('schema-installer-preview', 'معاينة تثبيت المخطط', '📐', 'master_integrations', 'master'),
     item('rls-preview', 'معاينة RLS', '🛡️', 'master_integrations', 'master'),
     item('edge-function-setup-plan', 'خطة Edge Functions', '⚡', 'master_integrations', 'master'),
+    item('git-gist-sync', 'مزامنة Git/Gist', '🔄', 'master_integrations', 'master'),
     item('database-installer', 'Database Installer', '🗄️', 'master_database', 'master'),
     item('migration-progress', 'تقدم الترحيل', '⏳', 'master_database', 'master'),
     item('installation-report', 'تقرير التثبيت', '📄', 'master_database', 'master'),

@@ -5516,6 +5516,42 @@ document.addEventListener('DOMContentLoaded', function() {
       <div id="platformTabBody" role="tabpanel" aria-live="polite"></div>
     </div>
 
+    <!-- MASTER: GIT/GIST CLOUD SYNC (server-authoritative, platform scope) -->
+    <div class="page" id="page-git-gist-sync">
+      <div class="page-header">
+        <div>
+          <div class="page-title">🔄 مزامنة Git/Gist</div>
+          <div style="font-size:0.78rem;color:var(--text2);margin-top:2px">مزامنة سحابية لكل شركة — الاعتماديات محفوظة مشفّرة على الخادم ولا تظهر للمستخدمين ولا تُخزَّن في المتصفح</div>
+        </div>
+        <div class="table-actions" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span id="gsVaultPill" aria-live="polite" title="حالة خزنة الاعتماديات">—</span>
+          <button class="btn btn-outline btn-sm" onclick="renderGitGistSync()" aria-label="تحديث حالات المزامنة">↻ تحديث</button>
+        </div>
+      </div>
+      <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))" aria-live="polite" aria-atomic="true">
+        <div class="stat-card blue"><div class="stat-icon">🏢</div><div class="stat-value" id="gsStatTotal">0</div><div class="stat-label">إجمالي الشركات</div></div>
+        <div class="stat-card green"><div class="stat-icon">✅</div><div class="stat-value" id="gsStatConnected">0</div><div class="stat-label">متصلة</div></div>
+        <div class="stat-card red"><div class="stat-icon">⚠️</div><div class="stat-value" id="gsStatAttention">0</div><div class="stat-label">تحتاج متابعة</div></div>
+        <div class="stat-card yellow"><div class="stat-icon">☁️</div><div class="stat-value" id="gsStatUnconfigured">0</div><div class="stat-label">غير مُعدّة</div></div>
+      </div>
+      <div id="gsVaultBanner" aria-live="assertive"></div>
+      <div class="table-container" style="margin-top:12px">
+        <div class="table-header">
+          <div class="table-title">🏢 حالة المزامنة لكل شركة</div>
+          <div class="table-actions"><span id="gsUpdated" style="font-size:0.76rem;color:var(--text2)">—</span></div>
+        </div>
+        <div class="overflow-x">
+          <table class="data-table">
+            <thead><tr><th>الشركة</th><th>الحالة</th><th>الرمز (مقنّع)</th><th>Gist</th><th>آخر سحب</th><th>آخر رفع</th><th>آخر خطأ</th><th>إجراءات</th></tr></thead>
+            <tbody id="gsTableBody"><tr><td colspan="8" style="color:var(--text2)">⏳ جاري التحميل…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="gsHint" style="font-size:0.76rem;color:var(--text2);line-height:1.8;margin-top:8px">
+        💡 «سحب» يجلب آخر نسخة من السحابة ويحدّث المراجعة — «رفع» ينشر ملف JSON بعد مراجعة أساس التعارض. الرمز (PAT) يُدخل مرة واحدة في الإعداد ولا يُعرض أو يُحفظ في المتصفح إطلاقًا.
+      </div>
+    </div>
+
     <!-- SETTINGS -->
     <div class="page" id="page-settings">
       <div class="page-header">
@@ -11990,6 +12026,15 @@ const backendApi = {
     setLicense: (data) => USE_BACKEND ? backendApi._fetch('PUT', '/platform/licenses', data) : null,
     integrations: () => USE_BACKEND ? backendApi._fetch('GET', '/platform/integrations') : null,
     setIntegration: (data) => USE_BACKEND ? backendApi._fetch('PUT', '/platform/integrations', data) : null,
+    // Git/Gist cloud sync (server-authoritative): the token is WRITE-ONLY —
+    // it is sent once to the vault and never read back from any endpoint.
+    syncList: () => USE_BACKEND ? backendApi._fetch('GET', '/platform/sync') : null,
+    syncConfigure: (tenantId, data) => USE_BACKEND ? backendApi._fetch('PUT', '/platform/sync/' + encodeURIComponent(tenantId), data) : null,
+    syncDisconnect: (tenantId) => USE_BACKEND ? backendApi._fetch('DELETE', '/platform/sync/' + encodeURIComponent(tenantId)) : null,
+    syncTest: (tenantId) => USE_BACKEND ? backendApi._fetch('POST', '/platform/sync/' + encodeURIComponent(tenantId) + '/test', {}) : null,
+    syncPull: (tenantId) => USE_BACKEND ? backendApi._fetch('POST', '/platform/sync/' + encodeURIComponent(tenantId) + '/pull', {}) : null,
+    syncPush: (tenantId, data) => USE_BACKEND ? backendApi._fetch('POST', '/platform/sync/' + encodeURIComponent(tenantId) + '/push', data) : null,
+    syncAudit: (tenantId) => USE_BACKEND ? backendApi._fetch('GET', '/platform/sync/' + encodeURIComponent(tenantId) + '/audit') : null,
     audit: (limit) => USE_BACKEND ? backendApi._fetch('GET', '/platform/audit' + (limit ? '?limit=' + encodeURIComponent(limit) : '')) : null,
     admins: () => USE_BACKEND ? backendApi._fetch('GET', '/platform/admins') : null,
     grantAdmin: (username, platformRole, displayName) => USE_BACKEND ? backendApi._fetch('POST', '/platform/admins', { username, platformRole, displayName }) : null,
@@ -15442,6 +15487,335 @@ async function loadPlatformIntegrations() {
   }
 }
 
+// ================= MASTER: GIT/GIST SYNC (MCC) =================
+// Real API-backed surface — every action calls /api/v1/platform/sync*.
+// No mock handlers, no fake success. The credential exists only inside the
+// server vault: this UI ever sees is the masked tail; the token input is
+// never prefilled, never persisted (localStorage/sessionStorage/URL) and is
+// scrubbed from the DOM as soon as a save is attempted.
+const GS_SYNCING = {};   // tenantId -> true while an action is in flight
+const GS_ROWS = {};      // tenantId -> last row from the server (masked only)
+
+function gsEscId(tenantId) {
+  return JSON.stringify(String(tenantId)).replace(/'/g, "\\'");
+}
+
+function gsBadge(row, busy) {
+  if (busy) return '<span class="badge badge-blue">⏳ جارٍ التنفيذ</span>';
+  switch (row.state) {
+    case 'CONNECTED': return '<span class="badge badge-green">✅ متصلة</span>';
+    case 'LOCKED': return '<span class="badge badge-red">🔒 الخزنة مقفلة</span>';
+    case 'ERROR': return '<span class="badge badge-red">⚠️ خطأ</span>';
+    case 'CONFLICT': return '<span class="badge badge-yellow">🟡 تعارض</span>';
+    case 'NOT_CONFIGURED': return '<span class="badge badge-yellow">☁️ غير مُعدّة</span>';
+    default: return '<span class="badge">' + escapeHtml(String(row.state || '—')) + '</span>';
+  }
+}
+
+// Safe, human-readable error text — raw provider messages never reach here.
+function gsErrorMessage(code) {
+  const map = {
+    CREDENTIAL_INVALID: 'الاعتمادية مرفوضة من GitHub — حدّث الرمز من الإعداد',
+    GIST_NOT_FOUND: 'ملف السحابة غير موجود — تحقق من معرّف Gist',
+    UPSTREAM_UNAVAILABLE: 'خدمة GitHub غير متاحة مؤقتًا — أعد المحاولة لاحقًا',
+    UPSTREAM_TIMEOUT: 'انتهت مهلة الاتصال بـ GitHub — أعد المحاولة',
+    TOO_LARGE: 'حجم البيانات يتجاوز الحد المسموح (5MB رفع / 8MB سحب)',
+    INVALID_PAYLOAD: 'محتوى السحابة ليس بيانات صالحة',
+    CROSS_TENANT_PAYLOAD: 'ملف السحابة تابع لشركة أخرى — تم الرفض لحماية البيانات',
+    CONFLICT: 'تعارض: نسخة أحدث على السحابة — اسحب أولًا ثم أعد الرفع',
+    NOT_CONFIGURED: 'المزامنة غير مفعّلة لهذه الشركة',
+    SYNC_VAULT_LOCKED: 'خزنة الاعتماديات مقفلة على الخادم',
+    NO_TENANT: 'لا توجد شركة نشطة'
+  };
+  if (!code) return '—';
+  return map[code] || ('تعذّرت عملية المزامنة (' + escapeHtml(String(code)) + ')');
+}
+
+function gsActionsHtml(row, busy) {
+  const id = gsEscId(row.tenantId);
+  const dis = (cond) => ((busy || cond) ? 'disabled' : '');
+  const btn = (fn, title, icon, disabled) =>
+    `<button class="btn btn-outline btn-sm" ${disabled} onclick='${fn}(${id})' title="${title}" aria-label="${title}">${icon}</button>`;
+  const noCred = !row.configured;
+  return '<div style="display:flex;gap:4px;flex-wrap:wrap">' +
+    btn('gsConfigure', 'إعداد', '⚙️', dis(false)) +
+    btn('gsTest', 'فحص الاتصال بالسحابة', '🩺', dis(noCred || row.vaultLocked)) +
+    btn('gsPull', 'سحب آخر نسخة من السحابة', '⬇️', dis(noCred || row.vaultLocked || !row.gistId)) +
+    btn('gsPush', 'رفع نسخة إلى السحابة', '⬆️', dis(noCred || row.vaultLocked)) +
+    btn('gsAudit', 'سجل عمليات المزامنة', '📜', dis(!row.updatedAt)) +
+    btn('gsDisconnect', 'قطع المزامنة', '🔌', dis(noCred)) +
+    '</div>';
+}
+
+async function renderGitGistSync() {
+  const body = document.getElementById('gsTableBody');
+  try {
+    const res = await backendApi.platform.syncList();
+    if (!res || !res.success || !res.data || !Array.isArray(res.data.configs)) {
+      const msg = (res && res.message) || 'تعذر تحميل حالات المزامنة';
+      if (body) body.innerHTML = '<tr><td colspan="8" style="color:var(--red)">' + escapeHtml(msg) + '</td></tr>';
+      return;
+    }
+    const rows = res.data.configs;
+    const vaultLocked = !!res.data.vaultLocked;
+    const pill = document.getElementById('gsVaultPill');
+    if (pill) pill.innerHTML = vaultLocked ? '🔒 الخزنة مقفلة' : '<span style="color:var(--green)">●</span> الخزنة جاهزة';
+    const banner = document.getElementById('gsVaultBanner');
+    if (banner) {
+      banner.innerHTML = vaultLocked
+        ? '<div class="table-container" style="border-color:var(--red);margin-top:10px;padding:12px;color:var(--red);font-size:0.82rem">🔒 خزنة الاعتماديات مقفلة (مفتاح GIST_SYNC_VAULT_KEY غير مضبوط على الخادم) — توقفت كل عمليات المزامنة حتى الضبط.</div>'
+        : '';
+    }
+    const setStat = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = String(v); };
+    setStat('gsStatTotal', rows.length);
+    setStat('gsStatConnected', rows.filter((r) => r.state === 'CONNECTED').length);
+    setStat('gsStatAttention', rows.filter((r) => r.state === 'ERROR' || r.state === 'CONFLICT' || r.state === 'LOCKED').length);
+    setStat('gsStatUnconfigured', rows.filter((r) => r.state === 'NOT_CONFIGURED').length);
+    const updated = document.getElementById('gsUpdated');
+    if (updated) updated.textContent = 'آخر تحديث: ' + new Date().toLocaleTimeString('ar-EG');
+    if (!rows.length) {
+      if (body) body.innerHTML = '<tr><td colspan="8">' + pmEmptyState('🏢', 'لا توجد شركات مسجّلة', 'أضف شركة أولًا من مركز تحكم المنصة.') + '</td></tr>';
+      return;
+    }
+    body.innerHTML = rows.map((r) => {
+      GS_ROWS[r.tenantId] = r;
+      const busy = !!GS_SYNCING[r.tenantId];
+      return '<tr data-gs-tenant="' + escapeHtml(r.tenantId) + '">' +
+        '<td><strong>' + escapeHtml(r.companyName) + '</strong><div style="font-size:0.7rem;color:var(--text2);direction:ltr">' + escapeHtml(r.tenantId) + '</div></td>' +
+        '<td>' + gsBadge(r, busy) + '</td>' +
+        '<td style="direction:ltr">' + escapeHtml(r.masked || '—') + '</td>' +
+        '<td style="direction:ltr;font-size:0.75rem">' + escapeHtml(r.gistId || '—') + '</td>' +
+        '<td>' + pmRelativeTimeAr(r.lastPullAt) + '</td>' +
+        '<td>' + pmRelativeTimeAr(r.lastPushAt) + '</td>' +
+        '<td style="font-size:0.75rem;color:var(--text2)">' + gsErrorMessage(r.lastErrorCode) + '</td>' +
+        '<td>' + gsActionsHtml(r, busy) + '</td>' +
+      '</tr>';
+    }).join('');
+  } catch (e) {
+    if (body) body.innerHTML = '<tr><td colspan="8" style="color:var(--red)">تعذر التحميل: ' + escapeHtml(e && e.message ? e.message : 'خطأ') + '</td></tr>';
+  }
+}
+
+function gsCodeOf(res) {
+  if (res && res.details && res.details.code) return res.details.code;
+  if (res && res.statusCode === 404) return 'NOT_CONFIGURED';
+  if (res && res.statusCode === 403) return 'CROSS_TENANT_PAYLOAD';
+  return null;
+}
+
+function gsConfigure(tenantId) {
+  const row = GS_ROWS[tenantId] || { tenantId };
+  const gistVal = row.gistId ? escapeHtml(String(row.gistId)) : '';
+  const defaultChecked = row.updatedAt ? !!row.enabled : true;
+  pmOpenModal({
+    title: 'إعداد مزامنة: ' + (row.companyName || tenantId),
+    body:
+      '<div class="form-group" style="margin-bottom:10px">' +
+        '<label style="font-size:0.8rem;color:var(--text2)">رمز GitHub (PAT) — إدخال مرة واحدة</label>' +
+        '<input id="gsTokenInput" type="password" autocomplete="new-password" placeholder="' +
+          (row.hasCredential ? 'اتركه فارغًا للإبقاء على الرمز الحالي' : 'ghp_…') +
+          '" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:8px 12px;color:var(--text);font-family:inherit;direction:ltr">' +
+        '<div style="font-size:0.72rem;color:var(--text2);margin-top:4px">🔒 يُخزَّن مشفّرًا في خادم المنصة — لا يُعرض بعد الحفظ ولا يُخزَّن في المتصفح إطلاقًا.</div>' +
+      '</div>' +
+      '<div class="form-group" style="margin-bottom:10px">' +
+        '<label style="font-size:0.8rem;color:var(--text2)">معرّف Gist (اختياري — فارغ = إنشاء تلقائي عند أول رفع)</label>' +
+        '<input id="gsGistInput" type="text" value="' + gistVal + '" placeholder="a1b2c3d4…" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:8px 12px;color:var(--text);font-family:inherit;direction:ltr">' +
+      '</div>' +
+      '<label style="display:flex;align-items:center;gap:8px;font-size:0.85rem">' +
+        '<input id="gsEnabledInput" type="checkbox" ' + (defaultChecked ? 'checked' : '') + '> تفعيل المزامنة لهذه الشركة' +
+      '</label>',
+    primaryLabel: '💾 حفظ الإعداد',
+    onPrimary: async ({ close, card }) => {
+      const tokenEl = card.querySelector('#gsTokenInput');
+      const token = ((tokenEl && tokenEl.value) || '').trim();
+      const gistEl = card.querySelector('#gsGistInput');
+      const gistId = ((gistEl && gistEl.value) || '').trim();
+      const enabledEl = card.querySelector('#gsEnabledInput');
+      const enabled = !!(enabledEl && enabledEl.checked);
+      if (token && (token.length < 8 || /\s/.test(token))) {
+        showToast('رمز GitHub غير صالح (8 أحرف على الأقل وبلا مسافات)', 'error');
+        return false;
+      }
+      if (gistId && !/^[0-9a-zA-Z]{5,64}$/.test(gistId)) {
+        showToast('معرّف Gist غير صالح', 'error');
+        return false;
+      }
+      const payload = { provider: 'github-gist', enabled, gistId };
+      if (token) payload.token = token; // write-only: sent once, never echoed
+      const res = await backendApi.platform.syncConfigure(tenantId, payload);
+      // Scrub the secret from the DOM regardless of outcome.
+      if (tokenEl) tokenEl.value = '';
+      if (!res || !res.success) {
+        showToast(gsErrorMessage(gsCodeOf(res)) !== '—' && gsCodeOf(res) ? gsErrorMessage(gsCodeOf(res)) : ((res && res.message) || 'تعذر حفظ الإعداد'), 'error');
+        return false;
+      }
+      showToast('✅ حُفظ إعداد المزامنة');
+      renderGitGistSync();
+      return true;
+    }
+  });
+}
+
+async function gsTest(tenantId) {
+  if (GS_SYNCING[tenantId]) return;
+  GS_SYNCING[tenantId] = true;
+  renderGitGistSync();
+  try {
+    const res = await backendApi.platform.syncTest(tenantId);
+    if (res && res.success && res.data && res.data.test) {
+      const t = res.data.test;
+      showToast('✅ الاتصال سليم (' + t.latencyMs + 'ms) — ' + (t.gistBound ? 'Gist مرتبط' : 'لم يُربط Gist بعد'));
+    } else {
+      showToast(gsCodeOf(res) ? gsErrorMessage(gsCodeOf(res)) : ((res && res.message) || 'تعذر فحص الاتصال'), 'error');
+    }
+  } catch (e) {
+    showToast('تعذر فحص الاتصال', 'error');
+  } finally {
+    GS_SYNCING[tenantId] = false;
+    renderGitGistSync();
+  }
+}
+
+async function gsPull(tenantId) {
+  if (GS_SYNCING[tenantId]) return;
+  GS_SYNCING[tenantId] = true;
+  renderGitGistSync();
+  try {
+    const res = await backendApi.platform.syncPull(tenantId);
+    if (res && res.success && res.data && res.data.pull) {
+      showToast('✅ تم السحب — مراجعة ' + String(res.data.pull.revision).slice(0, 8));
+    } else {
+      showToast(gsCodeOf(res) ? gsErrorMessage(gsCodeOf(res)) : ((res && res.message) || 'تعذر السحب'), 'error');
+    }
+  } catch (e) {
+    showToast('تعذر السحب من السحابة', 'error');
+  } finally {
+    GS_SYNCING[tenantId] = false;
+    renderGitGistSync();
+  }
+}
+
+async function gsDisconnect(tenantId) {
+  const row = GS_ROWS[tenantId] || {};
+  pmOpenModal({
+    title: 'قطع المزامنة: ' + (row.companyName || tenantId),
+    body: '<p style="margin:0 0 8px 0">سيتوقف رفع/سحب هذه الشركة من السحابة. بيانات الشركة محلياً ونسخة Gist الحالية <strong>لن تُحذف</strong> — يمكنك إعادة الربط لاحقًا من الإعداد.</p>',
+    primaryLabel: '🔌 قطع المزامنة',
+    danger: true,
+    onPrimary: async () => {
+      const res = await backendApi.platform.syncDisconnect(tenantId);
+      if (!res || !res.success) { showToast((res && res.message) || 'تعذر قطع المزامنة', 'error'); return false; }
+      showToast('تم قطع المزامنة');
+      renderGitGistSync();
+      return true;
+    }
+  });
+}
+
+async function gsAudit(tenantId) {
+  const row = GS_ROWS[tenantId] || {};
+  pmOpenModal({
+    title: 'سجل المزامنة: ' + (row.companyName || tenantId),
+    body: '<div id="gsAuditBody" style="font-size:0.8rem">⏳ جاري التحميل…</div>',
+    onPrimary: async () => true
+  });
+  try {
+    const res = await backendApi.platform.syncAudit(tenantId);
+    const host = document.getElementById('gsAuditBody');
+    if (!host) return;
+    if (!res || !res.success || !res.data || !res.data.audit) {
+      host.innerHTML = '<span style="color:var(--red)">' + escapeHtml((res && res.message) || 'تعذر تحميل السجل') + '</span>';
+      return;
+    }
+    const entries = res.data.audit.entries || [];
+    if (!entries.length) { host.innerHTML = pmEmptyState('📜', 'لا توجد عمليات مزامنة مسجّلة بعد', ''); return; }
+    host.innerHTML = entries.map((e) => {
+      const ch = e.changes || {};
+      const outcome = ch.outcome === 'success' ? '<span class="badge badge-green">نجاح</span>' : '<span class="badge badge-red">خطأ</span>';
+      const bits = [];
+      if (ch.bytes != null) bits.push(ch.bytes + ' بايت');
+      if (ch.binding) bits.push('ربط: ' + escapeHtml(ch.binding));
+      if (ch.latencyMs != null) bits.push(ch.latencyMs + 'ms');
+      if (ch.gistBound != null) bits.push(ch.gistBound ? 'gist مرتبط' : 'بلا gist');
+      if (ch.errorCode) bits.push('<span style="color:var(--red)">' + escapeHtml(String(ch.errorCode)) + '</span>');
+      return '<div style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">' +
+        '<span><strong>' + escapeHtml(e.action || '—') + '</strong><div style="color:var(--text2)">' + (bits.join(' · ') || '—') + '</div></span>' +
+        '<span style="text-align:left;white-space:nowrap">' + outcome + '<div style="color:var(--text2);font-size:0.7rem">' + (e.timestamp ? new Date(e.timestamp).toLocaleString('ar-EG') : '—') + '</div></span>' +
+      '</div>';
+    }).join('');
+  } catch (e) {
+    const host = document.getElementById('gsAuditBody');
+    if (host) host.innerHTML = '<span style="color:var(--red)">تعذر تحميل السجل</span>';
+  }
+}
+
+function gsPush(tenantId) {
+  const row = GS_ROWS[tenantId] || {};
+  pmOpenModal({
+    title: 'رفع نسخة إلى السحابة: ' + (row.companyName || tenantId),
+    body:
+      '<p style="margin:0 0 10px 0;font-size:0.82rem;color:var(--text2)">يتم السحب أولًا للحصول على أساس المطابقة، ثم رفع الملف. عند وجود تعارض ستظهر رسالة ولا يُكتب شيء على السحابة.</p>' +
+      '<div class="form-group">' +
+        '<label style="font-size:0.8rem;color:var(--text2)">ملف JSON (حد أقصى 5MB)</label>' +
+        '<input id="gsPushFile" type="file" accept=".json,application/json" style="width:100%;font-size:0.82rem;color:var(--text)">' +
+      '</div>' +
+      '<div class="form-group" style="margin-top:8px">' +
+        '<label style="font-size:0.8rem;color:var(--text2)">اكتب <strong>رفع</strong> للتأكيد</label>' +
+        '<input id="gsPushConfirm" type="text" placeholder="رفع" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:8px 12px;color:var(--text);font-family:inherit">' +
+      '</div>',
+    primaryLabel: '⬆️ رفع للسحابة',
+    danger: true,
+    onPrimary: async ({ close, card }) => {
+      const confirmEl = card.querySelector('#gsPushConfirm');
+      if (!confirmEl || (confirmEl.value || '').trim() !== 'رفع') {
+        showToast('اكتب «رفع» للتأكيد', 'error');
+        return false;
+      }
+      const fileEl = card.querySelector('#gsPushFile');
+      const file = fileEl && fileEl.files && fileEl.files[0];
+      if (!file) { showToast('اختر ملف JSON أولًا', 'error'); return false; }
+      if (file.size > 5 * 1024 * 1024) { showToast('الملف يتجاوز 5MB', 'error'); return false; }
+      let content;
+      try {
+        const text = await file.text();
+        const parsed = JSON.parse(text);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('not-object');
+        content = text;
+      } catch (e) {
+        showToast('الملف ليس JSON صالحًا', 'error');
+        return false;
+      }
+      close();
+      GS_SYNCING[tenantId] = true;
+      renderGitGistSync();
+      try {
+        let baseRevision = null;
+        if (row.gistId) {
+          const pull = await backendApi.platform.syncPull(tenantId);
+          if (pull && pull.success && pull.data && pull.data.pull) {
+            baseRevision = pull.data.pull.revision;
+          } else {
+            showToast(gsCodeOf(pull) ? gsErrorMessage(gsCodeOf(pull)) : 'تعذر السحب الأساسي قبل الرفع', 'error');
+            return;
+          }
+        }
+        const res = await backendApi.platform.syncPush(tenantId, { content, baseRevision });
+        if (res && res.success && res.data && res.data.push) {
+          showToast('✅ تم الرفع — مراجعة ' + String(res.data.push.revision).slice(0, 8));
+        } else {
+          showToast(gsCodeOf(res) ? gsErrorMessage(gsCodeOf(res)) : ((res && res.message) || 'تعذر الرفع'), 'error');
+        }
+      } catch (e) {
+        showToast('تعذر الرفع إلى السحابة', 'error');
+      } finally {
+        GS_SYNCING[tenantId] = false;
+        renderGitGistSync();
+      }
+      return true;
+    }
+  });
+}
+
 async function loadPlatformAudit() {
   platformBody('<div style="color:var(--text2);font-size:0.85rem">⏳ جاري تحميل سجل المنصة…</div>');
   try {
@@ -16626,6 +17000,7 @@ function canEffective(permission) {
 function canAccessPage(page) {
   if (!currentUser) return false;
   if (page === 'platform-master') return !!platformRole && USE_BACKEND;
+  if (page === 'git-gist-sync') return !!platformRole && USE_BACKEND;
   if (window.OmniModuleLoader && !window.OmniModuleLoader.isRouteEnabled(page)) return false;
   if (page === 'business-marketplace' || page === 'business-plugin-settings') {
     return can('manageSettings') && (!window.OmniModuleLoader || window.OmniModuleLoader.isRouteEnabled('business-marketplace'));
@@ -20411,6 +20786,7 @@ function showPage(page, options = {}) {
   if (page === 'users') renderUsers();
   if (page === 'settings') renderSettingsPage();
   if (page === 'platform-master') renderPlatformMaster();
+  if (page === 'git-gist-sync') renderGitGistSync();
   if (page === 'backup') renderBackupPage();
   if (page === 'sync') renderSyncPage();
   if (page === 'cathnumber') initCathNumberPage();
@@ -43703,6 +44079,19 @@ async function serverSyncStatus() {
   return null;
 }
 
+// Advisory legacy-PAT presence report (GATE 4 migration model). Sends ONLY
+// a strict boolean — "does this device still hold the old localStorage PAT".
+// The token VALUE is never read into the payload, no other body field is
+// sent, and identity stays the JWT's (server ignores any tenant hints).
+async function serverSyncLegacyReport() {
+  if (!USE_BACKEND) return;
+  try {
+    let holds = false;
+    try { holds = !!ghToken(); } catch (e) { holds = false; }
+    await backendApi._fetch('POST', '/sync/legacy-report', { holdsLegacyToken: holds });
+  } catch (e) { /* advisory only — never blocks the sync page */ }
+}
+
 async function serverSyncPull() {
   const r = await backendApi._fetch('POST', '/sync/pull');
   if (r && r.success && r.data && r.data.pull && typeof r.data.pull.content === 'string') {
@@ -43762,27 +44151,41 @@ async function renderSyncPage() {
   renderLegacy();
 
   if (!USE_BACKEND) return;
+  serverSyncLegacyReport(); // fire-and-forget advisory presence report
   try {
     const status = await serverSyncStatus();
+    const migMap = {
+      LEGACY_NOT_SEEN: '',
+      LEGACY_PRESENT_NOT_MIGRATED: 'هذا الجهاز يحمل رمز PAT قديماً',
+      SERVER_SYNC_AVAILABLE: 'المزامنة الخادم متاحة',
+      MIGRATION_VERIFIED: 'اكتمل الترحيل إلى المزامنة الخادمة',
+      LEGACY_REVOCATION_PENDING: 'الرمز القديم ما زال على بعض الأجهزة',
+      LEGACY_REVOKED: 'تم إلغاء الرمز القديم بالكامل'
+    };
+    const mig = (status && status.migrationState && migMap[status.migrationState]) ? ' • ' + migMap[status.migrationState] : '';
     if (status && status.configured && status.enabled) {
-      syncServerRevision = status.revision || null;
+      // NOTE: syncServerRevision is deliberately NOT seeded from status —
+      // a revision this device never observed (via pull/push) must not be
+      // echoed as a push base; the server requires proof-of-read anyway.
       if(icon)  icon.textContent  = '✅';
       if(title) title.textContent = 'المزامنة السحابية مفعّلة 🟢';
+      const lastSync = status.lastPushAt || status.lastPullAt || null;
       if(sub)   sub.textContent   = 'مزامنة مركزية بين كل أجهزة شركتك — آخر مزامنة: '
-        + (status.lastSyncAt ? new Date(status.lastSyncAt).toLocaleTimeString('ar-EG') : 'لم تتم بعد')
-        + (pending > 0 ? ` • تغييرات معلقة: ${pending}` : '');
+        + (lastSync ? new Date(lastSync).toLocaleTimeString('ar-EG') : 'لم تتم بعد')
+        + (pending > 0 ? ` • تغييرات معلقة: ${pending}` : '')
+        + mig;
       if(dot)   dot.style.display = 'block';
       if(autoLabel) autoLabel.textContent = 'كل 3 ثواني عند تغيير البيانات';
     } else if (status && status.configured && !status.enabled) {
       if(icon)  icon.textContent  = '⏸️';
       if(title) title.textContent = 'المزامنة موقوفة مؤقتاً';
-      if(sub)   sub.textContent   = 'المزامنة معطّلة من إدارة المنصة — البيانات محفوظة محلياً' + backendInfo;
+      if(sub)   sub.textContent   = 'المزامنة معطّلة من إدارة المنصة — البيانات محفوظة محلياً' + backendInfo + mig;
       if(dot)   dot.style.display = 'none';
       if(autoLabel) autoLabel.textContent = 'معطّلة من إدارة المنصة';
     } else if (status && status.vaultLocked) {
       if(icon)  icon.textContent  = '🔒';
       if(title) title.textContent = 'المزامنة غير جاهزة';
-      if(sub)   sub.textContent   = 'تعذر تجهيز المزامنة مؤقتاً — حاول لاحقاً' + backendInfo;
+      if(sub)   sub.textContent   = 'تعذر تجهيز المزامنة مؤقتاً — حاول لاحقاً' + backendInfo + mig;
     }
   } catch (e) { /* keep legacy render */ }
 }
@@ -43822,7 +44225,7 @@ async function syncPagePush() {
     const res = await serverSyncPush();
     if (res.ok) { showToast('✅ تم الرفع للسحابة'); renderSyncPage(); return; }
     if (res.conflict) {
-      showToast('تعارض: توجد نسخة أحدث على السحابة — استخدم الاستعادة أولاً', 'error');
+      showToast('تعارض أو نسخة لم تُسحب بعد — استخدم الاستعادة من السحابة أولاً', 'error');
       return;
     }
     if (res.code === 403) {
