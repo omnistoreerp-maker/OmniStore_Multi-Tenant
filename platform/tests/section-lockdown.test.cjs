@@ -842,7 +842,9 @@ check('working-tree diff touches only intended platform files', () => {
       'DigiTronics_v5.html',
       'docs/GIST_SYNC_MIGRATION_PLAN.md',
       'backend/tests/gistSync.test.js',
-      'platform/tests/tenant-git-prompt-removal.test.cjs'
+      'platform/tests/tenant-git-prompt-removal.test.cjs',
+      // GATE 8: e2e harness repair (runtime-config override + CORS allowlist)
+      'tests/e2e/backend-sync.spec.js'
     ]);
   const allowedUntracked = new Set([
   'backend/tests/controlCenterSecurityFixes.test.js',
@@ -972,6 +974,8 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/controllers/gistSync.controller.js',
     'backend/routes/gistSync.routes.js',
     'platform/tests/tenant-git-prompt-removal.test.cjs',
+    'platform/tests/master-gist-sync-ui.test.cjs',
+    'backend/tests/gistSync.realprovider.test.js',
     'docs/GIST_SYNC_MIGRATION_PLAN.md'
   ]);
   const git = (args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' }).stdout.split('\n').map((s) => s.trim()).filter(Boolean);
