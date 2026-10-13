@@ -1570,66 +1570,13 @@ window.DIGITRONICS_SUPABASE = window.DIGITRONICS_SUPABASE || {
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  const googleBtn = document.getElementById('googleSignInBtn');
+  var googleBtn = document.getElementById('googleSignInBtn');
   if (googleBtn) {
     googleBtn.addEventListener('click', function() {
-      // Stage 1/4
-      document.getElementById('loginError').style.display = 'none';
-      const stages = ['1/4 Google button clicked', '2/4 Checking Supabase...', '3/4 Requesting OAuth URL...', '4/4 Redirecting to Google...'];
-      let stageIdx = 0;
-      function showStage() {
-        if (stageIdx < stages.length) {
-          document.getElementById('loginError').style.display = 'block';
-          document.getElementById('loginError').textContent = stages[stageIdx];
-          stageIdx++;
-          setTimeout(showStage, 300);
-        }
-      }
-      showStage();
-      
-      this.disabled = true;
-      
-      // Stage 2/4
-      const supa = getSupabaseClient();
-      if (!supa) {
-        document.getElementById('loginError').style.display = 'block';
-        document.getElementById('loginError').textContent = '❌ Supabase not configured';
-        this.disabled = false;
-        // Reset to initial text after error
-        setTimeout(() => { this.textContent = '🔵 Continue with Google'; }, 1500);
-        return;
-      }
-      document.getElementById('loginError').textContent = '✅ Supabase client ready';
-      
-      // Stage 3/4
-      supa.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`
-        }
-      }).then(({ data, error }) => {
-        if (error) {
-          document.getElementById('loginError').textContent = '❌ Google OAuth error: ' + error.message;
-          this.disabled = false;
-          setTimeout(() => { this.textContent = '🔵 Continue with Google'; this.style.display = 'block'; }, 2000);
-          return;
-        }
-        if (!data || !data.url) {
-          document.getElementById('loginError').textContent = '❌ Supabase did not return OAuth URL';
-          this.disabled = false;
-          setTimeout(() => { this.textContent = '🔵 Continue with Google'; this.style.display = 'block'; }, 2000);
-          return;
-        }
-        // Stage 4/4
-        document.getElementById('loginError').textContent = '✅ Redirecting to Google...';
-        setTimeout(() => {
-          window.location.assign(data.url);
-        }, 1000);
-      }).catch((err) => {
-        document.getElementById('loginError').textContent = '❌ Google OAuth exception: ' + err.message;
-        this.disabled = false;
-        setTimeout(() => { this.textContent = '🔵 Continue with Google'; this.style.display = 'block'; }, 2000);
-      });
+      // Platform Master Google sign-in — server-side OIDC round-trip.
+      // The backend owns state/nonce/PKCE and ID-token verification; this
+      // button only starts the flow and returns to the current page.
+      window.location.assign('/auth/google/master?returnTo=' + encodeURIComponent(window.location.pathname || '/'));
     });
   }
 });
@@ -16850,6 +16797,59 @@ function restoreSessionOnLoad() {
   startUserRegistrationTimer();
   updateGhStatusCard();
   return true;
+}
+
+// Platform Master Google sign-in — session bootstrap after the backend
+// redirect (?gsignin=1). The callback only set httpOnly cookies; this SPA
+// still speaks localStorage, so hydrate both keys from the existing
+// refresh + /auth/me endpoints and only then run the normal restore.
+function bootstrapGoogleSigninSession() {
+  return fetch('/api/v1/auth/refresh', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: '{}'
+  }).then(function(r) { return r.json().catch(function() { return null; }); }).then(function(d) {
+    var token = d && d.success && d.data && d.data.accessToken;
+    if (!token) throw new Error('refresh failed');
+    try { localStorage.setItem('access_token', token); } catch (e) {}
+    return fetch('/api/v1/auth/me', {
+      headers: { 'Authorization': 'Bearer ' + token },
+      credentials: 'same-origin'
+    });
+  }).then(function(r) { return r.json().catch(function() { return null; }); }).then(function(me) {
+    var username = me && me.success && me.data && me.data.user && me.data.user.username;
+    if (!username) throw new Error('me failed');
+    try { localStorage.setItem(SESSION_USER_KEY, username); } catch (e) {}
+  });
+}
+
+// Surface a Google round-trip outcome on the login screen. The codes are
+// set by the server; internal error details never reach the client.
+function handleGoogleSigninResult() {
+  var params;
+  try { params = new URLSearchParams(window.location.search); } catch (e) { return; }
+  var gerr = params.get('gerr');
+  if (!gerr) return;
+  var messages = {
+    state_invalid: '⌛ انتهت جلسة الدخول — أعد المحاولة',
+    nonce_invalid: '⌛ جلسة دخول غير صالحة — أعد المحاولة',
+    idtoken_invalid: '❌ تعذّر التحقق من هوية Google',
+    not_linked: 'ℹ️ حساب Google غير مرتبط بأي مستخدم — سجّل الدخول بكلمة المرور ثم اربط Google',
+    account_disabled: '🔒 هذا الحساب معطّل',
+    provider_error: '❌ تعذّر الاتصال بـ Google — سجّل الدخول بكلمة المرور',
+    not_configured: '⚙️ الدخول عبر Google غير مفعّل',
+    email_mismatch: '❌ بريد Google لا يطابق سياسة الربط المعتمدة',
+    session_mismatch: '⌛ انتهت جلسة الربط — أعد المحاولة',
+    sub_taken: '❌ حساب Google هذا مرتبط بمستخدم آخر',
+    link_policy_unconfigured: '⚙️ سياسة ربط Google غير مكوّنة على الخادم',
+    link_failed: '❌ تعذّر إتمام الربط',
+    session_invalid: '⌛ الجلسة غير صالحة — أعد المحاولة'
+  };
+  var el = document.getElementById('loginError');
+  if (!el) return;
+  el.textContent = messages[gerr] || '❌ تعذّر تسجيل الدخول عبر Google';
+  el.style.display = 'block';
 }
 
 function handleGoogleOAuthCallback() {
@@ -44496,9 +44496,32 @@ loadDB();
   } catch (e) { console.warn('restoreFromIDBIfNeeded failed', e); }
 })();
 applyBusinessBranding();
-const sessionRestored = restoreSessionOnLoad();
-if (sessionRestored) showPage(getDefaultPageForCurrentRole());
-handleGoogleOAuthCallback();
+// Google sign-in outcomes: show any server-reported error first, then
+// either hydrate the session from the httpOnly cookies (?gsignin=1) or
+// follow the exact same restore path as a password login.
+handleGoogleSigninResult();
+const __gSigninBooted = new URLSearchParams(window.location.search).get('gsignin') === '1';
+const __bootSession = function () {
+  const sessionRestored = restoreSessionOnLoad();
+  if (sessionRestored) showPage(getDefaultPageForCurrentRole());
+  handleGoogleOAuthCallback();
+  if (__gSigninBooted) {
+    try {
+      const u = new URL(window.location.href);
+      u.searchParams.delete('gsignin');
+      window.history.replaceState({}, document.title, u.pathname + u.search + u.hash);
+    } catch (e) {}
+  }
+};
+if (__gSigninBooted) {
+  bootstrapGoogleSigninSession().then(__bootSession).catch(function () {
+    const el = document.getElementById('loginError');
+    if (el) { el.textContent = '❌ تعذّر استكمال تسجيل الدخول عبر Google'; el.style.display = 'block'; }
+    __bootSession();
+  });
+} else {
+  __bootSession();
+}
 registerDigiTronicsPWA();
 // Phase 22A: restore last-known backend connectivity, render real status, and probe when enabled.
 restoreBackendStatus();

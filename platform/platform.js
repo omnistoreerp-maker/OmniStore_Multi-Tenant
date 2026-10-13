@@ -626,6 +626,7 @@
   }
 
   async function init() {
+    try { handlePlatformGoogleSigninResult(); } catch (_) {}
     try {
       const lang = getLang();
       applyLang(lang);
@@ -723,6 +724,98 @@
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(REFRESH_KEY);
     } catch (_) {}
+  }
+
+  // ------------------------------------------------------------------
+  // Platform Master Google sign-in entry (server-side OIDC at
+  // /auth/google/master). The browser only starts the round-trip: state,
+  // nonce, PKCE and ID-token verification all live server-side, and the
+  // server decides who is authenticated. This code never sees a Google
+  // credential.
+  // ------------------------------------------------------------------
+  function startGoogleSignIn() {
+    var page = 'platform.html';
+    try {
+      var seg = (window.location.pathname || '').split('/').pop();
+      if (seg) page = seg;
+    } catch (_) {}
+    window.location.assign('/auth/google/master?returnTo=' + encodeURIComponent(page));
+  }
+
+  // Runs at init(): consumes the outcome of a Google round-trip.
+  //  - ?gerr=<code>  → open the drawer and surface the server's safe message
+  //  - ?gsignin=1    → hydrate the session from the httpOnly cookies via the
+  //                    existing refresh endpoint, resolve the post-login
+  //                    target from the server-authoritative /platform/me
+  //                    probe, then hand off to the app entry exactly like a
+  //                    password drawer login does.
+  function handlePlatformGoogleSigninResult() {
+    var query = '';
+    try { query = (window.location && window.location.search) || ''; } catch (_) { query = ''; }
+    if (!query) return;
+    if (query.indexOf('gerr=') !== -1) {
+      var raw = '';
+      var m = query.match(/[?&]gerr=([^&#]*)/);
+      if (m) { try { raw = decodeURIComponent(m[1]); } catch (_) { raw = m[1]; } }
+      var messages = {
+        state_invalid: 'انتهت جلسة الدخول — أعد المحاولة',
+        nonce_invalid: 'جلسة دخول غير صالحة — أعد المحاولة',
+        idtoken_invalid: 'تعذّر التحقق من هوية Google',
+        not_linked: 'حساب Google غير مرتبط — سجّل الدخول بكلمة المرور ثم اربط Google',
+        account_disabled: 'هذا الحساب معطّل',
+        provider_error: 'تعذّر الاتصال بـ Google — سجّل الدخول بكلمة المرور',
+        not_configured: 'الدخول عبر Google غير مفعّل',
+        email_mismatch: 'بريد Google لا يطابق سياسة الربط المعتمدة',
+        session_mismatch: 'انتهت جلسة الربط — أعد المحاولة',
+        sub_taken: 'حساب Google هذا مرتبط بمستخدم آخر',
+        link_policy_unconfigured: 'سياسة ربط Google غير مكوّنة على الخادم',
+        link_failed: 'تعذّر إتمام الربط',
+        session_invalid: 'الجلسة غير صالحة — أعد المحاولة'
+      };
+      openAuthDrawer();
+      authError(messages[raw] || 'تعذّر تسجيل الدخول عبر Google');
+      return;
+    }
+    if (query.indexOf('gsignin=1') === -1) return;
+    fetch('/api/v1/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: '{}'
+    })
+      .then(function (r) { return r.json().catch(function () { return null; }); })
+      .then(function (d) {
+        var token = d && d.success && d.data && d.data.accessToken;
+        if (!token) throw new Error('refresh failed');
+        storeAuthTokens(token, null);
+        return fetch(PLATFORM_API + '/me', {
+          headers: { Authorization: 'Bearer ' + token },
+          credentials: 'same-origin'
+        });
+      })
+      .then(function (r) { return r.json().catch(function () { return null; }); })
+      .then(function (me) {
+        var ok = me && me.success && me.data;
+        var platformRole = ok ? me.data.platformRole : null;
+        if (ok && me.data.username) {
+          try { localStorage.setItem(SESSION_USER_KEY, me.data.username); } catch (_) {}
+        }
+        var target = resolvePostLoginTarget(platformRole);
+        if (target.postLoginPage) {
+          try { sessionStorage.setItem(POST_LOGIN_KEY, target.postLoginPage); } catch (_) {}
+        }
+        try {
+          var u = new URL(window.location.href);
+          u.searchParams.delete('gsignin');
+          window.history.replaceState({}, document.title, u.pathname + u.search + u.hash);
+        } catch (_) {}
+        refreshAuthDrawer();
+        window.location.href = target.href;
+      })
+      .catch(function () {
+        openAuthDrawer();
+        authError('تعذّر استكمال تسجيل الدخول عبر Google');
+      });
   }
 
   function resolvePostLoginTarget(platformRole) {
@@ -885,6 +978,8 @@
     });
     const logoutBtn = document.getElementById('platformAuthLogout');
     if (logoutBtn) logoutBtn.addEventListener('click', logoutPlatform);
+    const googleBtn = document.getElementById('platformAuthGoogle');
+    if (googleBtn) googleBtn.addEventListener('click', startGoogleSignIn);
     refreshAuthDrawer();
   }
 
