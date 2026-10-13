@@ -211,7 +211,15 @@
         </div>
       </div>
       <p id="platformAuthError" class="auth-error" role="alert" hidden></p>
+      <div id="platformAuthMfa" hidden>
+        <div class="auth-field">
+          <label for="platformAuthMfaToken">رمز التحقق الثنائي</label>
+          <input type="text" id="platformAuthMfaToken" inputmode="numeric" autocomplete="one-time-code" maxlength="8">
+        </div>
+        <button type="button" id="platformAuthMfaSubmit" class="btn-primary" style="width:100%;margin-top:8px">تأكيد واستكمال الدخول</button>
+      </div>
       <button type="submit" id="platformAuthSubmit" class="btn-primary" data-i18n="auth_submit">دخول</button>
+      <button type="button" id="platformAuthGoogle" class="btn-secondary" style="width:100%;margin-top:8px">🔵 الدخول عبر Google</button>
     </form>
     <button type="button" id="platformAuthLogout" class="btn-secondary" data-i18n="auth_logout" hidden>تسجيل الخروج</button>
   </aside>

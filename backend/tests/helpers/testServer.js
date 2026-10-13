@@ -8,7 +8,14 @@ const { makeTempDataDir } = require('./testData');
 const TEST_JWT_SECRET = 'test-jwt-secret-for-jest-suites';
 
 // Keys that must be explicitly set or cleared per instance.
-const INSTANCE_ENV_KEYS = ['AUTH_REQUIRED', 'RATE_LIMIT_MAX', 'CORS_ORIGINS'];
+const INSTANCE_ENV_KEYS = [
+  'AUTH_REQUIRED', 'RATE_LIMIT_MAX', 'CORS_ORIGINS',
+  // OAuth / Master Google sign-in instance configuration: cleared unless a
+  // suite passes them explicitly, so an OAuth-enabled suite can never leak
+  // its environment into the next one sharing this worker.
+  'OAUTH_ENABLED', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET',
+  'GOOGLE_CALLBACK_URL', 'GOOGLE_MASTER_CALLBACK_URL', 'OAUTH_MASTER_EMAIL'
+];
 
 function startServer(dataDir, extraEnv) {
   const dir = dataDir || makeTempDataDir('app');

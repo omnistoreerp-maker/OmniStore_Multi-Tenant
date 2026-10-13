@@ -626,6 +626,7 @@
   }
 
   async function init() {
+    try { handlePlatformGoogleSigninResult(); } catch (_) {}
     try {
       const lang = getLang();
       applyLang(lang);
@@ -723,6 +724,149 @@
       localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(REFRESH_KEY);
     } catch (_) {}
+  }
+
+  // ------------------------------------------------------------------
+  // Platform Master Google sign-in entry (server-side OIDC at
+  // /auth/google/master). The browser only starts the round-trip: state,
+  // nonce, PKCE and ID-token verification all live server-side, and the
+  // server decides who is authenticated. This code never sees a Google
+  // credential.
+  // ------------------------------------------------------------------
+  function startGoogleSignIn() {
+    var page = 'platform.html';
+    try {
+      var seg = (window.location.pathname || '').split('/').pop();
+      if (seg) page = seg;
+    } catch (_) {}
+    window.location.assign('/auth/google/master?returnTo=' + encodeURIComponent(page));
+  }
+
+  // Runs at init(): consumes the outcome of a Google round-trip.
+  //  - ?gerr=<code>  → open the drawer and surface the server's safe message
+  //  - ?gsignin=1    → hydrate the session from the httpOnly cookies via the
+  //                    existing refresh endpoint, resolve the post-login
+  //                    target from the server-authoritative /platform/me
+  //                    probe, then hand off to the app entry exactly like a
+  //                    password drawer login does.
+  function handlePlatformGoogleSigninResult() {
+    var query = '';
+    try { query = (window.location && window.location.search) || ''; } catch (_) { query = ''; }
+    if (!query) return;
+    if (query.indexOf('gerr=') !== -1) {
+      var raw = '';
+      var m = query.match(/[?&]gerr=([^&#]*)/);
+      if (m) { try { raw = decodeURIComponent(m[1]); } catch (_) { raw = m[1]; } }
+      var messages = {
+        state_invalid: 'انتهت جلسة الدخول — أعد المحاولة',
+        nonce_invalid: 'جلسة دخول غير صالحة — أعد المحاولة',
+        idtoken_invalid: 'تعذّر التحقق من هوية Google',
+        not_linked: 'حساب Google غير مرتبط — سجّل الدخول بكلمة المرور ثم اربط Google',
+        account_disabled: 'هذا الحساب معطّل',
+        provider_error: 'تعذّر الاتصال بـ Google — سجّل الدخول بكلمة المرور',
+        not_configured: 'الدخول عبر Google غير مفعّل',
+        email_mismatch: 'بريد Google لا يطابق سياسة الربط المعتمدة',
+        session_mismatch: 'انتهت جلسة الربط — أعد المحاولة',
+        sub_taken: 'حساب Google هذا مرتبط بمستخدم آخر',
+        link_policy_unconfigured: 'سياسة ربط Google غير مكوّنة على الخادم',
+        link_failed: 'تعذّر إتمام الربط',
+        session_invalid: 'الجلسة غير صالحة — أعد المحاولة'
+      };
+      openAuthDrawer();
+      authError(messages[raw] || 'تعذّر تسجيل الدخول عبر Google');
+      return;
+    }
+    if (query.indexOf('gmfa=1') !== -1) {
+      // The server stopped the Google login at the MFA challenge: no session
+      // exists yet. Show the drawer's TOTP field; only a successful POST to
+      // /auth/google/master/mfa mints the session.
+      openAuthDrawer();
+      var mfaBox = document.getElementById('platformAuthMfa');
+      if (mfaBox) mfaBox.hidden = false;
+      authError('أدخل رمز التحقق الثنائي لإكمال الدخول عبر Google');
+      return;
+    }
+    if (query.indexOf('gsignin=1') === -1) return;
+    hydrateGoogleSessionAndEnter();
+  }
+
+  // Shared handoff for a COMPLETED Google round-trip (?gsignin=1, or right
+  // after the MFA challenge succeeds): the server set the httpOnly cookies,
+  // so hydrate the SPA session from them exactly like a password drawer
+  // login, resolve the destination from the server-authoritative /platform/me
+  // probe, and enter the app.
+  function hydrateGoogleSessionAndEnter() {
+    fetch('/api/v1/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: '{}'
+    })
+      .then(function (r) { return r.json().catch(function () { return null; }); })
+      .then(function (d) {
+        var token = d && d.success && d.data && d.data.accessToken;
+        if (!token) throw new Error('refresh failed');
+        storeAuthTokens(token, null);
+        return fetch(PLATFORM_API + '/me', {
+          headers: { Authorization: 'Bearer ' + token },
+          credentials: 'same-origin'
+        });
+      })
+      .then(function (r) { return r.json().catch(function () { return null; }); })
+      .then(function (me) {
+        var ok = me && me.success && me.data;
+        var platformRole = ok ? me.data.platformRole : null;
+        if (ok && me.data.username) {
+          try { localStorage.setItem(SESSION_USER_KEY, me.data.username); } catch (_) {}
+        }
+        var target = resolvePostLoginTarget(platformRole);
+        if (target.postLoginPage) {
+          try { sessionStorage.setItem(POST_LOGIN_KEY, target.postLoginPage); } catch (_) {}
+        }
+        try {
+          var u = new URL(window.location.href);
+          u.searchParams.delete('gsignin');
+          u.searchParams.delete('gmfa');
+          window.history.replaceState({}, document.title, u.pathname + u.search + u.hash);
+        } catch (_) {}
+        refreshAuthDrawer();
+        window.location.href = target.href;
+      })
+      .catch(function () {
+        openAuthDrawer();
+        authError('تعذّر استكمال تسجيل الدخول عبر Google');
+      });
+  }
+
+  // Completes the MFA challenge that stopped a Google login: posts the TOTP
+  // code to the server (the signed challenge travels in its httpOnly cookie),
+  // and on success hands off through the same session hydration as above.
+  function submitGoogleMfaChallenge() {
+    var input = document.getElementById('platformAuthMfaToken');
+    var code = input ? String(input.value || '').trim() : '';
+    if (!code) { authError('أدخل رمز التحقق'); return; }
+    fetch('/auth/google/master/mfa', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ token: code })
+    })
+      .then(function (r) {
+        return r.json().catch(function () { return null; }).then(function (d) { return { ok: r.ok, d: d }; });
+      })
+      .then(function (res) {
+        if (!res.ok || !res.d || !res.d.success) {
+          authError('رمز غير صحيح — حاول مجددًا');
+          return;
+        }
+        var mfaBox = document.getElementById('platformAuthMfa');
+        if (mfaBox) mfaBox.hidden = true;
+        if (input) input.value = '';
+        var errEl = document.getElementById('platformAuthError');
+        if (errEl) { errEl.textContent = ''; errEl.hidden = true; }
+        hydrateGoogleSessionAndEnter();
+      })
+      .catch(function () { authError('تعذّر الاتصال بالخادم'); });
   }
 
   function resolvePostLoginTarget(platformRole) {
@@ -885,6 +1029,14 @@
     });
     const logoutBtn = document.getElementById('platformAuthLogout');
     if (logoutBtn) logoutBtn.addEventListener('click', logoutPlatform);
+    const googleBtn = document.getElementById('platformAuthGoogle');
+    if (googleBtn) googleBtn.addEventListener('click', startGoogleSignIn);
+    const googleMfaBtn = document.getElementById('platformAuthMfaSubmit');
+    if (googleMfaBtn) googleMfaBtn.addEventListener('click', submitGoogleMfaChallenge);
+    const googleMfaInput = document.getElementById('platformAuthMfaToken');
+    if (googleMfaInput) googleMfaInput.addEventListener('keydown', function (e) {
+      if (e && e.key === 'Enter') { e.preventDefault(); submitGoogleMfaChallenge(); }
+    });
     refreshAuthDrawer();
   }
 

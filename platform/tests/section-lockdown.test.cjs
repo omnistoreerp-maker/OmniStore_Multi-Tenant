@@ -844,7 +844,22 @@ check('working-tree diff touches only intended platform files', () => {
       'backend/tests/gistSync.test.js',
       'platform/tests/tenant-git-prompt-removal.test.cjs',
       // GATE 8: e2e harness repair (runtime-config override + CORS allowlist)
-      'tests/e2e/backend-sync.spec.js'
+      'tests/e2e/backend-sync.spec.js',
+      // Platform Master Google sign-in cycle (feature/master-google-signin):
+      // server-side OIDC for the Master session (signed state + PKCE + verified
+      // ID tokens, sub-based explicit linking), the shared OAuth config/master
+      // policy block, the /auth mount, the instance-env keys of the test
+      // server, the dependency that verifies Google ID tokens, the focused
+      // security suite, and the two shells that start the round-trip.
+      'backend/utils/oauthState.js',
+      'backend/services/googleOidc.service.js',
+      'backend/controllers/oauthMaster.controller.js',
+      'backend/routes/oauthMaster.routes.js',
+      'backend/tests/googleMasterSignin.test.js',
+      'backend/config/oauth.js',
+      'backend/tests/helpers/testServer.js',
+      'backend/package.json',
+      'backend/package-lock.json'
     ]);
   const allowedUntracked = new Set([
   'backend/tests/controlCenterSecurityFixes.test.js',
@@ -976,7 +991,15 @@ check('working-tree diff touches only intended platform files', () => {
     'platform/tests/tenant-git-prompt-removal.test.cjs',
     'platform/tests/master-gist-sync-ui.test.cjs',
     'backend/tests/gistSync.realprovider.test.js',
-    'docs/GIST_SYNC_MIGRATION_PLAN.md'
+    'docs/GIST_SYNC_MIGRATION_PLAN.md',
+    // Platform Master Google sign-in cycle: new backend files (tracked once
+    // committed; listed here so the working-tree guard also accepts them
+    // untracked or staged).
+    'backend/utils/oauthState.js',
+    'backend/services/googleOidc.service.js',
+    'backend/controllers/oauthMaster.controller.js',
+    'backend/routes/oauthMaster.routes.js',
+    'backend/tests/googleMasterSignin.test.js'
   ]);
   const git = (args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' }).stdout.split('\n').map((s) => s.trim()).filter(Boolean);
   const modified = git(['diff', '--name-only', 'HEAD']);
@@ -1085,7 +1108,19 @@ check('working-tree diff touches only intended platform files', () => {
       'backend/controllers/gistSync.controller.js',
       'backend/routes/gistSync.routes.js',
       'backend/.env.example',
-      'backend/tests/gistSync.test.js'
+      'backend/tests/gistSync.test.js',
+      // Platform Master Google sign-in cycle (feature/master-google-signin):
+      // new OIDC path files plus the config/mount/env/dependency/test-harness
+      // changes they require.
+      'backend/utils/oauthState.js',
+      'backend/services/googleOidc.service.js',
+      'backend/controllers/oauthMaster.controller.js',
+      'backend/routes/oauthMaster.routes.js',
+      'backend/tests/googleMasterSignin.test.js',
+      'backend/config/oauth.js',
+      'backend/tests/helpers/testServer.js',
+      'backend/package.json',
+      'backend/package-lock.json'
     ]);
   // Negative boundaries: these must NEVER appear in a working-tree diff or be added.
   //

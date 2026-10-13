@@ -36,6 +36,15 @@ const oauth = {
     }
   },
 
+  // Platform Master Google sign-in (server-side OIDC path, sub-based
+  // linking only). `email` is the approved linking policy: enforced ONLY
+  // when a Google account is explicitly linked to the master session —
+  // never as an authentication condition, never as a link-by-email rule.
+  master: {
+    email: process.env.OAUTH_MASTER_EMAIL || '',
+    callbackURL: process.env.GOOGLE_MASTER_CALLBACK_URL || `${baseUrl}/auth/google/master/callback`
+  },
+
   defaultRole: process.env.OAUTH_DEFAULT_ROLE || 'Viewer',
   linkExistingUsers: process.env.OAUTH_LINK_EXISTING !== 'false'
 };

@@ -211,6 +211,7 @@ const reportsRoutes = require('./routes/reports.routes');
 const usersRoutes = require('./routes/users.routes');
 const authRoutes = require('./routes/auth.routes');
 const oauthRoutes = require('./routes/oauth.routes');
+const oauthMasterRoutes = require('./routes/oauthMaster.routes');
 const mfaRoutes = require('./routes/mfa.routes');
 const apiKeyRoutes = require('./routes/apiKey.routes');
 const auditRoutes = require('./routes/audit.routes');
@@ -372,6 +373,10 @@ notificationEngine.bootstrapEventListeners();
 // OAuth routes (mounted at root for OAuth callbacks)
 if (oauthConfig.enabled) {
   app.use('/auth', oauthRoutes);
+  // Platform Master Google sign-in: server-side OIDC (signed state, PKCE,
+  // verified ID tokens, sub-based linking). Mounted under the same gate so
+  // a disabled OAuth config leaves the whole surface unreachable (404).
+  app.use('/auth', oauthMasterRoutes);
 }
 
 // Swagger API documentation (auth-gated when AUTH_REQUIRED=true)
