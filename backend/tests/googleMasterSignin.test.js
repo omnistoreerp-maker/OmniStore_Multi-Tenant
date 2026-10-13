@@ -23,9 +23,11 @@ jest.mock('google-auth-library', () => {
 
 const request = require('supertest');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
-const { startServer } = require('./helpers/testServer');
+const speakeasy = require('speakeasy');
+const { startServer, TEST_JWT_SECRET } = require('./helpers/testServer');
 const { makeTempDataDir, seed, readStore } = require('./helpers/testData');
 const { registerCleanup } = require('./helpers/cleanup');
 
@@ -34,6 +36,7 @@ const CLIENT_SECRET = 'test-client-secret';
 const MASTER_EMAIL = 'omnistore.live@gmail.com';
 const PASSWORD = 'Pass#123';
 const FAKE_ID_TOKEN = 'hdr.fake-google-id-token.pld';
+const MFA_SECRET = 'JBSWY3DPEHPK3PXP';
 
 const OAUTH_ENV = {
   RATE_LIMIT_MAX: '10000',
@@ -133,6 +136,47 @@ function tamperState(state) {
   return b.slice(0, idx) + ch + b.slice(idx + 1) + '.' + m;
 }
 
+// ---- MFA challenge helpers (Finding A) ----
+
+function totpNow() {
+  return speakeasy.totp({ secret: MFA_SECRET, encoding: 'base32' });
+}
+
+// Drives a full Google round-trip for the linked, MFA-enabled master
+// account and returns the callback response (which must stop at gmfa=1).
+async function startMfaChallenge(app) {
+  mockGoogleToken(okTokenResponse);
+  const attempt = await startAttempt(app);
+  mockVerify(googlePayload(attempt.payload, { sub: 'g-sub-mfamaster' }));
+  return callback(app, { state: attempt.state });
+}
+
+function challengeCookie(res) {
+  const set = res.headers['set-cookie'] || [];
+  const hit = set.find((c) => c.startsWith('g_mfa_ticket='));
+  return hit ? hit.split(';')[0] : null;
+}
+
+function postMfa(app, cookie, body, extra) {
+  let req = request(app).post('/auth/google/master/mfa').send(body || {});
+  if (cookie) req = req.set('Cookie', cookie);
+  if (extra && extra.origin) req = req.set('Origin', extra.origin);
+  return req;
+}
+
+// A correctly signed challenge whose expiry is already in the past — the
+// same HMAC construction the server uses, so only the TTL check can fail.
+function craftExpiredChallenge() {
+  const now = Date.now();
+  const body = Buffer.from(JSON.stringify({
+    mode: 'gchallenge', u: 'mfaMaster', sid: 'u-mfamaster',
+    jti: 'crafted-expired-ticket', iat: now - 120000, exp: now - 1000
+  })).toString('base64url');
+  const key = crypto.createHash('sha256').update(TEST_JWT_SECRET + '|oauth-master-state').digest();
+  const mac = crypto.createHmac('sha256', key).update(body).digest('base64url');
+  return 'g_mfa_ticket=' + body + '.' + mac;
+}
+
 function seedAll(dir) {
   const hash = bcrypt.hashSync(PASSWORD, 10);
   const stamp = new Date().toISOString();
@@ -150,13 +194,17 @@ function seedAll(dir) {
       // must never link or authenticate anyone on the Master path.
       { id: 'u-email', username: 'emailClash', password: hash, fullName: 'Email Clash', role: 'Viewer', tokenVersion: 0, createdAt: stamp, updatedAt: stamp, email: MASTER_EMAIL },
       // MFA gate regression account
-      { id: 'u-mfa', username: 'mfaUser', password: hash, fullName: 'MFA User', role: 'Viewer', tokenVersion: 0, mfaEnabled: true, createdAt: stamp, updatedAt: stamp }
+      { id: 'u-mfa', username: 'mfaUser', password: hash, fullName: 'MFA User', role: 'Viewer', tokenVersion: 0, mfaEnabled: true, createdAt: stamp, updatedAt: stamp },
+      // Platform member WITH MFA enabled and a linked Google sub: the
+      // Google round-trip must stop at the TOTP challenge for this account.
+      { id: 'u-mfamaster', username: 'mfaMaster', password: hash, fullName: 'MFA Master', role: 'Viewer', tokenVersion: 0, mfaEnabled: true, mfaSecret: MFA_SECRET, createdAt: stamp, updatedAt: stamp, oauth: { google: 'g-sub-mfamaster' } }
     ]
   });
   seed(dir, 'platformAdmins', {
     admins: [
       { username: 'omnistore', platformRole: 'MASTER_OWNER', status: 'active', createdAt: stamp },
-      { username: 'padmin', platformRole: 'PLATFORM_ADMIN', status: 'active', createdAt: stamp }
+      { username: 'padmin', platformRole: 'PLATFORM_ADMIN', status: 'active', createdAt: stamp },
+      { username: 'mfaMaster', platformRole: 'MASTER_OWNER', status: 'active', createdAt: stamp }
     ]
   });
   seed(dir, 'companies', {
@@ -674,6 +722,191 @@ describe('Platform Master Google sign-in (server-side OIDC)', () => {
     expect(cb.headers.location).not.toContain(CLIENT_SECRET);
     expect(cb.headers.location).not.toContain('FAKE_ID_TOKEN');
     expect(cb.headers.location).not.toContain('exploded');
+  });
+
+  // -------------------------------------------------------------------------
+  // Finding A — MFA: the Google round-trip stops at a challenge for an
+  // mfaEnabled account; only the existing TOTP mechanism completes it.
+  // -------------------------------------------------------------------------
+  it('MFA-1. Google callback for an MFA-enabled member stops at a challenge with zero privilege', async () => {
+    const cb = await startMfaChallenge(app);
+    expect(cb.status).toBe(302);
+    expect(cb.headers.location).toContain('gmfa=1');
+    expect(cb.headers.location).not.toContain('gsignin=1');
+
+    const set = cb.headers['set-cookie'] || [];
+    const names = set.map((c) => c.split('=')[0]);
+    expect(names).toContain('g_mfa_ticket');
+    expect(names).not.toContain('access_token');
+    expect(names).not.toContain('refresh_token');
+
+    const challenge = challengeCookie(cb);
+    expect(challenge).toBeTruthy();
+    const ticketValue = challenge.slice(challenge.indexOf('=') + 1);
+
+    // The challenge grants NOTHING — not as a session cookie…
+    expect((await request(app).get('/api/v1/platform/me').set('Cookie', challenge)).status).toBe(401);
+    expect((await request(app).get('/api/v1/platform/control-center/access').set('Cookie', challenge)).status).toBe(401);
+    // …not as a Bearer token…
+    expect((await request(app).get('/api/v1/platform/me').set('Authorization', 'Bearer ' + ticketValue)).status).toBe(401);
+    // …and not even when replayed under the access_token cookie name.
+    expect((await request(app).get('/api/v1/platform/me').set('Cookie', 'access_token=' + ticketValue)).status).toBe(401);
+
+    // The challenge is audited; NO session was issued for this account.
+    const audit = readStore(dir, 'auditLog');
+    const entries = (audit && audit.entries) || [];
+    expect(entries.some((e) => e.action === 'GOOGLE_MASTER_MFA_CHALLENGE' && e.userId === 'u-mfamaster')).toBe(true);
+    expect(entries.some((e) => e.action === 'GOOGLE_MASTER_LOGIN_SUCCESS' && e.userId === 'u-mfamaster')).toBe(false);
+
+    // A member WITHOUT MFA still completes the plain flow untouched.
+    mockGoogleToken(okTokenResponse);
+    const plain = await startAttempt(app);
+    mockVerify(googlePayload(plain.payload));
+    const plainCb = await callback(app, { state: plain.state });
+    expect(plainCb.status).toBe(302);
+    expect(plainCb.headers.location).toContain('gsignin=1');
+    expect(plainCb.headers.location).not.toContain('gmfa=1');
+  });
+
+  it('MFA-2. wrong code is rejected without burning the challenge; the correct code completes the session', async () => {
+    const cb = await startMfaChallenge(app);
+    const challenge = challengeCookie(cb);
+
+    // Wrong second factor → rejected, still no session, challenge survives.
+    const wrong = await postMfa(app, challenge, { token: '000000' });
+    expect(wrong.status).toBe(401);
+    expect((wrong.headers['set-cookie'] || []).some((c) => c.startsWith('access_token='))).toBe(false);
+    expect((await request(app).get('/api/v1/platform/me').set('Cookie', challenge)).status).toBe(401);
+
+    // Correct TOTP (existing mfaService, same as password login) → session.
+    const ok = await postMfa(app, challenge, { token: totpNow() });
+    expect(ok.status).toBe(200);
+    expect(ok.body.data.completed).toBe(true);
+    const set = ok.headers['set-cookie'] || [];
+    expect(set.some((c) => c.startsWith('access_token='))).toBe(true);
+    expect(set.some((c) => c.startsWith('refresh_token='))).toBe(true);
+    expect(set.some((c) => /^g_mfa_ticket=;/.test(c))).toBe(true);
+
+    const session = cookieHeader(ok);
+    const me = await request(app).get('/api/v1/platform/me').set('Cookie', session);
+    expect(me.status).toBe(200);
+    expect(me.body.data.platformRole).toBe('MASTER_OWNER');
+    const cc = await request(app).get('/api/v1/platform/control-center/access').set('Cookie', session);
+    expect(cc.status).toBe(200);
+    const refreshed = await request(app).post('/api/v1/auth/refresh').set('Cookie', session).send({});
+    expect(refreshed.status).toBe(200);
+    expect(refreshed.body.data.accessToken).toBeTruthy();
+
+    // Audit records the MFA-completed success without any secret material.
+    const audit = readStore(dir, 'auditLog');
+    const entries = (audit && audit.entries) || [];
+    const mine = entries.filter((e) => e.action === 'GOOGLE_MASTER_LOGIN_SUCCESS' && e.userId === 'u-mfamaster');
+    expect(mine.length).toBeGreaterThan(0);
+    expect(JSON.stringify(mine)).toContain('"mfa":true');
+    const dump = JSON.stringify(entries);
+    expect(dump).not.toContain(CLIENT_SECRET);
+    expect(dump).not.toContain(PASSWORD);
+    const rawTicket = challengeCookie(cb);
+    if (rawTicket) expect(dump).not.toContain(rawTicket.slice(rawTicket.indexOf('=') + 1));
+  });
+
+  it('MFA-3. the challenge is single-use: a replay after success is rejected', async () => {
+    const cb = await startMfaChallenge(app);
+    const challenge = challengeCookie(cb);
+    const code = totpNow();
+    const first = await postMfa(app, challenge, { token: code });
+    expect(first.status).toBe(200);
+    // Same ticket, same (still in-window) code — must fail on the consume.
+    const replay = await postMfa(app, challenge, { token: code });
+    expect(replay.status).toBe(401);
+    expect((replay.headers['set-cookie'] || []).some((c) => c.startsWith('access_token='))).toBe(false);
+  });
+
+  it('MFA-4. expired, malformed, missing and cross-origin challenges are rejected', async () => {
+    // No challenge cookie at all.
+    expect((await postMfa(app, null, { token: totpNow() })).status).toBe(401);
+    // Malformed / forged signature.
+    expect((await postMfa(app, 'g_mfa_ticket=garbage.notasig', { token: totpNow() })).status).toBe(401);
+    // Correctly signed but EXPIRED (only the TTL check can fail).
+    expect((await postMfa(app, craftExpiredChallenge(), { token: totpNow() })).status).toBe(401);
+    // Cross-origin POST blocked before anything else (CSRF posture).
+    const cb = await startMfaChallenge(app);
+    const challenge = challengeCookie(cb);
+    const cross = await postMfa(app, challenge, { token: totpNow() }, { origin: 'https://evil.example' });
+    expect(cross.status).toBe(403);
+    // Valid challenge but no code supplied.
+    expect((await postMfa(app, challenge, {})).status).toBe(400);
+  });
+
+  // -------------------------------------------------------------------------
+  // Finding B — unlink membership gate: server-side, fail-closed, matching
+  // the linkSession platformRoleFor policy.
+  // -------------------------------------------------------------------------
+  it('B-unlink. non-members and disabled members cannot unlink; an active authorized member can', async () => {
+    // 1) A non-member WITH a real Google link: password step-up passes…
+    const plainLogin = await request(app).post('/api/v1/auth/login').send({ username: 'plainUser', password: PASSWORD });
+    expect(plainLogin.status).toBe(200);
+    const plainTok = plainLogin.body.data.accessToken;
+    const wrongPw = await request(app)
+      .post('/auth/google/master/unlink')
+      .set('Authorization', 'Bearer ' + plainTok)
+      .send({ currentPassword: 'wrong-password' });
+    expect(wrongPw.status).toBe(401);
+    // …but the membership gate refuses the unlink itself.
+    const denied = await request(app)
+      .post('/auth/google/master/unlink')
+      .set('Authorization', 'Bearer ' + plainTok)
+      .send({ currentPassword: PASSWORD });
+    expect(denied.status).toBe(403);
+    let users = readStore(dir, 'users');
+    expect(users.users.find((u) => u.username === 'plainUser').oauth.google).toBe('g-sub-plain');
+
+    // 2) Membership DISABLED → refused even with the correct password.
+    const padminLogin = await request(app).post('/api/v1/auth/login').send({ username: 'padmin', password: PASSWORD });
+    expect(padminLogin.status).toBe(200);
+    const admins = readStore(dir, 'platformAdmins');
+    seed(dir, 'platformAdmins', {
+      admins: admins.admins.map((a) => (a.username === 'padmin' ? { ...a, status: 'disabled' } : a))
+    });
+    const disabledMember = await request(app)
+      .post('/auth/google/master/unlink')
+      .set('Authorization', 'Bearer ' + padminLogin.body.data.accessToken)
+      .send({ currentPassword: PASSWORD });
+    expect(disabledMember.status).toBe(403);
+    seed(dir, 'platformAdmins', admins); // restore
+
+    // 3) Active authorized member (MASTER_OWNER) + correct step-up → 200,
+    //    reached through a real Google+MFA session, and only their link
+    //    changes.
+    const cb = await startMfaChallenge(app);
+    const challenge = challengeCookie(cb);
+    const done = await postMfa(app, challenge, { token: totpNow() });
+    expect(done.status).toBe(200);
+    const session = cookieHeader(done);
+    const unlinked = await request(app)
+      .post('/auth/google/master/unlink')
+      .set('Cookie', session)
+      .send({ currentPassword: PASSWORD });
+    expect(unlinked.status).toBe(200);
+
+    users = readStore(dir, 'users');
+    const mfaMember = users.users.find((u) => u.username === 'mfaMaster');
+    expect(!mfaMember.oauth || !mfaMember.oauth.google).toBe(true);
+    // Everyone else's links are untouched.
+    expect(users.users.find((u) => u.username === 'omnistore').oauth.google).toBe('g-sub-master');
+    expect(users.users.find((u) => u.username === 'plainUser').oauth.google).toBe('g-sub-plain');
+    // Restore the fixture link for future runs.
+    mfaMember.oauth = { google: 'g-sub-mfamaster' };
+    seed(dir, 'users', users);
+
+    // 4) Audit: denial recorded, never a password/token/code.
+    const audit = readStore(dir, 'auditLog');
+    const entries = (audit && audit.entries) || [];
+    expect(entries.some((e) => e.action === 'GOOGLE_MASTER_UNLINK_DENIED')).toBe(true);
+    const dump = JSON.stringify(entries);
+    expect(dump).not.toContain(PASSWORD);
+    expect(dump).not.toContain(CLIENT_SECRET);
+    expect(dump).not.toContain(FAKE_ID_TOKEN);
   });
 
   // -------------------------------------------------------------------------

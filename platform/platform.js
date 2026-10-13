@@ -776,7 +776,26 @@
       authError(messages[raw] || 'تعذّر تسجيل الدخول عبر Google');
       return;
     }
+    if (query.indexOf('gmfa=1') !== -1) {
+      // The server stopped the Google login at the MFA challenge: no session
+      // exists yet. Show the drawer's TOTP field; only a successful POST to
+      // /auth/google/master/mfa mints the session.
+      openAuthDrawer();
+      var mfaBox = document.getElementById('platformAuthMfa');
+      if (mfaBox) mfaBox.hidden = false;
+      authError('أدخل رمز التحقق الثنائي لإكمال الدخول عبر Google');
+      return;
+    }
     if (query.indexOf('gsignin=1') === -1) return;
+    hydrateGoogleSessionAndEnter();
+  }
+
+  // Shared handoff for a COMPLETED Google round-trip (?gsignin=1, or right
+  // after the MFA challenge succeeds): the server set the httpOnly cookies,
+  // so hydrate the SPA session from them exactly like a password drawer
+  // login, resolve the destination from the server-authoritative /platform/me
+  // probe, and enter the app.
+  function hydrateGoogleSessionAndEnter() {
     fetch('/api/v1/auth/refresh', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -807,6 +826,7 @@
         try {
           var u = new URL(window.location.href);
           u.searchParams.delete('gsignin');
+          u.searchParams.delete('gmfa');
           window.history.replaceState({}, document.title, u.pathname + u.search + u.hash);
         } catch (_) {}
         refreshAuthDrawer();
@@ -816,6 +836,37 @@
         openAuthDrawer();
         authError('تعذّر استكمال تسجيل الدخول عبر Google');
       });
+  }
+
+  // Completes the MFA challenge that stopped a Google login: posts the TOTP
+  // code to the server (the signed challenge travels in its httpOnly cookie),
+  // and on success hands off through the same session hydration as above.
+  function submitGoogleMfaChallenge() {
+    var input = document.getElementById('platformAuthMfaToken');
+    var code = input ? String(input.value || '').trim() : '';
+    if (!code) { authError('أدخل رمز التحقق'); return; }
+    fetch('/auth/google/master/mfa', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ token: code })
+    })
+      .then(function (r) {
+        return r.json().catch(function () { return null; }).then(function (d) { return { ok: r.ok, d: d }; });
+      })
+      .then(function (res) {
+        if (!res.ok || !res.d || !res.d.success) {
+          authError('رمز غير صحيح — حاول مجددًا');
+          return;
+        }
+        var mfaBox = document.getElementById('platformAuthMfa');
+        if (mfaBox) mfaBox.hidden = true;
+        if (input) input.value = '';
+        var errEl = document.getElementById('platformAuthError');
+        if (errEl) { errEl.textContent = ''; errEl.hidden = true; }
+        hydrateGoogleSessionAndEnter();
+      })
+      .catch(function () { authError('تعذّر الاتصال بالخادم'); });
   }
 
   function resolvePostLoginTarget(platformRole) {
@@ -980,6 +1031,12 @@
     if (logoutBtn) logoutBtn.addEventListener('click', logoutPlatform);
     const googleBtn = document.getElementById('platformAuthGoogle');
     if (googleBtn) googleBtn.addEventListener('click', startGoogleSignIn);
+    const googleMfaBtn = document.getElementById('platformAuthMfaSubmit');
+    if (googleMfaBtn) googleMfaBtn.addEventListener('click', submitGoogleMfaChallenge);
+    const googleMfaInput = document.getElementById('platformAuthMfaToken');
+    if (googleMfaInput) googleMfaInput.addEventListener('keydown', function (e) {
+      if (e && e.key === 'Enter') { e.preventDefault(); submitGoogleMfaChallenge(); }
+    });
     refreshAuthDrawer();
   }
 

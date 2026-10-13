@@ -6,6 +6,7 @@ const googleOidc = require('../services/googleOidc.service');
 const usersService = require('../services/users.service');
 const platformAdminService = require('../services/platformAdmin.service');
 const auditService = require('../services/audit.service');
+const mfaService = require('../services/mfa.service');
 const { signAccessToken, signRefreshToken, verifyRefreshToken } = require('../utils/jwt');
 const { isRevoked } = require('../utils/tokenStore');
 const { parseCookies } = require('../middleware/auth');
@@ -163,6 +164,25 @@ async function _completeLogin(req, res, claims, returnTo) {
       ip: req.ip, changes: { provider: 'google', reason: 'account_disabled' }
     });
     return _failRedirect(res, returnTo, 'account_disabled');
+  }
+  // Second factor: a user with MFA enabled does NOT receive a session here.
+  // The Google round-trip only proves factor one; the account's own TOTP
+  // (the project's existing mfaService, same as password login) must still
+  // succeed through completeMfa before any access/refresh token exists.
+  // The challenge carries no credential: it is an HMAC-signed, single-use,
+  // 10-minute ticket in its own httpOnly cookie — never an access token,
+  // never readable by authMiddleware, never granting any privilege.
+  if (user.mfaEnabled) {
+    const challenge = oauthState.issue({ mode: 'gchallenge', u: user.username, sid: user.id });
+    res.cookie('g_mfa_ticket', challenge, {
+      httpOnly: true, sameSite: 'lax', secure: IS_PROD, path: '/', maxAge: oauthState.STATE_TTL_MS
+    });
+    _audit({
+      path: '/auth/google/master/callback', statusCode: 302, userId: user.id,
+      action: 'GOOGLE_MASTER_MFA_CHALLENGE', resourceId: user.id,
+      ip: req.ip, changes: { provider: 'google', mode: 'login', mfa: true }
+    });
+    return res.redirect(302, _appendParam(_safeReturnTo(returnTo, '/'), 'gmfa', '1'));
   }
   const accessToken = signAccessToken(user);
   const refreshToken = signRefreshToken(user);
@@ -332,6 +352,19 @@ function unlink(req, res) {
   if (!user) return error(res, 'User not found', 404);
   const verify = verifyPassword(currentPassword, user.password);
   if (!verify || !verify.match) return error(res, 'Incorrect current password', 401);
+  // Membership gate, same policy as linkSession: unlinking is a Master
+  // surface operation, so an ACTIVE platform membership with a valid
+  // official role is required — resolved server-side from the platform
+  // store, never from anything the client sends. platformRoleFor fails
+  // closed: disabled, removed and unknown-role members are all rejected.
+  if (!platformAdminService.platformRoleFor(user.username)) {
+    _audit({
+      method: 'POST', path: '/auth/google/master/unlink', statusCode: 403, userId: user.id,
+      action: 'GOOGLE_MASTER_UNLINK_DENIED', resourceId: user.id,
+      ip: req.ip, changes: { provider: 'google', reason: 'not_platform_member' }
+    });
+    return error(res, 'Only platform administrators can unlink a Google account', 403);
+  }
   if (!user.oauth || !user.oauth.google) return error(res, 'No Google account linked', 404);
   const oauthMap = Object.assign({}, user.oauth);
   delete oauthMap.google;
@@ -345,10 +378,58 @@ function unlink(req, res) {
   success(res, null, 'Google account unlinked');
 }
 
+// POST /auth/google/master/mfa — completes a Google login that stopped at
+// the MFA challenge. The signed challenge cookie is read server-side (the
+// body carries ONLY the TOTP/backup code), the existing mfaService does the
+// verification, and the single-use consume happens atomically at success —
+// so a wrong code keeps the challenge retryable (rate-limited), an expired
+// or replayed one is rejected, and only then is a full session issued.
+async function completeMfa(req, res) {
+  if (!_sameOrigin(req)) return error(res, 'Cross-origin request rejected', 403);
+  const ticket = parseCookies(req).g_mfa_ticket;
+  const payload = ticket ? oauthState.verifyOnly(ticket) : null;
+  if (!payload || payload.mode !== 'gchallenge') {
+    return error(res, 'MFA challenge invalid or expired', 401);
+  }
+  const user = usersService.getById(payload.sid);
+  if (!user || user.status === 'disabled' || !user.mfaEnabled) {
+    return error(res, 'MFA challenge invalid or expired', 401);
+  }
+  const { token } = req.body || {};
+  if (token === undefined || token === null || token === '') {
+    return error(res, 'token is required', 400);
+  }
+  const result = mfaService.verifyLogin(user.id, String(token));
+  if (result.error || !result.verified) {
+    _audit({
+      method: 'POST', path: '/auth/google/master/mfa', statusCode: 401, userId: user.id,
+      action: 'GOOGLE_MASTER_MFA_DENIED', resourceId: user.id,
+      ip: req.ip, changes: { provider: 'google', mfa: true, reason: 'bad_code' }
+    });
+    return error(res, 'Invalid MFA code', 401);
+  }
+  // Single-use: consume only after the second factor verified (verifyOnly
+  // above never marked it used), so a replay after success is rejected.
+  if (!oauthState.consume(ticket)) {
+    return error(res, 'MFA challenge invalid or expired', 401);
+  }
+  res.clearCookie('g_mfa_ticket', { path: '/' });
+  const accessToken = signAccessToken(user);
+  const refreshToken = signRefreshToken(user);
+  _setAuthCookies(res, accessToken, refreshToken);
+  _audit({
+    method: 'POST', path: '/auth/google/master/mfa', statusCode: 200, userId: user.id,
+    action: 'GOOGLE_MASTER_LOGIN_SUCCESS', resourceId: user.id,
+    ip: req.ip, changes: { provider: 'google', mode: 'login', mfa: true }
+  });
+  success(res, { completed: true }, 'MFA verification successful');
+}
+
 module.exports = {
   initiateMaster,
   callbackMaster,
   initiateMasterLink,
   linkSession,
+  completeMfa,
   unlink
 };

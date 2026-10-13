@@ -16830,26 +16830,93 @@ function handleGoogleSigninResult() {
   var params;
   try { params = new URLSearchParams(window.location.search); } catch (e) { return; }
   var gerr = params.get('gerr');
-  if (!gerr) return;
-  var messages = {
-    state_invalid: '⌛ انتهت جلسة الدخول — أعد المحاولة',
-    nonce_invalid: '⌛ جلسة دخول غير صالحة — أعد المحاولة',
-    idtoken_invalid: '❌ تعذّر التحقق من هوية Google',
-    not_linked: 'ℹ️ حساب Google غير مرتبط بأي مستخدم — سجّل الدخول بكلمة المرور ثم اربط Google',
-    account_disabled: '🔒 هذا الحساب معطّل',
-    provider_error: '❌ تعذّر الاتصال بـ Google — سجّل الدخول بكلمة المرور',
-    not_configured: '⚙️ الدخول عبر Google غير مفعّل',
-    email_mismatch: '❌ بريد Google لا يطابق سياسة الربط المعتمدة',
-    session_mismatch: '⌛ انتهت جلسة الربط — أعد المحاولة',
-    sub_taken: '❌ حساب Google هذا مرتبط بمستخدم آخر',
-    link_policy_unconfigured: '⚙️ سياسة ربط Google غير مكوّنة على الخادم',
-    link_failed: '❌ تعذّر إتمام الربط',
-    session_invalid: '⌛ الجلسة غير صالحة — أعد المحاولة'
-  };
+  if (gerr) {
+    var messages = {
+      state_invalid: '⌛ انتهت جلسة الدخول — أعد المحاولة',
+      nonce_invalid: '⌛ جلسة دخول غير صالحة — أعد المحاولة',
+      idtoken_invalid: '❌ تعذّر التحقق من هوية Google',
+      not_linked: 'ℹ️ حساب Google غير مرتبط بأي مستخدم — سجّل الدخول بكلمة المرور ثم اربط Google',
+      account_disabled: '🔒 هذا الحساب معطّل',
+      provider_error: '❌ تعذّر الاتصال بـ Google — سجّل الدخول بكلمة المرور',
+      not_configured: '⚙️ الدخول عبر Google غير مفعّل',
+      email_mismatch: '❌ بريد Google لا يطابق سياسة الربط المعتمدة',
+      session_mismatch: '⌛ انتهت جلسة الربط — أعد المحاولة',
+      sub_taken: '❌ حساب Google هذا مرتبط بمستخدم آخر',
+      link_policy_unconfigured: '⚙️ سياسة ربط Google غير مكوّنة على الخادم',
+      link_failed: '❌ تعذّر إتمام الربط',
+      session_invalid: '⌛ الجلسة غير صالحة — أعد المحاولة'
+    };
+    var el = document.getElementById('loginError');
+    if (!el) return;
+    el.textContent = messages[gerr] || '❌ تعذّر تسجيل الدخول عبر Google';
+    el.style.display = 'block';
+    return;
+  }
+  // The server stopped the Google login at the MFA challenge (?gmfa=1):
+  // no session exists yet — offer the TOTP field, nothing more.
+  if (params.get('gmfa') === '1') renderGoogleMfaPrompt();
+}
+
+// Renders the one-time-code prompt used to complete a Google login that
+// stopped at the MFA challenge. Injected once; no session is created here.
+function renderGoogleMfaPrompt() {
   var el = document.getElementById('loginError');
+  if (el) {
+    el.textContent = 'أدخل رمز التحقق الثنائي لإكمال الدخول عبر Google';
+    el.style.display = 'block';
+  }
+  if (document.getElementById('googleMfaRow')) return;
   if (!el) return;
-  el.textContent = messages[gerr] || '❌ تعذّر تسجيل الدخول عبر Google';
-  el.style.display = 'block';
+  var row = document.createElement('div');
+  row.id = 'googleMfaRow';
+  row.style.cssText = 'display:flex;gap:8px;margin-top:8px;';
+  row.innerHTML = '<input type="text" id="googleMfaToken" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="رمز التحقق" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;font-family:inherit;">' +
+    '<button type="button" id="googleMfaSubmit" class="btn-primary" style="width:auto;margin-top:0;padding:10px 16px;">تأكيد</button>';
+  el.insertAdjacentElement('afterend', row);
+  var btn = document.getElementById('googleMfaSubmit');
+  if (btn) btn.addEventListener('click', completeGoogleMfaChallenge);
+}
+
+// Completes the MFA challenge: posts ONLY the code (the signed challenge
+// travels in its httpOnly cookie) and, on success, hydrates the session from
+// the cookies the server just set — same path as a completed sign-in.
+function completeGoogleMfaChallenge() {
+  var input = document.getElementById('googleMfaToken');
+  var code = input ? String(input.value || '').trim() : '';
+  var el = document.getElementById('loginError');
+  if (!code) {
+    if (el) { el.textContent = 'أدخل رمز التحقق'; el.style.display = 'block'; }
+    return;
+  }
+  fetch('/auth/google/master/mfa', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ token: code })
+  })
+    .then(function (r) {
+      return r.json().catch(function () { return null; }).then(function (d) { return { ok: r.ok, d: d }; });
+    })
+    .then(function (res) {
+      if (!res.ok || !res.d || !res.d.success) {
+        if (el) { el.textContent = 'رمز غير صحيح — حاول مجددًا'; el.style.display = 'block'; }
+        return;
+      }
+      var row = document.getElementById('googleMfaRow');
+      if (row && row.parentNode) row.parentNode.removeChild(row);
+      if (el) el.style.display = 'none';
+      try {
+        var u = new URL(window.location.href);
+        u.searchParams.delete('gmfa');
+        window.history.replaceState({}, document.title, u.pathname + u.search + u.hash);
+      } catch (e) {}
+      bootstrapGoogleSigninSession().then(function () { __bootSession(); }).catch(function () {
+        if (el) { el.textContent = '❌ تعذّر استكمال تسجيل الدخول عبر Google'; el.style.display = 'block'; }
+      });
+    })
+    .catch(function () {
+      if (el) { el.textContent = '❌ تعذّر الاتصال بالخادم'; el.style.display = 'block'; }
+    });
 }
 
 function handleGoogleOAuthCallback() {

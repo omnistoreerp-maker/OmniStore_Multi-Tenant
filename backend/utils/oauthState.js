@@ -34,10 +34,10 @@ function issue(payload) {
   return body + '.' + mac;
 }
 
-// Verifies signature, TTL and single use. Returns the payload on first
-// valid consumption, or null for anything else (tampered, expired,
-// replayed, malformed). Never throws on hostile input.
-function consume(token) {
+// Signature + TTL + shape check WITHOUT touching the single-use registry.
+// Used where verification must be retryable (MFA challenge attempts) before
+// the one-shot consume happens at the moment of success.
+function verifyOnly(token) {
   try {
     if (typeof token !== 'string' || token.length === 0 || token.length > MAX_TOKEN_LEN) return null;
     const dot = token.lastIndexOf('.');
@@ -57,6 +57,19 @@ function consume(token) {
     if (!payload || typeof payload !== 'object') return null;
     if (typeof payload.exp !== 'number' || payload.exp <= Date.now()) return null;
     if (typeof payload.jti !== 'string' || !payload.jti) return null;
+    return payload;
+  } catch (_) {
+    return null;
+  }
+}
+
+// Verifies signature, TTL and single use. Returns the payload on first
+// valid consumption, or null for anything else (tampered, expired,
+// replayed, malformed). Never throws on hostile input.
+function consume(token) {
+  try {
+    const payload = verifyOnly(token);
+    if (!payload) return null;
     _prune();
     if (usedJti.has(payload.jti)) return null; // replay
     usedJti.set(payload.jti, payload.exp);
@@ -66,4 +79,4 @@ function consume(token) {
   }
 }
 
-module.exports = { issue, consume, STATE_TTL_MS };
+module.exports = { issue, consume, verifyOnly, STATE_TTL_MS };
