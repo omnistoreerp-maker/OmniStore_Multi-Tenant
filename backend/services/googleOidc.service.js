@@ -33,7 +33,12 @@ function _sha256b64url(value) {
 // Builds the Google authorization URL for a fresh attempt: single-use
 // signed state, a nonce bound into that state (echoed in the ID token),
 // and PKCE (S256) so a stolen code is useless without the verifier.
-function createLoginStart({ mode = 'login', returnTo = '/', username } = {}) {
+// For the login mode, `binding` is a random value minted for the
+// INITIATING browser: only its SHA-256 hash travels inside the signed
+// state (the raw value lives exclusively in that browser's httpOnly
+// cookie), so the URL never carries anything secret and possession of
+// the signed state alone can no longer complete a login.
+function createLoginStart({ mode = 'login', returnTo = '/', username, binding } = {}) {
   if (!isConfigured()) throw _fail('not_configured', 'Google sign-in is not configured');
   const nonce = crypto.randomBytes(18).toString('base64url');
   const verifier = crypto.randomBytes(32).toString('base64url');
@@ -42,7 +47,8 @@ function createLoginStart({ mode = 'login', returnTo = '/', username } = {}) {
     returnTo: String(returnTo || '/'),
     nonce,
     cv: verifier,
-    ...(username ? { u: String(username) } : {})
+    ...(username ? { u: String(username) } : {}),
+    ...(binding ? { bbh: _sha256b64url(String(binding)) } : {})
   });
   const params = new URLSearchParams({
     client_id: oauthConfig.providers.google.clientID,
@@ -150,5 +156,6 @@ module.exports = {
   createLoginStart,
   exchangeCode,
   verifyGoogleIdToken,
-  findUserByGoogleSub
+  findUserByGoogleSub,
+  hashBinding: _sha256b64url
 };

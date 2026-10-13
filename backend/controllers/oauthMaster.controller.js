@@ -11,13 +11,39 @@ const { signAccessToken, signRefreshToken, verifyRefreshToken } = require('../ut
 const { isRevoked } = require('../utils/tokenStore');
 const { parseCookies } = require('../middleware/auth');
 const { verifyPassword } = require('../utils/password');
+const crypto = require('crypto');
 
 const IS_PROD = (process.env.NODE_ENV || 'development') === 'production';
+
+// Login-CSRF mitigation: the browser that starts a LOGIN flow receives a
+// random bearer value in this httpOnly cookie; only its hash is carried
+// inside the signed state. The callback therefore proves possession of the
+// initiating browser independently of the state token itself. Scoped to
+// the /auth/google/master surface, SameSite=Lax so Google's top-level
+// redirect still carries it, Secure in production (Cloudflare/HTTPS).
+const BINDING_COOKIE = 'g_oauth_bs';
+const BINDING_PATH = '/auth/google/master';
 
 function _setAuthCookies(res, accessToken, refreshToken) {
   const base = { httpOnly: true, sameSite: 'lax', secure: IS_PROD, path: '/' };
   res.cookie('access_token', accessToken, { ...base, maxAge: 15 * 60 * 1000 });
   res.cookie('refresh_token', refreshToken, { ...base, maxAge: 7 * 24 * 60 * 1000 });
+}
+
+// Timing-safe match of the raw cookie value's hash against the hash
+// committed in the signed state. Fails closed on any missing/malformed
+// input; the comparison itself never throws.
+function _bindingMatches(raw, expectedHash) {
+  if (typeof raw !== 'string' || raw.length === 0 || raw.length > 256) return false;
+  if (typeof expectedHash !== 'string' || expectedHash.length === 0) return false;
+  try {
+    const a = Buffer.from(googleOidc.hashBinding(raw));
+    const b = Buffer.from(expectedHash);
+    if (a.length !== b.length) return false;
+    return crypto.timingSafeEqual(a, b);
+  } catch (_) {
+    return false;
+  }
 }
 
 // Internal-path-only redirect target. Rejects protocol-relative paths,
@@ -113,8 +139,15 @@ function _sameOrigin(req) {
 function initiateMaster(req, res) {
   if (!googleOidc.isConfigured()) return error(res, 'Google sign-in is not configured', 501);
   const returnTo = _safeReturnTo(req.query.returnTo, '/');
+  // Mint the browser binding first: the raw value goes ONLY into this
+  // browser's httpOnly cookie; the signed state receives its hash.
+  const binding = crypto.randomBytes(32).toString('base64url');
   try {
-    const { url } = googleOidc.createLoginStart({ mode: 'login', returnTo });
+    const { url } = googleOidc.createLoginStart({ mode: 'login', returnTo, binding });
+    res.cookie(BINDING_COOKIE, binding, {
+      httpOnly: true, sameSite: 'lax', secure: IS_PROD,
+      path: BINDING_PATH, maxAge: oauthState.STATE_TTL_MS
+    });
     res.redirect(302, url);
   } catch (err) {
     logger.error('oauthMaster.initiate error:', err.message);
@@ -263,6 +296,24 @@ async function callbackMaster(req, res) {
       ip: req.ip, changes: { provider: 'google', reason: 'state_invalid' }
     });
     return _failRedirect(res, '/', 'state_invalid');
+  }
+  // Login-CSRF gate: a LOGIN state must be presented by the same browser
+  // that initiated it (httpOnly cookie → hash match). The link mode is
+  // deliberately exempt — it is already bound to the authenticated session
+  // and the password-step-up ticket, and must not depend on this cookie.
+  // Checked BEFORE the code is touched, so a mismatch never reaches Google.
+  if (state.mode === 'login') {
+    const raw = parseCookies(req)[BINDING_COOKIE];
+    if (!_bindingMatches(raw, state.bbh)) {
+      _audit({
+        path: '/auth/google/master/callback', statusCode: 302, action: 'GOOGLE_MASTER_LOGIN_DENIED',
+        ip: req.ip, changes: { provider: 'google', reason: 'browser_binding_mismatch' }
+      });
+      return _failRedirect(res, '/', 'state_invalid');
+    }
+    // Binding consumed with the state: clear it, but only AFTER it matched
+    // so a rejected tab can never clear a sibling tab's still-valid cookie.
+    res.clearCookie(BINDING_COOKIE, { path: BINDING_PATH });
   }
   const returnTo = _safeReturnTo(state.returnTo, '/');
   if (!googleOidc.isConfigured()) return _failRedirect(res, returnTo, 'not_configured');
