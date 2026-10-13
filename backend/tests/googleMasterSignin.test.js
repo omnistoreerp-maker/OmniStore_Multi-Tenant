@@ -104,7 +104,11 @@ async function startAttempt(app, returnTo = '/') {
   const url = new URL(location);
   const state = url.searchParams.get('state');
   expect(state).toBeTruthy();
-  return { location, state, url, payload: decodeState(state) };
+  // The initiating browser also receives the httpOnly browser-binding
+  // cookie; every callback for THIS attempt must present it (login mode).
+  const cookies = cookieHeader(res);
+  expect(cookies).toContain('g_oauth_bs=');
+  return { location, state, url, payload: decodeState(state), cookies };
 }
 
 function cookieHeader(res) {
@@ -148,7 +152,7 @@ async function startMfaChallenge(app) {
   mockGoogleToken(okTokenResponse);
   const attempt = await startAttempt(app);
   mockVerify(googlePayload(attempt.payload, { sub: 'g-sub-mfamaster' }));
-  return callback(app, { state: attempt.state });
+  return callback(app, { state: attempt.state, cookies: attempt.cookies });
 }
 
 function challengeCookie(res) {
@@ -247,6 +251,15 @@ describe('Platform Master Google sign-in (server-side OIDC)', () => {
     expect(attempt.payload.nonce).toBe(attempt.url.searchParams.get('nonce'));
     expect(attempt.payload.cv).toBeTruthy();
 
+    // Browser binding: the signed state carries only the HASH of the raw
+    // value — the raw value exists solely in the initiating browser's
+    // httpOnly cookie, so the URL never contains anything secret.
+    expect(attempt.payload.bbh).toBeTruthy();
+    const rawBinding = attempt.cookies.split('g_oauth_bs=')[1].split(';')[0];
+    expect(rawBinding.length).toBeGreaterThanOrEqual(32);
+    expect(attempt.location).not.toContain(rawBinding);
+    expect(crypto.createHash('sha256').update(rawBinding).digest('base64url')).toBe(attempt.payload.bbh);
+
     // Open-redirect hardening: hostile returnTo collapses to the app root.
     const evilScheme = await startAttempt(app, 'https://evil.example/phish');
     expect(evilScheme.payload.returnTo).toBe('/');
@@ -263,7 +276,7 @@ describe('Platform Master Google sign-in (server-side OIDC)', () => {
     mockGoogleToken(okTokenResponse);
     const attempt = await startAttempt(app);
     mockVerify(googlePayload(attempt.payload));
-    const cb = await callback(app, { state: attempt.state });
+    const cb = await callback(app, { state: attempt.state, cookies: attempt.cookies });
     expect(cb.status).toBe(302);
     expect(cb.headers.location).toContain('gsignin=1');
     const ch = cookieHeader(cb);
@@ -292,7 +305,7 @@ describe('Platform Master Google sign-in (server-side OIDC)', () => {
     const attempt = await startAttempt(app);
     mockVerify(googlePayload(attempt.payload, { sub: 'g-sub-nobody' }));
 
-    const cb = await callback(app, { state: attempt.state });
+    const cb = await callback(app, { state: attempt.state, cookies: attempt.cookies });
     expectDenied(cb, 'not_linked');
 
     const after = readStore(dir, 'users');
@@ -307,7 +320,7 @@ describe('Platform Master Google sign-in (server-side OIDC)', () => {
     mockGoogleToken(okTokenResponse);
     const attempt = await startAttempt(app);
     mockVerify(googlePayload(attempt.payload, { sub: 'g-sub-plain' }));
-    const cb = await callback(app, { state: attempt.state });
+    const cb = await callback(app, { state: attempt.state, cookies: attempt.cookies });
     // Authentication itself succeeds (it is just a session)…
     expect(cb.status).toBe(302);
     expect(cb.headers.location).toContain('gsignin=1');
@@ -326,7 +339,7 @@ describe('Platform Master Google sign-in (server-side OIDC)', () => {
     mockGoogleToken(okTokenResponse);
     const attempt = await startAttempt(app);
     mockVerify(googlePayload(attempt.payload, { sub: 'g-sub-owner' }));
-    const cb = await callback(app, { state: attempt.state });
+    const cb = await callback(app, { state: attempt.state, cookies: attempt.cookies });
     expect(cb.status).toBe(302);
     const ch = cookieHeader(cb);
     const me = await request(app).get('/api/v1/platform/me').set('Cookie', ch);
@@ -354,25 +367,25 @@ describe('Platform Master Google sign-in (server-side OIDC)', () => {
     mockGoogleToken(okTokenResponse);
     gm().__mockVerifyIdToken.mockRejectedValueOnce(new Error('invalid signature'));
     let attempt = await startAttempt(app);
-    expectDenied(await callback(app, { state: attempt.state }), 'idtoken_invalid');
+    expectDenied(await callback(app, { state: attempt.state, cookies: attempt.cookies }), 'idtoken_invalid');
 
     // 5b — wrong audience
     mockGoogleToken(okTokenResponse);
     const a2 = await startAttempt(app);
     mockVerify(googlePayload(a2.payload, { aud: 'someone-else.apps.googleusercontent.com' }));
-    expectDenied(await callback(app, { state: a2.state }), 'idtoken_invalid');
+    expectDenied(await callback(app, { state: a2.state, cookies: a2.cookies }), 'idtoken_invalid');
 
     // 5c — expired
     mockGoogleToken(okTokenResponse);
     const a3 = await startAttempt(app);
     mockVerify(googlePayload(a3.payload, { exp: Math.floor(Date.now() / 1000) - 60 }));
-    expectDenied(await callback(app, { state: a3.state }), 'idtoken_invalid');
+    expectDenied(await callback(app, { state: a3.state, cookies: a3.cookies }), 'idtoken_invalid');
 
     // 5d — wrong issuer
     mockGoogleToken(okTokenResponse);
     const a4 = await startAttempt(app);
     mockVerify(googlePayload(a4.payload, { iss: 'https://evil.example' }));
-    expectDenied(await callback(app, { state: a4.state }), 'idtoken_invalid');
+    expectDenied(await callback(app, { state: a4.state, cookies: a4.cookies }), 'idtoken_invalid');
   });
 
   // -------------------------------------------------------------------------
@@ -390,10 +403,10 @@ describe('Platform Master Google sign-in (server-side OIDC)', () => {
     mockGoogleToken(okTokenResponse);
     const b = await startAttempt(app);
     mockVerify(googlePayload(b.payload));
-    const first = await callback(app, { state: b.state });
+    const first = await callback(app, { state: b.state, cookies: b.cookies });
     expect(first.status).toBe(302);
     expect(first.headers.location).toContain('gsignin=1');
-    expectDenied(await callback(app, { state: b.state }), 'state_invalid');
+    expectDenied(await callback(app, { state: b.state, cookies: b.cookies }), 'state_invalid');
   });
 
   // -------------------------------------------------------------------------
@@ -403,7 +416,7 @@ describe('Platform Master Google sign-in (server-side OIDC)', () => {
     mockGoogleToken(okTokenResponse);
     const attempt = await startAttempt(app);
     mockVerify(googlePayload(attempt.payload, { nonce: 'attacker-chosen-nonce' }));
-    expectDenied(await callback(app, { state: attempt.state }), 'nonce_invalid');
+    expectDenied(await callback(app, { state: attempt.state, cookies: attempt.cookies }), 'nonce_invalid');
   });
 
   // -------------------------------------------------------------------------
@@ -414,7 +427,7 @@ describe('Platform Master Google sign-in (server-side OIDC)', () => {
     mockGoogleToken(okTokenResponse);
     const attempt = await startAttempt(app);
     mockVerify(googlePayload(attempt.payload, { sub: 'g-sub-fresh', email: MASTER_EMAIL, email_verified: true }));
-    expectDenied(await callback(app, { state: attempt.state }), 'not_linked');
+    expectDenied(await callback(app, { state: attempt.state, cookies: attempt.cookies }), 'not_linked');
 
     const after = readStore(dir, 'users');
     expect(after.users.length).toBe(before.users.length);
@@ -599,7 +612,7 @@ describe('Platform Master Google sign-in (server-side OIDC)', () => {
     mockGoogleToken(okTokenResponse);
     const loginAttempt = await startAttempt(app);
     mockVerify(googlePayload(loginAttempt.payload, { sub: 'g-sub-padmin' }));
-    const linkedLogin = await callback(app, { state: loginAttempt.state });
+    const linkedLogin = await callback(app, { state: loginAttempt.state, cookies: loginAttempt.cookies });
     expect(linkedLogin.status).toBe(302);
     expect(linkedLogin.headers.location).toContain('gsignin=1');
     const linkedMe = await request(app).get('/api/v1/platform/me').set('Cookie', cookieHeader(linkedLogin));
@@ -625,7 +638,7 @@ describe('Platform Master Google sign-in (server-side OIDC)', () => {
     mockGoogleToken(okTokenResponse);
     const afterUnlinkAttempt = await startAttempt(app);
     mockVerify(googlePayload(afterUnlinkAttempt.payload, { sub: 'g-sub-padmin' }));
-    expectDenied(await callback(app, { state: afterUnlinkAttempt.state }), 'not_linked');
+    expectDenied(await callback(app, { state: afterUnlinkAttempt.state, cookies: afterUnlinkAttempt.cookies }), 'not_linked');
 
     const padminPass = await request(app).post('/api/v1/auth/login').send({ username: 'padmin', password: PASSWORD });
     expect(padminPass.status).toBe(200);
@@ -640,16 +653,16 @@ describe('Platform Master Google sign-in (server-side OIDC)', () => {
       throw new Error('ECONNREFUSED');
     });
     let attempt = await startAttempt(app);
-    expectDenied(await callback(app, { state: attempt.state }), 'provider_error');
+    expectDenied(await callback(app, { state: attempt.state, cookies: attempt.cookies }), 'provider_error');
 
     // Token endpoint error response
     mockGoogleToken(async () => ({ ok: false, status: 500, json: async () => ({ error: 'server_error' }) }));
     attempt = await startAttempt(app);
-    expectDenied(await callback(app, { state: attempt.state }), 'provider_error');
+    expectDenied(await callback(app, { state: attempt.state, cookies: attempt.cookies }), 'provider_error');
 
     // Missing authorization code (user cancelled at Google)
     attempt = await startAttempt(app);
-    expectDenied(await callback(app, { state: attempt.state, code: '' }), 'provider_error');
+    expectDenied(await callback(app, { state: attempt.state, code: '', cookies: attempt.cookies }), 'provider_error');
 
     // Password login keeps working throughout.
     const login = await request(app).post('/api/v1/auth/login').send({ username: 'omnistore', password: PASSWORD });
@@ -663,7 +676,7 @@ describe('Platform Master Google sign-in (server-side OIDC)', () => {
     mockGoogleToken(okTokenResponse);
     const attempt = await startAttempt(app);
     mockVerify(googlePayload(attempt.payload));
-    const cb = await callback(app, { state: attempt.state });
+    const cb = await callback(app, { state: attempt.state, cookies: attempt.cookies });
     expect(cb.status).toBe(302);
     const ch = cookieHeader(cb);
     expect((await request(app).get('/api/v1/platform/me').set('Cookie', ch)).status).toBe(200);
@@ -689,6 +702,14 @@ describe('Platform Master Google sign-in (server-side OIDC)', () => {
     const usersAfter = readStore(dir, 'users');
     usersAfter.users.find((u) => u.username === 'omnistore').tokenVersion = originalVersion;
     seed(dir, 'users', usersAfter); // restore
+    // Same-size writes issued within one filesystem timestamp tick get the
+    // SAME mtimeMs on Windows, and fileStore's read cache keys on
+    // mtimeMs+size — the restored doc would then be invisible to the next
+    // read (pre-existing test vs storage-cache race, independent of any
+    // flow behavior). Force a distinct stamp so the restore is observable.
+    const usersPath = path.join(dir, 'users.json');
+    const st = fs.statSync(usersPath);
+    fs.utimesSync(usersPath, st.atime, new Date(st.mtimeMs + 1000));
     expect((await request(app).get('/api/v1/platform/me').set('Cookie', ch)).status).toBe(200);
   });
 
@@ -716,7 +737,7 @@ describe('Platform Master Google sign-in (server-side OIDC)', () => {
     mockGoogleToken(okTokenResponse);
     gm().__mockVerifyIdToken.mockRejectedValueOnce(new Error('verification exploded: ' + CLIENT_SECRET));
     const attempt = await startAttempt(app);
-    const cb = await callback(app, { state: attempt.state });
+    const cb = await callback(app, { state: attempt.state, cookies: attempt.cookies });
     expect(cb.status).toBe(302);
     expect(cb.headers.location).toContain('gerr=idtoken_invalid');
     expect(cb.headers.location).not.toContain(CLIENT_SECRET);
@@ -762,7 +783,7 @@ describe('Platform Master Google sign-in (server-side OIDC)', () => {
     mockGoogleToken(okTokenResponse);
     const plain = await startAttempt(app);
     mockVerify(googlePayload(plain.payload));
-    const plainCb = await callback(app, { state: plain.state });
+    const plainCb = await callback(app, { state: plain.state, cookies: plain.cookies });
     expect(plainCb.status).toBe(302);
     expect(plainCb.headers.location).toContain('gsignin=1');
     expect(plainCb.headers.location).not.toContain('gmfa=1');
@@ -966,5 +987,157 @@ describe('OAuth disabled → the whole /auth surface is unreachable (no bypass)'
 
     const login = await request(offApp).post('/api/v1/auth/login').send({ username: 'omnistore', password: PASSWORD });
     expect(login.status).toBe(200);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Browser binding (login-CSRF mitigation): a LOGIN state must be presented
+// by the browser that initiated it. The raw value never leaves its httpOnly
+// cookie; the signed state carries only its hash; signature/TTL/single-use,
+// nonce and PKCE checks are unchanged and still run on every callback.
+// ---------------------------------------------------------------------------
+describe('OAuth state browser binding (login-CSRF mitigation)', () => {
+  let app;
+  let dir;
+
+  beforeAll(() => {
+    dir = makeTempDataDir('gbind');
+    tempDirs.push(dir);
+    seedAll(dir);
+    app = startServer(dir, OAUTH_ENV).app;
+  });
+
+  afterEach(() => {
+    global.fetch = realFetch;
+    gm().__mockVerifyIdToken.mockReset();
+  });
+
+  function googleCalls() {
+    if (!global.fetch || !global.fetch.mock) return [];
+    return global.fetch.mock.calls.filter((c) => String(c[0]).includes('oauth2.googleapis.com'));
+  }
+
+  function auditReasons() {
+    const audit = readStore(dir, 'auditLog');
+    return ((audit && audit.entries) || []).map((e) => (e.changes && e.changes.reason) || '');
+  }
+
+  it('initiate sets a hardened g_oauth_bs cookie and puts only its hash in the state', async () => {
+    const res = await request(app).get('/auth/google/master?returnTo=' + encodeURIComponent('/'));
+    expect(res.status).toBe(302);
+    const set = res.headers['set-cookie'] || [];
+    const bs = set.find((c) => c.startsWith('g_oauth_bs='));
+    expect(bs).toBeTruthy();
+    expect(bs).toContain('HttpOnly');
+    expect(bs).toContain('SameSite=Lax');
+    expect(bs).toContain('Path=/auth/google/master');
+    expect(bs).toContain('Max-Age=600');
+    expect(bs.includes('Secure')).toBe((process.env.NODE_ENV || 'development') === 'production');
+
+    const raw = bs.split('g_oauth_bs=')[1].split(';')[0];
+    expect(raw.length).toBeGreaterThanOrEqual(32);
+    const state = new URL(res.headers.location).searchParams.get('state');
+    const payload = decodeState(state);
+    expect(payload.mode).toBe('login');
+    expect(payload.bbh).toBe(crypto.createHash('sha256').update(raw).digest('base64url'));
+    // No secret in the URL: the raw cookie value never appears in it.
+    expect(res.headers.location).not.toContain(raw);
+  });
+
+  it('callback without the binding cookie is rejected BEFORE any code exchange', async () => {
+    mockGoogleToken(okTokenResponse);
+    const attempt = await startAttempt(app);
+    mockVerify(googlePayload(attempt.payload));
+    const res = await request(app).get(
+      '/auth/google/master/callback?code=ok-code&state=' + encodeURIComponent(attempt.state)
+    );
+    expectDenied(res, 'state_invalid');
+    expect(googleCalls().length).toBe(0);
+    expect(auditReasons()).toContain('browser_binding_mismatch');
+    // A rejected callback never clears the binding a sibling tab may need.
+    const set = res.headers['set-cookie'] || [];
+    expect(set.some((c) => c.startsWith('g_oauth_bs=;'))).toBe(false);
+  });
+
+  it('callback with a WRONG binding value is rejected and the burned state cannot be replayed', async () => {
+    mockGoogleToken(okTokenResponse);
+    const attempt = await startAttempt(app);
+    mockVerify(googlePayload(attempt.payload));
+    const wrong = await callback(app, { state: attempt.state, cookies: 'g_oauth_bs=' + 'A'.repeat(43) });
+    expectDenied(wrong, 'state_invalid');
+    expect(googleCalls().length).toBe(0);
+    // Even the CORRECT cookie cannot reuse the consumed state (single-use).
+    const replay = await callback(app, { state: attempt.state, cookies: attempt.cookies });
+    expectDenied(replay, 'state_invalid');
+  });
+
+  it('a foreign browser binding is rejected; each browser completes only its own flow', async () => {
+    mockGoogleToken(okTokenResponse);
+    const A = await startAttempt(app);
+    const B = await startAttempt(app);
+    // Browser A presents browser B's cookie with B's state -> rejected.
+    mockVerify(googlePayload(B.payload));
+    const crossed = await callback(app, { state: B.state, cookies: A.cookies });
+    expectDenied(crossed, 'state_invalid');
+    expect(googleCalls().length).toBe(0);
+    // Browser A then completes its OWN untouched flow with its own cookie.
+    mockVerify(googlePayload(A.payload));
+    const ok = await callback(app, { state: A.state, cookies: A.cookies });
+    expect(ok.status).toBe(302);
+    expect(ok.headers.location).toContain('gsignin=1');
+    const ch = cookieHeader(ok);
+    expect(ch).toContain('access_token=');
+    const me = await request(app).get('/api/v1/platform/me').set('Cookie', ch);
+    expect(me.status).toBe(200);
+  });
+
+  it('natural flow succeeds, clears the binding, and a fresh retry works after rejection', async () => {
+    mockGoogleToken(okTokenResponse);
+    const first = await startAttempt(app);
+    mockVerify(googlePayload(first.payload));
+    expectDenied(await callback(app, { state: first.state }), 'state_invalid');
+
+    // Retry = start again: fresh initiate, fresh binding, fresh state.
+    mockGoogleToken(okTokenResponse);
+    const second = await startAttempt(app);
+    mockVerify(googlePayload(second.payload));
+    const ok = await callback(app, { state: second.state, cookies: second.cookies });
+    expect(ok.status).toBe(302);
+    expect(ok.headers.location).toContain('gsignin=1');
+    const set = ok.headers['set-cookie'] || [];
+    expect(set.some((c) => c.startsWith('g_oauth_bs=;'))).toBe(true);
+    const ch = cookieHeader(ok);
+    const me = await request(app).get('/api/v1/platform/me').set('Cookie', ch);
+    expect(me.status).toBe(200);
+    expect(me.body.data.platformRole).toBe('MASTER_OWNER');
+  });
+
+  it('link flow carries no binding hash and stays exempt (session-bound, unaffected)', async () => {
+    // A link-mode state is created WITHOUT bbh: binding is login-only, and
+    // the existing link suite (session + ticket + password step-up) proves
+    // the link path still works end-to-end without this cookie.
+    const login = await request(app).post('/api/v1/auth/login').send({ username: 'padmin', password: PASSWORD });
+    expect(login.status).toBe(200);
+    const sessCookies = cookieHeader(login);
+    const ticketRes = await request(app)
+      .post('/auth/google/master/link-session')
+      .set('Authorization', 'Bearer ' + login.body.data.accessToken)
+      .send({ currentPassword: PASSWORD });
+    expect(ticketRes.status).toBe(200);
+    const linkStart = await request(app)
+      .get('/auth/google/master/link?ticket=' + encodeURIComponent(ticketRes.body.data.ticket))
+      .set('Cookie', sessCookies);
+    expect(linkStart.status).toBe(302);
+    const lstate = new URL(linkStart.headers.location).searchParams.get('state');
+    const lpayload = decodeState(lstate);
+    expect(lpayload.mode).toBe('link');
+    expect(lpayload.bbh).toBeUndefined();
+    // And an unlink attempt is untouched by any of this (password step-up
+    // contract unchanged; B-unlink in the main suite re-verifies access).
+    const un = await request(app)
+      .post('/auth/google/master/unlink')
+      .set('Authorization', 'Bearer ' + login.body.data.accessToken)
+      .send({ currentPassword: 'wrong-password' });
+    expect(un.status).toBe(401);
   });
 });
