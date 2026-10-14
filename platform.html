@@ -210,7 +210,6 @@
           <button type="button" id="platformAuthShowPass" class="auth-pass-toggle" aria-label="إظهار أو إخفاء كلمة المرور">👁</button>
         </div>
       </div>
-      <p id="platformAuthError" class="auth-error" role="alert" hidden></p>
       <div id="platformAuthMfa" hidden>
         <div class="auth-field">
           <label for="platformAuthMfaToken">رمز التحقق الثنائي</label>
@@ -221,6 +220,11 @@
       <button type="submit" id="platformAuthSubmit" class="btn-primary" data-i18n="auth_submit">دخول</button>
       <button type="button" id="platformAuthGoogle" class="btn-secondary" style="width:100%;margin-top:8px">🔵 الدخول عبر Google</button>
     </form>
+    <!-- Message region deliberately OUTSIDE the form: refreshAuthDrawer
+         hides the whole form whenever a session exists, and every
+         post-session outcome (link step-up errors, ?glink=1 success, the
+         post-login guidance) must stay visible in that state. -->
+    <p id="platformAuthError" class="auth-error" role="alert" hidden></p>
     <div id="platformAuthGoogleLinkSection" hidden style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px">
       <button type="button" id="platformAuthGoogleLink" class="btn-secondary" style="width:100%">🔗 ربط حساب Google بحساب الماستر</button>
       <div id="platformAuthLinkStepUp" hidden style="margin-top:10px">
@@ -236,7 +240,7 @@
   </aside>
 
   <script src="platform/google-link.js?v=20261014"></script>
-  <script src="platform/platform.js?v=20261014"></script>
+  <script src="platform/platform.js?v=20261015"></script>
   <!--
     Monetag integration boundary - PUBLIC Platform Home only.
     Disabled by default: no third-party script loads until the owner sets

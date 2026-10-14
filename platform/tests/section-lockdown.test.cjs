@@ -650,6 +650,10 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/server.js',
     'backend/tests/monetag.boundary.test.js',
     'platform/tests/section-lockdown.test.cjs',
+    // Homepage Master entry cycle: the drawer's post-login contract (Master
+    // stays for the Google link flow) and its e2e smoke updated with it.
+    'platform/tests/compact-login.test.cjs',
+    'tests/e2e/verify-compact-login.js',
     // Pre-existing local WIP from earlier candidate work — carried across
     // branches, deliberately never staged by this change set:
     'backend/data/platformPublic.json',

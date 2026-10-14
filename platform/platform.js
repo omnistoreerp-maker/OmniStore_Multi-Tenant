@@ -1040,6 +1040,19 @@
         try { sessionStorage.setItem(POST_LOGIN_KEY, target.postLoginPage); } catch (_) {}
       }
       refreshAuthDrawer();
+      // Platform Master: STAY in the homepage drawer so the session-gated
+      // Google LINK section and its step-up are reachable right here —
+      // opening /index.html manually must never be a prerequisite for
+      // linking. The one-shot key recorded above still lands the Master on
+      // the Master Control Center through the existing «فتح البرنامج»
+      // entry, behind index.html's own canAccessPage gate. Everyone else
+      // keeps the exact hand-off to the app entry, and the server
+      // re-verifies the role on every protected surface regardless of
+      // what is shown here.
+      if (platformRole) {
+        authError('تم تسجيل الدخول — يمكنك ربط حساب Google الآن أو فتح البرنامج من القائمة');
+        return;
+      }
       window.location.href = target.href;
     } catch (_) {
       authError(authText('auth_error_network'));
