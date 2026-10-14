@@ -389,6 +389,26 @@ function linkSession(req, res) {
   success(res, { ticket }, 'Link ticket issued');
 }
 
+// GET /auth/google/master/link-status — read-only linked/configured probe
+// for the CURRENT session (Master Control Center entry point). Answers
+// booleans only: no email, no sub, no username echo — nothing that could
+// widen the surface beyond "is a Google account bound to THIS session's
+// user, and is the server-side link policy configured at all". Session
+// and membership are enforced exactly like the link-session step-up.
+function linkStatus(req, res) {
+  const subject = _sessionSubject(req);
+  if (!subject) return error(res, 'Authentication required', 401);
+  const user = usersService.getById(subject.id);
+  if (!user || user.status === 'disabled') return error(res, 'Authentication required', 401);
+  if (!platformAdminService.platformRoleFor(user.username)) {
+    return error(res, 'Only platform administrators can manage Google linking', 403);
+  }
+  success(res, {
+    configured: googleOidc.isConfigured(),
+    linked: !!(user.oauth && user.oauth.google)
+  }, 'Google link status');
+}
+
 // POST /auth/google/master/unlink — remove the Google sub from the
 // CURRENT account only, behind the same password step-up. The password
 // login path is untouched, so recovery always remains possible.
@@ -481,6 +501,7 @@ module.exports = {
   callbackMaster,
   initiateMasterLink,
   linkSession,
+  linkStatus,
   completeMfa,
   unlink
 };

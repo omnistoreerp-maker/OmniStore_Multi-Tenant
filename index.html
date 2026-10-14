@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="platform/omni-design.css">
 <script src="platform/omni-i18n.js"></script>
 <script src="platform/i18n/index.dict.js"></script>
+<script src="platform/google-link.js?v=20261014"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap');
 :root {
@@ -5442,6 +5443,27 @@ document.addEventListener('DOMContentLoaded', function() {
         <span>🏢 الشركات · النشط/الموقوف/الإجمالي</span>
         <span>👥 المستخدمون · الإجمالي/المتصلون</span>
         <span>🎫 التراخيص · النشط/المنتهية/تنتهي قريبًا</span>
+      </div>
+      <!-- Google account LINKING for the signed-in Master (link mode ONLY —
+           never a login path). The flow lives in platform/google-link.js
+           (OmniGoogleLink): step-up password → POST link-session (Bearer,
+           JSON body only) → server-issued single-use ticket → GET link.
+           Section IDs intentionally match the homepage auth drawer's link
+           section so the shared module drives both surfaces unchanged.
+           Server enforces session, password, membership and link policy. -->
+      <div id="platformAuthGoogleLinkSection" style="margin:0 0 12px 0;border:1px solid var(--border);border-radius:12px;padding:10px 12px;background:var(--surface2)">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <strong style="font-size:0.85rem">🔗 حساب Google</strong>
+          <span id="googleLinkPill" aria-live="polite" style="font-size:0.78rem;color:var(--text2)">—</span>
+          <span id="googleLinkStatus" role="status" aria-live="polite" style="font-size:0.78rem;color:var(--red)"></span>
+          <span style="flex:1"></span>
+          <button type="button" id="platformAuthGoogleLink" class="btn btn-outline btn-sm" aria-label="ربط حساب Google بحساب الماستر">ربط حساب Google بحساب الماستر</button>
+        </div>
+        <div id="platformAuthLinkStepUp" hidden style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input type="password" id="platformAuthLinkPass" autocomplete="current-password" placeholder="كلمة المرور الحالية (تأكيد الربط)" aria-label="كلمة المرور الحالية لتأكيد الربط" style="flex:1;min-width:180px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 12px;color:var(--text);font-family:inherit;font-size:0.85rem">
+          <button type="button" id="platformAuthLinkSubmit" class="btn btn-accent btn-sm">تأكيد الربط</button>
+          <button type="button" id="platformAuthLinkCancel" class="btn btn-outline btn-sm">إلغاء</button>
+        </div>
       </div>
       <div role="tablist" aria-label="أقسام مركز التحكم" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px" id="platformTabs">
         <button class="btn btn-accent btn-sm platform-tab" role="tab" data-ptab="companies" aria-selected="true" aria-controls="platformTabBody" onclick="platformTab('companies',this)">🏢 الشركات</button>
@@ -14771,6 +14793,9 @@ async function renderPlatformMaster() {
   const lu = document.getElementById('pmLastUpdated');
   if (lu) lu.textContent = 'آخر تحديث: ' + new Date().toLocaleTimeString('ar-EG');
   platformTab(platformTabCurrent || 'companies');
+  // Google link section: refresh the linked-state pill on every render of
+  // the Master Control Center (same cadence as the KPI cards above).
+  if (window.OmniGoogleLink) OmniGoogleLink.refreshStatus();
 }
 
 function platformTab(tab, button) {
@@ -44567,6 +44592,11 @@ applyBusinessBranding();
 // either hydrate the session from the httpOnly cookies (?gsignin=1) or
 // follow the exact same restore path as a password login.
 handleGoogleSigninResult();
+// Google LINK round-trip outcomes (?glink=1 / ?gerr=code) for the Master
+// Control Center entry point: wire the section, consume the result, probe
+// the linked state. Linking never mints a session, so this runs before —
+// and independently of — the sign-in bootstrap below.
+if (window.OmniGoogleLink) OmniGoogleLink.boot();
 const __gSigninBooted = new URLSearchParams(window.location.search).get('gsignin') === '1';
 const __bootSession = function () {
   const sessionRestored = restoreSessionOnLoad();

@@ -1,12 +1,15 @@
 'use strict';
 
-// Google account LINKING UI regression suite (Phase: google-master-link-ui).
+// Google account LINKING UI regression suite (Phase: google-master-link-ui,
+// entry-point follow-up: google-master-link-entrypoint).
 //
 // Pins the shipped frontend contract for the authenticated Master's Google
 // linking flow — the ONLY path that calls POST /auth/google/master/link-session
-// and GET /auth/google/master/link. Static assertions against the shipped
-// bytes; the server-side ticket / policy / session semantics are pinned by
-// backend/tests/googleMasterSignin.test.js.
+// and GET /auth/google/master/link. The flow itself lives in the shared
+// platform/google-link.js module (OmniGoogleLink) loaded by BOTH shells;
+// platform.js keeps the drawer wiring + session-gate refresh and delegates.
+// Static assertions against the shipped bytes; the server-side ticket /
+// policy / session semantics are pinned by backend/tests/googleMasterSignin.test.js.
 //
 //   - markup: the link section + password step-up exist in the auth drawer
 //   - link start: step-up requires an authenticated session, posts the
@@ -14,6 +17,8 @@
 //     entry with the server-issued ticket
 //   - password hygiene: never in a URL, never persisted, always cleared
 //   - outcomes: ?glink=1 success + every gerr= link error message present
+//   - delegation: platform.html loads the shared module BEFORE platform.js
+//     and the drawer wrappers route through OmniGoogleLink
 //   - login entry intact: the existing Google LOGIN button still routes to
 //     /auth/google/master (login mode), never the link path
 
@@ -23,6 +28,7 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..', '..');
 const PLATFORM_HTML = fs.readFileSync(path.join(ROOT, 'platform.html'), 'utf8');
 const PLATFORM_JS = fs.readFileSync(path.join(ROOT, 'platform', 'platform.js'), 'utf8');
+const GOOGLE_LINK_JS = fs.readFileSync(path.join(ROOT, 'platform', 'google-link.js'), 'utf8');
 
 let passed = 0;
 let failed = 0;
@@ -84,19 +90,20 @@ check('link section sits between the login form and the logout button, outside t
 });
 
 // ---------------------------------------------------------------------------
-// 2. Link start: step-up + single-use ticket navigation
+// 2. Link start: step-up + single-use ticket navigation (shared module)
 // ---------------------------------------------------------------------------
 check('link step-up requires an authenticated session before showing', () => {
-  const open = extractFunction(PLATFORM_JS, 'openGoogleLinkStepUp');
-  assert(open.includes('authTokens()'), 'openGoogleLinkStepUp must read the session');
-  assert(open.includes("if (!tokens.access)"), 'openGoogleLinkStepUp must gate on the access token');
-  assert(open.includes("step.removeAttribute('hidden')"), 'openGoogleLinkStepUp must reveal the step-up');
-  assert(open.includes("pass.value = ''"), 'openGoogleLinkStepUp must clear any stale password');
+  const open = extractFunction(GOOGLE_LINK_JS, 'openStepUp');
+  assert(open.includes('authTokens()'), 'openStepUp must read the session');
+  assert(open.includes("if (!tokens.access)"), 'openStepUp must gate on the access token');
+  assert(open.includes("step.removeAttribute('hidden')"), 'openStepUp must reveal the step-up');
+  assert(open.includes("pass.value = ''"), 'openStepUp must clear any stale password');
 });
 
 check('link start posts the current password to link-session with the Bearer session', () => {
-  const submit = extractFunction(PLATFORM_JS, 'submitGoogleLinkStepUp');
-  assert(submit.includes("fetch('/auth/google/master/link-session'"), 'link-session fetch missing');
+  const submit = extractFunction(GOOGLE_LINK_JS, 'submitStepUp');
+  assert(GOOGLE_LINK_JS.includes("LINK_SESSION_URL = '/auth/google/master/link-session'"), 'link-session URL constant missing');
+  assert(submit.includes('fetch(LINK_SESSION_URL'), 'link-session fetch missing');
   assert(submit.includes("method: 'POST'"), 'link-session must be POST');
   assert(submit.includes("'Authorization': 'Bearer ' + tokens.access"), 'link-session must send the Bearer session');
   assert(submit.includes("credentials: 'same-origin'"), 'link-session must send same-origin credentials');
@@ -106,18 +113,21 @@ check('link start posts the current password to link-session with the Bearer ses
 });
 
 check('a server-issued ticket is the only credential that starts the link round-trip', () => {
-  const submit = extractFunction(PLATFORM_JS, 'submitGoogleLinkStepUp');
-  assert(submit.includes("'/auth/google/master/link?ticket=' + encodeURIComponent(ticket)"), 'link entry navigation missing');
-  assert(submit.includes("res.body && res.body.success && res.body.data && res.body.data.ticket"), 'ticket must come from the server response envelope');
-  assert(submit.includes("window.location.assign("), 'link start must navigate the browser');
+  const submit = extractFunction(GOOGLE_LINK_JS, 'submitStepUp');
+  assert(GOOGLE_LINK_JS.includes("LINK_ENTRY_URL = '/auth/google/master/link'"), 'link entry URL constant missing');
+  assert(submit.includes("LINK_ENTRY_URL + '?ticket=' + encodeURIComponent(ticket)"), 'link entry navigation missing');
+  assert(submit.includes('res.body && res.body.success && res.body.data && res.body.data.ticket'), 'ticket must come from the server response envelope');
+  assert(submit.includes('global.location.assign('), 'link start must navigate the browser');
   assert(!/\/auth\/google\/master\/link\?[^'"]*[Pp]assword/.test(submit), 'password must never travel in the link URL');
   assert(!/\/auth\/google\/master\?[^'"]*[Pp]assword/.test(submit), 'password must never travel in the login URL');
 });
 
 check('the password never persists and is cleared on every outcome', () => {
-  assert(!/localStorage\.setItem\([^)]*[Pp]ass/.test(PLATFORM_JS), 'password must never be persisted to localStorage');
-  assert(!/sessionStorage\.setItem\([^)]*[Pp]ass/.test(PLATFORM_JS), 'password must never be persisted to sessionStorage');
-  const submit = extractFunction(PLATFORM_JS, 'submitGoogleLinkStepUp');
+  for (const src of [PLATFORM_JS, GOOGLE_LINK_JS]) {
+    assert(!/localStorage\.setItem\([^)]*[Pp]ass/.test(src), 'password must never be persisted to localStorage');
+    assert(!/sessionStorage\.setItem\([^)]*[Pp]ass/.test(src), 'password must never be persisted to sessionStorage');
+  }
+  const submit = extractFunction(GOOGLE_LINK_JS, 'submitStepUp');
   // Two clear sites: once after any settled response (covers success and
   // every mapped error) and once in the network .catch.
   const clears = (submit.match(/pass(?:El)?\.value\s*=\s*''/g) || []).length;
@@ -140,12 +150,13 @@ check('completed link round-trip surfaces success and cleans the URL', () => {
 check('every server link error code maps to a safe Arabic message', () => {
   for (const code of ['email_mismatch', 'session_mismatch', 'sub_taken',
     'link_policy_unconfigured', 'link_failed', 'session_invalid', 'not_linked']) {
-    assert(new RegExp(code + ":\\s*'").test(PLATFORM_JS), 'gerr message missing for: ' + code);
+    assert(new RegExp(code + ":\\s*'").test(PLATFORM_JS), 'drawer gerr message missing for: ' + code);
+    assert(new RegExp(code + ":\\s*'").test(GOOGLE_LINK_JS), 'shared-module gerr message missing for: ' + code);
   }
 });
 
 check('link-session failures map 400/401/403/404/501 to distinct safe messages', () => {
-  const submit = extractFunction(PLATFORM_JS, 'submitGoogleLinkStepUp');
+  const submit = extractFunction(GOOGLE_LINK_JS, 'submitStepUp');
   for (const status of ['400', '401', '403', '404', '501']) {
     assert(submit.includes('res.status === ' + status), 'link-session status mapping missing: ' + status);
   }
@@ -182,10 +193,36 @@ check('the Google LOGIN entry is intact and never starts a link', () => {
 });
 
 check('the link flow never calls the login entry', () => {
-  const submit = extractFunction(PLATFORM_JS, 'submitGoogleLinkStepUp');
+  const submit = extractFunction(GOOGLE_LINK_JS, 'submitStepUp');
   assert(!submit.includes('startGoogleSignIn'), 'link start must never route through the login entry');
-  const open = extractFunction(PLATFORM_JS, 'openGoogleLinkStepUp');
+  const open = extractFunction(GOOGLE_LINK_JS, 'openStepUp');
   assert(!open.includes('startGoogleSignIn'), 'link step-up must never route through the login entry');
+});
+
+// ---------------------------------------------------------------------------
+// 6. Shared-module wiring: load order + fail-closed delegation
+// ---------------------------------------------------------------------------
+check('platform.html loads the shared link module BEFORE platform.js', () => {
+  const gIdx = PLATFORM_HTML.indexOf('platform/google-link.js');
+  const pIdx = PLATFORM_HTML.indexOf('platform/platform.js');
+  assert(gIdx !== -1, 'platform.html must load platform/google-link.js');
+  assert(pIdx !== -1, 'platform.html must still load platform/platform.js');
+  assert(gIdx < pIdx, 'google-link.js must load before platform.js');
+});
+
+check('platform.html cache-busts both platform scripts with a version query', () => {
+  assert(/platform\/google-link\.js\?v=\d{8}/.test(PLATFORM_HTML), 'google-link.js must carry a ?v= cache-buster');
+  assert(/platform\/platform\.js\?v=\d{8}/.test(PLATFORM_HTML), 'platform.js must carry a ?v= cache-buster');
+});
+
+check('drawer wrappers delegate to OmniGoogleLink and fail closed when absent', () => {
+  for (const name of ['openGoogleLinkStepUp', 'submitGoogleLinkStepUp']) {
+    const wrap = extractFunction(PLATFORM_JS, name);
+    assert(wrap.includes('window.OmniGoogleLink'), name + ' must delegate to the shared module');
+    assert(wrap.includes('authError('), name + ' must fail closed with a safe message');
+  }
+  const cancel = extractFunction(PLATFORM_JS, 'cancelGoogleLinkStepUp');
+  assert(cancel.includes('window.OmniGoogleLink'), 'cancelGoogleLinkStepUp must delegate to the shared module');
 });
 
 setTimeout(() => {

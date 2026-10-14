@@ -750,88 +750,26 @@
   // changePassword), and then follows the server-issued single-use ticket
   // into the link-mode OIDC round-trip. The password travels only in the
   // step-up JSON body — never in a URL, never to Google, never persisted.
+  //
+  // The flow itself lives in the shared platform/google-link.js module
+  // (OmniGoogleLink) so the homepage drawer and the Master Control Center
+  // entry point run one implementation; these wrappers keep the drawer's
+  // wiring and session-gate refresh in this file. If the shared module
+  // failed to load, fail closed with a safe message — never a silent no-op
+  // that would look like a working link button.
   // ------------------------------------------------------------------
   function openGoogleLinkStepUp() {
-    var tokens = authTokens();
-    if (!tokens.access) {
-      authError('سجّل الدخول بكلمة المرور أولًا لربط حساب Google');
-      return;
-    }
-    authError(null);
-    var step = document.getElementById('platformAuthLinkStepUp');
-    if (step) step.removeAttribute('hidden');
-    var pass = document.getElementById('platformAuthLinkPass');
-    if (pass) { pass.value = ''; if (typeof pass.focus === 'function') pass.focus(); }
+    if (window.OmniGoogleLink) return window.OmniGoogleLink.openStepUp();
+    authError('تعذّر تحميل واجهة الربط — أعد المحاولة');
   }
 
   function cancelGoogleLinkStepUp() {
-    var step = document.getElementById('platformAuthLinkStepUp');
-    if (step) step.setAttribute('hidden', '');
-    var pass = document.getElementById('platformAuthLinkPass');
-    if (pass) pass.value = '';
-    authError(null);
+    if (window.OmniGoogleLink) return window.OmniGoogleLink.cancelStepUp();
   }
 
   function submitGoogleLinkStepUp() {
-    var tokens = authTokens();
-    if (!tokens.access) {
-      authError('انتهت الجلسة — سجّل الدخول من جديد');
-      refreshAuthDrawer();
-      return;
-    }
-    var passEl = document.getElementById('platformAuthLinkPass');
-    var currentPassword = passEl ? passEl.value : '';
-    if (!currentPassword) {
-      authError('أدخل كلمة المرور الحالية لتأكيد الربط');
-      return;
-    }
-    var submitBtn = document.getElementById('platformAuthLinkSubmit');
-    if (submitBtn) submitBtn.disabled = true;
-    authError(null);
-    fetch('/auth/google/master/link-session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tokens.access },
-      credentials: 'same-origin',
-      body: JSON.stringify({ currentPassword: currentPassword })
-    })
-      .then(function (r) {
-        return r.json().catch(function () { return null; }).then(function (j) {
-          return { status: r.status, body: j };
-        });
-      })
-      .then(function (res) {
-        if (passEl) passEl.value = '';
-        var ticket = res.body && res.body.success && res.body.data && res.body.data.ticket;
-        if (res.status === 200 && ticket) {
-          // Server-issued, single-use ticket: the ONLY credential that may
-          // start link mode. Navigates to the link entry — never the login
-          // entry — and the browser keeps the session cookies the server
-          // re-checks on /auth/google/master/link.
-          var page = 'platform.html';
-          try {
-            var seg = (window.location.pathname || '').split('/').pop();
-            if (seg) page = seg;
-          } catch (_) {}
-          window.location.assign(
-            '/auth/google/master/link?ticket=' + encodeURIComponent(ticket) +
-            '&returnTo=' + encodeURIComponent(page)
-          );
-          return;
-        }
-        if (res.status === 400) authError('تحقق من البيانات المدخلة');
-        else if (res.status === 401) authError('كلمة المرور غير صحيحة');
-        else if (res.status === 403) authError('غير مصرح — يلزم حساب ماستر نشط في المنصة');
-        else if (res.status === 404) authError('المستخدم غير موجود');
-        else if (res.status === 501) authError('الربط عبر Google غير مفعّل على الخادم');
-        else authError('تعذّر بدء ربط Google — أعد المحاولة');
-      })
-      .catch(function () {
-        if (passEl) passEl.value = '';
-        authError('تعذّر الاتصال بالخادم — أعد المحاولة');
-      })
-      .then(function () {
-        if (submitBtn) submitBtn.disabled = false;
-      });
+    if (window.OmniGoogleLink) return window.OmniGoogleLink.submitStepUp();
+    authError('تعذّر تحميل واجهة الربط — أعد المحاولة');
   }
 
   // Runs at init(): consumes the outcome of a Google round-trip.
