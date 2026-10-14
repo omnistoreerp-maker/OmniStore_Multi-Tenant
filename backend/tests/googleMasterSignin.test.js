@@ -30,6 +30,7 @@ const speakeasy = require('speakeasy');
 const { startServer, TEST_JWT_SECRET } = require('./helpers/testServer');
 const { makeTempDataDir, seed, readStore } = require('./helpers/testData');
 const { registerCleanup } = require('./helpers/cleanup');
+const oauthState = require('../utils/oauthState');
 
 const CLIENT_ID = 'test-client-id.apps.googleusercontent.com';
 const CLIENT_SECRET = 'test-client-secret';
@@ -642,6 +643,72 @@ describe('Platform Master Google sign-in (server-side OIDC)', () => {
 
     const padminPass = await request(app).post('/api/v1/auth/login').send({ username: 'padmin', password: PASSWORD });
     expect(padminPass.status).toBe(200);
+  });
+
+  // -------------------------------------------------------------------------
+  // 8/9b-extra. link START (the GET /link leg): a session is required before
+  // anything else, the single-use ticket must belong to that same session,
+  // and it expires and is consumed exactly once.
+  // -------------------------------------------------------------------------
+  it('8/9b-extra. link start rejects missing session, foreign session, expired and replayed tickets', async () => {
+    const padminLogin = await request(app).post('/api/v1/auth/login').send({ username: 'padmin', password: PASSWORD });
+    expect(padminLogin.status).toBe(200);
+    const padminCookies = cookieHeader(padminLogin);
+    const masterLogin = await request(app).post('/api/v1/auth/login').send({ username: 'omnistore', password: PASSWORD });
+    expect(masterLogin.status).toBe(200);
+    const masterCookies = cookieHeader(masterLogin);
+
+    const mint = async () => {
+      const res = await request(app)
+        .post('/auth/google/master/link-session')
+        .set('Authorization', 'Bearer ' + padminLogin.body.data.accessToken)
+        .send({ currentPassword: PASSWORD });
+      expect(res.status).toBe(200);
+      expect(res.body.data.ticket).toBeTruthy();
+      return res.body.data.ticket;
+    };
+
+    // (a) NO session at link start → 401, checked before the ticket is read.
+    const tNoSession = await mint();
+    const noSession = await request(app)
+      .get('/auth/google/master/link?ticket=' + encodeURIComponent(tNoSession));
+    expect(noSession.status).toBe(401);
+
+    // (b) FOREIGN session: ticket minted for padmin, presented under omnistore's
+    // live session → 403 (ticket.u must equal the session subject).
+    const tForeign = await mint();
+    const foreign = await request(app)
+      .get('/auth/google/master/link?ticket=' + encodeURIComponent(tForeign))
+      .set('Cookie', masterCookies);
+    expect(foreign.status).toBe(403);
+
+    // (c) EXPIRED ticket: the TTL elapses between link-session and the link
+    // start → 403. (Date.now is the single time source in oauthState; the
+    // forward skew stays far inside the 7-day refresh-cookie lifetime, so the
+    // session itself is still valid.)
+    const tExpired = await mint();
+    const realNow = Date.now();
+    const nowSpy = jest.spyOn(Date, 'now').mockImplementation(() => realNow + oauthState.STATE_TTL_MS + 5000);
+    try {
+      const expired = await request(app)
+        .get('/auth/google/master/link?ticket=' + encodeURIComponent(tExpired))
+        .set('Cookie', padminCookies);
+      expect(expired.status).toBe(403);
+    } finally {
+      nowSpy.mockRestore();
+    }
+
+    // (d) REPLAY: a ticket is single-use — the first start consumes it (302),
+    // the second presentation is rejected (403).
+    const tReplay = await mint();
+    const firstStart = await request(app)
+      .get('/auth/google/master/link?ticket=' + encodeURIComponent(tReplay))
+      .set('Cookie', padminCookies);
+    expect(firstStart.status).toBe(302);
+    const replay = await request(app)
+      .get('/auth/google/master/link?ticket=' + encodeURIComponent(tReplay))
+      .set('Cookie', padminCookies);
+    expect(replay.status).toBe(403);
   });
 
   // -------------------------------------------------------------------------

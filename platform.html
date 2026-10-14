@@ -221,6 +221,17 @@
       <button type="submit" id="platformAuthSubmit" class="btn-primary" data-i18n="auth_submit">دخول</button>
       <button type="button" id="platformAuthGoogle" class="btn-secondary" style="width:100%;margin-top:8px">🔵 الدخول عبر Google</button>
     </form>
+    <div id="platformAuthGoogleLinkSection" hidden style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px">
+      <button type="button" id="platformAuthGoogleLink" class="btn-secondary" style="width:100%">🔗 ربط حساب Google بحساب الماستر</button>
+      <div id="platformAuthLinkStepUp" hidden style="margin-top:10px">
+        <div class="auth-field">
+          <label for="platformAuthLinkPass">كلمة المرور الحالية (تأكيد الربط)</label>
+          <input type="password" id="platformAuthLinkPass" autocomplete="current-password">
+        </div>
+        <button type="button" id="platformAuthLinkSubmit" class="btn-primary" style="width:100%;margin-top:8px">تأكيد الربط</button>
+        <button type="button" id="platformAuthLinkCancel" class="btn-secondary" style="width:100%;margin-top:6px">إلغاء</button>
+      </div>
+    </div>
     <button type="button" id="platformAuthLogout" class="btn-secondary" data-i18n="auth_logout" hidden>تسجيل الخروج</button>
   </aside>
 

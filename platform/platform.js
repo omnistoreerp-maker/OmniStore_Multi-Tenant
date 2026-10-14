@@ -742,6 +742,98 @@
     window.location.assign('/auth/google/master?returnTo=' + encodeURIComponent(page));
   }
 
+  // ------------------------------------------------------------------
+  // Google account LINKING for the signed-in Platform Master. This is NOT
+  // a login path: it only runs from an authenticated drawer session, asks
+  // for the CURRENT password (server-side step-up via
+  // POST /auth/google/master/link-session — same contract as
+  // changePassword), and then follows the server-issued single-use ticket
+  // into the link-mode OIDC round-trip. The password travels only in the
+  // step-up JSON body — never in a URL, never to Google, never persisted.
+  // ------------------------------------------------------------------
+  function openGoogleLinkStepUp() {
+    var tokens = authTokens();
+    if (!tokens.access) {
+      authError('سجّل الدخول بكلمة المرور أولًا لربط حساب Google');
+      return;
+    }
+    authError(null);
+    var step = document.getElementById('platformAuthLinkStepUp');
+    if (step) step.removeAttribute('hidden');
+    var pass = document.getElementById('platformAuthLinkPass');
+    if (pass) { pass.value = ''; if (typeof pass.focus === 'function') pass.focus(); }
+  }
+
+  function cancelGoogleLinkStepUp() {
+    var step = document.getElementById('platformAuthLinkStepUp');
+    if (step) step.setAttribute('hidden', '');
+    var pass = document.getElementById('platformAuthLinkPass');
+    if (pass) pass.value = '';
+    authError(null);
+  }
+
+  function submitGoogleLinkStepUp() {
+    var tokens = authTokens();
+    if (!tokens.access) {
+      authError('انتهت الجلسة — سجّل الدخول من جديد');
+      refreshAuthDrawer();
+      return;
+    }
+    var passEl = document.getElementById('platformAuthLinkPass');
+    var currentPassword = passEl ? passEl.value : '';
+    if (!currentPassword) {
+      authError('أدخل كلمة المرور الحالية لتأكيد الربط');
+      return;
+    }
+    var submitBtn = document.getElementById('platformAuthLinkSubmit');
+    if (submitBtn) submitBtn.disabled = true;
+    authError(null);
+    fetch('/auth/google/master/link-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tokens.access },
+      credentials: 'same-origin',
+      body: JSON.stringify({ currentPassword: currentPassword })
+    })
+      .then(function (r) {
+        return r.json().catch(function () { return null; }).then(function (j) {
+          return { status: r.status, body: j };
+        });
+      })
+      .then(function (res) {
+        if (passEl) passEl.value = '';
+        var ticket = res.body && res.body.success && res.body.data && res.body.data.ticket;
+        if (res.status === 200 && ticket) {
+          // Server-issued, single-use ticket: the ONLY credential that may
+          // start link mode. Navigates to the link entry — never the login
+          // entry — and the browser keeps the session cookies the server
+          // re-checks on /auth/google/master/link.
+          var page = 'platform.html';
+          try {
+            var seg = (window.location.pathname || '').split('/').pop();
+            if (seg) page = seg;
+          } catch (_) {}
+          window.location.assign(
+            '/auth/google/master/link?ticket=' + encodeURIComponent(ticket) +
+            '&returnTo=' + encodeURIComponent(page)
+          );
+          return;
+        }
+        if (res.status === 400) authError('تحقق من البيانات المدخلة');
+        else if (res.status === 401) authError('كلمة المرور غير صحيحة');
+        else if (res.status === 403) authError('غير مصرح — يلزم حساب ماستر نشط في المنصة');
+        else if (res.status === 404) authError('المستخدم غير موجود');
+        else if (res.status === 501) authError('الربط عبر Google غير مفعّل على الخادم');
+        else authError('تعذّر بدء ربط Google — أعد المحاولة');
+      })
+      .catch(function () {
+        if (passEl) passEl.value = '';
+        authError('تعذّر الاتصال بالخادم — أعد المحاولة');
+      })
+      .then(function () {
+        if (submitBtn) submitBtn.disabled = false;
+      });
+  }
+
   // Runs at init(): consumes the outcome of a Google round-trip.
   //  - ?gerr=<code>  → open the drawer and surface the server's safe message
   //  - ?gsignin=1    → hydrate the session from the httpOnly cookies via the
@@ -774,6 +866,23 @@
       };
       openAuthDrawer();
       authError(messages[raw] || 'تعذّر تسجيل الدخول عبر Google');
+      return;
+    }
+    if (query.indexOf('glink=1') !== -1) {
+      // Completed LINK round-trip (?glink=1): the sub is now bound to THIS
+      // account server-side. Surface success, hide the step-up, and clean
+      // the URL — the session itself is untouched (linking never mints one).
+      try {
+        var gl = new URL(window.location.href);
+        gl.searchParams.delete('glink');
+        window.history.replaceState({}, document.title, gl.pathname + gl.search + gl.hash);
+      } catch (_) {}
+      openAuthDrawer();
+      var stepAfter = document.getElementById('platformAuthLinkStepUp');
+      if (stepAfter) stepAfter.setAttribute('hidden', '');
+      var passAfter = document.getElementById('platformAuthLinkPass');
+      if (passAfter) passAfter.value = '';
+      authError('تم ربط حساب Google بهذا الحساب بنجاح');
       return;
     }
     if (query.indexOf('gmfa=1') !== -1) {
@@ -904,11 +1013,22 @@
     const form = document.getElementById('platformAuthForm');
     const logoutBtn = document.getElementById('platformAuthLogout');
     const loginBtn = document.getElementById('platformLoginBtn');
+    const linkSection = document.getElementById('platformAuthGoogleLinkSection');
+    const linkStepUp = document.getElementById('platformAuthLinkStepUp');
+    const linkPass = document.getElementById('platformAuthLinkPass');
     if (form) form.style.display = hasSession ? 'none' : '';
     if (logoutBtn) {
       if (hasSession) logoutBtn.removeAttribute('hidden');
       else logoutBtn.setAttribute('hidden', '');
     }
+    // Google LINKING is a session-only operation (server: link-session 401s
+    // without an authenticated platform session). Never shown as a login path.
+    if (linkSection) {
+      if (hasSession) linkSection.removeAttribute('hidden');
+      else linkSection.setAttribute('hidden', '');
+    }
+    if (!hasSession && linkStepUp) linkStepUp.setAttribute('hidden', '');
+    if (!hasSession && linkPass) linkPass.value = '';
     if (loginBtn) loginBtn.textContent = authText(hasSession ? 'nav_logout' : 'nav_login');
   }
 
@@ -1031,6 +1151,16 @@
     if (logoutBtn) logoutBtn.addEventListener('click', logoutPlatform);
     const googleBtn = document.getElementById('platformAuthGoogle');
     if (googleBtn) googleBtn.addEventListener('click', startGoogleSignIn);
+    const googleLinkBtn = document.getElementById('platformAuthGoogleLink');
+    if (googleLinkBtn) googleLinkBtn.addEventListener('click', openGoogleLinkStepUp);
+    const googleLinkSubmit = document.getElementById('platformAuthLinkSubmit');
+    if (googleLinkSubmit) googleLinkSubmit.addEventListener('click', submitGoogleLinkStepUp);
+    const googleLinkCancel = document.getElementById('platformAuthLinkCancel');
+    if (googleLinkCancel) googleLinkCancel.addEventListener('click', cancelGoogleLinkStepUp);
+    const googleLinkPass = document.getElementById('platformAuthLinkPass');
+    if (googleLinkPass) googleLinkPass.addEventListener('keydown', function (e) {
+      if (e && e.key === 'Enter') { e.preventDefault(); submitGoogleLinkStepUp(); }
+    });
     const googleMfaBtn = document.getElementById('platformAuthMfaSubmit');
     if (googleMfaBtn) googleMfaBtn.addEventListener('click', submitGoogleMfaChallenge);
     const googleMfaInput = document.getElementById('platformAuthMfaToken');
