@@ -7,6 +7,9 @@
 //   - drawer open/close mechanics, focus, and responsive-safe markup
 //   - login submit against stubbed fetch: 401/403/network outcomes, token
 //     storage, server-authoritative role probe, constant-only redirect target
+//   - a signed-in Platform Master STAYS in the homepage drawer (link flow
+//     reachable without opening /index.html manually) while tenant logins
+//     keep the exact hand-off to the app entry
 //   - logout clears every credential
 //   - index.html consumes the one-shot redirect key only for an internal,
 //     allowed page behind canAccessPage
@@ -112,6 +115,18 @@ check('login form has identity, password with toggle, error and logout controls'
   assert(PLATFORM_HTML.includes('id="platformAuthLogout"'), 'logout control missing');
 });
 
+check('message region lives outside the session-hidden login form', () => {
+  // refreshAuthDrawer hides the ENTIRE form whenever a session exists; the
+  // error/message region must survive that so link step-up errors, ?glink=1
+  // success and the post-login guidance all render for a signed-in master.
+  const formStart = PLATFORM_HTML.indexOf('<form id="platformAuthForm"');
+  const formClose = PLATFORM_HTML.indexOf('</form>', formStart);
+  const err = PLATFORM_HTML.indexOf('id="platformAuthError"');
+  assert(formStart !== -1 && formClose !== -1, 'login form landmarks missing');
+  assert(err > formClose, 'platformAuthError must sit outside (after) the login form');
+  assert(err < PLATFORM_HTML.indexOf('id="platformAuthGoogleLinkSection"'), 'message region must precede the link section');
+});
+
 check('no default credentials or secrets in shipped files', () => {
   for (const [name, src] of [['platform.html', PLATFORM_HTML], ['platform.js', PLATFORM_JS]]) {
     assert(!/admin123|password123|let\s+\w*[Pp]assword\s*=\s*['"]/.test(src), name + ' contains a hardcoded credential');
@@ -170,7 +185,8 @@ function authSandbox(responder) {
   const elements = {};
   const ids = ['platformLoginBtn', 'platformAuthOverlay', 'platformAuthDrawer',
     'platformAuthClose', 'platformAuthForm', 'platformAuthUser', 'platformAuthPass',
-    'platformAuthShowPass', 'platformAuthError', 'platformAuthSubmit', 'platformAuthLogout'];
+    'platformAuthShowPass', 'platformAuthError', 'platformAuthSubmit', 'platformAuthLogout',
+    'platformAuthGoogleLinkSection', 'platformAuthLinkStepUp', 'platformAuthLinkPass'];
   for (const id of ids) elements[id] = elementStub();
   elements.platformAuthOverlay.setAttribute('hidden', '');
   elements.platformAuthDrawer.setAttribute('hidden', '');
@@ -244,7 +260,7 @@ check('escape closes an open drawer', async () => {
   assert(elements.platformAuthDrawer.hasAttribute('hidden'), 'escape did not close the drawer');
 });
 
-check('successful master login stores tokens, records the redirect key, navigates', async () => {
+check('successful master login stores tokens, records the redirect key, and STAYS for linking', async () => {
   const calls = [];
   const sb = authSandbox(async (url, opts) => {
     calls.push(url);
@@ -256,6 +272,9 @@ check('successful master login stores tokens, records the redirect key, navigate
     }
     throw new Error('unexpected fetch: ' + url);
   });
+  // Mirror the shipped markup: the link section starts hidden and is
+  // revealed only by refreshAuthDrawer once the session exists.
+  sb.elements.platformAuthGoogleLinkSection.setAttribute('hidden', '');
   sb.elements.platformAuthUser.value = 'master';
   sb.elements.platformAuthPass.value = 'secret-password';
   await sb.context.submitAuthDrawer({ preventDefault: () => {} });
@@ -263,7 +282,9 @@ check('successful master login stores tokens, records the redirect key, navigate
   assert(sb.store.get('refresh_token') === 'RT', 'refresh token not stored');
   assert(sb.store.get('cairo_session_user') === 'master', 'session username not stored for app handoff');
   assert(sb.session.get('__omniPostLoginPage') === 'platform-master', 'redirect key not recorded');
-  assert(sb.context.window.location.href === 'index.html', 'did not navigate to the app entry');
+  assert(sb.context.window.location.href === '', 'master login must NOT navigate away — the homepage drawer hosts the Google link flow');
+  assert(!sb.elements.platformAuthGoogleLinkSection.hasAttribute('hidden'), 'session-gated link section must be revealed for the signed-in master');
+  assert(sb.elements.platformAuthError.textContent.indexOf('ربط حساب Google') !== -1, 'post-login guidance message missing');
   assert(calls[0].endsWith('/auth/login'), 'login endpoint not called first');
 });
 

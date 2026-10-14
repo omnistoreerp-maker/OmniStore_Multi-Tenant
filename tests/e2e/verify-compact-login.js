@@ -6,7 +6,9 @@
 // admin + a tenant owner via the public user API, then drives the REAL
 // platform.html in headless Chromium (global playwright-core + cached
 // browser build) through: visitor browsing, drawer open/close, failed login,
-// master login -> redirect contract, Master nav visibility inside index.html,
+// master login -> STAYS in the drawer with the Google link section revealed
+// -> app entry through the existing «فتح البرنامج» link -> Master nav
+// visibility inside index.html,
 // tenant-owner landing without Master UI, logout clearing credentials, and a
 // mobile-viewport pass. No production data, no real credentials — every
 // account is created fresh inside the temp dir, which is removed afterwards.
@@ -147,18 +149,43 @@ async function main() {
       await page.close();
     }
 
-    // ---- master login: real backend auth -> redirect contract -> Master nav ----
+    // ---- master login: STAYS in the homepage drawer so the Google link
+    //      flow is reachable, then enters the app through the existing entry ----
     {
       const page = await newPage();
       await page.goto(base + '/platform.html', { waitUntil: 'load' });
       await page.click('#platformLoginBtn');
       await page.fill('#platformAuthUser', 'e2emaster');
       await page.fill('#platformAuthPass', 'Master#123');
+      await page.click('#platformAuthSubmit');
+      // Master password login must NOT navigate away: the session-gated
+      // Google link section + step-up live in this drawer, and opening
+      // /index.html manually must never be a prerequisite for linking.
+      await page.waitForFunction(() => {
+        const s = document.getElementById('platformAuthGoogleLinkSection');
+        return s && !s.hasAttribute('hidden');
+      }, null, { timeout: 20000 });
+      check('master: login stays on the homepage and reveals the Google link section',
+        page.url().endsWith('/platform.html'), 'url=' + page.url());
+      const guidance = await page.evaluate(() => {
+        const el = document.getElementById('platformAuthError');
+        return el && !el.hasAttribute('hidden') ? String(el.textContent || '') : '';
+      });
+      check('master: post-login guidance message is visible',
+        guidance.indexOf('ربط حساب Google') !== -1, guidance);
+      // Enter the app through the existing «فتح البرنامج» nav entry: the
+      // one-shot key recorded at login must still land the Master on the
+      // Master Control Center behind index.html's own canAccessPage gate.
+      await page.keyboard.press('Escape');
+      await page.waitForFunction(() => {
+        const d = document.getElementById('platformAuthDrawer');
+        return d && d.hasAttribute('hidden');
+      }, null, { timeout: 5000 });
       await Promise.all([
         page.waitForURL('**/index.html', { timeout: 20000 }),
-        page.click('#platformAuthSubmit')
+        page.click('a[href="index.html"]')
       ]);
-      check('master: successful login navigates to the app entry', page.url().endsWith('/index.html'));
+      check('master: existing app-entry link reaches the app', page.url().endsWith('/index.html'));
       // Session restore is asynchronous (auth.me + role hydration): only once
       // the Master nav is revealed has the restore chain necessarily run, so
       // the one-shot key must be gone by then — never before.
