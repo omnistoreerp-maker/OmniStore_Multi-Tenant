@@ -127,6 +127,17 @@ check('message region lives outside the session-hidden login form', () => {
   assert(err < PLATFORM_HTML.indexOf('id="platformAuthGoogleLinkSection"'), 'message region must precede the link section');
 });
 
+check('state_invalid guidance advises one retry without parallel Google windows', () => {
+  // The OAuth binding-mismatch path (?gerr=state_invalid) is a retryable
+  // race: a second simultaneous Google initiate overwrites the binding
+  // cookie. The homepage message must steer the master to a single retry.
+  const m = PLATFORM_JS.match(/state_invalid:\s*'([^']+)'/);
+  assert(m, 'state_invalid message missing from platform.js gerr map');
+  assert(m[1].indexOf('أعد المحاولة') !== -1, 'state_invalid must still advise retrying');
+  assert(m[1].indexOf('مرة واحدة') !== -1, 'state_invalid must advise exactly one retry');
+  assert(/نوافذ|نافذة/.test(m[1]), 'state_invalid must warn against parallel Google windows');
+});
+
 check('no default credentials or secrets in shipped files', () => {
   for (const [name, src] of [['platform.html', PLATFORM_HTML], ['platform.js', PLATFORM_JS]]) {
     assert(!/admin123|password123|let\s+\w*[Pp]assword\s*=\s*['"]/.test(src), name + ' contains a hardcoded credential');

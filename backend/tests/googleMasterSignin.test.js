@@ -754,6 +754,66 @@ describe('Platform Master Google sign-in (server-side OIDC)', () => {
   });
 
   // -------------------------------------------------------------------------
+  // 8/9b-extra-browser. link START without a session: a top-level browser
+  // navigation (Accept: text/html — the step-up's location.assign) is sent
+  // back to the homepage drawer via the safe gerr redirect, while API /
+  // non-HTML clients keep the exact JSON 401 contract. The redirect URL
+  // carries only the gerr code — never ticket material — and no ticket is
+  // consumed by the rejected navigation. LOGIN binding-mismatch stays a
+  // separate, distinct path (covered in the binding suite below).
+  // -------------------------------------------------------------------------
+  it('8/9b-extra-browser. link start: browser nav without session → safe gerr 302; API client keeps JSON 401; valid session+ticket unchanged', async () => {
+    const padminLogin = await request(app).post('/api/v1/auth/login').send({ username: 'padmin', password: PASSWORD });
+    expect(padminLogin.status).toBe(200);
+    const mintRes = await request(app)
+      .post('/auth/google/master/link-session')
+      .set('Authorization', 'Bearer ' + padminLogin.body.data.accessToken)
+      .send({ currentPassword: PASSWORD });
+    expect(mintRes.status).toBe(200);
+    const ticket = mintRes.body.data.ticket;
+    expect(ticket).toBeTruthy();
+
+    // (a) Browser navigation (Accept: text/html) with NO session → 302 to
+    // the homepage gerr page; the URL must carry only the safe code.
+    const BROWSER_ACCEPT = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8';
+    const browserNav = await request(app)
+      .get('/auth/google/master/link?ticket=' + encodeURIComponent(ticket))
+      .set('Accept', BROWSER_ACCEPT);
+    expect(browserNav.status).toBe(302);
+    expect(browserNav.headers.location).toBe('/?gerr=session_invalid');
+    expect(browserNav.headers.location).not.toContain(ticket);
+    expect(browserNav.headers.location).not.toMatch(/ticket|token|code=/);
+    // No auth cookies are minted by the rejection.
+    const navSet = browserNav.headers['set-cookie'] || [];
+    expect(navSet.some((c) => c.startsWith('access_token='))).toBe(false);
+    expect(navSet.some((c) => c.startsWith('refresh_token='))).toBe(false);
+
+    // (b) The SAME ticket was NOT consumed by the rejected navigation: a
+    // non-HTML API client still gets the JSON 401 (contract preserved)…
+    const apiClient = await request(app)
+      .get('/auth/google/master/link?ticket=' + encodeURIComponent(ticket));
+    expect(apiClient.status).toBe(401);
+    expect(apiClient.body.success).toBe(false);
+
+    // (c) …and a browser WITH the live session + the still-valid ticket
+    // gets the normal 302 to Google (existing behavior unchanged).
+    const browserWithSession = await request(app)
+      .get('/auth/google/master/link?ticket=' + encodeURIComponent(ticket))
+      .set('Cookie', cookieHeader(padminLogin))
+      .set('Accept', BROWSER_ACCEPT);
+    expect(browserWithSession.status).toBe(302);
+    expect(browserWithSession.headers.location).toContain('accounts.google.com');
+
+    // (d) LOGIN mode is untouched: the binding-mismatch gate still answers
+    // state_invalid for a LOGIN attempt (distinct from the LINK entry above).
+    const attempt = await startAttempt(app);
+    const wrongBinding = await request(app)
+      .get('/auth/google/master/callback?code=ok-code&state=' + encodeURIComponent(attempt.state))
+      .set('Accept', BROWSER_ACCEPT);
+    expectDenied(wrongBinding, 'state_invalid');
+  });
+
+  // -------------------------------------------------------------------------
   // 11. Google outage / token endpoint failure → DENY, password path intact
   // -------------------------------------------------------------------------
   it('11. Google unreachable or failing → DENY, never a bypass for password auth', async () => {
