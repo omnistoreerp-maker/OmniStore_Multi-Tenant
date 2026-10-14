@@ -478,6 +478,48 @@ describe('Platform Master Google sign-in (server-side OIDC)', () => {
   });
 
   // -------------------------------------------------------------------------
+  // Link status probe: session-gated, member-only, booleans only
+  // -------------------------------------------------------------------------
+  it('8a-status. link-status is session-gated, member-only and leaks no identity fields', async () => {
+    // Unauthenticated → 401
+    const noAuth = await request(app).get('/auth/google/master/link-status');
+    expect(noAuth.status).toBe(401);
+
+    // Authenticated NON-member (tenant owner) → 403 (master-only scope)
+    const ownerLogin = await request(app).post('/api/v1/auth/login').send({ username: 'digiOwner', password: PASSWORD });
+    expect(ownerLogin.status).toBe(200);
+    const notMember = await request(app)
+      .get('/auth/google/master/link-status')
+      .set('Authorization', 'Bearer ' + ownerLogin.body.data.accessToken);
+    expect(notMember.status).toBe(403);
+
+    // Member with a bound sub (seed: omnistore → g-sub-master) → linked:true
+    const masterLogin = await request(app).post('/api/v1/auth/login').send({ username: 'omnistore', password: PASSWORD });
+    expect(masterLogin.status).toBe(200);
+    const masterStatus = await request(app)
+      .get('/auth/google/master/link-status')
+      .set('Authorization', 'Bearer ' + masterLogin.body.data.accessToken);
+    expect(masterStatus.status).toBe(200);
+    expect(masterStatus.body.data).toEqual({ configured: true, linked: true });
+
+    // Member WITHOUT a bound sub (padmin, before any link below) → linked:false
+    const padminLogin = await request(app).post('/api/v1/auth/login').send({ username: 'padmin', password: PASSWORD });
+    expect(padminLogin.status).toBe(200);
+    const padminStatus = await request(app)
+      .get('/auth/google/master/link-status')
+      .set('Authorization', 'Bearer ' + padminLogin.body.data.accessToken);
+    expect(padminStatus.status).toBe(200);
+    expect(padminStatus.body.data).toEqual({ configured: true, linked: false });
+
+    // The response carries booleans ONLY: no sub, no email, no username echo.
+    const raw = JSON.stringify(padminStatus.body);
+    expect(raw).not.toContain('g-sub');
+    expect(raw.toLowerCase()).not.toContain('email');
+    expect(raw).not.toContain('padmin');
+    expect(Object.keys(padminStatus.body.data).sort()).toEqual(['configured', 'linked']);
+  });
+
+  // -------------------------------------------------------------------------
   // Linking: auth + password step-up + membership + policy + session binding
   // -------------------------------------------------------------------------
   it('8/9b. linking requires auth, password step-up, membership, policy and the bound session', async () => {
@@ -1041,6 +1083,7 @@ describe('OAuth disabled → the whole /auth surface is unreachable (no bypass)'
       '/auth/google/master',
       '/auth/google/master/callback?code=x&state=y',
       '/auth/google/master/link?ticket=x',
+      '/auth/google/master/link-status',
       '/auth/providers'
     ];
     for (const p of gets) {

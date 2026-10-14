@@ -864,7 +864,13 @@ check('working-tree diff touches only intended platform files', () => {
       // the drawer's link section markup + link-flow functions in the two
       // shells (already allowed at the top of this set) plus this cycle's
       // focused frontend contract suite.
-      'platform/tests/google-link-ui.test.cjs'
+      'platform/tests/google-link-ui.test.cjs',
+      // Google link ENTRY-POINT cycle (google-master-link-entrypoint):
+      // the shared link-flow module used by both shells, the Master
+      // Control Center section in index.html (already allowed at the top
+      // of this set) and this cycle's focused contract suite.
+      'platform/google-link.js',
+      'platform/tests/google-link-entrypoint.test.cjs'
     ]);
   const allowedUntracked = new Set([
   'backend/tests/controlCenterSecurityFixes.test.js',
@@ -1006,7 +1012,10 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/routes/oauthMaster.routes.js',
     'backend/tests/googleMasterSignin.test.js',
     // Google account LINKING UI cycle: focused frontend contract suite.
-    'platform/tests/google-link-ui.test.cjs'
+    'platform/tests/google-link-ui.test.cjs',
+    // Google link ENTRY-POINT cycle: shared link-flow module + focused suite.
+    'platform/google-link.js',
+    'platform/tests/google-link-entrypoint.test.cjs'
   ]);
   const git = (args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' }).stdout.split('\n').map((s) => s.trim()).filter(Boolean);
   const modified = git(['diff', '--name-only', 'HEAD']);

@@ -12,6 +12,7 @@ const mfaLimiter = loginRateLimiter();
 router.get('/google/master', apiRateLimiter(config.rateLimitMax), ctrl.initiateMaster);
 router.get('/google/master/callback', apiRateLimiter(config.rateLimitMax), ctrl.callbackMaster);
 router.get('/google/master/link', apiRateLimiter(config.rateLimitMax), ctrl.initiateMasterLink);
+router.get('/google/master/link-status', apiRateLimiter(config.rateLimitMax), ctrl.linkStatus);
 router.post('/google/master/link-session', stepUpLimiter, ctrl.linkSession);
 router.post('/google/master/mfa', mfaLimiter, ctrl.completeMfa);
 router.post('/google/master/unlink', stepUpLimiter, ctrl.unlink);
