@@ -859,7 +859,12 @@ check('working-tree diff touches only intended platform files', () => {
       'backend/config/oauth.js',
       'backend/tests/helpers/testServer.js',
       'backend/package.json',
-      'backend/package-lock.json'
+      'backend/package-lock.json',
+      // Google account LINKING UI cycle (feature/google-master-link-ui):
+      // the drawer's link section markup + link-flow functions in the two
+      // shells (already allowed at the top of this set) plus this cycle's
+      // focused frontend contract suite.
+      'platform/tests/google-link-ui.test.cjs'
     ]);
   const allowedUntracked = new Set([
   'backend/tests/controlCenterSecurityFixes.test.js',
@@ -999,7 +1004,9 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/services/googleOidc.service.js',
     'backend/controllers/oauthMaster.controller.js',
     'backend/routes/oauthMaster.routes.js',
-    'backend/tests/googleMasterSignin.test.js'
+    'backend/tests/googleMasterSignin.test.js',
+    // Google account LINKING UI cycle: focused frontend contract suite.
+    'platform/tests/google-link-ui.test.cjs'
   ]);
   const git = (args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' }).stdout.split('\n').map((s) => s.trim()).filter(Boolean);
   const modified = git(['diff', '--name-only', 'HEAD']);
