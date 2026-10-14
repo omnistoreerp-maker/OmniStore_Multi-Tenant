@@ -135,6 +135,16 @@ function _sameOrigin(req) {
   return true;
 }
 
+// True only for requests that explicitly announce a preference for HTML —
+// i.e. a top-level browser navigation (the link step-up's location.assign
+// sends the browser's normal Accept header). API clients (fetch/XHR/
+// supertest without that header) are treated as non-browser and keep the
+// JSON contract. Fails closed: anything ambiguous is NOT a browser nav.
+function _wantsHtml(req) {
+  const accept = req.headers && req.headers.accept;
+  return typeof accept === 'string' && accept.indexOf('text/html') !== -1;
+}
+
 // GET /auth/google/master — start a login attempt (mode=login).
 function initiateMaster(req, res) {
   if (!googleOidc.isConfigured()) return error(res, 'Google sign-in is not configured', 501);
@@ -161,7 +171,16 @@ function initiateMaster(req, res) {
 // the live session must name the same username.
 function initiateMasterLink(req, res) {
   const subject = _sessionSubject(req);
-  if (!subject) return error(res, 'Authentication required', 401);
+  if (!subject) {
+    // A browser top-level navigation (the step-up's automatic
+    // location.assign) that cannot be authenticated gets a safe redirect
+    // back to the homepage drawer — the existing gerr code, never tokens,
+    // ticket values or session material in the URL. API / non-HTML clients
+    // keep the JSON 401 contract unchanged. Fail-closed either way: no
+    // session means no link start, no ticket is consumed.
+    if (_wantsHtml(req)) return _failRedirect(res, '/', 'session_invalid');
+    return error(res, 'Authentication required', 401);
+  }
   const ticket = oauthState.consume(req.query.ticket);
   if (!ticket || ticket.mode !== 'ticket' || String(ticket.u || '') !== String(subject.username)) {
     return error(res, 'Invalid or expired link ticket', 403);

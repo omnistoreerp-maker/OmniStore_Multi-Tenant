@@ -788,7 +788,7 @@
       var m = query.match(/[?&]gerr=([^&#]*)/);
       if (m) { try { raw = decodeURIComponent(m[1]); } catch (_) { raw = m[1]; } }
       var messages = {
-        state_invalid: 'انتهت جلسة الدخول — أعد المحاولة',
+        state_invalid: 'انتهت جلسة الدخول — أعد المحاولة مرة واحدة فقط، ولا تفتح عدة نوافذ Google في نفس الوقت',
         nonce_invalid: 'جلسة دخول غير صالحة — أعد المحاولة',
         idtoken_invalid: 'تعذّر التحقق من هوية Google',
         not_linked: 'حساب Google غير مرتبط — سجّل الدخول بكلمة المرور ثم اربط Google',
