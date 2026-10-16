@@ -14,7 +14,9 @@ const INSTANCE_ENV_KEYS = [
   // suite passes them explicitly, so an OAuth-enabled suite can never leak
   // its environment into the next one sharing this worker.
   'OAUTH_ENABLED', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET',
-  'GOOGLE_CALLBACK_URL', 'GOOGLE_MASTER_CALLBACK_URL', 'OAUTH_MASTER_EMAIL'
+  'GOOGLE_CALLBACK_URL', 'GOOGLE_MASTER_CALLBACK_URL', 'OAUTH_MASTER_EMAIL',
+  // Binding-cookie domain scoping (P0): cleared unless passed explicitly.
+  'PLATFORM_DOMAIN', 'OAUTH_COOKIE_DOMAIN'
 ];
 
 function startServer(dataDir, extraEnv) {
@@ -22,7 +24,7 @@ function startServer(dataDir, extraEnv) {
   jest.resetModules();
   process.env.DIGITRONICS_DATA_DIR = dir;
   process.env.JWT_SECRET = TEST_JWT_SECRET;
-  process.env.NODE_ENV = 'test';
+  process.env.NODE_ENV = (extraEnv && extraEnv.NODE_ENV) || 'test';
   process.env.LOG_FILE = '';
   for (const key of INSTANCE_ENV_KEYS) {
     if (extraEnv && extraEnv[key] !== undefined) process.env[key] = extraEnv[key];
