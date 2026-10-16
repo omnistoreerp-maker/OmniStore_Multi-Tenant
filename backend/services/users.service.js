@@ -274,8 +274,38 @@ class UsersService {
     return { error: 'Failed to persist token version update' };
   }
 
+  // Exact, case-insensitive email lookup used by authenticate() as a fallback
+  // when the submitted identifier is not a username. Empty/missing emails never
+  // match (a blank email must not select every user without an email). If more
+  // than one stored record claims the same email the caller fails closed
+  // (ambiguous: true) — the store has no unique constraint on email, so an
+  // ambiguous match must never select one of the candidates for login.
+  _findByEmail(email) {
+    const normalized = String(email || '').trim().toLowerCase();
+    if (!normalized) return { user: null, ambiguous: false };
+    const db = this._load();
+    const matches = (db.users || []).filter(
+      u => String(u.email || '').trim().toLowerCase() === normalized
+    );
+    if (matches.length === 1) return { user: matches[0], ambiguous: false };
+    if (matches.length > 1) return { user: null, ambiguous: true };
+    return { user: null, ambiguous: false };
+  }
+
   authenticate(username, password) {
-    const user = this.getByUsername(username);
+    let user = this.getByUsername(username);
+    if (!user) {
+      // Email-login fallback (P0): the login identifier may be an email
+      // address. Exact case-insensitive match against the stored email; an
+      // ambiguous duplicate email fails closed. Exactly one bcrypt operation
+      // runs per attempt on every path, preserving timing equalization.
+      const found = this._findByEmail(username);
+      if (found.ambiguous) {
+        verifyDummy(password);
+        return null;
+      }
+      user = found.user;
+    }
     if (!user) {
       // Timing equalization (Phase 22B): pay a bcrypt compare even when the
       // username is unknown so response time does not reveal existence.

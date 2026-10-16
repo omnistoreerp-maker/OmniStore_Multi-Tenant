@@ -24,6 +24,22 @@ const IS_PROD = (process.env.NODE_ENV || 'development') === 'production';
 const BINDING_COOKIE = 'g_oauth_bs';
 const BINDING_PATH = '/auth/google/master';
 
+// Cookie scope for the LOGIN binding nonce. Identical attributes to the
+// original host-only cookie, plus an optional parent-domain scope (P0 fix):
+// the Google callback host (app.omnistoreerp.com per GOOGLE_MASTER_CALLBACK_URL)
+// is a sibling subdomain of the site host the owner browses
+// (omnistoreerp.com), and a host-only cookie is never sent across that
+// boundary — every LOGIN then failed with browser_binding_mismatch. The
+// domain is derived/overridden via oauthConfig.master.cookieDomain and
+// applies ONLY to this short-lived CSRF nonce, never to session cookies.
+// The clear must carry the same domain, or the stale nonce survives.
+function _bindingCookieScope() {
+  const scope = { path: BINDING_PATH };
+  const domain = oauthConfig.master && oauthConfig.master.cookieDomain;
+  if (domain) scope.domain = domain;
+  return scope;
+}
+
 function _setAuthCookies(res, accessToken, refreshToken) {
   const base = { httpOnly: true, sameSite: 'lax', secure: IS_PROD, path: '/' };
   res.cookie('access_token', accessToken, { ...base, maxAge: 15 * 60 * 1000 });
@@ -156,7 +172,7 @@ function initiateMaster(req, res) {
     const { url } = googleOidc.createLoginStart({ mode: 'login', returnTo, binding });
     res.cookie(BINDING_COOKIE, binding, {
       httpOnly: true, sameSite: 'lax', secure: IS_PROD,
-      path: BINDING_PATH, maxAge: oauthState.STATE_TTL_MS
+      ..._bindingCookieScope(), maxAge: oauthState.STATE_TTL_MS
     });
     res.redirect(302, url);
   } catch (err) {
@@ -332,7 +348,7 @@ async function callbackMaster(req, res) {
     }
     // Binding consumed with the state: clear it, but only AFTER it matched
     // so a rejected tab can never clear a sibling tab's still-valid cookie.
-    res.clearCookie(BINDING_COOKIE, { path: BINDING_PATH });
+    res.clearCookie(BINDING_COOKIE, _bindingCookieScope());
   }
   const returnTo = _safeReturnTo(state.returnTo, '/');
   if (!googleOidc.isConfigured()) return _failRedirect(res, returnTo, 'not_configured');

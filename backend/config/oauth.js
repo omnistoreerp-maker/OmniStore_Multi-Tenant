@@ -42,7 +42,33 @@ const oauth = {
   // never as an authentication condition, never as a link-by-email rule.
   master: {
     email: process.env.OAUTH_MASTER_EMAIL || '',
-    callbackURL: process.env.GOOGLE_MASTER_CALLBACK_URL || `${baseUrl}/auth/google/master/callback`
+    callbackURL: process.env.GOOGLE_MASTER_CALLBACK_URL || `${baseUrl}/auth/google/master/callback`,
+    // Optional parent-domain scope for the LOGIN binding cookie (P0 fix).
+    // The Google callback host (from GOOGLE_MASTER_CALLBACK_URL, e.g.
+    // app.omnistoreerp.com) is frequently a SIBLING subdomain of the host
+    // the owner actually browses (e.g. omnistoreerp.com). A host-only
+    // binding cookie set by the site host is never sent to the callback
+    // host, so every LOGIN fails with browser_binding_mismatch. When this
+    // is set (or safely derivable), the short-lived CSRF nonce cookie is
+    // scoped to the parent registrable domain so both subdomains see it.
+    // Session cookies are NOT affected. Precedence:
+    //   OAUTH_COOKIE_DOMAIN set to a value  -> use it verbatim
+    //   OAUTH_COOKIE_DOMAIN set to ""       -> force host-only (unset)
+    //   production + PLATFORM_DOMAIN        -> derive parent of the platform
+    //                                          host (app.X.Y -> .X.Y)
+    //   otherwise (dev, single-label hosts) -> host-only (current behavior)
+    cookieDomain: (() => {
+      const explicit = process.env.OAUTH_COOKIE_DOMAIN;
+      if (explicit !== undefined) {
+        const v = String(explicit).trim().toLowerCase();
+        return v || undefined;
+      }
+      if (env !== 'production') return undefined;
+      const platformDomain = String(process.env.PLATFORM_DOMAIN || 'app.omnistoreerp.com').trim().toLowerCase();
+      const labels = platformDomain.split('.');
+      if (platformDomain && labels.length >= 3) return '.' + labels.slice(1).join('.');
+      return undefined;
+    })()
   },
 
   defaultRole: process.env.OAUTH_DEFAULT_ROLE || 'Viewer',
