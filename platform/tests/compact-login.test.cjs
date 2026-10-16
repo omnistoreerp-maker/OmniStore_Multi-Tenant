@@ -299,6 +299,24 @@ check('successful master login stores tokens, records the redirect key, and STAY
   assert(calls[0].endsWith('/auth/login'), 'login endpoint not called first');
 });
 
+check('login fetch carries same-origin credentials so the httpOnly session cookie is stored', async () => {
+  let loginOpts = null;
+  const sb = authSandbox(async (url, opts) => {
+    if (String(url).endsWith('/auth/login')) {
+      loginOpts = opts;
+      return jsonResponse(200, { success: true, data: { user: { username: 'master' }, accessToken: 'AT', refreshToken: 'RT' } });
+    }
+    if (String(url).endsWith('/platform/me')) {
+      return jsonResponse(200, { success: true, data: { username: 'master', platformRole: 'MASTER_OWNER' } });
+    }
+    throw new Error('unexpected fetch: ' + url);
+  });
+  sb.elements.platformAuthUser.value = 'master';
+  sb.elements.platformAuthPass.value = 'secret-password';
+  await sb.context.submitAuthDrawer({ preventDefault: () => {} });
+  assert(loginOpts && loginOpts.credentials === 'same-origin', 'login fetch does not carry same-origin credentials (session cookie would be discarded by the browser)');
+});
+
 check('tenant login navigates without a master redirect key', async () => {
   const sb = authSandbox(async (url) => {
     if (String(url).endsWith('/auth/login')) {

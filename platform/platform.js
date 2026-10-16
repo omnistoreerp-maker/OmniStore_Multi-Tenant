@@ -1007,6 +1007,7 @@
       const res = await fetch(AUTH_API + '/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({ username, password })
       });
       const data = await res.json().catch(() => null);
