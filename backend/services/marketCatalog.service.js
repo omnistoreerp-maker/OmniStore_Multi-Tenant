@@ -17,7 +17,9 @@ function _project(product, cfg) {
     unit: product.unit || null,
     cpu: product.cpu != null ? String(product.cpu) : null,
     ramRom: product.ramRom != null ? String(product.ramRom) : null,
-    gpu: product.gpu != null ? String(product.gpu) : null
+    gpu: product.gpu != null ? String(product.gpu) : null,
+    createdAt: product.createdAt || null,
+    updatedAt: product.updatedAt || null
   };
 }
 
@@ -39,6 +41,13 @@ function _applyVisibility(products, cfg) {
   return products.filter((p) => allow(p && p.id));
 }
 
+function _applyDeletedFilter(products, includeDeleted) {
+  if (includeDeleted !== 'true') {
+    return products.filter((p) => !p.deletedAt);
+  }
+  return products;
+}
+
 async function listProducts(tenantId, query = {}) {
   const cfg = marketConfigService.get(tenantId);
   const db = await inventoryRepository.readAsync();
@@ -47,6 +56,16 @@ async function listProducts(tenantId, query = {}) {
   // P0-1: per-tenant visibility overlay (server-side).
   products = _applyVisibility(products, cfg);
 
+  // Soft-deleted products are excluded from customer lists by default.
+  products = _applyDeletedFilter(products, query.includeDeleted);
+
+  // Unpublished products are excluded from customer lists by default; drafts
+  // are only visible with includeDrafts='true' (operator/Admin use).
+  if (query.includeDrafts !== 'true') {
+    products = products.filter((p) => p.published !== false);
+  }
+
+  // Out-of-stock products are excluded from customer lists by default.
   if (query.includeOutOfStock !== 'true') {
     products = products.filter((p) => (Number(p.stockQty) || 0) > 0);
   }
@@ -108,7 +127,8 @@ async function getProduct(tenantId, id) {
   // listProducts semantics.
   const allow = marketConfigService.resolveProductVisibility(cfg);
   if (!allow(product.id)) return null;
-  return _project(product, cfg);
+  // Soft-deleted products are invisible unless explicitly allowed.
+  if (!product.deletedAt) return _project(product, cfg);
 }
 
 async function categories(tenantId) {
