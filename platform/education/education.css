@@ -676,17 +676,25 @@
   /* Logical offset so the drawer slides in from the inline-end edge in both
      directions, without a direction-specific translateX(). */
   transform: translateX(100%);
-  transition: transform var(--edu-dur) var(--edu-ease);
+  visibility: hidden;
+  /* Hidden AFTER the slide-out so the animation still plays, while the
+     closed drawer leaves the tab order. aria-hidden alone does not remove
+     focusable children: 28 of them stayed tabbable while closed. */
+  transition: transform var(--edu-dur) var(--edu-ease),
+              visibility 0s linear var(--edu-dur);
   overflow-y: auto;
 }
 
-[dir="rtl"].edu-drawer {
+[dir="rtl"] .edu-drawer {
   transform: translateX(-100%);
 }
 
 .edu-drawer.is-open,
-[dir="rtl"].edu-drawer.is-open {
+[dir="rtl"] .edu-drawer.is-open {
   transform: translateX(0);
+  visibility: visible;
+  transition: transform var(--edu-dur) var(--edu-ease),
+              visibility 0s linear 0s;
 }
 /* Mirrored directional elements in RTL. The back-link arrow flips to point
    back in the RTL reading direction, and the calendar step icons flip so each
