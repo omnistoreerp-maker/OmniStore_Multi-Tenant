@@ -821,6 +821,11 @@
       var passAfter = document.getElementById('platformAuthLinkPass');
       if (passAfter) passAfter.value = '';
       authError('تم ربط حساب Google بهذا الحساب بنجاح');
+      // Completed LINK ≠ login (no session is minted here), but when the
+      // authenticated master session that started the round-trip is still
+      // present, hand it off to the verified Master Control Center instead
+      // of leaving the master stranded on the homepage drawer.
+      handoffAfterGoogleLink();
       return;
     }
     if (query.indexOf('gmfa=1') !== -1) {
@@ -835,6 +840,34 @@
     }
     if (query.indexOf('gsignin=1') === -1) return;
     hydrateGoogleSessionAndEnter();
+  }
+
+  // After a COMPLETED Google LINK the master must not be left stranded on the
+  // homepage drawer. When the authenticated session that started the
+  // round-trip is still present, hand it off to the verified Master Control
+  // Center exactly like a password drawer login does. This READS the existing
+  // session only — linking never mints one — the role comes from the
+  // server-authoritative /platform/me probe, and the destination is the
+  // constant internal entry plus the one-shot page request index.html honours
+  // behind its own canAccessPage gate. With no session, or when the probe
+  // fails, the success message stays visible and nothing navigates.
+  function handoffAfterGoogleLink() {
+    var access = authTokens().access;
+    if (!access) return;
+    fetch(PLATFORM_API + '/me', {
+      headers: { Authorization: 'Bearer ' + access },
+      credentials: 'same-origin'
+    })
+      .then(function (r) { return r.json().catch(function () { return null; }); })
+      .then(function (me) {
+        var platformRole = (me && me.success && me.data) ? me.data.platformRole : null;
+        var target = resolvePostLoginTarget(platformRole);
+        if (target.postLoginPage) {
+          try { sessionStorage.setItem(POST_LOGIN_KEY, target.postLoginPage); } catch (_) {}
+        }
+        window.location.href = target.href;
+      })
+      .catch(function () { /* stay on the drawer with the success message */ });
   }
 
   // Shared handoff for a COMPLETED Google round-trip (?gsignin=1, or right
