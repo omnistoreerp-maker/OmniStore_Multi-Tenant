@@ -886,7 +886,12 @@ check('the education stylesheet is direction-safe for the shared ar/en switcher'
   // platform/omni-i18n.js flips `dir` between ar and en at runtime, so the page
   // must mirror with logical properties and an explicit rtl drawer rule rather
   // than a single hard-coded side.
-  assert(CSS.includes('[dir="rtl"].edu-drawer'), 'the drawer has no RTL rule');
+  // dir is set by platform/omni-i18n.js on <html>, never on the drawer itself,
+  // so the RTL rule must be a DESCENDANT selector. The literal element form
+  // '[dir="rtl"].edu-drawer' cannot match anything and let a 320px closed
+  // drawer park over the content in RTL; asserting its literal text is what
+  // hid that. See the dedicated drawer checks at the bottom of this file.
+  assert(/\[dir="rtl"\]\s+\.edu-drawer\s*\{/.test(CSS), 'the drawer has no RTL rule');
   assert(CSS.includes('inset-inline-end: 0'), 'the drawer is positioned with a physical edge');
   assert(CSS.includes('text-align: start'), 'table cells must align with a logical edge');
   assert(!/text-align:\s*right/.test(CSS), 'a hard-coded right alignment survives');
@@ -1990,7 +1995,13 @@ check('education CSS avoids direction-breaking layout (no float/left/right)', ()
 });
 
 check('education CSS has RTL drawer handling and uses logical offsets', () => {
-  assert(CSS.includes('[dir="rtl"].edu-drawer'), 'the RTL drawer rule is missing');
+  // This used to assert the literal element selector '[dir="rtl"].edu-drawer',
+  // which pinned the DEFECT rather than the behaviour: dir lives on <html>,
+  // so that rule never matched while the test still passed. Assert the
+  // descendant form that actually applies; the exact selector shape and the
+  // absence of the broken element form are covered by the dedicated check
+  // 'the RTL drawer offset targets the drawer as a descendant' below.
+  assert(/\[dir="rtl"\]\s+\.edu-drawer\s*\{/.test(CSS), 'the RTL drawer rule is missing');
   assert(CSS.includes('transform: translateX(-100%)'), 'the RTL drawer translate is missing');
   assert(CSS.includes('inset-inline'), 'the page does not use logical positioning');
 });
@@ -2010,6 +2021,40 @@ check('the drawer slides from the inline-end edge in both directions', () => {
       baseMatch[1].indexOf('translateX(100%)') >= 0 &&
       baseMatch[1].indexOf('translateX(-100%)') < 0,
     'base drawer rule is LTR-only'
+  );
+});
+// Regression — the closed drawer must sit OFF-screen in RTL. The rule was
+// written as an element selector ([dir="rtl"].edu-drawer), which asks for
+// dir on the drawer itself, but the page only ever sets dir on <html>. The
+// rule never matched, so in the shipped RTL default the CLOSED drawer kept
+// translateX(100%) and parked 320px across the middle of the screen, with
+// no overlay to signal it. dir is on <html>, so the rule MUST be a
+// descendant selector.
+check('the RTL drawer offset targets the drawer as a descendant', () => {
+  assert(
+    /\[dir="rtl"\]\s+\.edu-drawer\s*\{/.test(CSS),
+    'missing the RTL descendant rule [dir="rtl"] .edu-drawer'
+  );
+  assert(
+    !/\[dir="rtl"\]\.edu-drawer\s*\{/.test(CSS),
+    'element selector [dir="rtl"].edu-drawer can never match — dir is on <html>'
+  );
+});
+
+// Regression — aria-hidden does NOT remove focusable children from the tab
+// order. The closed drawer was only translated off-screen, so 28 links
+// stayed tabbable while aria-hidden="true". Closing must also take it out
+// of sight so it stops receiving focus.
+check('the closed drawer is hidden from sight and from the tab order', () => {
+  const base = (CSS.match(/\.edu-drawer\s*\{([\s\S]*?)\}/) || [])[1] || '';
+  assert(
+    base.indexOf('visibility: hidden') >= 0,
+    'the closed drawer no longer declares visibility:hidden'
+  );
+  const open = (CSS.match(/\.edu-drawer\.is-open[\s\S]*?\}/) || [])[0] || '';
+  assert(
+    open.indexOf('visibility: visible') >= 0,
+    'is-open no longer restores visibility'
   );
 });
 console.log('\neducation.test.cjs: ' + passed + ' passed, ' + failed + ' failed');
