@@ -874,7 +874,12 @@ check('working-tree diff touches only intended platform files', () => {
       // Control Center section in index.html (already allowed at the top
       // of this set) and this cycle's focused contract suite.
       'platform/google-link.js',
-      'platform/tests/google-link-entrypoint.test.cjs'
+      'platform/tests/google-link-entrypoint.test.cjs',
+      // Master post-link redirect cycle: the drawer now hands a completed
+      // Google LINK off to the verified Master Control Center when the
+      // session that started the round-trip is still present, plus this
+      // cycle's focused regression suite.
+      'platform/tests/google-link-post-link-navigation.test.cjs'
     ]);
   const allowedUntracked = new Set([
   'backend/tests/controlCenterSecurityFixes.test.js',
@@ -1019,7 +1024,10 @@ check('working-tree diff touches only intended platform files', () => {
     'platform/tests/google-link-ui.test.cjs',
     // Google link ENTRY-POINT cycle: shared link-flow module + focused suite.
     'platform/google-link.js',
-    'platform/tests/google-link-entrypoint.test.cjs'
+    'platform/tests/google-link-entrypoint.test.cjs',
+    // Master post-link redirect cycle: focused suite pinning the post-link
+    // Control Center hand-off.
+    'platform/tests/google-link-post-link-navigation.test.cjs'
   ]);
   const git = (args) => spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' }).stdout.split('\n').map((s) => s.trim()).filter(Boolean);
   const modified = git(['diff', '--name-only', 'HEAD']);
