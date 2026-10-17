@@ -246,6 +246,11 @@ describe('showPage hands off to the real service pages (shipped index.html)', ()
     expect(HTML).toContain('data-page="education-centers"');
     expect(HTML).toContain('data-page="student-services"');
   });
+
+  test('education gating is centralized in canAccessPage (showPage is never overridden)', () => {
+    expect(HTML).not.toMatch(/\bshowPage\s*=\s*function/);
+    expect(HTML).not.toContain('Add education pages to showPage');
+  });
 });
 
 describe('platform catalog untouched (P1.3 constraint)', () => {

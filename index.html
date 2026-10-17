@@ -45279,14 +45279,6 @@ function populateCenterDropdown(selectId) {
   select.value = currentValue;
 }
 
-// Add education pages to showPage
-const originalShowPage = showPage;
-showPage = function(page, options) {
-  if (['education', 'education-centers', 'education-teachers', 'education-students', 'education-enrollments'].includes(page)) {
-    if (!requirePermission('education.centers.view') && page !== 'education') return;
-  }
-  return originalShowPage(page, options);
-};
 </script>
 <style>
 #esoUpdateBanner{position:fixed;bottom:0;right:0;left:0;z-index:99999;background:#0f172a;color:#f8fafc;font-family:'Segoe UI',Tahoma,Arial,sans-serif;direction:rtl;padding:14px 18px;box-shadow:0 -4px 18px rgba(0,0,0,.35);display:none;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;font-size:14px}
