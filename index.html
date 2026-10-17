@@ -44171,16 +44171,35 @@ async function serverSyncStatus() {
   return null;
 }
 
-// Advisory legacy-PAT presence report (GATE 4 migration model). Sends ONLY
-// a strict boolean — "does this device still hold the old localStorage PAT".
-// The token VALUE is never read into the payload, no other body field is
-// sent, and identity stays the JWT's (server ignores any tenant hints).
+// Advisory legacy-PAT presence report (GATE 4 migration model, FIX A v2).
+// Sends a strict boolean — "does this device still hold the old localStorage
+// PAT" — plus a stable NON-SECRET per-browser device id so the server can
+// aggregate per-device evidence instead of trusting a single tenant-level
+// boolean. The token VALUE is never read into the payload, and identity stays
+// the JWT's (server ignores any tenant hints). No deviceId is ever derived
+// from the PAT; if the id cannot be generated the field is omitted and the
+// server treats the report as device-less (v1) — which can never establish
+// LEGACY_REVOKED on its own.
+function syncDeviceId() {
+  try {
+    let id = localStorage.getItem('digi_sync_device_id') || '';
+    if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(id)) {
+      id = (window.crypto && window.crypto.randomUUID)
+        ? window.crypto.randomUUID()
+        : (Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10));
+      id = String(id).toLowerCase();
+      localStorage.setItem('digi_sync_device_id', id);
+    }
+    return id;
+  } catch (e) { return ''; }
+}
 async function serverSyncLegacyReport() {
   if (!USE_BACKEND) return;
   try {
     let holds = false;
     try { holds = !!ghToken(); } catch (e) { holds = false; }
-    await backendApi._fetch('POST', '/sync/legacy-report', { holdsLegacyToken: holds });
+    const deviceId = syncDeviceId();
+    await backendApi._fetch('POST', '/sync/legacy-report', { holdsLegacyToken: holds, reportVersion: 2, deviceId: deviceId || undefined });
   } catch (e) { /* advisory only — never blocks the sync page */ }
 }
 
