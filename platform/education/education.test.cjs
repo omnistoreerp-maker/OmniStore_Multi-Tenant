@@ -886,7 +886,7 @@ check('the education stylesheet is direction-safe for the shared ar/en switcher'
   // platform/omni-i18n.js flips `dir` between ar and en at runtime, so the page
   // must mirror with logical properties and an explicit rtl drawer rule rather
   // than a single hard-coded side.
-  assert(CSS.includes('[dir="rtl"].edu-drawer'), 'the drawer has no RTL rule');
+  assert(CSS.includes('[dir="rtl"] .edu-drawer'), 'the drawer has no RTL rule');
   assert(CSS.includes('inset-inline-end: 0'), 'the drawer is positioned with a physical edge');
   assert(CSS.includes('text-align: start'), 'table cells must align with a logical edge');
   assert(!/text-align:\s*right/.test(CSS), 'a hard-coded right alignment survives');
@@ -1990,7 +1990,7 @@ check('education CSS avoids direction-breaking layout (no float/left/right)', ()
 });
 
 check('education CSS has RTL drawer handling and uses logical offsets', () => {
-  assert(CSS.includes('[dir="rtl"].edu-drawer'), 'the RTL drawer rule is missing');
+  assert(CSS.includes('[dir="rtl"] .edu-drawer'), 'the RTL drawer rule is missing');
   assert(CSS.includes('transform: translateX(-100%)'), 'the RTL drawer translate is missing');
   assert(CSS.includes('inset-inline'), 'the page does not use logical positioning');
 });
