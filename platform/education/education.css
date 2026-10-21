@@ -637,8 +637,8 @@
 .edu-bottom-nav {
   position: fixed;
   inset-block-end: 0;
-  inset-inline-start: 50%;
-  transform: translateX(-50%);
+  inset-inline: 0;
+  margin-inline: auto;
   z-index: 9999;
   display: flex;
   gap: 4px;
@@ -696,12 +696,12 @@
   overflow-y: auto;
 }
 
-[dir="rtl"].edu-drawer {
+[dir="rtl"] .edu-drawer {
   transform: translateX(-100%);
 }
 
 .edu-drawer.is-open,
-[dir="rtl"].edu-drawer.is-open {
+[dir="rtl"] .edu-drawer.is-open {
   transform: translateX(0);
 }
 /* Mirrored directional elements in RTL. The back-link arrow flips to point

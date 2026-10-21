@@ -301,4 +301,18 @@
     "This account is linked to a teacher record, so the workspace opens on that record. The picker below stays explicit and can be changed at any time.": "مرتبط هذا الحساب بسجل معلّم، لذا تفتح مساحة العمل على ذلك السجل. القائمة أدناه تبقى صريحة ويمكن تغييرها في أي وقت.",
     "Class price as a plain decimal amount, for example 1500 or 1500.50. Leave empty for no fee.": "سعر الفصل كقيمة عشرية بسيطة، مثال 1500 أو 1500.50. اتركه فارغاً لعدم وجود سعر."
   });
+
+  OmniLang.registerDict('en', {
+    "Search": "بحث",
+    "Dates": "التواريخ",
+    "Summary": "الملخّص",
+    "Recent ratings": "أحدث التقييمات",
+    "Center management": "إدارة المركز",
+    "Archive": "أرشفة",
+    "record in this tenant.": "سجل في هذا المستأجر.",
+    "session(s) across the selected teacher’s classes.": "جلسة عبر صفوف المعلّم المحدّد.",
+    "enrolled student in this class.": "طالب مسجّل في هذا الصف.",
+    "enrolled students in this class.": "طلاب مسجّلون في هذا الصف.",
+    "Every figure below is a record count for the signed-in tenant, read from the Education services. No figure here is combined with another or compared.": "كل رقم أدناه هو عدد سجلات للمستأجر المسجّل الدخول، مقروء من خدمات التعليم. لا يُدمج أي رقم هنا مع آخر ولا يُقارن به."
+  });
 }());

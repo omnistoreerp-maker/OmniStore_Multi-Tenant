@@ -359,7 +359,8 @@
     programs: '/programs',
     courses: '/courses',
     classes: '/classes',
-    enrollments: '/enrollments'
+    enrollments: '/enrollments',
+    academicYears: '/academic-years'
   };
 
   var REF = {};
@@ -485,8 +486,8 @@
       columns: [
         { label: 'Code', cell: function (r) { return code(r.studentCode); } },
         { label: 'Name', cell: function (r) { return text(refName('students', r)); } },
-        { label: 'Phone', cell: function (r) { return text(r.phone); } },
-        { label: 'Email', cell: function (r) { return text(r.email); } },
+        { label: 'Phone', cell: function (r) { return ltr(r.phone); } },
+        { label: 'Email', cell: function (r) { return ltr(r.email); } },
         { label: 'Status', cell: function (r) { return pill(r.status); } }
       ],
       export: csvExport('education-students', [
@@ -575,7 +576,7 @@
         { label: 'Code', cell: function (r) { return code(r.centerCode); } },
         { label: 'Name', cell: function (r) { return text(refName('centers', r)); } },
         { label: 'Timezone', cell: function (r) { return code(r.timezone); } },
-        { label: 'Phone', cell: function (r) { return text(r.phone); } },
+        { label: 'Phone', cell: function (r) { return ltr(r.phone); } },
         { label: 'Status', cell: function (r) { return pill(r.status); } }
       ],
       export: csvExport('education-centers', [
@@ -1496,8 +1497,8 @@
 
   function paintReport(host, spec, rows) {
     host.textContent = '';
-    host.appendChild(el('p', 'edu-card-sub',
-      rows.length + (rows.length === 1 ? ' record' : ' records') + ' in this tenant.'));
+    host.appendChild(countSub(rows.length,
+      rows.length === 1 ? 'record in this tenant.' : 'records in this tenant.'));
 
     if (!rows.length) {
       host.appendChild(stateBlock('empty', 'No records match the current filters.'));
@@ -1567,6 +1568,15 @@
     var raw = String(value === undefined || value === null ? '' : value).trim();
     if (raw === '') return '&mdash;';
     return '<span class="edu-mono">' + esc(raw) + '</span>';
+  }
+
+  // Values that are always left-to-right by nature — a phone number, an email
+  // address — are pinned LTR so an RTL page does not mirror (reorder) their
+  // digits and symbols into an unreadable string.
+  function ltr(value) {
+    var raw = String(value === undefined || value === null ? '' : value).trim();
+    if (raw === '') return '&mdash;';
+    return '<span dir="ltr">' + esc(raw) + '</span>';
   }
 
   function pill(value) {
@@ -1679,9 +1689,9 @@
 
   function pageLabel(page) {
     if (page === 'dashboard') return 'Education dashboard';
-    if (page === 'center') return 'Center workspace';
-    if (page === 'teacher') return 'Teacher workspace';
-    if (page === 'student') return 'Student workspace';
+    if (page === 'center') return 'Center Workspace';
+    if (page === 'teacher') return 'Teacher Workspace';
+    if (page === 'student') return 'Student Workspace';
     if (page === 'roster') return 'Class roster';
     if (page === 'register') return 'Class register';
     if (page === 'calendar') return 'Schedule calendar';
@@ -1732,6 +1742,16 @@
       btn.addEventListener('click', retry);
       node.appendChild(btn);
     }
+    return node;
+  }
+
+  // A count followed by a translated phrase. The number is its own text node so
+  // the shared i18n runtime, which translates whole text nodes by their English
+  // source, can still match the phrase that follows it.
+  function countSub(count, phrase) {
+    var node = el('p', 'edu-card-sub');
+    node.appendChild(el('span', null, String(count)));
+    node.appendChild(document.createTextNode(' ' + phrase));
     return node;
   }
 
@@ -1942,8 +1962,8 @@
     host.textContent = '';
 
     host.appendChild(el('h2', null, esc(spec.title)));
-    host.appendChild(el('p', 'edu-card-sub',
-      rows.length + (rows.length === 1 ? ' record' : ' records') + ' in this tenant.'));
+    host.appendChild(countSub(rows.length,
+      rows.length === 1 ? 'record in this tenant.' : 'records in this tenant.'));
 
     if (!rows.length) {
       host.appendChild(stateBlock('empty', 'No records match the current filters.',
@@ -2326,8 +2346,11 @@
 
     var head = el('div', 'edu-section-head');
     head.appendChild(el('h2', 'edu-section-title', 'Roster'));
-    head.appendChild(el('span', 'edu-card-sub',
-      rows.length + (rows.length === 1 ? ' enrolled student' : ' enrolled students') + ' in this class.'));
+    var rosterCount = el('span', 'edu-card-sub');
+    rosterCount.appendChild(el('span', null, String(rows.length)));
+    rosterCount.appendChild(document.createTextNode(' ' +
+      (rows.length === 1 ? 'enrolled student in this class.' : 'enrolled students in this class.')));
+    head.appendChild(rosterCount);
     host.appendChild(head);
 
     if (!rows.length) {
@@ -2762,7 +2785,8 @@
       'range. There is no recurring timetable here: an empty day is empty because nothing ' +
       'was scheduled, not because a template is missing.'));
 
-    var modes = el('div', 'edu-seg', el('span', 'edu-seg-label', 'View'));
+    var modes = el('div', 'edu-seg');
+    modes.appendChild(el('span', 'edu-seg-label', 'View'));
     CALENDAR_MODES.forEach(function (mode) {
       var btn = el('button', 'edu-btn edu-btn-outline edu-btn-sm' +
         (state.calendarMode === mode.key ? ' is-active' : ''),
@@ -3071,7 +3095,7 @@
   // ---------------------------------------------------------------------
 
   function renderCenterWorkspace(body) {
-    body.appendChild(el('h2', 'edu-section-title', 'Center workspace'));
+    body.appendChild(el('h2', 'edu-section-title', 'Center Workspace'));
 
     if (!state.portalCenterPromise) {
       state.portalCenterPromise = api('GET', '/centers/me').then(function (center) {
@@ -3115,8 +3139,8 @@
     profile.appendChild(el('h3', null, 'Profile'));
     var rows = [
       ['Name', center.name || ''],
-      ['Display name', center.displayName || ''],
-      ['Center code', center.centerCode || ''],
+      ['Display Name', center.displayName || ''],
+      ['Center Code', center.centerCode || ''],
       ['Status', center.status || ''],
       ['Email', center.email || ''],
       ['Timezone', center.timezone || '']
@@ -3127,15 +3151,13 @@
       var dt = document.createElement('dt');
       dt.textContent = pair[0];
       var dd = document.createElement('dd');
-      dd.textContent = pair[1] || '—';
       if (pair[0] === 'Status') {
-        dd.appendChild(pill(pair[1]));
-        dd.textContent = '';
-        var span = document.createElement('span');
-        span.textContent = pair[1] || '';
-        dd.className = '';
-        dd.appendChild(pill(pair[1]));
-        dd.appendChild(document.createTextNode(' ' + (pair[1] || '')));
+        dd.innerHTML = pill(pair[1]) + (pair[1] ? ' ' + esc(pair[1]) : '');
+      } else if (pair[0] === 'Email') {
+        dd.textContent = pair[1] || '—';
+        dd.setAttribute('dir', 'ltr');
+      } else {
+        dd.textContent = pair[1] || '—';
       }
       dl.appendChild(dt);
       dl.appendChild(dd);
@@ -3778,7 +3800,7 @@
   // backend record, or null when no teacher is linked to this account. The
   // request is cached for the session so every visit shows the same answer.
   function renderTeacherWorkspace(body) {
-    body.appendChild(el('h2', 'edu-section-title', 'Teacher workspace'));
+    body.appendChild(el('h2', 'edu-section-title', 'Teacher Workspace'));
 
     if (!state.portalTeacherPromise) {
       state.portalTeacherPromise = api('GET', '/teachers/me').then(function (actor) {
@@ -3866,16 +3888,19 @@
     host.textContent = '';
     host.appendChild(loadingBlock());
 
+    var classes = [];
+    var enrollments = [];
+
     Promise.all([
       api('GET', '/classes?teacherId=' + encodeURIComponent(teacherId)),
       api('GET', '/enrollments'),
       loadRef('courses')
     ]).then(function (results) {
-      var classes = Array.isArray(results[0]) ? results[0] : [];
-      var enrollments = Array.isArray(results[1]) ? results[1] : [];
+      classes = Array.isArray(results[0]) ? results[0] : [];
+      enrollments = Array.isArray(results[1]) ? results[1] : [];
       host.textContent = '';
       host.appendChild(el('h2', null, 'Classes'));
-      host.appendChild(el('p', 'edu-card-sub', classes.length + ' class(es) assigned to this teacher.'));
+      host.appendChild(countSub(classes.length, 'class(es) assigned to this teacher.'));
       if (!classes.length) {
         host.appendChild(stateBlock('empty', 'This teacher has no classes yet.'));
       } else {
@@ -3927,7 +3952,7 @@
       });
 
       host.appendChild(el('h2', 'edu-section-title', 'Sessions'));
-      host.appendChild(el('p', 'edu-card-sub', sessions.length + ' session(s) across the selected teacher’s classes.'));
+      host.appendChild(countSub(sessions.length, 'session(s) across the selected teacher’s classes.'));
       if (!sessions.length) {
         host.appendChild(stateBlock('empty', 'No sessions scheduled for these classes.'));
         return;
@@ -3965,7 +3990,7 @@
 }
 
   function renderStudentWorkspace(body) {
-    body.appendChild(el('h2', 'edu-section-title', 'Student workspace'));
+    body.appendChild(el('h2', 'edu-section-title', 'Student Workspace'));
 
     if (!state.portalStudentPromise) {
       state.portalStudentPromise = api('GET', '/students/me').then(function (student) {
@@ -4097,7 +4122,7 @@
 
       host.textContent = '';
       host.appendChild(el('h2', null, 'Enrollments'));
-      host.appendChild(el('p', 'edu-card-sub', enrollments.length + ' enrollment(s) for this student.'));
+      host.appendChild(countSub(enrollments.length, 'enrollment(s) for this student.'));
       if (!enrollments.length) {
         host.appendChild(stateBlock('empty', 'This student has no enrollments.'));
       } else {
