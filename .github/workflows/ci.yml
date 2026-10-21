@@ -185,3 +185,19 @@ jobs:
           ../tests/search.test.cjs
           ../tests/surface.test.cjs
           ../tests/runtime.test.cjs
+
+  deploy-health-gate:
+    name: Deploy health gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Syntax check
+        run: node --check scripts/deploy/health-check.js
+
+      - name: Regression tests
+        run: npm run test:deploy
