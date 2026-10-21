@@ -29,6 +29,7 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const TARGET_FILE = path.resolve(__filename);
 const JWT_SECRET = 'test-jwt-secret-for-jest-suites';
 const STAMP = '2026-01-01T00:00:00.000Z';
+const ARCHIVED_DESCRIPTION = 'Archived instructions with <b>markup</b> and <img src=x onerror="window.__eduXss=1">';
 
 const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'edu-asg-e2e-'));
 
@@ -101,7 +102,8 @@ function seedStores() {
   ] });
   seed('educationAssignments', { assignments: [
     { id: 'asg-1', tenantId: 'asg-a', classId: 'cls-a1', title: 'Homework 1', description: 'Page 10', dueDate: '2026-03-01', status: 'active', createdAt: STAMP, updatedAt: STAMP },
-    { id: 'asg-2', tenantId: 'asg-a', classId: 'cls-a1', title: 'Quiz 1', description: 'Chapter 2', dueDate: '2026-03-08', status: 'active', createdAt: STAMP, updatedAt: STAMP }
+    { id: 'asg-2', tenantId: 'asg-a', classId: 'cls-a1', title: 'Quiz 1', description: 'Chapter 2', dueDate: '2026-03-08', status: 'active', createdAt: STAMP, updatedAt: STAMP },
+    { id: 'asg-3', tenantId: 'asg-a', classId: 'cls-a1', title: 'Archived Task', description: ARCHIVED_DESCRIPTION, dueDate: '2026-02-01', status: 'archived', createdAt: STAMP, updatedAt: STAMP }
   ] });
 }
 
@@ -227,10 +229,77 @@ async function runScenario(browser, port, token, linkedId, expectRows) {
       computed: card ? getComputedStyle(card).direction : ''
     };
   }).catch(() => ({ docDir: '', computed: '' }));
+  const listStatuses = await page.$$eval(
+    '#edu-student-assignments-list [data-edu-assignment-status]',
+    nodes => nodes.map(n => n.getAttribute('data-edu-assignment-status'))
+  ).catch(() => []);
+
   const writeControls = await page.$$eval(
-    '#edu-student-assignments input, #edu-student-assignments textarea, #edu-student-assignments select, #edu-student-assignments button, #edu-student-assignments form',
+    '#edu-student-assignments input, #edu-student-assignments textarea, #edu-student-assignments select, #edu-student-assignments form, #edu-student-assignments button:not([data-edu-assignment-id])',
     nodes => nodes.length
   ).catch(() => -1);
+
+  const details = {
+    activeOpened: false, activeTitle: '', activeValues: [], activeStatus: '',
+    archivedOpened: false, archivedStatus: '', archivedValues: [], archivedInjected: false,
+    archivedXss: true, detailWriteControls: -1, closed: false, focusReturned: false,
+    responseOk: false
+  };
+
+  if (expectRows) {
+    const open = async (id) => {
+      await page.click('button[data-edu-assignment-id="' + id + '"]');
+      return page.waitForFunction(() => {
+        const o = document.getElementById('edu-assignment-detail-overlay');
+        const b = document.getElementById('edu-assignment-detail-body');
+        return !!(o && o.classList.contains('is-open') && b && b.querySelector('.edu-detail-text'));
+      }, null, { timeout: 20000 }).then(() => true, () => false);
+    };
+    const read = () => page.evaluate(() => {
+      const body = document.getElementById('edu-assignment-detail-body');
+      const status = body ? body.querySelector('[data-edu-assignment-status]') : null;
+      return {
+        title: (document.getElementById('edu-assignment-detail-title') || {}).textContent || '',
+        values: body ? Array.from(body.querySelectorAll('.edu-detail-text')).map(n => n.textContent) : [],
+        status: status ? status.getAttribute('data-edu-assignment-status') : '',
+        injected: !!(body && body.querySelector('b, img, script, iframe, object')),
+        writeControls: body ? body.querySelectorAll('input, textarea, select, form, button').length : -1,
+        xss: typeof window.__eduXss !== 'undefined'
+      };
+    });
+
+    details.activeOpened = await open('asg-1');
+    const activeData = await read();
+    details.activeTitle = activeData.title;
+    details.activeValues = activeData.values;
+    details.activeStatus = activeData.status;
+
+    await page.click('#edu-assignment-detail-done');
+    details.closed = await page.waitForFunction(() => {
+      const o = document.getElementById('edu-assignment-detail-overlay');
+      return !!(o && !o.classList.contains('is-open') && o.getAttribute('aria-hidden') === 'true');
+    }, null, { timeout: 10000 }).then(() => true, () => false);
+    details.focusReturned = await page.evaluate(() => {
+      const a = document.activeElement;
+      return !!(a && a.getAttribute && a.getAttribute('data-edu-assignment-id') === 'asg-1');
+    }).catch(() => false);
+
+    details.archivedOpened = await open('asg-3');
+    const archivedData = await read();
+    details.archivedStatus = archivedData.status;
+    details.archivedValues = archivedData.values;
+    details.archivedInjected = archivedData.injected;
+    details.archivedXss = archivedData.xss;
+    details.detailWriteControls = archivedData.writeControls;
+    await page.click('#edu-assignment-detail-close');
+    await page.waitForFunction(() => {
+      const o = document.getElementById('edu-assignment-detail-overlay');
+      return !!(o && !o.classList.contains('is-open'));
+    }, null, { timeout: 10000 }).catch(() => {});
+  }
+
+  const detailResponses = assignmentResponses.filter(r => /\/assignments\/asg-/.test(r.url));
+  details.responseOk = detailResponses.length >= 2 && detailResponses.every(r => r.status === 200);
 
   const assignReq = assignmentResponses.find(r => r.method === 'GET') || null;
   let assignCount = null;
@@ -245,8 +314,8 @@ async function runScenario(browser, port, token, linkedId, expectRows) {
 
   return {
     linkedId, expectRows, workspaceOk, pickerOk, pickerValue, pickerOptions, listOk,
-    rows, listText, cardPresent, rtl, writeControls, assignReq, assignCount,
-    consoleErrors, pageErrors, failedApi
+    rows, listText, cardPresent, rtl, listStatuses, writeControls, details,
+    assignReq, assignCount, consoleErrors, pageErrors, failedApi
   };
 }
 
@@ -264,6 +333,11 @@ async function runScenario(browser, port, token, linkedId, expectRows) {
     STUDENT_PICKER: 'NOT_COVERED',
     GET_ASSIGNMENTS: 'NOT_COVERED',
     ASSIGNMENT_RENDERING: 'NOT_COVERED',
+    ASSIGNMENT_DETAILS: 'NOT_COVERED',
+    ARCHIVED_STATUS: 'NOT_COVERED',
+    SAFE_TEXT_RENDERING: 'NOT_COVERED',
+    DETAILS_CLOSE: 'NOT_COVERED',
+    DETAILS_WRITE_SURFACE: 'NOT_IMPLEMENTED_IN_PRODUCT',
     EMPTY_STATE: 'NOT_COVERED',
     ERROR_RETRY: 'NOT_TESTABLE_WITHOUT_PRODUCT_OR_MOCK_CHANGES',
     RTL: 'NOT_COVERED',
@@ -290,13 +364,27 @@ async function runScenario(browser, port, token, linkedId, expectRows) {
     const empty = await runScenario(browser, port, signStudentToken('u-s2', 'asgStudent2'), 'stu-2', false);
 
     const hasRowsText = has.rows.join(' | ');
-    const hasRendered = has.listOk && has.rows.length === 2 &&
+    const hasRendered = has.listOk && has.rows.length === 3 &&
       hasRowsText.indexOf('Homework 1') !== -1 && hasRowsText.indexOf('Quiz 1') !== -1 &&
+      hasRowsText.indexOf('Archived Task') !== -1 &&
       hasRowsText.indexOf('Algebra A1') !== -1 && hasRowsText.indexOf('2026-03-01') !== -1;
     const emptyRendered = empty.listOk && empty.rows.length === 0 &&
       /No assignments|لا توجد واجبات/.test(empty.listText);
-    const getOk = !!(has.assignReq && has.assignReq.status === 200 && has.assignCount === 2 &&
+    const getOk = !!(has.assignReq && has.assignReq.status === 200 && has.assignCount === 3 &&
       empty.assignReq && empty.assignReq.status === 200 && empty.assignCount === 0);
+    const detailsOk = has.details.activeOpened && has.details.activeTitle === 'Homework 1' &&
+      has.details.activeValues[0] === 'Homework 1' && has.details.activeValues[1] === 'Algebra A1' &&
+      has.details.activeValues[2] === '2026-03-01' && has.details.activeValues[3] === 'Page 10' &&
+      has.details.activeStatus === 'active' && has.details.responseOk;
+    const archivedOk = has.details.archivedOpened && has.details.archivedStatus === 'archived' &&
+      has.details.archivedValues[0] === 'Archived Task' &&
+      has.listStatuses.filter(s => s === 'archived').length === 1 &&
+      has.listStatuses.filter(s => s === 'active').length === 2;
+    const safeTextOk = has.details.archivedOpened && has.details.archivedInjected === false &&
+      has.details.archivedXss === false &&
+      has.details.archivedValues[3] === ARCHIVED_DESCRIPTION;
+    const detailsCloseOk = has.details.closed && has.details.focusReturned;
+    const detailsNoWrite = has.details.detailWriteControls === 0;
     const pickerOk = has.pickerOk && empty.pickerOk &&
       has.pickerValue === 'stu-1' && empty.pickerValue === 'stu-2' && has.pickerOptions >= 2;
     const rtlOk = has.rtl.docDir === 'rtl' && has.rtl.computed === 'rtl' &&
@@ -311,10 +399,23 @@ async function runScenario(browser, port, token, linkedId, expectRows) {
     check('STUDENT_WORKSPACE: section#edu-body-student opened for both linked students', workspaceOk);
     check('STUDENT_PICKER: #edu-student-picker present and preselects the linked student', pickerOk,
       'has=' + has.pickerValue + ' empty=' + empty.pickerValue + ' options=' + has.pickerOptions);
-    check('GET_ASSIGNMENTS: real GET /api/v1/tenant/education/assignments returned 200 (2 rows / 0 rows)', getOk,
+    check('GET_ASSIGNMENTS: real GET /api/v1/tenant/education/assignments returned 200 (3 rows / 0 rows)', getOk,
       'has=' + (has.assignReq ? has.assignReq.status + '/' + has.assignCount : 'none') +
       ' empty=' + (empty.assignReq ? empty.assignReq.status + '/' + empty.assignCount : 'none'));
     check('ASSIGNMENT_RENDERING: rendered assignment rows with title/class/due date', hasRendered, hasRowsText.slice(0, 300));
+    check('ASSIGNMENT_DETAILS: row opens the server-authorised detail with title/description/class/due', detailsOk,
+      'opened=' + has.details.activeOpened + ' title=' + has.details.activeTitle +
+      ' values=' + JSON.stringify(has.details.activeValues) + ' status=' + has.details.activeStatus +
+      ' responses=' + has.details.responseOk);
+    check('ARCHIVED_STATUS: archived assignment is labelled in the list and the details', archivedOk,
+      'list=' + JSON.stringify(has.listStatuses) + ' detail=' + has.details.archivedStatus);
+    check('SAFE_TEXT_RENDERING: description markup stays inert text', safeTextOk,
+      'injected=' + has.details.archivedInjected + ' xss=' + has.details.archivedXss +
+      ' text=' + JSON.stringify(has.details.archivedValues.slice(3)));
+    check('DETAILS_CLOSE: dialog closes and focus returns to the row control', detailsCloseOk,
+      'closed=' + has.details.closed + ' focused=' + has.details.focusReturned);
+    check('DETAILS_WRITE_SURFACE: no write/submit controls inside the details', detailsNoWrite,
+      'controls=' + has.details.detailWriteControls);
     check('EMPTY_STATE: zero-assignment student renders the empty state (not a table)', emptyRendered, empty.listText.slice(0, 200));
     check('RTL: document dir=rtl and assignments card computed direction=rtl', rtlOk,
       'has=' + has.rtl.docDir + '/' + has.rtl.computed + ' empty=' + empty.rtl.docDir + '/' + empty.rtl.computed);
@@ -325,6 +426,11 @@ async function runScenario(browser, port, token, linkedId, expectRows) {
     report.STUDENT_PICKER = pickerOk ? 'PASS' : 'FAIL';
     report.GET_ASSIGNMENTS = getOk ? 'PASS' : 'FAIL';
     report.ASSIGNMENT_RENDERING = hasRendered ? 'PASS' : 'FAIL';
+    report.ASSIGNMENT_DETAILS = detailsOk ? 'PASS' : 'FAIL';
+    report.ARCHIVED_STATUS = archivedOk ? 'PASS' : 'FAIL';
+    report.SAFE_TEXT_RENDERING = safeTextOk ? 'PASS' : 'FAIL';
+    report.DETAILS_CLOSE = detailsCloseOk ? 'PASS' : 'FAIL';
+    report.DETAILS_WRITE_SURFACE = detailsNoWrite ? 'NOT_IMPLEMENTED_IN_PRODUCT' : 'FAIL';
     report.EMPTY_STATE = emptyRendered ? 'PASS' : 'FAIL';
     report.RTL = rtlOk ? 'PASS' : 'FAIL';
     report.STUDENT_WRITE_SURFACE = noWriteSurface ? 'NOT_IMPLEMENTED_IN_PRODUCT' : 'FAIL';
@@ -356,14 +462,15 @@ async function runScenario(browser, port, token, linkedId, expectRows) {
   }
 
   const afterHash = sha256(TARGET_FILE);
-  const scenarioPass = ['STUDENT_WORKSPACE', 'STUDENT_PICKER', 'GET_ASSIGNMENTS', 'ASSIGNMENT_RENDERING', 'EMPTY_STATE', 'RTL']
+  const scenarioPass = ['STUDENT_WORKSPACE', 'STUDENT_PICKER', 'GET_ASSIGNMENTS', 'ASSIGNMENT_RENDERING',
+    'ASSIGNMENT_DETAILS', 'ARCHIVED_STATUS', 'SAFE_TEXT_RENDERING', 'DETAILS_CLOSE', 'EMPTY_STATE', 'RTL']
     .every(k => report[k] === 'PASS');
   const finalResult = report.BLOCKER !== 'none'
     ? 'BLOCKED'
     : (scenarioPass && report.PAGE_ERRORS === '0' && report.FAILED_REQUESTS === 'none' ? 'PASS' : 'FAIL');
 
   console.log('');
-  console.log('STUDENT_ASSIGNMENTS_PHASE_D_RESULT');
+  console.log('STUDENT_ASSIGNMENT_DETAILS_PHASE_I_A_RESULT');
   console.log('REPO_ROOT=' + report.REPO_ROOT);
   console.log('BRANCH=' + require('child_process').execSync('git rev-parse --abbrev-ref HEAD', { cwd: ROOT }).toString().trim());
   console.log('HEAD=' + require('child_process').execSync('git rev-parse HEAD', { cwd: ROOT }).toString().trim());
@@ -375,6 +482,11 @@ async function runScenario(browser, port, token, linkedId, expectRows) {
   console.log('STUDENT_PICKER=' + report.STUDENT_PICKER);
   console.log('GET_ASSIGNMENTS=' + report.GET_ASSIGNMENTS);
   console.log('ASSIGNMENT_RENDERING=' + report.ASSIGNMENT_RENDERING);
+  console.log('ASSIGNMENT_DETAILS=' + report.ASSIGNMENT_DETAILS);
+  console.log('ARCHIVED_STATUS=' + report.ARCHIVED_STATUS);
+  console.log('SAFE_TEXT_RENDERING=' + report.SAFE_TEXT_RENDERING);
+  console.log('DETAILS_CLOSE=' + report.DETAILS_CLOSE);
+  console.log('DETAILS_WRITE_SURFACE=' + report.DETAILS_WRITE_SURFACE);
   console.log('EMPTY_STATE=' + report.EMPTY_STATE);
   console.log('ERROR_RETRY=' + report.ERROR_RETRY);
   console.log('RTL=' + report.RTL);

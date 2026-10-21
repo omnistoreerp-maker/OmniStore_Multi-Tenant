@@ -1891,6 +1891,41 @@ check('phase 2D: no new permission strings and no student write surface', () => 
     'the student assignments view reaches for a write/upload/grading surface');
 });
 
+check('phase I-A: student assignment details are read-only and server-authorised', () => {
+  const block = RUNTIME.slice(RUNTIME.indexOf('function renderStudentWorkspace'),
+    RUNTIME.indexOf('function classOfEnrollment'));
+  // Opening a row must reuse the committed detail endpoint, so the server
+  // re-checks class ownership instead of trusting the list payload.
+  assert(block.includes("api('GET', '/assignments/' + encodeURIComponent(assignmentId))"),
+    'the details view does not call the committed assignment detail endpoint');
+  for (const verb of ["api('POST'", "api('PUT'", "api('PATCH'", "api('DELETE'"]) {
+    assert(block.indexOf(verb) < 0, 'the student details view writes to the backend: ' + verb);
+  }
+  // Modal semantics, explicit close and focus restoration.
+  assert(block.includes("overlay.id = 'edu-assignment-detail-overlay'"),
+    'the assignment detail dialog is missing');
+  assert(block.includes("overlay.setAttribute('aria-modal', 'true')"),
+    'the assignment detail dialog is not modal');
+  assert(block.includes("overlay.setAttribute('aria-hidden', 'true')"),
+    'the assignment detail dialog does not start hidden');
+  assert(block.includes('previous.focus()'),
+    'closing the details does not return focus to the trigger');
+  // The row exposes an explicit open control, and status is never defaulted.
+  assert(block.includes("viewBtn.setAttribute('data-edu-assignment-id'"),
+    'assignment rows expose no explicit open control');
+  assert(block.includes('data-edu-assignment-status'),
+    'the assignment status is not exposed for archived/unknown states');
+  // Detail values, including the description, are written as TEXT.
+  assert(block.includes('valueEl.textContent'),
+    'assignment detail values are not rendered as text');
+  assert(!/description[^\n]*innerHTML/i.test(block),
+    'the assignment description is rendered as HTML');
+  // The labels the dialog uses already exist in the dictionary.
+  for (const text of ['View', 'Status', 'Close', 'Description']) {
+    assert(DICT.includes('"' + text + '"'), 'the dictionary has no entry for: ' + text);
+  }
+});
+
 check('phase 2D: assignment management for teacher/center keeps the class-owned contract', () => {
   assert(RUNTIME.includes("path: '/assignments'"), 'the assignment management path drifted');
   assert(RUNTIME.includes("refField('classId', 'Class', 'classes', true, true)"),

@@ -525,7 +525,7 @@
 .edu-dialog-overlay {
   position: fixed;
   inset: 0;
-  z-index: 9998;
+  z-index: 10000;
   display: none;
   align-items: center;
   justify-content: center;
@@ -575,6 +575,22 @@
 
 .edu-dialog-body {
   padding: 16px;
+}
+
+.edu-detail-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: #334155;
+}
+
+.edu-detail-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .edu-dialog-footer {
