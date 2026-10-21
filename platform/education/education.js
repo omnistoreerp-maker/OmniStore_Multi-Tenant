@@ -1663,6 +1663,7 @@
 
     syncNav(page);
     closeDrawer();
+    closeAssignmentDetails();
 
     if (page === 'dashboard') renderDashboard(body);
     else if (page === 'center') renderCenterWorkspace(body);
@@ -4205,6 +4206,152 @@
   // States: loading, success with rows, success with zero rows (empty), and
   // request failure including 403/404 (error with retry). Due dates render as
   // stored, with no overdue derivation in this phase.
+  // PHASE I-A. Read-only assignment details. Opening a row fetches the existing
+  // GET /assignments/:id endpoint so the SERVER re-checks that the row belongs
+  // to one of the linked student's classes; the list payload is never used to
+  // bypass a denied detail request. Every value below is rendered as text, not
+  // HTML, so an instruction body that contains markup stays inert.
+  var assignmentDetailFocus = null;
+  var assignmentDetailRequest = 0;
+
+  function assignmentStatusPill(value) {
+    var raw = String(value === undefined || value === null ? '' : value).trim();
+    if (raw === '') {
+      var dash = el('span');
+      dash.textContent = '\u2014';
+      dash.setAttribute('data-edu-assignment-status', '');
+      return dash;
+    }
+    var safe = raw.toLowerCase().replace(/[^a-z_]/g, '');
+    var node = el('span', 'edu-pill edu-pill-' + safe);
+    node.textContent = raw;
+    node.setAttribute('data-edu-assignment-status', raw);
+    return node;
+  }
+
+  function assignmentDetailField(labelText, value) {
+    var wrap = el('div', 'edu-field');
+    var label = el('span', 'edu-detail-label');
+    label.textContent = labelText;
+    var valueEl = el('p', 'edu-detail-text');
+    var raw = String(value === undefined || value === null ? '' : value);
+    valueEl.textContent = raw === '' ? '\u2014' : raw;
+    wrap.appendChild(label);
+    wrap.appendChild(valueEl);
+    return wrap;
+  }
+
+  function assignmentDetailFieldNode(labelText, node) {
+    var wrap = el('div', 'edu-field');
+    var label = el('span', 'edu-detail-label');
+    label.textContent = labelText;
+    wrap.appendChild(label);
+    wrap.appendChild(node);
+    return wrap;
+  }
+
+  function ensureAssignmentDetailDialog() {
+    var existing = byId('edu-assignment-detail-overlay');
+    if (existing) return existing;
+    var overlay = el('div', 'edu-dialog-overlay');
+    overlay.id = 'edu-assignment-detail-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-labelledby', 'edu-assignment-detail-title');
+    overlay.setAttribute('aria-hidden', 'true');
+
+    var dialog = el('div', 'edu-dialog');
+    var header = el('div', 'edu-dialog-header');
+    var title = el('h2', 'edu-dialog-title', 'Assignment');
+    title.id = 'edu-assignment-detail-title';
+    var closeX = el('button', 'edu-dialog-close', '&times;');
+    closeX.type = 'button';
+    closeX.id = 'edu-assignment-detail-close';
+    closeX.setAttribute('aria-label', 'Close');
+    closeX.addEventListener('click', closeAssignmentDetails);
+    header.appendChild(title);
+    header.appendChild(closeX);
+
+    var body = el('div', 'edu-dialog-body');
+    body.id = 'edu-assignment-detail-body';
+
+    var footer = el('div', 'edu-dialog-footer');
+    var done = el('button', 'edu-btn edu-btn-outline', 'Close');
+    done.type = 'button';
+    done.id = 'edu-assignment-detail-done';
+    done.addEventListener('click', closeAssignmentDetails);
+    footer.appendChild(done);
+
+    dialog.appendChild(header);
+    dialog.appendChild(body);
+    dialog.appendChild(footer);
+    overlay.appendChild(dialog);
+    overlay.addEventListener('click', function (event) {
+      if (event.target === overlay) closeAssignmentDetails();
+    });
+    document.body.appendChild(overlay);
+    return overlay;
+  }
+
+  function closeAssignmentDetails() {
+    var overlay = byId('edu-assignment-detail-overlay');
+    if (!overlay) return;
+    assignmentDetailRequest += 1;
+    overlay.classList.remove('is-open');
+    overlay.setAttribute('aria-hidden', 'true');
+    var body = byId('edu-assignment-detail-body');
+    if (body) body.textContent = '';
+    var previous = assignmentDetailFocus;
+    assignmentDetailFocus = null;
+    if (previous && document.contains(previous) && typeof previous.focus === 'function') {
+      previous.focus();
+    }
+  }
+
+  function openAssignmentDetails(id, trigger, classLabelOf) {
+    var assignmentId = String(id === undefined || id === null ? '' : id);
+    if (!assignmentId) return;
+    var overlay = ensureAssignmentDetailDialog();
+    var title = byId('edu-assignment-detail-title');
+    var body = byId('edu-assignment-detail-body');
+    assignmentDetailFocus = trigger || document.activeElement;
+    assignmentDetailRequest += 1;
+    var token = assignmentDetailRequest;
+    if (title) title.textContent = 'Assignment';
+    if (body) {
+      body.textContent = '';
+      body.appendChild(loadingBlock());
+    }
+    overlay.classList.add('is-open');
+    overlay.setAttribute('aria-hidden', 'false');
+    var closeX = byId('edu-assignment-detail-close');
+    if (closeX) closeX.focus();
+
+    var load = function () {
+      if (token !== assignmentDetailRequest) return;
+      body.textContent = '';
+      body.appendChild(loadingBlock());
+      api('GET', '/assignments/' + encodeURIComponent(assignmentId)).then(function (row) {
+        if (token !== assignmentDetailRequest) return;
+        if (!row || typeof row !== 'object') throw new Error('Assignment details are unavailable');
+        if (title) title.textContent = row.title ? String(row.title) : 'Assignment';
+        body.textContent = '';
+        body.appendChild(assignmentDetailField('Title', row.title));
+        body.appendChild(assignmentDetailField('Class',
+          typeof classLabelOf === 'function' ? classLabelOf(row.classId) : ''));
+        body.appendChild(assignmentDetailField('Due Date',
+          row.dueDate ? String(row.dueDate).slice(0, 10) : ''));
+        body.appendChild(assignmentDetailFieldNode('Status', assignmentStatusPill(row.status)));
+        body.appendChild(assignmentDetailField('Description', row.description));
+      }).catch(function (err) {
+        if (token !== assignmentDetailRequest) return;
+        body.textContent = '';
+        body.appendChild(banner('error', explain(err), load));
+      });
+    };
+    load();
+  }
+
   function renderStudentAssignments(host, enrolledClasses) {
     var box = el('div', 'edu-card');
     box.id = 'edu-student-assignments';
@@ -4250,17 +4397,56 @@
           'No assignments for this student yet.'));
         return;
       }
-      listHost.appendChild(simpleTable(
-        ['Title', 'Class', 'Due Date'],
-        list.map(function (row) {
-          var due = row && row.dueDate ? String(row.dueDate).slice(0, 10) : '';
-          return [
-            text(row && row.title ? row.title : ''),
-            text(classNameOf(row && row.classId)),
-            due ? code(due) : text('')
-          ];
-        })
-      ));
+      var wrap = el('div', 'edu-table-wrap');
+      var table = el('table', 'edu-table');
+      var thead = document.createElement('thead');
+      var headRow = document.createElement('tr');
+      ['Title', 'Class', 'Due Date', 'Status', 'View'].forEach(function (label) {
+        var th = document.createElement('th');
+        th.scope = 'col';
+        th.textContent = label;
+        headRow.appendChild(th);
+      });
+      thead.appendChild(headRow);
+      table.appendChild(thead);
+      var tbody = document.createElement('tbody');
+      list.forEach(function (row) {
+        var tr = document.createElement('tr');
+
+        var titleTd = document.createElement('td');
+        titleTd.textContent = row && row.title ? String(row.title) : '\u2014';
+        tr.appendChild(titleTd);
+
+        var classTd = document.createElement('td');
+        classTd.textContent = classNameOf(row && row.classId);
+        tr.appendChild(classTd);
+
+        var dueTd = document.createElement('td');
+        var due = row && row.dueDate ? String(row.dueDate).slice(0, 10) : '';
+        dueTd.textContent = due === '' ? '\u2014' : due;
+        if (due !== '') dueTd.dir = 'ltr';
+        tr.appendChild(dueTd);
+
+        var statusTd = document.createElement('td');
+        statusTd.appendChild(assignmentStatusPill(row && row.status));
+        tr.appendChild(statusTd);
+
+        var actionTd = document.createElement('td');
+        actionTd.className = 'edu-cell-actions';
+        var viewBtn = el('button', 'edu-btn edu-btn-outline edu-btn-sm', 'View');
+        viewBtn.type = 'button';
+        viewBtn.setAttribute('data-edu-assignment-id', String(row && row.id ? row.id : ''));
+        viewBtn.addEventListener('click', function () {
+          openAssignmentDetails(row && row.id, viewBtn, classNameOf);
+        });
+        actionTd.appendChild(viewBtn);
+        tr.appendChild(actionTd);
+
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      wrap.appendChild(table);
+      listHost.appendChild(wrap);
     };
 
     var load = function () {
@@ -4710,6 +4896,7 @@
       if (event.key !== 'Escape') return;
       closeForm();
       closeDrawer();
+      closeAssignmentDetails();
     });
 
     renderPage(pageFromHash());
