@@ -3018,7 +3018,7 @@
     var actions = el('div', 'edu-actions');
     var save = el('button', 'edu-btn edu-btn-primary', '<span>Save settings</span>');
     save.type = 'submit';
-    save.form = 'edu-pack-form';
+    save.setAttribute('form', 'edu-pack-form');
     save.id = 'edu-pack-save';
     actions.appendChild(save);
     var refresh = el('button', 'edu-btn edu-btn-outline', icon('refresh') + '<span>Refresh</span>');

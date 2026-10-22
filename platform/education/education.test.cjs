@@ -1237,6 +1237,23 @@ check('pack settings expose exactly the three fields the pack accepts', () => {
   assert(view.includes("status.className = 'edu-pack-status is-error'"), 'the settings view has no error state');
 });
 
+check('the settings save control is associated through the form attribute, not a readonly property', () => {
+  const view = stripComments(RUNTIME.slice(
+    RUNTIME.indexOf('function paintPackSettings'),
+    RUNTIME.indexOf('// Workspaces.')
+  ));
+  // HTMLButtonElement.form is readonly: assigning to it throws a TypeError in
+  // strict mode, which aborts the renderer before the actions and submit
+  // handler exist. The form content attribute is the supported association for
+  // a submit button rendered outside its form.
+  assert(!/save\.form\s*=/.test(view), 'the settings view assigns to the readonly save.form property');
+  assert(view.includes("save.setAttribute('form', 'edu-pack-form')"),
+    'the settings save button is not associated with its form');
+  assert(view.includes("save.id = 'edu-pack-save'"), 'the settings save button has no stable id');
+  assert(view.includes("actions.appendChild(save)"), 'the settings save button is not added to the actions');
+  assert(view.includes("form.addEventListener('submit'"), 'the settings form has no submit handler');
+});
+
 check('CSV export writes a real, escaped, UTF-8 file from the rows on screen', () => {
   // Escaping: a comma, a quote, a newline and a leading formula character.
   const block = stripComments(RUNTIME.slice(
