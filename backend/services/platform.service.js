@@ -116,6 +116,95 @@ function _audit(actor, action, resource, resourceId, changes) {
   }
 }
 
+// ---------------- company owners ----------------
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function _claimedTenants(input) {
+  const claimed = [];
+  if (!input || typeof input !== 'object') return claimed;
+  if (input.tenantId !== undefined && input.tenantId !== null) claimed.push(input.tenantId);
+  if (Array.isArray(input.tenantIds)) claimed.push(...input.tenantIds);
+  else if (input.tenantIds !== undefined && input.tenantIds !== null) claimed.push(input.tenantIds);
+  if (input.tenantRoles && typeof input.tenantRoles === 'object' && !Array.isArray(input.tenantRoles)) {
+    claimed.push(...Object.keys(input.tenantRoles));
+  }
+  return claimed.map(v => String(v).trim()).filter(Boolean);
+}
+
+// POST /platform/companies/:id/owners
+// Creates a NEW Owner bound exclusively to the company selected in the path.
+// The platform gate already authorized the caller; this function still enforces
+// every data invariant: one existing active company, no client tenant claims,
+// Owner-only role, a valid unique email, and a secret-free USER_CREATED audit.
+function createCompanyOwner(actor, tenantId, input) {
+  const companyId = String(tenantId || '').trim();
+  if (!companyId) return { error: 'Company id is required', status: 400 };
+
+  const company = CompanyService.getCompany(companyId);
+  if (!company) return { error: 'Company not found', status: 404 };
+
+  const companyStatus = String(company.status || (company.active === false ? 'SUSPENDED' : 'ACTIVE')).toUpperCase();
+  if (company.active === false || companyStatus === 'SUSPENDED') {
+    return { error: 'Company is not active', status: 409, code: 'COMPANY_INACTIVE' };
+  }
+
+  const data = input && typeof input === 'object' ? input : {};
+  const role = data.role === undefined || data.role === null ? 'Owner' : String(data.role);
+  if (role !== 'Owner') {
+    return { error: 'Only the Owner role can be created here', status: 400, code: 'INVALID_ROLE' };
+  }
+
+  for (const claimed of _claimedTenants(data)) {
+    if (claimed !== companyId) {
+      return { error: 'Cannot create a user outside the selected company', status: 403, code: 'PERMISSION_DENIED' };
+    }
+  }
+
+  const username = String(data.username || '').trim();
+  if (!username) return { error: 'username is required', status: 400 };
+
+  const email = String(data.email || '').trim().toLowerCase();
+  if (!email) return { error: 'email is required', status: 400 };
+  if (!EMAIL_PATTERN.test(email)) return { error: 'email is invalid', status: 400 };
+
+  if (typeof data.password !== 'string' || data.password.length === 0) {
+    return { error: 'password is required', status: 400 };
+  }
+
+  if (usersService.findByEmail(email).length > 0) {
+    return { error: 'Duplicate email: ' + email, status: 409 };
+  }
+
+  const fullName = data.fullName === undefined || data.fullName === null
+    ? undefined
+    : String(data.fullName).trim();
+
+  const result = usersService.create({
+    username,
+    ...(fullName !== undefined ? { fullName } : {}),
+    email,
+    role: 'Owner',
+    tenantIds: [companyId],
+    tenantRoles: { [companyId]: 'Owner' },
+    password: data.password
+  });
+
+  if (result.error) {
+    const status = /^Duplicate /.test(result.error) ? 409 : 400;
+    return { error: result.error, status };
+  }
+
+  _audit(actor, 'USER_CREATED', 'user', result.user.id, {
+    tenantId: companyId,
+    role: 'Owner',
+    targetUsername: result.user.username,
+    targetEmail: result.user.email
+  });
+
+  return { user: usersService.sanitizeUser(result.user) };
+}
+
 // ---------------- summary / dashboard ----------------
 
 function summary() {
@@ -523,6 +612,7 @@ function revokePlatformAdmin(actor, username) {
 
 module.exports = {
   summary,
+  createCompanyOwner,
   listCompanies,
   suspendCompany,
   activateCompany,

@@ -20,6 +20,7 @@ router.get('/companies', admin, ctrl.listCompanies);
 router.get('/companies/:id', admin, ctrl.getCompanyDetails);
 router.post('/companies/:id/suspend', admin, ctrl.suspendCompany);
 router.post('/companies/:id/activate', admin, ctrl.activateCompany);
+router.post('/companies/:id/owners', admin, ctrl.createCompanyOwner);
 
 router.get('/users', admin, ctrl.listUsers);
 router.post('/users/:id/disable', admin, ctrl.disableUser);

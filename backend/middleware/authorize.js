@@ -1,6 +1,7 @@
 const { error: errorResponse } = require('../utils/apiResponse');
 const config = require('../config');
 const usersService = require('../services/users.service');
+const CompanyService = require('../services/company.service');
 const tenantRole = require('../services/tenantRole.service');
 const authorization = require('../services/authorization.service');
 
@@ -47,6 +48,9 @@ function resolveTenantRoleForRequest(req) {
 function requireRole(...roles) {
   return function (req, res, next) {
     if (!req.user) return errorResponse(res, 'Authentication required', 401);
+    if (_isBoundOutsideTenant(req)) {
+      return errorResponse(res, 'Insufficient role', 403);
+    }
     const effective = resolveTenantRoleForRequest(req);
     const role = effective !== undefined ? effective : req.user.role;
     if (!roles.includes(role)) {
@@ -67,6 +71,33 @@ function resolveActor(req) {
   return req.__resolvedActor;
 }
 
+// A real user record with tenantIds/tenantRoles is bound to those tenants. A
+// request carrying a trusted tenant outside that set is denied before any role
+// fallback can grant global Owner/Admin rights in a company the account was
+// never assigned to. Unbound (legacy) accounts keep the historical behavior.
+function _boundTenants(actor) {
+  const bound = new Set();
+  if (actor && Array.isArray(actor.tenantIds)) {
+    for (const t of actor.tenantIds) if (t != null) bound.add(String(t));
+  }
+  if (actor && actor.tenantRoles && typeof actor.tenantRoles === 'object') {
+    for (const t of Object.keys(actor.tenantRoles)) if (t) bound.add(String(t));
+  }
+  return bound;
+}
+
+function _isBoundOutsideTenant(req) {
+  if (!req.tenantContext || req.tenantContext.tenantId === undefined || req.tenantContext.tenantId === null) {
+    return false;
+  }
+  const tenantId = String(req.tenantContext.tenantId);
+  const company = CompanyService.getCompany(tenantId);
+  if (!company || company.active === false) return false;
+  const actor = resolveActor(req) || (req.user && typeof req.user === 'object' ? req.user : null);
+  const bound = _boundTenants(actor);
+  return bound.size > 0 && !bound.has(tenantId);
+}
+
 // The trusted tenant for the request: the reconstructed tenant context when
 // present, else the tenant claim signed into the token. Never from query/body.
 function trustedTenantId(req) {
@@ -82,6 +113,9 @@ function trustedTenantId(req) {
 function requirePermission(permission) {
   return function (req, res, next) {
     if (!req.user) return errorResponse(res, 'Authentication required', 401);
+    if (_isBoundOutsideTenant(req)) {
+      return errorResponse(res, 'Insufficient permission', 403, { code: 'PERMISSION_DENIED' });
+    }
     const effective = resolveTenantRoleForRequest(req);
     const role = effective !== undefined ? effective : req.user.role;
     if (role === 'Owner' || role === 'Admin') return next();
