@@ -97,6 +97,19 @@ function activateCompany(req, res) {
   }
 }
 
+function createCompanyOwner(req, res) {
+  try {
+    const result = platform.createCompanyOwner(_actor(req), req.params.id, req.body || {});
+    if (result.error) {
+      return error(res, result.error, result.status || 500, result.code ? { code: result.code } : null);
+    }
+    success(res, result.user, 'Company owner created', 201);
+  } catch (err) {
+    logger.error('platform.createCompanyOwner error:', err.message);
+    error(res, 'Failed to create company owner', 500);
+  }
+}
+
 function listUsers(req, res) {
   try {
     success(res, { users: platform.listUsers() }, 'Users retrieved');
@@ -242,7 +255,7 @@ function revokeAdmin(req, res) {
 
 module.exports = {
   heartbeat, me, summary,
-  listCompanies, getCompanyDetails, suspendCompany, activateCompany,
+  listCompanies, getCompanyDetails, suspendCompany, activateCompany, createCompanyOwner,
   listUsers, disableUser, enableUser, forceLogout, resetPassword,
   listPresence, listLicenses, setLicense,
   listIntegrations, setIntegration,

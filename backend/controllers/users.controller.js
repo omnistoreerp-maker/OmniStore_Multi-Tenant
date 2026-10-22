@@ -76,6 +76,17 @@ function _readTenantScope(req) {
   return tenantId === undefined || tenantId === null ? undefined : tenantId;
 }
 
+function _collectTenantClaims(body) {
+  const claimed = [];
+  if (body.tenantId !== undefined && body.tenantId !== null) claimed.push(body.tenantId);
+  if (Array.isArray(body.tenantIds)) claimed.push(...body.tenantIds);
+  else if (body.tenantIds !== undefined && body.tenantIds !== null) claimed.push(body.tenantIds);
+  if (body.tenantRoles && typeof body.tenantRoles === 'object' && !Array.isArray(body.tenantRoles)) {
+    claimed.push(...Object.keys(body.tenantRoles));
+  }
+  return claimed;
+}
+
 function create(req, res) {
   try {
     const tenantId = trustedTenantId(req);
@@ -88,6 +99,10 @@ function create(req, res) {
     }
 
     // Legacy / unauthenticated — exactly the historical behavior, unchanged.
+    if (req.user && _collectTenantClaims(req.body || {}).length > 0) {
+      return error(res, 'Tenant membership must be assigned by the platform company route', 403, { code: 'PERMISSION_DENIED' });
+    }
+
     const result = usersService.create(req.body);
     if (result.error) return error(res, result.error, 400);
     success(res, usersService.sanitizeUser(result.user), 'User created', 201);

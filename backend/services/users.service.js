@@ -281,15 +281,21 @@ class UsersService {
   // (ambiguous: true) — the store has no unique constraint on email, so an
   // ambiguous match must never select one of the candidates for login.
   _findByEmail(email) {
-    const normalized = String(email || '').trim().toLowerCase();
-    if (!normalized) return { user: null, ambiguous: false };
-    const db = this._load();
-    const matches = (db.users || []).filter(
-      u => String(u.email || '').trim().toLowerCase() === normalized
-    );
+    const matches = this.findByEmail(email);
     if (matches.length === 1) return { user: matches[0], ambiguous: false };
     if (matches.length > 1) return { user: null, ambiguous: true };
     return { user: null, ambiguous: false };
+  }
+
+  // All records claiming the exact case-insensitive email. Used by callers that
+  // must reject duplicates before creating a new login identity.
+  findByEmail(email) {
+    const normalized = String(email || '').trim().toLowerCase();
+    if (!normalized) return [];
+    const db = this._load();
+    return (db.users || []).filter(
+      u => String(u.email || '').trim().toLowerCase() === normalized
+    );
   }
 
   authenticate(username, password) {
