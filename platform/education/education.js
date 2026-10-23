@@ -3515,11 +3515,13 @@
     if (!rows.length) {
       host.appendChild(stateBlock('empty',
         'No student is enrolled in your classes yet. Enrollments are created from the Center workspace.'));
+      host.appendChild(renderTeacherSubmissions(classes));
       return;
     }
 
     host.appendChild(renderTeacherAttendance(classes, rows));
     host.appendChild(renderTeacherGrading(classes, rows));
+    host.appendChild(renderTeacherSubmissions(classes));
   }
 
   // ATTENDANCE. One save for the whole class, through the same bulk contract
@@ -3800,6 +3802,215 @@
     paint();
     return card;
   }
+
+  function renderTeacherSubmissions(classes) {
+    var card = el('div', 'edu-card');
+    card.id = 'edu-teacher-submissions';
+    card.appendChild(el('h3', null, 'Student submissions'));
+    card.appendChild(el('p', 'edu-card-sub',
+      'Read a student submission and record its descriptive grade and feedback. ' +
+      'Submissions are scoped to your own classes.'));
+
+    var picker = el('div', 'edu-filters');
+    card.appendChild(picker);
+
+    var classControl = labelledControl('select', 'edu-teacher-sub-class', 'Class', 'edu-select');
+    classes.forEach(function (klass) {
+      var opt = el('option', null, esc(refName('classes', klass) + (klass.classCode ? ' (' + klass.classCode + ')' : '')));
+      opt.value = String(klass.id);
+      classControl.node.appendChild(opt);
+    });
+    picker.appendChild(classControl.wrap);
+
+    var assignmentControl = labelledControl('select', 'edu-teacher-sub-assignment', 'Assignment', 'edu-select');
+    picker.appendChild(assignmentControl.wrap);
+
+    var listHost = el('div', null);
+    listHost.id = 'edu-teacher-sub-rows';
+    card.appendChild(listHost);
+
+    var sub = { classId: classes[0] ? String(classes[0].id) : '', assignmentId: '', token: 0 };
+
+    function studentName(id) {
+      var students = REF.students || [];
+      for (var i = 0; i < students.length; i++) {
+        if (String(students[i].id || '') === String(id || '')) return refName('students', students[i]);
+      }
+      return String(id || '');
+    }
+
+    function paintSubmissions(rows) {
+      listHost.textContent = '';
+      var list = Array.isArray(rows) ? rows : [];
+      if (!list.length) {
+        listHost.appendChild(stateBlock('empty', 'No submissions for this assignment yet.'));
+        return;
+      }
+      var wrap = el('div', 'edu-table-wrap');
+      var table = el('table', 'edu-table');
+      table.innerHTML = '<thead><tr><th scope="col">Student</th><th scope="col">Status</th>' +
+        '<th scope="col">Submission</th><th scope="col">Grade</th><th scope="col">Feedback</th>' +
+        '<th scope="col"><span class="edu-sr-only">Actions</span></th></tr></thead>';
+      var tbody = document.createElement('tbody');
+      list.forEach(function (row) {
+        var tr = document.createElement('tr');
+
+        var who = document.createElement('td');
+        who.textContent = studentName(row.studentId);
+        tr.appendChild(who);
+
+        var status = document.createElement('td');
+        status.appendChild(submissionStatusPill(row.status));
+        tr.appendChild(status);
+
+        var content = document.createElement('td');
+        content.className = 'edu-submission-content';
+        content.textContent = row.content ? String(row.content) : '\u2014';
+        tr.appendChild(content);
+
+        var gradeCell = document.createElement('td');
+        var gradeId = 'edu-teacher-sub-grade-' + String(row.id || '');
+        var gradeLabel = el('label', 'edu-sr-only', 'Grade');
+        gradeLabel.setAttribute('for', gradeId);
+        var grade = el('input', 'edu-input');
+        grade.id = gradeId;
+        grade.type = 'text';
+        grade.maxLength = 160;
+        grade.dir = 'ltr';
+        grade.placeholder = 'Grade';
+        grade.value = row.grade ? String(row.grade) : '';
+        gradeCell.appendChild(gradeLabel);
+        gradeCell.appendChild(grade);
+        tr.appendChild(gradeCell);
+
+        var feedbackCell = document.createElement('td');
+        var feedbackId = 'edu-teacher-sub-feedback-' + String(row.id || '');
+        var feedbackLabel = el('label', 'edu-sr-only', 'Feedback');
+        feedbackLabel.setAttribute('for', feedbackId);
+        var feedback = document.createElement('textarea');
+        feedback.className = 'edu-input';
+        feedback.id = feedbackId;
+        feedback.rows = 3;
+        feedback.maxLength = 2000;
+        feedback.placeholder = 'Feedback';
+        feedback.value = row.feedback ? String(row.feedback) : '';
+        feedbackCell.appendChild(feedbackLabel);
+        feedbackCell.appendChild(feedback);
+        tr.appendChild(feedbackCell);
+
+        var actionCell = document.createElement('td');
+        actionCell.className = 'edu-cell-actions';
+        var save = el('button', 'edu-btn edu-btn-outline edu-btn-sm',
+          row.status === 'reviewed' ? '<span>Update review</span>' : '<span>Save review</span>');
+        save.type = 'button';
+        save.setAttribute('data-edu-submission-id', String(row.id || ''));
+        save.setAttribute('aria-label', 'Save the review for this submission');
+        save.addEventListener('click', function () {
+          var value = String(grade.value || '').trim();
+          if (!value) {
+            toast('Enter a grade before saving.', true);
+            grade.focus();
+            return;
+          }
+          save.disabled = true;
+          api('PATCH', '/assignments/' + encodeURIComponent(sub.assignmentId) +
+            '/submissions/' + encodeURIComponent(String(row.id || '')) + '/review', {
+              grade: value,
+              feedback: String(feedback.value || '').trim()
+            }).then(function () {
+              reportWriteSuccess('Review saved.');
+              loadSubmissions();
+            }, function (err) {
+              save.disabled = false;
+              reportWriteFailure(err, 'The review could not be saved.');
+            });
+        });
+        actionCell.appendChild(save);
+        tr.appendChild(actionCell);
+
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      wrap.appendChild(table);
+      listHost.appendChild(wrap);
+    }
+
+    function loadSubmissions() {
+      var token = ++sub.token;
+      var assignmentId = sub.assignmentId;
+      if (!assignmentId) {
+        listHost.textContent = '';
+        listHost.appendChild(stateBlock('empty', 'Choose an assignment to see its submissions.'));
+        return;
+      }
+      listHost.textContent = '';
+      listHost.appendChild(loadingBlock());
+      api('GET', '/assignments/' + encodeURIComponent(assignmentId) + '/submissions')
+        .then(function (rows) {
+          if (token !== sub.token || state.page !== 'teacher') return;
+          paintSubmissions(rows);
+        }).catch(function (err) {
+          if (token !== sub.token || state.page !== 'teacher') return;
+          listHost.textContent = '';
+          listHost.appendChild(banner('error', explain(err), loadSubmissions));
+        });
+    }
+
+    function paintAssignmentOptions(assignments) {
+      assignmentControl.node.textContent = '';
+      var list = Array.isArray(assignments) ? assignments : [];
+      if (!list.length) {
+        sub.assignmentId = '';
+        var empty = document.createElement('option');
+        empty.value = '';
+        empty.textContent = 'No assignments for this class.';
+        assignmentControl.node.appendChild(empty);
+        listHost.textContent = '';
+        listHost.appendChild(stateBlock('empty', 'No assignments for this class yet.'));
+        return;
+      }
+      list.forEach(function (assignment) {
+        var opt = document.createElement('option');
+        opt.value = String(assignment.id || '');
+        opt.textContent = String(assignment.title || assignment.id || '');
+        assignmentControl.node.appendChild(opt);
+      });
+      sub.assignmentId = String(list[0].id || '');
+      assignmentControl.node.value = sub.assignmentId;
+      loadSubmissions();
+    }
+
+    function loadAssignments() {
+      var token = ++sub.token;
+      sub.assignmentId = '';
+      assignmentControl.node.textContent = '';
+      listHost.textContent = '';
+      listHost.appendChild(loadingBlock());
+      api('GET', '/assignments?classId=' + encodeURIComponent(sub.classId))
+        .then(function (assignments) {
+          if (token !== sub.token || state.page !== 'teacher') return;
+          paintAssignmentOptions(assignments);
+        }).catch(function (err) {
+          if (token !== sub.token || state.page !== 'teacher') return;
+          listHost.textContent = '';
+          listHost.appendChild(banner('error', explain(err), loadAssignments));
+        });
+    }
+
+    classControl.node.value = sub.classId;
+    classControl.node.addEventListener('change', function () {
+      sub.classId = classControl.node.value;
+      loadAssignments();
+    });
+    assignmentControl.node.addEventListener('change', function () {
+      sub.assignmentId = assignmentControl.node.value;
+      loadSubmissions();
+    });
+
+    loadAssignments();
+    return card;
+  }
+
   // The linked teacher is resolved once through GET /teachers/me: a real
   // backend record, or null when no teacher is linked to this account. The
   // request is cached for the session so every visit shows the same answer.
@@ -3969,6 +4180,7 @@
       host.appendChild(countSub(sessions.length, 'session(s) across the selected teacher’s classes.'));
       if (!sessions.length) {
         host.appendChild(stateBlock('empty', 'No sessions scheduled for these classes.'));
+        if (linked) renderTeacherWriteTools(host, teacherId, classes, enrollments);
         return;
       }
       var wrap = el('div', 'edu-table-wrap');
@@ -4188,7 +4400,7 @@
       // surfaced as an error and never converted into an empty success (that
       // would misreport denied as none). The only class label source is the
       // enrolled-class list resolved above in this same render.
-      renderStudentAssignments(host, enrolledClasses);
+      renderStudentAssignments(host, enrolledClasses, studentId);
 
 // Raw progress - read-only counts from the canonical P2 progress
   // endpoint (/students/:id/progress). Every number below is a count the
@@ -4346,9 +4558,12 @@
     }
   }
 
-  function openAssignmentDetails(id, trigger, classLabelOf) {
+  function openAssignmentDetails(id, trigger, classLabelOf, studentId) {
     var assignmentId = String(id === undefined || id === null ? '' : id);
     if (!assignmentId) return;
+    var selectedStudentId = String(studentId === undefined || studentId === null ? '' : studentId);
+    var canSubmit = !!(selectedStudentId && state.portalStudent &&
+      String(state.portalStudent.id || '') === selectedStudentId);
     var overlay = ensureAssignmentDetailDialog();
     var title = byId('edu-assignment-detail-title');
     var body = byId('edu-assignment-detail-body');
@@ -4381,6 +4596,8 @@
           row.dueDate ? String(row.dueDate).slice(0, 10) : ''));
         body.appendChild(assignmentDetailFieldNode('Status', assignmentStatusPill(row.status)));
         body.appendChild(assignmentDetailField('Description', row.description));
+        renderAssignmentSubmissionBlock(body, assignmentId, selectedStudentId,
+          canSubmit && String(row.status || '') === 'active');
       }).catch(function (err) {
         if (token !== assignmentDetailRequest) return;
         body.textContent = '';
@@ -4390,7 +4607,120 @@
     load();
   }
 
-  function renderStudentAssignments(host, enrolledClasses) {
+  function submissionStatusPill(value) {
+    var raw = String(value === undefined || value === null ? '' : value).trim();
+    if (raw === '') {
+      var dash = el('span');
+      dash.textContent = '\u2014';
+      dash.setAttribute('data-edu-submission-status', '');
+      return dash;
+    }
+    var safe = raw.toLowerCase().replace(/[^a-z_]/g, '');
+    var node = el('span', 'edu-pill edu-pill-' + safe);
+    node.textContent = raw;
+    node.setAttribute('data-edu-submission-status', raw);
+    return node;
+  }
+
+  function renderAssignmentSubmissionBlock(host, assignmentId, studentId, canSubmit) {
+    var card = el('div', 'edu-card');
+    card.id = 'edu-assignment-submission-card';
+    card.appendChild(el('h3', null, 'Your submission'));
+    var inner = el('div');
+    inner.id = 'edu-assignment-submission';
+    card.appendChild(inner);
+    host.appendChild(card);
+
+    var requestToken = 0;
+
+    function paintForm(existing) {
+      var wrap = el('div', 'edu-field');
+      var label = el('label', null, 'Submission');
+      label.setAttribute('for', 'edu-assignment-submission-content');
+      wrap.appendChild(label);
+      var area = document.createElement('textarea');
+      area.className = 'edu-input';
+      area.id = 'edu-assignment-submission-content';
+      area.rows = 5;
+      area.maxLength = 5000;
+      area.value = existing && existing.content ? String(existing.content) : '';
+      wrap.appendChild(area);
+      inner.appendChild(wrap);
+
+      var save = el('button', 'edu-btn edu-btn-primary',
+        existing ? 'Update submission' : 'Submit assignment');
+      save.type = 'button';
+      save.id = 'edu-assignment-submission-save';
+      save.addEventListener('click', function () {
+        var content = String(area.value || '').trim();
+        if (!content) {
+          toast('Write your submission before saving.', true);
+          area.focus();
+          return;
+        }
+        save.disabled = true;
+        api('PUT', '/assignments/' + encodeURIComponent(assignmentId) + '/submission', {
+          content: content
+        }).then(function () {
+          reportWriteSuccess('Submission saved.');
+          load();
+        }, function (err) {
+          save.disabled = false;
+          reportWriteFailure(err, 'Your submission could not be saved.');
+        });
+      });
+      inner.appendChild(save);
+    }
+
+    function paintSubmission(row) {
+      inner.textContent = '';
+      inner.appendChild(assignmentDetailFieldNode('Status', submissionStatusPill(row.status)));
+      inner.appendChild(assignmentDetailField('Submission', row.content));
+      if (row.status === 'reviewed') {
+        inner.appendChild(assignmentDetailField('Grade', row.grade));
+        inner.appendChild(assignmentDetailField('Feedback', row.feedback));
+        inner.appendChild(el('p', 'edu-card-sub',
+          'This submission has been reviewed and can no longer be edited.'));
+        return;
+      }
+      if (canSubmit) paintForm(row);
+    }
+
+    function load() {
+      var token = ++requestToken;
+      inner.textContent = '';
+      inner.appendChild(loadingBlock());
+      api('GET', '/assignments/' + encodeURIComponent(assignmentId) + '/submissions').then(function (rows) {
+        if (token !== requestToken) return;
+        var list = Array.isArray(rows) ? rows : [];
+        var mine = null;
+        for (var i = 0; i < list.length; i++) {
+          if (String(list[i] && list[i].studentId || '') === studentId) {
+            mine = list[i];
+            break;
+          }
+        }
+        inner.textContent = '';
+        if (mine) {
+          paintSubmission(mine);
+          return;
+        }
+        if (!canSubmit) {
+          inner.appendChild(stateBlock('empty', 'No submission yet.'));
+          return;
+        }
+        paintForm(null);
+      }).catch(function (err) {
+        if (token !== requestToken) return;
+        inner.textContent = '';
+        inner.appendChild(banner('error', explain(err), load));
+      });
+    }
+
+    load();
+  }
+
+  function renderStudentAssignments(host, enrolledClasses, studentId) {
     var box = el('div', 'edu-card');
     box.id = 'edu-student-assignments';
     // Plain English literals, exactly like every other string in this file:
@@ -4475,7 +4805,7 @@
         viewBtn.type = 'button';
         viewBtn.setAttribute('data-edu-assignment-id', String(row && row.id ? row.id : ''));
         viewBtn.addEventListener('click', function () {
-          openAssignmentDetails(row && row.id, viewBtn, classNameOf);
+          openAssignmentDetails(row && row.id, viewBtn, classNameOf, studentId);
         });
         actionTd.appendChild(viewBtn);
         tr.appendChild(actionTd);

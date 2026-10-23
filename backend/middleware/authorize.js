@@ -208,6 +208,12 @@ function scopedWriteRoleGuard(...roles) {
       seg === 'tenant' && segments[2] === 'education' &&
       TEACHER_OWNED_EDUCATION_SURFACES.has(segments[3])
     ) return next();
+    if (
+      req.educationStudent && req.method === 'PUT' &&
+      seg === 'tenant' && segments[2] === 'education' &&
+      segments[3] === 'assignments' && segments.length === 6 &&
+      segments[5] === 'submission'
+    ) return next();
     return requireRole(...roles)(req, res, next);
   };
 }
@@ -256,4 +262,12 @@ function requirePermissionOrSelf(permission) {
   };
 }
 
-module.exports = { requireRole, requirePermission, requirePermissionIfAuth, requirePermissionOrSelf, writeRoleGuard, scopedWriteRoleGuard, resolveTenantRoleForRequest, trustedTenantId };
+function requireLinkedStudent(req, res, next) {
+  if (!req.user) return errorResponse(res, 'Authentication required', 401);
+  if (!req.educationStudent) {
+    return errorResponse(res, 'Insufficient permission', 403, { code: 'PERMISSION_DENIED' });
+  }
+  next();
+}
+
+module.exports = { requireRole, requirePermission, requirePermissionIfAuth, requirePermissionOrSelf, requireLinkedStudent, writeRoleGuard, scopedWriteRoleGuard, resolveTenantRoleForRequest, trustedTenantId };

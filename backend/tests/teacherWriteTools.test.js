@@ -244,6 +244,11 @@ describe('Teacher G2 — attendance and grading UI (frontend contract)', () => {
         const el = createMockDocument().createElement('div');
         el.id = 'edu-teacher-grading';
         return el;
+      },
+      renderTeacherSubmissions: () => {
+        const el = createMockDocument().createElement('div');
+        el.id = 'edu-teacher-submissions';
+        return el;
       }
     });
     renderTeacherWriteTools = shared.renderTeacherWriteTools;
@@ -319,6 +324,7 @@ describe('Teacher G2 — attendance and grading UI (frontend contract)', () => {
     renderTeacherWriteTools(host, 'teacher-1', classes, rows);
     expect(host.querySelector('#edu-teacher-attendance')).not.toBeNull();
     expect(host.querySelector('#edu-teacher-grading')).not.toBeNull();
+    expect(host.querySelector('#edu-teacher-submissions')).not.toBeNull();
   });
 
   test('renderTeacherWriteTools shows empty state when no classes assigned', () => {
