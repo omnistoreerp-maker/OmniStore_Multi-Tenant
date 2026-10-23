@@ -3436,7 +3436,7 @@
   // no endpoint, no permission and no client-side authorization:
   //
   //   attendance -> POST /attendance/bulk  {attendanceDate, entries:[...]}
-  //   grading    -> POST /grading          {enrollmentId, grade}
+  //   grading    -> POST /grading          {enrollmentId, gradingDate, grade}
   //
   // Both contracts are the committed ones (see backend/routes/attendance.routes.js,
   // grading.routes.js and their services' WRITABLE_FIELDS). Nothing here
@@ -3533,7 +3533,7 @@
 
     var classControl = labelledControl('select', 'edu-teacher-att-class', 'Class', 'edu-select');
     classes.forEach(function (klass) {
-      var opt = el('option', null, esc(refLabel('classes', klass) + (klass.classCode ? ' ' + klass.classCode : '')));
+      var opt = el('option', null, esc(refName('classes', klass) + (klass.classCode ? ' (' + klass.classCode + ')' : '')));
       opt.value = String(klass.id);
       classControl.node.appendChild(opt);
     });
@@ -3704,7 +3704,7 @@
 
     var classControl = labelledControl('select', 'edu-teacher-grade-class', 'Class', 'edu-select');
     classes.forEach(function (klass) {
-      var opt = el('option', null, esc(refLabel('classes', klass) + (klass.classCode ? ' ' + klass.classCode : '')));
+      var opt = el('option', null, esc(refName('classes', klass) + (klass.classCode ? ' (' + klass.classCode + ')' : '')));
       opt.value = String(klass.id);
       classControl.node.appendChild(opt);
     });
@@ -3768,7 +3768,7 @@
             return;
           }
           saveOne.disabled = true;
-          api('POST', '/grading', { enrollmentId: String(row.id), grade: value })
+          api('POST', '/grading', { enrollmentId: String(row.id), gradingDate: today(), grade: value })
             .then(function () {
               saveOne.disabled = false;
               reportWriteSuccess('Grade saved.');
@@ -3890,12 +3890,18 @@
 
     var classes = [];
     var enrollments = [];
-
-    Promise.all([
+    var linked = !!(state.portalTeacher && state.portalTeacher.id &&
+      String(state.portalTeacher.id) === String(teacherId));
+    var requests = [
       api('GET', '/classes?teacherId=' + encodeURIComponent(teacherId)),
       api('GET', '/enrollments'),
       loadRef('courses')
-    ]).then(function (results) {
+    ];
+    if (linked) {
+      requests.push(loadRef('students').catch(function () { return []; }));
+    }
+
+    Promise.all(requests).then(function (results) {
       classes = Array.isArray(results[0]) ? results[0] : [];
       enrollments = Array.isArray(results[1]) ? results[1] : [];
       host.textContent = '';
@@ -3950,6 +3956,10 @@
         var right = String(b.scheduledDate || '') + String(b.startTime || '');
         return left < right ? -1 : (left > right ? 1 : 0);
       });
+      var classLabels = {};
+      classes.forEach(function (klass) {
+        classLabels[String(klass.id || '')] = refName('classes', klass);
+      });
 
       host.appendChild(el('h2', 'edu-section-title', 'Sessions'));
       host.appendChild(countSub(sessions.length, 'session(s) across the selected teacher’s classes.'));
@@ -3964,7 +3974,7 @@
       var tbody = document.createElement('tbody');
       sessions.forEach(function (session) {
         var tr = document.createElement('tr');
-        tr.innerHTML = '<td>' + text(refLabel('classes', session.classId)) + '</td>' +
+        tr.innerHTML = '<td>' + text(classLabels[String(session.classId || '')] || String(session.classId || '')) + '</td>' +
           '<td>' + code(session.scheduledDate) + '</td>' +
           '<td>' + code(String(session.startTime || '') + ' – ' + String(session.endTime || '')) + '</td>' +
           '<td>' + text(session.notes) + '</td>';
@@ -3979,8 +3989,7 @@
       // and even then the server would refuse it - teacherActor decides the
       // scope, never this comparison. The classes and enrollments used here
       // are the same arrays the page already resolved and displayed above.
-      if (state.portalTeacher && state.portalTeacher.id &&
-          String(state.portalTeacher.id) === String(teacherId)) {
+      if (linked) {
         renderTeacherWriteTools(host, teacherId, classes, enrollments);
       }
     }).catch(function (err) {

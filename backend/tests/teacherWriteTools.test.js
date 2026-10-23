@@ -146,6 +146,9 @@ function runInSandbox(fnSource, sandbox) {
   function refLabel(source, id) {
     return String(id || '');
   }
+  function refName(source, row) {
+    return String(row && (row.displayName || row.name || row.classCode || row.id) || '');
+  }
   function stateBlock(kind, message) {
     const div = doc.createElement('div');
     div.className = 'edu-empty';
@@ -195,6 +198,7 @@ function runInSandbox(fnSource, sandbox) {
     esc,
     text,
     refLabel,
+    refName,
     stateBlock,
     banner,
     loadingBlock,
@@ -434,5 +438,36 @@ describe('Teacher G2 — attendance and grading UI (frontend contract)', () => {
     expect(g2Section).toContain("api('POST', '/grading'");
     expect(g2Section).not.toMatch(/enrollmentId.*tenantId/);
     expect(g2Section).not.toMatch(/grade.*tenantId/);
+  });
+
+  test('Teacher G2 grading save carries the required gradingDate from the page clock', () => {
+    const source = EDUCATION_JS;
+    const g2Start = source.indexOf('// TEACHER WRITE TOOLS');
+    const g2End = source.indexOf('function renderStudentWorkspace');
+    const g2Section = source.slice(g2Start, g2End);
+    expect(g2Section).toContain('gradingDate: today()');
+    expect(g2Section).toContain("api('POST', '/grading', { enrollmentId: String(row.id), gradingDate: today(), grade: value })");
+  });
+
+  test('Teacher G2 loads student labels before rendering the linked teacher write tools', () => {
+    const paintSource = extractFunction('paintTeacherDetail');
+    expect(paintSource).toContain('var linked =');
+    expect(paintSource).toContain("loadRef('students')");
+    expect(paintSource).toContain('renderTeacherWriteTools(host, teacherId, classes, enrollments)');
+  });
+
+  test('Teacher G2 class selectors label the class row, not the object stringified as [object Object]', () => {
+    for (const name of ['renderTeacherAttendance', 'renderTeacherGrading']) {
+      const source = extractFunction(name);
+      expect(source).toContain("refName('classes', klass)");
+      expect(source).not.toContain("refLabel('classes', klass)");
+    }
+  });
+
+  test('Teacher workspace sessions resolve class names from the classes already on screen', () => {
+    const paintSource = extractFunction('paintTeacherDetail');
+    expect(paintSource).toContain('var classLabels = {};');
+    expect(paintSource).toContain("classLabels[String(session.classId || '')]");
+    expect(paintSource).not.toContain("refLabel('classes', session.classId)");
   });
 });
