@@ -146,6 +146,9 @@ function runInSandbox(fnSource, sandbox) {
   function refLabel(source, id) {
     return String(id || '');
   }
+  function refName(source, row) {
+    return String(row && (row.displayName || row.name || row.classCode || row.id) || '');
+  }
   function stateBlock(kind, message) {
     const div = doc.createElement('div');
     div.className = 'edu-empty';
@@ -173,6 +176,9 @@ function runInSandbox(fnSource, sandbox) {
   function today() {
     return new Date().toISOString().slice(0, 10);
   }
+  function utcToday() {
+    return new Date().toISOString().slice(0, 10);
+  }
   const context = Object.assign({
     console,
     document: doc,
@@ -195,12 +201,14 @@ function runInSandbox(fnSource, sandbox) {
     esc,
     text,
     refLabel,
+    refName,
     stateBlock,
     banner,
     loadingBlock,
     pill,
     code,
     today,
+    utcToday,
     ATTENDANCE_STATUSES: ['present', 'absent', 'late', 'excused'],
     MAX_STRING_LEN: 160,
     api: () => Promise.resolve({}),
@@ -434,5 +442,45 @@ describe('Teacher G2 — attendance and grading UI (frontend contract)', () => {
     expect(g2Section).toContain("api('POST', '/grading'");
     expect(g2Section).not.toMatch(/enrollmentId.*tenantId/);
     expect(g2Section).not.toMatch(/grade.*tenantId/);
+  });
+
+  test('Teacher G2 grading save carries the UTC gradingDate required by the backend', () => {
+    const source = EDUCATION_JS;
+    const g2Start = source.indexOf('// TEACHER WRITE TOOLS');
+    const g2End = source.indexOf('function renderStudentWorkspace');
+    const g2Section = source.slice(g2Start, g2End);
+    expect(g2Section).toContain('gradingDate: utcToday()');
+    expect(g2Section).not.toContain('gradingDate: today()');
+    expect(g2Section).toContain("api('POST', '/grading', { enrollmentId: String(row.id), gradingDate: utcToday(), grade: value })");
+  });
+
+  test('utcToday derives the calendar day from the UTC clock, not browser-local getters', () => {
+    const source = extractFunction('utcToday');
+    expect(source).toContain('toISOString().slice(0, 10)');
+    expect(source).not.toContain('getFullYear()');
+    expect(source).not.toContain('getMonth()');
+    expect(source).not.toContain('getDate()');
+  });
+
+  test('Teacher G2 loads student labels before rendering the linked teacher write tools', () => {
+    const paintSource = extractFunction('paintTeacherDetail');
+    expect(paintSource).toContain('var linked =');
+    expect(paintSource).toContain("loadRef('students')");
+    expect(paintSource).toContain('renderTeacherWriteTools(host, teacherId, classes, enrollments)');
+  });
+
+  test('Teacher G2 class selectors label the class row, not the object stringified as [object Object]', () => {
+    for (const name of ['renderTeacherAttendance', 'renderTeacherGrading']) {
+      const source = extractFunction(name);
+      expect(source).toContain("refName('classes', klass)");
+      expect(source).not.toContain("refLabel('classes', klass)");
+    }
+  });
+
+  test('Teacher workspace sessions resolve class names from the classes already on screen', () => {
+    const paintSource = extractFunction('paintTeacherDetail');
+    expect(paintSource).toContain('var classLabels = {};');
+    expect(paintSource).toContain("classLabels[String(session.classId || '')]");
+    expect(paintSource).not.toContain("refLabel('classes', session.classId)");
   });
 });
