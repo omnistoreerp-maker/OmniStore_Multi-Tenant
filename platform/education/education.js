@@ -139,6 +139,10 @@
     return now.getFullYear() + '-' + (m.length < 2 ? '0' + m : m) + '-' + (d.length < 2 ? '0' + d : d);
   }
 
+  function utcToday() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
   // Plain text for a cell that has no value. Used by the CSV writer, which must
   // never emit markup and must never invent a dash where the record has nothing.
   function str(value) {
@@ -3768,7 +3772,7 @@
             return;
           }
           saveOne.disabled = true;
-          api('POST', '/grading', { enrollmentId: String(row.id), gradingDate: today(), grade: value })
+          api('POST', '/grading', { enrollmentId: String(row.id), gradingDate: utcToday(), grade: value })
             .then(function () {
               saveOne.disabled = false;
               reportWriteSuccess('Grade saved.');
