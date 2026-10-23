@@ -64,7 +64,7 @@ const SERVER_JS = read('backend/server.js');
 
 const EDUCATION_ROUTE_FILES = [
   'educationPack', 'student', 'teacher', 'center', 'program', 'course',
-  'class', 'enrollment', 'assignment', 'attendance', 'scheduling', 'grading',
+  'class', 'enrollment', 'assignment', 'assignmentSubmission', 'attendance', 'scheduling', 'grading',
   'booking', 'rating', 'academicYear', 'term', 'subject', 'group'
 ].map((name) => ({
   name,
@@ -73,7 +73,7 @@ const EDUCATION_ROUTE_FILES = [
 
 const SERVICE_FILES = [
   'student', 'teacher', 'center', 'program', 'course', 'class',
-  'enrollment', 'assignment', 'attendance', 'scheduling', 'grading',
+  'enrollment', 'assignment', 'assignmentSubmission', 'attendance', 'scheduling', 'grading',
   'booking', 'rating', 'academicYear', 'term', 'subject', 'group'
 ].map((name) => ({
   name,
@@ -346,7 +346,7 @@ check('the backend really mounts the Education routers this page depends on', ()
   for (const route of ['programRoutes', 'courseRoutes', 'classRoutes', 'enrollmentRoutes',
     'attendanceRoutes', 'schedulingRoutes', 'gradingRoutes', 'studentRoutes', 'teacherRoutes',
     'centerRoutes', 'educationPackRoutes', 'bookingRoutes', 'ratingRoutes',
-    'academicYearRoutes', 'termRoutes', 'subjectRoutes', 'groupRoutes']) {
+    'academicYearRoutes', 'termRoutes', 'subjectRoutes', 'groupRoutes', 'assignmentSubmissionRoutes']) {
     assert(SERVER_JS.includes('const ' + route + ' ='), 'the server does not import ' + route);
     assert(
       new RegExp("app\\.use\\('/api/v1/tenant/education',\\s*" + route + '\\)').test(SERVER_JS),
@@ -953,7 +953,9 @@ check('stale responses from a previous page are dropped', () => {
   // slow response repaint a workspace the user has already left.
   // PHASE 2D adds one more student guard: the read-only assignments loader
   // paints only while the student workspace is still open.
-  assert(count(RUNTIME, "state.page !== 'teacher'") === 2, 'the teacher guard drifted');
+  // The teacher review card adds its own pair of guards around the assignment
+  // list and the submission list.
+  assert(count(RUNTIME, "state.page !== 'teacher'") === 6, 'the teacher guard drifted');
   assert(count(RUNTIME, "state.page !== 'student'") >= 3, 'the student guard drifted');
 });
 
@@ -1830,13 +1832,13 @@ check('the report surfaces add no backend surface and no new permission', () => 
 check('phase 2D: the student workspace reads only the existing server-scoped GET /assignments', () => {
   assert(RUNTIME.includes("api('GET', '/assignments')"),
     'the student workspace does not read the existing GET /assignments endpoint');
-  const scoped = RUNTIME.match(/\/assignments\?(studentId|tenantId|classId)=/g) || [];
-  assertEqual(scoped.length, 0,
-    'the student view sends a client scope to /assignments: ' + scoped.join(', '));
   const start = RUNTIME.indexOf('function renderStudentWorkspace');
   const end = RUNTIME.indexOf('function classOfEnrollment');
   assert(start >= 0 && end > start, 'the student workspace block could not be located');
   const block = RUNTIME.slice(start, end);
+  const scoped = block.match(/\/assignments\?(studentId|tenantId|classId)=/g) || [];
+  assertEqual(scoped.length, 0,
+    'the student view sends a client scope to /assignments: ' + scoped.join(', '));
   assert(block.includes("api('GET', '/assignments')"),
     'GET /assignments is not read from the student workspace');
   const routeSrc = read('backend/routes/assignment.routes.js');
@@ -1894,30 +1896,43 @@ check('phase 2D: student assignment strings exist in Arabic and English', () => 
   }
 });
 
-check('phase 2D: no new permission strings and no student write surface', () => {
+check('phase 2D: the student workspace adds only the submission write surface', () => {
   const start = RUNTIME.indexOf('function renderStudentWorkspace');
   const end = RUNTIME.indexOf('function classOfEnrollment');
   const block = stripComments(RUNTIME.slice(start, end));
-  for (const verb of ["api('POST'", "api('PUT'", "api('PATCH'", "api('DELETE'"]) {
-    assert(block.indexOf(verb) < 0, 'the student workspace writes to the backend: ' + verb);
+  for (const verb of ["api('POST'", "api('PATCH'", "api('DELETE'"]) {
+    assert(block.indexOf(verb) < 0, 'the student workspace writes outside the submission contract: ' + verb);
   }
+  const puts = block.match(/api\('PUT'/g) || [];
+  assertEqual(puts.length, 1, 'the student workspace must have exactly one write: PUT /assignments/:id/submission');
+  assert(block.includes("api('PUT', '/assignments/' + encodeURIComponent(assignmentId) + '/submission'"),
+    'the student submission does not use the committed PUT /assignments/:id/submission route');
+  assert(block.includes("api('GET', '/assignments/' + encodeURIComponent(assignmentId) + '/submissions')"),
+    'the submission UI does not read the committed submissions endpoint');
+  assert(!/api\('PUT'[^;]*\/grading/.test(block), 'the student workspace writes grades');
+  assert(!/api\('PUT'[^;]*encodeURIComponent\(studentId\)/.test(block),
+    'the student workspace sends a student id in the submission write');
   const registry = read('backend/permissions/registry.js');
-  assert(!/education\.assignments\./.test(RUNTIME + DICT + registry),
-    'a new assignment permission string appeared; assignments reuse education.classes.view/edit');
-  assert(!block.includes('/submissions') && !block.includes('/grading'),
-    'the student assignments view reaches for a write/upload/grading surface');
+  assert(!/education\.(assignments|submissions)\./.test(RUNTIME + DICT + registry),
+    'a new assignment/submission permission string appeared; submissions reuse education.grading.view/edit');
+  assert(!block.includes('/grading'),
+    'the student assignments view reaches for a grading surface');
 });
 
-check('phase I-A: student assignment details are read-only and server-authorised', () => {
+check('phase I-A: student assignment details stay server-authorised and lock reviewed submissions', () => {
   const block = RUNTIME.slice(RUNTIME.indexOf('function renderStudentWorkspace'),
     RUNTIME.indexOf('function classOfEnrollment'));
   // Opening a row must reuse the committed detail endpoint, so the server
   // re-checks class ownership instead of trusting the list payload.
   assert(block.includes("api('GET', '/assignments/' + encodeURIComponent(assignmentId))"),
     'the details view does not call the committed assignment detail endpoint');
-  for (const verb of ["api('POST'", "api('PUT'", "api('PATCH'", "api('DELETE'"]) {
-    assert(block.indexOf(verb) < 0, 'the student details view writes to the backend: ' + verb);
+  for (const verb of ["api('POST'", "api('PATCH'", "api('DELETE'"]) {
+    assert(block.indexOf(verb) < 0, 'the student details view writes outside the submission contract: ' + verb);
   }
+  const puts = block.match(/api\('PUT'/g) || [];
+  assertEqual(puts.length, 1, 'the student details view must expose only the submission write');
+  assert(block.includes("api('PUT', '/assignments/' + encodeURIComponent(assignmentId) + '/submission'"),
+    'the submission is not saved through the committed assignment route');
   // Modal semantics, explicit close and focus restoration.
   assert(block.includes("overlay.id = 'edu-assignment-detail-overlay'"),
     'the assignment detail dialog is missing');
@@ -1938,15 +1953,60 @@ check('phase I-A: student assignment details are read-only and server-authorised
   assert(!/description[^\n]*innerHTML/i.test(block),
     'the assignment description is rendered as HTML');
   // The labels the dialog uses already exist in the dictionary.
-  for (const text of ['View', 'Status', 'Close', 'Description']) {
+  for (const text of ['View', 'Status', 'Close', 'Description', 'Your submission',
+    'Submission', 'Grade', 'Feedback']) {
     assert(DICT.includes('"' + text + '"'), 'the dictionary has no entry for: ' + text);
   }
+  // The submission surface is real, bounded and immutable after review.
+  assert(block.includes('function renderAssignmentSubmissionBlock'),
+    'the assignment submission renderer is missing');
+  assert(block.includes("inner.id = 'edu-assignment-submission'"),
+    'the submission container is missing');
+  assert(block.includes("area.id = 'edu-assignment-submission-content'") &&
+    block.includes('area.maxLength = 5000'), 'the submission textarea is missing or unbounded');
+  assert(block.includes("row.status === 'reviewed'"),
+    'a reviewed submission is not treated as read-only');
+  assert(block.includes('This submission has been reviewed and can no longer be edited.'),
+    'the reviewed-lock explanation is missing');
+  assert(block.includes("api('GET', '/assignments/' + encodeURIComponent(assignmentId) + '/submissions')"),
+    'the detail dialog does not load the submission through the committed endpoint');
+  assert(!block.includes("studentId:") && !block.includes('tenantId:'),
+    'the submission write sends a client-owned identity field');
 });
 
 check('phase 2D: assignment management for teacher/center keeps the class-owned contract', () => {
   assert(RUNTIME.includes("path: '/assignments'"), 'the assignment management path drifted');
   assert(RUNTIME.includes("refField('classId', 'Class', 'classes', true, true)"),
     'the class-owned assignment parent drifted');
+});
+
+check('teacher assignment review uses the committed submission routes and grading permission', () => {
+  const block = RUNTIME.slice(RUNTIME.indexOf('function renderTeacherSubmissions'),
+    RUNTIME.indexOf('function renderTeacherWorkspace'));
+  assert(block.length > 0, 'the teacher submissions UI is missing');
+  for (const id of ['edu-teacher-submissions', 'edu-teacher-sub-class',
+    'edu-teacher-sub-assignment', 'edu-teacher-sub-rows']) {
+    assert(block.includes(id), 'the teacher submission control is missing: ' + id);
+  }
+  assert(block.includes("api('GET', '/assignments?classId=' + encodeURIComponent(sub.classId))"),
+    'the teacher review does not scope assignments to the selected own class');
+  assert(block.includes("api('GET', '/assignments/' + encodeURIComponent(assignmentId) + '/submissions')"),
+    'the teacher review does not read the committed submissions endpoint');
+  assert(block.includes("api('PATCH', '/assignments/' + encodeURIComponent(sub.assignmentId) +"),
+    'the teacher review does not use the committed review endpoint');
+  assert(block.includes("'/submissions/' + encodeURIComponent(String(row.id || '')) + '/review'"),
+    'the review path is not the committed nested submission path');
+  assert(block.includes("var value = String(grade.value || '').trim()") &&
+    block.includes("if (!value)"), 'the review does not require a grade');
+  assert(block.includes('feedback'), 'the review does not send feedback');
+  const routeSrc = read('backend/routes/assignmentSubmission.routes.js');
+  assert(routeSrc.includes("router.get('/assignments/:id/submissions', requirePermissionOrSelf('education.grading.view')"),
+    'the submissions read no longer accepts a linked student reading their own row');
+  assert(routeSrc.includes("router.put('/assignments/:id/submission', requireLinkedStudent"),
+    'the student submission route lost its linked-student gate');
+  assert(routeSrc.includes("router.patch('/assignments/:id/submissions/:submissionId/review', requirePermission('education.grading.edit')"),
+    'the teacher review route lost its grading edit gate');
+  assert(SERVER_JS.includes('assignmentSubmissionRoutes'), 'the server does not mount the submission router');
 });
 // The P3-P7 workspaces are only real if the router lets a user onto them and
 // if the endpoint a data card reads actually exists. Both regressed once

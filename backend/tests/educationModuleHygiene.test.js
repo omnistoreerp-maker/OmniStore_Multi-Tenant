@@ -82,11 +82,11 @@ describe('the dead educationCore module stays gone', () => {
     // One of the mounts is the attachTeacherActor middleware, not a router.
     const mounted = all.filter((n) => n.endsWith('Routes'));
     expect(all).toContain('attachTeacherActor');
-    expect(mounted.length).toBe(18); // pack + 11 entities + booking + rating + 4 P1 academic
+    expect(mounted.length).toBe(19); // pack + 11 entities + booking + rating + 4 P1 academic + assignment submissions
     for (const name of mounted) expect(name).not.toMatch(/educationCore/i);
     for (const required of ['educationPackRoutes', 'studentRoutes', 'teacherRoutes',
       'centerRoutes', 'programRoutes', 'courseRoutes', 'classRoutes',
-      'enrollmentRoutes', 'assignmentRoutes', 'attendanceRoutes', 'schedulingRoutes', 'gradingRoutes',
+      'enrollmentRoutes', 'assignmentRoutes', 'assignmentSubmissionRoutes', 'attendanceRoutes', 'schedulingRoutes', 'gradingRoutes',
       'bookingRoutes', 'ratingRoutes', 'academicYearRoutes', 'termRoutes',
       'subjectRoutes', 'groupRoutes']) {
       expect(mounted).toContain(required);
@@ -186,6 +186,7 @@ describe('every live Education runtime store is gitignored', () => {
     ['educationClasses.json', 'class.service.js'],
     ['educationEnrollments.json', 'enrollment.service.js'],
     ['educationAssignments.json', 'assignment.service.js'],
+    ['educationAssignmentSubmissions.json', 'assignmentSubmission.service.js'],
     ['educationAttendance.json', 'attendance.service.js'],
     ['educationScheduling.json', 'scheduling.service.js'],
     ['educationGrading.json', 'grading.service.js'],

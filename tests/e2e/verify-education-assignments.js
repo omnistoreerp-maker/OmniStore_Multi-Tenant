@@ -59,23 +59,36 @@ function seed(name, payload) {
   fs.writeFileSync(path.join(DATA_DIR, name + '.json'), JSON.stringify(payload, null, 2), 'utf-8');
 }
 
-function signStudentToken(userId, username) {
+function signToken(userId, username, role) {
   return jwt.sign({
     sub: String(userId),
     username,
-    role: 'Viewer',
+    role: role || 'Viewer',
     tenantId: 'asg-a',
     jti: crypto.randomUUID()
   }, JWT_SECRET, { expiresIn: '15m' });
 }
 
+function signStudentToken(userId, username) {
+  return signToken(userId, username, 'Viewer');
+}
+
 const OWNER = { id: 'u-owner', username: 'asgOwner', role: 'Owner', tenantIds: ['asg-a'], tokenVersion: 0, createdAt: STAMP, updatedAt: STAMP };
 const STU1_USER = { id: 'u-s1', username: 'asgStudent1', role: 'Viewer', tenantIds: ['asg-a'], tokenVersion: 0, createdAt: STAMP, updatedAt: STAMP };
 const STU2_USER = { id: 'u-s2', username: 'asgStudent2', role: 'Viewer', tenantIds: ['asg-a'], tokenVersion: 0, createdAt: STAMP, updatedAt: STAMP };
+const TEACHER_USER = {
+  id: 'u-t1', username: 'asgTeacher', role: 'Viewer', tenantIds: ['asg-a'], tokenVersion: 0,
+  permissions: [
+    'education.classes.view', 'education.enrollments.view', 'education.students.view',
+    'education.teachers.view', 'education.courses.view', 'education.scheduling.view',
+    'education.grading.view', 'education.grading.edit'
+  ],
+  createdAt: STAMP, updatedAt: STAMP
+};
 
 function seedStores() {
   seed('companies', [{ id: 'asg-a', name: 'Assignments Tenant', code: 'ASG', active: true, status: 'ACTIVE', createdAt: STAMP, updatedAt: STAMP }]);
-  seed('users', { users: [OWNER, STU1_USER, STU2_USER] });
+  seed('users', { users: [OWNER, STU1_USER, STU2_USER, TEACHER_USER] });
   seed('educationCenters', { centers: [
     { id: 'cen-a1', tenantId: 'asg-a', centerCode: 'CA1', name: 'Center A1', status: 'active', createdAt: STAMP, updatedAt: STAMP }
   ] });
@@ -86,7 +99,7 @@ function seedStores() {
     { id: 'crs-a1', tenantId: 'asg-a', programId: 'prg-a1', name: 'Course A1', status: 'active', createdAt: STAMP, updatedAt: STAMP }
   ] });
   seed('educationTeachers', { teachers: [
-    { id: 'tch-a1', tenantId: 'asg-a', teacherCode: 'TA1', firstName: 'Ann', lastName: 'One', status: 'active', createdAt: STAMP, updatedAt: STAMP }
+    { id: 'tch-a1', tenantId: 'asg-a', teacherCode: 'TA1', firstName: 'Ann', lastName: 'One', status: 'active', userId: 'u-t1', createdAt: STAMP, updatedAt: STAMP }
   ] });
   seed('educationClasses', { classes: [
     { id: 'cls-a1', tenantId: 'asg-a', courseId: 'crs-a1', teacherId: 'tch-a1', classCode: 'CA1', name: 'Algebra A1', status: 'active', createdAt: STAMP, updatedAt: STAMP },
@@ -156,7 +169,7 @@ function listenApp(app) {
   });
 }
 
-async function runScenario(browser, port, token, linkedId, expectRows) {
+async function runScenario(browser, port, token, linkedId, expectRows, submit) {
   const context = await browser.newContext();
   const page = await context.newPage();
   const consoleErrors = [];
@@ -240,10 +253,14 @@ async function runScenario(browser, port, token, linkedId, expectRows) {
   ).catch(() => -1);
 
   const details = {
-    activeOpened: false, activeTitle: '', activeValues: [], activeStatus: '',
+    activeOpened: false, activeTitle: '', activeValues: [], activeStatus: '', activeWriteControls: -1,
     archivedOpened: false, archivedStatus: '', archivedValues: [], archivedInjected: false,
     archivedXss: true, detailWriteControls: -1, closed: false, focusReturned: false,
     responseOk: false
+  };
+  const submission = {
+    formVisible: false, saveClicked: false, submitted: false, submittedStatus: '',
+    content: '', updateVisible: false
   };
 
   if (expectRows) {
@@ -273,6 +290,33 @@ async function runScenario(browser, port, token, linkedId, expectRows) {
     details.activeTitle = activeData.title;
     details.activeValues = activeData.values;
     details.activeStatus = activeData.status;
+    details.activeWriteControls = activeData.writeControls;
+
+    if (submit) {
+      submission.formVisible = await page.waitForSelector('#edu-assignment-submission-content', { timeout: 20000 })
+        .then(() => true, () => false);
+      if (submission.formVisible) {
+        await page.fill('#edu-assignment-submission-content', 'My browser answer');
+        submission.saveClicked = true;
+        await page.click('#edu-assignment-submission-save');
+        submission.submitted = await page.waitForFunction(() => {
+          const card = document.getElementById('edu-assignment-submission');
+          return !!(card && card.querySelector('[data-edu-submission-status="submitted"]'));
+        }, null, { timeout: 20000 }).then(() => true, () => false);
+        submission.submittedStatus = await page.$eval(
+          '#edu-assignment-submission [data-edu-submission-status]',
+          n => n.getAttribute('data-edu-submission-status')
+        ).catch(() => '');
+        submission.content = await page.$$eval(
+          '#edu-assignment-submission .edu-detail-text',
+          nodes => (nodes[0] ? nodes[0].textContent : '')
+        ).catch(() => '');
+        submission.updateVisible = await page.$eval(
+          '#edu-assignment-submission-save',
+          n => !!(n && !n.disabled && String(n.textContent || '').trim())
+        ).catch(() => false);
+      }
+    }
 
     await page.click('#edu-assignment-detail-done');
     details.closed = await page.waitForFunction(() => {
@@ -314,9 +358,251 @@ async function runScenario(browser, port, token, linkedId, expectRows) {
 
   return {
     linkedId, expectRows, workspaceOk, pickerOk, pickerValue, pickerOptions, listOk,
-    rows, listText, cardPresent, rtl, listStatuses, writeControls, details,
+    rows, listText, cardPresent, rtl, listStatuses, writeControls, details, submission,
     assignReq, assignCount, consoleErrors, pageErrors, failedApi
   };
+}
+
+async function runTeacherScenario(browser, port, token) {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const consoleErrors = [];
+  const pageErrors = [];
+  const failedApi = [];
+  page.on('pageerror', e => pageErrors.push(e.message));
+  page.on('console', m => {
+    if (m.type() !== 'error') return;
+    const loc = (typeof m.location === 'function' && m.location()) || {};
+    consoleErrors.push({ text: m.text(), url: loc.url || '' });
+  });
+  page.on('response', res => {
+    if (res.status() >= 400 && res.url().indexOf('/api/v1/') !== -1) {
+      failedApi.push({ status: res.status(), url: res.url() });
+    }
+  });
+  await page.addInitScript(t => {
+    try {
+      localStorage.setItem('access_token', t);
+      localStorage.setItem('omnistore_language', 'ar');
+      localStorage.setItem('omnistore_platform_lang', 'ar');
+    } catch (_) {}
+  }, token);
+  const base = 'http://127.0.0.1:' + port;
+  await page.goto(base + '/education/index.html#teacher', { waitUntil: 'load', timeout: 30000 });
+
+  const cardVisible = await page.waitForSelector('#edu-teacher-submissions', { timeout: 25000 })
+    .then(() => true, () => false);
+  let optionReady = false;
+  if (cardVisible) {
+    optionReady = await page.waitForFunction(() => {
+      const s = document.getElementById('edu-teacher-sub-assignment');
+      if (!s) return false;
+      return Array.from(s.options || []).some(o => o.value === 'asg-1');
+    }, null, { timeout: 25000 }).then(() => true, () => false);
+  }
+  let rowsReady = false;
+  let submittedText = '';
+  let reviewed = false;
+  let gradeValue = '';
+  let feedbackValue = '';
+  let reviewStatus = '';
+  if (optionReady) {
+    await page.selectOption('#edu-teacher-sub-assignment', 'asg-1');
+    rowsReady = await page.waitForFunction(() => {
+      const host = document.getElementById('edu-teacher-sub-rows');
+      return !!(host && host.querySelectorAll('table tbody tr').length > 0);
+    }, null, { timeout: 20000 }).then(() => true, () => false);
+  }
+  if (rowsReady) {
+    submittedText = await page.$eval('#edu-teacher-sub-rows', n => n.textContent).catch(() => '');
+    await page.fill('input[id^="edu-teacher-sub-grade-"]', 'A');
+    await page.fill('textarea[id^="edu-teacher-sub-feedback-"]', 'Good work');
+    await page.click('button[data-edu-submission-id]');
+    reviewed = await page.waitForFunction(() => {
+      const host = document.getElementById('edu-teacher-sub-rows');
+      const status = host ? host.querySelector('[data-edu-submission-status]') : null;
+      const grade = host ? host.querySelector('input[id^="edu-teacher-sub-grade-"]') : null;
+      return !!(status && status.getAttribute('data-edu-submission-status') === 'reviewed' &&
+        grade && grade.value === 'A');
+    }, null, { timeout: 20000 }).then(() => true, () => false);
+    if (reviewed) {
+      reviewStatus = await page.$eval('#edu-teacher-sub-rows [data-edu-submission-status]',
+        n => n.getAttribute('data-edu-submission-status')).catch(() => '');
+      gradeValue = await page.$eval('input[id^="edu-teacher-sub-grade-"]', n => n.value).catch(() => '');
+      feedbackValue = await page.$eval('textarea[id^="edu-teacher-sub-feedback-"]', n => n.value).catch(() => '');
+    }
+  }
+
+  await context.close();
+  return {
+    cardVisible, optionReady, rowsReady, submittedText, reviewed, reviewStatus,
+    gradeValue, feedbackValue, consoleErrors, pageErrors, failedApi
+  };
+}
+
+async function runReviewedStudentScenario(browser, port, token) {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const consoleErrors = [];
+  const pageErrors = [];
+  const failedApi = [];
+  page.on('pageerror', e => pageErrors.push(e.message));
+  page.on('console', m => {
+    if (m.type() !== 'error') return;
+    const loc = (typeof m.location === 'function' && m.location()) || {};
+    consoleErrors.push({ text: m.text(), url: loc.url || '' });
+  });
+  page.on('response', res => {
+    if (res.status() >= 400 && res.url().indexOf('/api/v1/') !== -1) {
+      failedApi.push({ status: res.status(), url: res.url() });
+    }
+  });
+  await page.addInitScript(t => {
+    try {
+      localStorage.setItem('access_token', t);
+      localStorage.setItem('omnistore_language', 'ar');
+      localStorage.setItem('omnistore_platform_lang', 'ar');
+    } catch (_) {}
+  }, token);
+  const base = 'http://127.0.0.1:' + port;
+  await page.goto(base + '/education/index.html#student', { waitUntil: 'load', timeout: 30000 });
+
+  const listReady = await page.waitForFunction(() => {
+    const l = document.getElementById('edu-student-assignments-list');
+    return !!(l && l.querySelector('button[data-edu-assignment-id="asg-1"]'));
+  }, null, { timeout: 25000 }).then(() => true, () => false);
+  let opened = false;
+  let status = '';
+  let values = [];
+  let textareaCount = -1;
+  if (listReady) {
+    await page.click('button[data-edu-assignment-id="asg-1"]');
+    opened = await page.waitForFunction(() => {
+      const card = document.getElementById('edu-assignment-submission');
+      const statusNode = card ? card.querySelector('[data-edu-submission-status]') : null;
+      return !!(statusNode && statusNode.getAttribute('data-edu-submission-status') === 'reviewed');
+    }, null, { timeout: 20000 }).then(() => true, () => false);
+    if (opened) {
+      status = await page.$eval('#edu-assignment-submission [data-edu-submission-status]',
+        n => n.getAttribute('data-edu-submission-status')).catch(() => '');
+      values = await page.$$eval('#edu-assignment-submission .edu-detail-text',
+        nodes => nodes.map(n => n.textContent)).catch(() => []);
+      textareaCount = await page.$$eval('#edu-assignment-submission textarea', nodes => nodes.length)
+        .catch(() => -1);
+    }
+    await page.click('#edu-assignment-detail-close').catch(() => {});
+  }
+
+  await context.close();
+  return { listReady, opened, status, values, textareaCount, consoleErrors, pageErrors, failedApi };
+}
+
+async function runResponsiveScenario(browser, port, token) {
+  const viewports = [
+    { name: 'desktop', width: 1440, height: 900 },
+    { name: 'tablet', width: 820, height: 1180 },
+    { name: 'mobile', width: 390, height: 844 }
+  ];
+  const out = { checks: [], consoleErrors: [], pageErrors: [], failedApi: [] };
+  for (const viewport of viewports) {
+    const context = await browser.newContext({ viewport: { width: viewport.width, height: viewport.height } });
+    const page = await context.newPage();
+    page.on('pageerror', e => out.pageErrors.push({ viewport: viewport.name, text: e.message }));
+    page.on('console', m => {
+      if (m.type() !== 'error') return;
+      const loc = (typeof m.location === 'function' && m.location()) || {};
+      out.consoleErrors.push({ viewport: viewport.name, text: m.text(), url: loc.url || '' });
+    });
+    page.on('response', res => {
+      if (res.status() >= 400 && res.url().indexOf('/api/v1/') !== -1) {
+        out.failedApi.push({ viewport: viewport.name, status: res.status(), url: res.url() });
+      }
+    });
+    await page.addInitScript(t => {
+      try {
+        localStorage.setItem('access_token', t);
+        localStorage.setItem('omnistore_language', 'ar');
+        localStorage.setItem('omnistore_platform_lang', 'ar');
+      } catch (_) {}
+    }, token);
+    await page.goto('http://127.0.0.1:' + port + '/education/index.html#student', { waitUntil: 'load', timeout: 30000 });
+    const listReady = await page.waitForFunction(() => {
+      const l = document.getElementById('edu-student-assignments-list');
+      return !!(l && l.querySelector('button[data-edu-assignment-id="asg-1"]'));
+    }, null, { timeout: 25000 }).then(() => true, () => false);
+    let layout = null;
+    let detail = null;
+    if (listReady) {
+      layout = await page.evaluate(() => {
+        const doc = document.documentElement;
+        const body = document.body;
+        const card = document.getElementById('edu-student-assignments');
+        return {
+          scrollWidth: Math.max(doc.scrollWidth, body ? body.scrollWidth : 0),
+          innerWidth: window.innerWidth,
+          cardVisible: !!(card && card.getBoundingClientRect().width > 0),
+          rowCount: card ? card.querySelectorAll('table tbody tr').length : 0
+        };
+      });
+      await page.click('button[data-edu-assignment-id="asg-1"]');
+      const detailReady = await page.waitForSelector('#edu-assignment-detail-overlay.is-open #edu-assignment-submission-card', { timeout: 20000 })
+        .then(() => true, () => false);
+      if (detailReady) {
+        detail = await page.evaluate(() => {
+          const dialog = document.querySelector('#edu-assignment-detail-overlay .edu-dialog');
+          const card = document.getElementById('edu-assignment-submission-card');
+          const rect = dialog ? dialog.getBoundingClientRect() : null;
+          return {
+            visible: !!(card && card.getBoundingClientRect().width > 0),
+            dialogWidth: rect ? Math.round(rect.width) : 0,
+            dialogLeft: rect ? Math.round(rect.left) : -1,
+            dialogRight: rect ? Math.round(rect.right) : -1,
+            innerWidth: window.innerWidth,
+            textareaCount: card ? card.querySelectorAll('textarea').length : -1
+          };
+        });
+      }
+      await page.click('#edu-assignment-detail-close').catch(() => {});
+    }
+    out.checks.push({ viewport: viewport.name, listReady, layout, detail });
+    await context.close();
+  }
+  return out;
+}
+
+async function runLtrScenario(browser, port, token) {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const page = await context.newPage();
+  const consoleErrors = [];
+  const pageErrors = [];
+  page.on('pageerror', e => pageErrors.push(e.message));
+  page.on('console', m => {
+    if (m.type() !== 'error') return;
+    consoleErrors.push(m.text());
+  });
+  await page.addInitScript(t => {
+    try {
+      localStorage.setItem('access_token', t);
+      localStorage.setItem('omnistore_language', 'en');
+      localStorage.setItem('omnistore_platform_lang', 'en');
+    } catch (_) {}
+  }, token);
+  await page.goto('http://127.0.0.1:' + port + '/education/index.html#student', { waitUntil: 'load', timeout: 30000 });
+  const listReady = await page.waitForFunction(() => {
+    const l = document.getElementById('edu-student-assignments-list');
+    return !!(l && l.querySelector('button[data-edu-assignment-id="asg-1"]'));
+  }, null, { timeout: 25000 }).then(() => true, () => false);
+  const result = await page.evaluate(() => {
+    const card = document.getElementById('edu-student-assignments');
+    return {
+      docDir: document.documentElement.getAttribute('dir') || '',
+      computed: card ? getComputedStyle(card).direction : '',
+      scrollWidth: document.documentElement.scrollWidth,
+      innerWidth: window.innerWidth
+    };
+  }).catch(() => ({ docDir: '', computed: '', scrollWidth: -1, innerWidth: -1 }));
+  await context.close();
+  return Object.assign({ listReady, consoleErrors, pageErrors }, result);
 }
 
 (async () => {
@@ -337,11 +623,16 @@ async function runScenario(browser, port, token, linkedId, expectRows) {
     ARCHIVED_STATUS: 'NOT_COVERED',
     SAFE_TEXT_RENDERING: 'NOT_COVERED',
     DETAILS_CLOSE: 'NOT_COVERED',
-    DETAILS_WRITE_SURFACE: 'NOT_IMPLEMENTED_IN_PRODUCT',
+    DETAILS_WRITE_SURFACE: 'NOT_COVERED',
+    STUDENT_SUBMISSION: 'NOT_COVERED',
+    TEACHER_REVIEW: 'NOT_COVERED',
+    REVIEWED_LOCK: 'NOT_COVERED',
     EMPTY_STATE: 'NOT_COVERED',
     ERROR_RETRY: 'NOT_TESTABLE_WITHOUT_PRODUCT_OR_MOCK_CHANGES',
     RTL: 'NOT_COVERED',
-    STUDENT_WRITE_SURFACE: 'NOT_IMPLEMENTED_IN_PRODUCT',
+    RTL_LTR: 'NOT_COVERED',
+    UI_UX_DESKTOP_TABLET_MOBILE: 'NOT_COVERED',
+    STUDENT_WRITE_SURFACE: 'NOT_COVERED',
     CONSOLE_ERRORS: '0',
     PAGE_ERRORS: '0',
     FAILED_REQUESTS: 'none',
@@ -360,8 +651,12 @@ async function runScenario(browser, port, token, linkedId, expectRows) {
     report.BROWSER_STARTED = 'PASS';
     report.TEST_EXECUTED = 'YES';
 
-    const has = await runScenario(browser, port, signStudentToken('u-s1', 'asgStudent1'), 'stu-1', true);
-    const empty = await runScenario(browser, port, signStudentToken('u-s2', 'asgStudent2'), 'stu-2', false);
+    const has = await runScenario(browser, port, signStudentToken('u-s1', 'asgStudent1'), 'stu-1', true, true);
+    const empty = await runScenario(browser, port, signStudentToken('u-s2', 'asgStudent2'), 'stu-2', false, false);
+    const teacher = await runTeacherScenario(browser, port, signToken('u-t1', 'asgTeacher', 'Viewer'));
+    const reviewedStu = await runReviewedStudentScenario(browser, port, signStudentToken('u-s1', 'asgStudent1'));
+    const responsive = await runResponsiveScenario(browser, port, signStudentToken('u-s1', 'asgStudent1'));
+    const ltr = await runLtrScenario(browser, port, signStudentToken('u-s1', 'asgStudent1'));
 
     const hasRowsText = has.rows.join(' | ');
     const hasRendered = has.listOk && has.rows.length === 3 &&
@@ -384,17 +679,40 @@ async function runScenario(browser, port, token, linkedId, expectRows) {
       has.details.archivedXss === false &&
       has.details.archivedValues[3] === ARCHIVED_DESCRIPTION;
     const detailsCloseOk = has.details.closed && has.details.focusReturned;
-    const detailsNoWrite = has.details.detailWriteControls === 0;
+    const detailSurfaceOk = has.details.activeWriteControls >= 2 && has.details.detailWriteControls === 0;
+    const submissionOk = has.submission.formVisible && has.submission.saveClicked &&
+      has.submission.submitted && has.submission.submittedStatus === 'submitted' &&
+      has.submission.content === 'My browser answer' && has.submission.updateVisible;
+    const teacherOk = teacher.cardVisible && teacher.optionReady && teacher.rowsReady &&
+      teacher.submittedText.indexOf('My browser answer') !== -1 &&
+      teacher.reviewed && teacher.reviewStatus === 'reviewed' &&
+      teacher.gradeValue === 'A' && teacher.feedbackValue === 'Good work';
+    const reviewedOk = reviewedStu.listReady && reviewedStu.opened &&
+      reviewedStu.status === 'reviewed' && reviewedStu.values[0] === 'My browser answer' &&
+      reviewedStu.values[1] === 'A' && reviewedStu.values[2] === 'Good work' &&
+      reviewedStu.textareaCount === 0;
     const pickerOk = has.pickerOk && empty.pickerOk &&
       has.pickerValue === 'stu-1' && empty.pickerValue === 'stu-2' && has.pickerOptions >= 2;
     const rtlOk = has.rtl.docDir === 'rtl' && has.rtl.computed === 'rtl' &&
       empty.rtl.docDir === 'rtl' && empty.rtl.computed === 'rtl';
     const workspaceOk = has.workspaceOk && empty.workspaceOk && has.cardPresent && empty.cardPresent;
     const noWriteSurface = has.writeControls === 0 && empty.writeControls === 0;
+    const responsiveOk = responsive.checks.length === 3 && responsive.checks.every(row =>
+      row.listReady && row.layout &&
+      row.layout.scrollWidth <= row.layout.innerWidth + 1 &&
+      row.layout.cardVisible && row.layout.rowCount === 3 &&
+      row.detail && row.detail.visible &&
+      row.detail.dialogLeft >= 0 && row.detail.dialogRight <= row.detail.innerWidth + 1 &&
+      row.detail.textareaCount === 0);
+    const ltrOk = ltr.listReady && ltr.docDir === 'ltr' && ltr.computed === 'ltr' &&
+      ltr.scrollWidth <= ltr.innerWidth + 1;
 
-    const allConsole = has.consoleErrors.concat(empty.consoleErrors);
-    const allPage = has.pageErrors.concat(empty.pageErrors);
-    const allFailed = has.failedApi.concat(empty.failedApi);
+    const allConsole = has.consoleErrors.concat(empty.consoleErrors, teacher.consoleErrors,
+      reviewedStu.consoleErrors, responsive.consoleErrors, ltr.consoleErrors);
+    const allPage = has.pageErrors.concat(empty.pageErrors, teacher.pageErrors,
+      reviewedStu.pageErrors, responsive.pageErrors, ltr.pageErrors);
+    const allFailed = has.failedApi.concat(empty.failedApi, teacher.failedApi,
+      reviewedStu.failedApi, responsive.failedApi);
 
     check('STUDENT_WORKSPACE: section#edu-body-student opened for both linked students', workspaceOk);
     check('STUDENT_PICKER: #edu-student-picker present and preselects the linked student', pickerOk,
@@ -414,12 +732,26 @@ async function runScenario(browser, port, token, linkedId, expectRows) {
       ' text=' + JSON.stringify(has.details.archivedValues.slice(3)));
     check('DETAILS_CLOSE: dialog closes and focus returns to the row control', detailsCloseOk,
       'closed=' + has.details.closed + ' focused=' + has.details.focusReturned);
-    check('DETAILS_WRITE_SURFACE: no write/submit controls inside the details', detailsNoWrite,
-      'controls=' + has.details.detailWriteControls);
+    check('DETAILS_WRITE_SURFACE: active assignment has the submission form; archived has none', detailSurfaceOk,
+      'active=' + has.details.activeWriteControls + ' archived=' + has.details.detailWriteControls);
+    check('STUDENT_SUBMISSION: linked student saves content through the real PUT route', submissionOk,
+      JSON.stringify(has.submission));
+    check('TEACHER_REVIEW: linked teacher reads and reviews the submission in the UI', teacherOk,
+      'card=' + teacher.cardVisible + ' options=' + teacher.optionReady + ' rows=' + teacher.rowsReady +
+      ' reviewed=' + teacher.reviewed + ' status=' + teacher.reviewStatus +
+      ' grade=' + teacher.gradeValue + ' feedback=' + teacher.feedbackValue);
+    check('REVIEWED_LOCK: reviewed submission is read-only for the student with grade and feedback', reviewedOk,
+      'opened=' + reviewedStu.opened + ' status=' + reviewedStu.status +
+      ' values=' + JSON.stringify(reviewedStu.values) + ' textareas=' + reviewedStu.textareaCount);
     check('EMPTY_STATE: zero-assignment student renders the empty state (not a table)', emptyRendered, empty.listText.slice(0, 200));
     check('RTL: document dir=rtl and assignments card computed direction=rtl', rtlOk,
       'has=' + has.rtl.docDir + '/' + has.rtl.computed + ' empty=' + empty.rtl.docDir + '/' + empty.rtl.computed);
-    check('STUDENT_WRITE_SURFACE: no write controls rendered (read-only product surface)', noWriteSurface,
+    check('UI_UX_DESKTOP_TABLET_MOBILE: list and dialog fit without horizontal overflow', responsiveOk,
+      JSON.stringify(responsive.checks));
+    check('RTL_LTR: English locale renders LTR without horizontal overflow', ltrOk,
+      'list=' + ltr.listReady + ' dir=' + ltr.docDir + '/' + ltr.computed +
+      ' width=' + ltr.scrollWidth + '/' + ltr.innerWidth);
+    check('STUDENT_WRITE_SURFACE: assignment list renders no write controls', noWriteSurface,
       'has=' + has.writeControls + ' empty=' + empty.writeControls);
 
     report.STUDENT_WORKSPACE = workspaceOk ? 'PASS' : 'FAIL';
@@ -430,10 +762,15 @@ async function runScenario(browser, port, token, linkedId, expectRows) {
     report.ARCHIVED_STATUS = archivedOk ? 'PASS' : 'FAIL';
     report.SAFE_TEXT_RENDERING = safeTextOk ? 'PASS' : 'FAIL';
     report.DETAILS_CLOSE = detailsCloseOk ? 'PASS' : 'FAIL';
-    report.DETAILS_WRITE_SURFACE = detailsNoWrite ? 'NOT_IMPLEMENTED_IN_PRODUCT' : 'FAIL';
+    report.DETAILS_WRITE_SURFACE = detailSurfaceOk ? 'PASS' : 'FAIL';
+    report.STUDENT_SUBMISSION = submissionOk ? 'PASS' : 'FAIL';
+    report.TEACHER_REVIEW = teacherOk ? 'PASS' : 'FAIL';
+    report.REVIEWED_LOCK = reviewedOk ? 'PASS' : 'FAIL';
     report.EMPTY_STATE = emptyRendered ? 'PASS' : 'FAIL';
     report.RTL = rtlOk ? 'PASS' : 'FAIL';
-    report.STUDENT_WRITE_SURFACE = noWriteSurface ? 'NOT_IMPLEMENTED_IN_PRODUCT' : 'FAIL';
+    report.RTL_LTR = ltrOk ? 'PASS' : 'FAIL';
+    report.UI_UX_DESKTOP_TABLET_MOBILE = responsiveOk ? 'PASS' : 'FAIL';
+    report.STUDENT_WRITE_SURFACE = noWriteSurface ? 'PASS' : 'FAIL';
     report.CONSOLE_ERRORS = String(allConsole.length);
     report.PAGE_ERRORS = String(allPage.length);
     report.FAILED_REQUESTS = allFailed.length ? JSON.stringify(allFailed.slice(0, 10)) : 'none';
@@ -463,7 +800,9 @@ async function runScenario(browser, port, token, linkedId, expectRows) {
 
   const afterHash = sha256(TARGET_FILE);
   const scenarioPass = ['STUDENT_WORKSPACE', 'STUDENT_PICKER', 'GET_ASSIGNMENTS', 'ASSIGNMENT_RENDERING',
-    'ASSIGNMENT_DETAILS', 'ARCHIVED_STATUS', 'SAFE_TEXT_RENDERING', 'DETAILS_CLOSE', 'EMPTY_STATE', 'RTL']
+    'ASSIGNMENT_DETAILS', 'ARCHIVED_STATUS', 'SAFE_TEXT_RENDERING', 'DETAILS_CLOSE',
+    'DETAILS_WRITE_SURFACE', 'STUDENT_SUBMISSION', 'TEACHER_REVIEW', 'REVIEWED_LOCK',
+    'EMPTY_STATE', 'RTL', 'RTL_LTR', 'UI_UX_DESKTOP_TABLET_MOBILE']
     .every(k => report[k] === 'PASS');
   const finalResult = report.BLOCKER !== 'none'
     ? 'BLOCKED'
@@ -487,9 +826,14 @@ async function runScenario(browser, port, token, linkedId, expectRows) {
   console.log('SAFE_TEXT_RENDERING=' + report.SAFE_TEXT_RENDERING);
   console.log('DETAILS_CLOSE=' + report.DETAILS_CLOSE);
   console.log('DETAILS_WRITE_SURFACE=' + report.DETAILS_WRITE_SURFACE);
+  console.log('STUDENT_SUBMISSION=' + report.STUDENT_SUBMISSION);
+  console.log('TEACHER_REVIEW=' + report.TEACHER_REVIEW);
+  console.log('REVIEWED_LOCK=' + report.REVIEWED_LOCK);
   console.log('EMPTY_STATE=' + report.EMPTY_STATE);
   console.log('ERROR_RETRY=' + report.ERROR_RETRY);
   console.log('RTL=' + report.RTL);
+  console.log('RTL_LTR=' + report.RTL_LTR);
+  console.log('UI_UX_DESKTOP_TABLET_MOBILE=' + report.UI_UX_DESKTOP_TABLET_MOBILE);
   console.log('STUDENT_WRITE_SURFACE=' + report.STUDENT_WRITE_SURFACE);
   console.log('CONSOLE_ERRORS=' + report.CONSOLE_ERRORS);
   console.log('PAGE_ERRORS=' + report.PAGE_ERRORS);
