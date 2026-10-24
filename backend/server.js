@@ -353,6 +353,21 @@ app.use('/api/v1/metrics', metricsRoutes);
 const authGate = config.authRequired ? requireAuth : (req, res, next) => next();
 
 app.use('/api/v1/health/deep', authGate, healthRoutes);
+
+// Root liveness probe — the path the production deploy gate actually curls.
+// omni_deploy_20260920.sh requests http://127.0.0.1:$PORT/health and prints
+// DEPLOY_RESULT=FAILED unless it answers a bare 200; it takes no path override,
+// because HEALTH_PATH would have to be set in backend/.env. The real health
+// surface is mounted under the version prefix (/api/v1/health), so without this
+// alias every otherwise-successful deploy was reported as a failure on a 404.
+//
+// Deliberately unauthenticated and deliberately silent: it reports that the
+// process is serving requests and nothing more. Version, uptime, persistence
+// and diagnostics stay behind the prefixed endpoints above.
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
 app.use('/api/v1/errors', errorTrackerRoutes);
 
 // Route events from the bus to outbound webhooks (additive; no-op if none).
