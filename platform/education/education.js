@@ -4443,7 +4443,17 @@
       }
     }).catch(function (err) {
       host.textContent = '';
-      host.appendChild(banner('error', explain(err)));
+      // This chain renders the enrollments, attendance, assignments and
+      // progress cards together, so a failed read here is the failure the
+      // user actually meets when the service is unreachable — and it wiped
+      // the whole detail with a banner that offered no way forward. `banner`
+      // already takes the retry callback used by the assignments card, the
+      // detail dialog and the submission block, so re-run this same render
+      // instead of forcing a page reload. Retrying re-reads only; it changes
+      // no state and grants no scope the first attempt did not have.
+      host.appendChild(banner('error', explain(err), function () {
+        paintStudentDetail(host, studentId);
+      }));
     });
   }
 
