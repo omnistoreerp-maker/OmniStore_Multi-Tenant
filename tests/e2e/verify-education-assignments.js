@@ -148,7 +148,10 @@ function startStaticProxy(apiPort) {
     if (urlPath.startsWith('/api/')) {
       const headers = Object.assign({}, req.headers);
       headers.host = '127.0.0.1:' + apiPort;
-      const proxied = http.request({ hostname: '127.0.0.1', port: apiPort, path: req.url, method: req.method, headers }, upstream => {
+      // agent:false keeps every proxied API call on its own connection, so a
+      // socket the API server closed (see the deliberate outage in the
+      // error/retry scenario) can never be reused for the next call.
+      const proxied = http.request({ hostname: '127.0.0.1', port: apiPort, path: req.url, method: req.method, headers, agent: false }, upstream => {
         res.writeHead(upstream.statusCode || 502, upstream.headers);
         upstream.pipe(res);
       });
@@ -620,6 +623,154 @@ async function runLtrScenario(browser, port, token) {
   return Object.assign({ listReady, consoleErrors, pageErrors }, result);
 }
 
+// ---------------------------------------------------------------------------
+// ERROR / RETRY. A real outage, not an intercepted route: the Express app is
+// stopped, so the page's next read through the static proxy meets a real
+// connection failure, and it is restarted on the same port so the retry the
+// page offers can actually recover. Nothing is stubbed and the page is never
+// reloaded, so the banner asserted here is the one a user would meet.
+// ---------------------------------------------------------------------------
+function stopApiServer(server) {
+  return new Promise(resolve => {
+    try { if (typeof server.closeIdleConnections === 'function') server.closeIdleConnections(); } catch (_) {}
+    try { if (typeof server.closeAllConnections === 'function') server.closeAllConnections(); } catch (_) {}
+    server.close(() => resolve());
+  });
+}
+
+// Rebinding the port the proxy already targets. The short retry loop only
+// absorbs the moment between close and the OS releasing the listener; if the
+// port never comes back the scenario fails instead of pretending otherwise.
+async function listenOnPort(app, port, attempts) {
+  const tries = attempts || 12;
+  let lastErr = null;
+  for (let i = 0; i < tries; i += 1) {
+    try {
+      return await new Promise((resolve, reject) => {
+        const server = app.listen(port, '127.0.0.1');
+        server.on('listening', () => resolve(server));
+        server.on('error', reject);
+      });
+    } catch (err) {
+      lastErr = err;
+      if (err && err.code !== 'EADDRINUSE') throw err;
+      await new Promise(r => setTimeout(r, 150));
+    }
+  }
+  throw lastErr || new Error('could not rebind the API port');
+}
+
+async function runErrorRetryScenario(browser, port, api, lang) {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  let outage = false;
+  const unexpectedConsole = [];
+  const unexpectedFailed = [];
+  const pageErrors = [];
+
+  page.on('pageerror', e => pageErrors.push(e.message));
+  page.on('console', m => {
+    if (m.type() !== 'error') return;
+    const text = m.text();
+    // While the app is deliberately stopped Chromium logs the failed resource.
+    // Every other console error, before or after, still counts as a defect.
+    const expected = outage && /Failed to load resource/.test(text);
+    if (!expected) unexpectedConsole.push(text.slice(0, 200));
+  });
+  page.on('response', res => {
+    const url = res.url();
+    if (url.indexOf('/api/v1/') === -1 || res.status() < 400) return;
+    if (outage && res.status() === 502) return;
+    unexpectedFailed.push({ status: res.status(), url: url.slice(0, 120) });
+  });
+
+  await page.addInitScript((cfg) => {
+    try {
+      localStorage.setItem('access_token', cfg.token);
+      localStorage.setItem('omnistore_language', cfg.lang);
+      localStorage.setItem('omnistore_platform_lang', cfg.lang);
+    } catch (_) {}
+  }, { token: signStudentToken('u-s1', 'asgStudent1'), lang });
+
+  const base = 'http://127.0.0.1:' + port;
+  await page.goto(base + '/education/index.html#student', { waitUntil: 'load', timeout: 30000 });
+
+  const baseline = await page.waitForFunction(() => {
+    const list = document.getElementById('edu-student-assignments-list');
+    return !!(list && list.querySelector('button[data-edu-assignment-id="asg-1"]'));
+  }, null, { timeout: 25000 }).then(() => true, () => false);
+
+  await stopApiServer(api.server);
+  outage = true;
+
+  // A linked student's picker lists only their own record, so the blank entry
+  // forces a real change event and the student is then chosen again. Each
+  // selection re-runs the same reads the first paint used, now against a
+  // stopped service.
+  const cleared = await page.selectOption('#edu-student-picker', '').then(() => true, () => false);
+  const reselected = await page.selectOption('#edu-student-picker', 'stu-1').then(() => true, () => false);
+  const bannerShown = await page.waitForSelector('#edu-student-detail .edu-banner-error', { timeout: 25000 })
+    .then(() => true, () => false);
+  const banner = bannerShown
+    ? await page.$eval('#edu-student-detail .edu-banner-error', n => ({
+      text: (n.textContent || '').trim().slice(0, 160),
+      buttons: n.querySelectorAll('button').length
+    })).catch(() => ({ text: '', buttons: 0 }))
+    : { text: '', buttons: 0 };
+  const retryVisible = await page.isVisible('#edu-student-detail .edu-banner-error button').catch(() => false);
+  // A failed read must never be painted as "no assignments": the card is
+  // absent entirely rather than rendering a misleading empty state.
+  const noFakeEmpty = await page.$('#edu-student-assignments').then(node => !node).catch(() => false);
+
+  // Let the failed-resource console entries land while the outage is still the
+  // thing that explains them.
+  await page.waitForTimeout(700);
+  outage = false;
+
+  api.server = await listenOnPort(api.app, api.port);
+  const clicked = retryVisible
+    ? await page.click('#edu-student-detail .edu-banner-error button').then(() => true, () => false)
+    : false;
+
+  const recovered = await page.waitForFunction(() => {
+    const detail = document.getElementById('edu-student-detail');
+    const card = document.getElementById('edu-student-assignments');
+    if (!card) return false;
+    if (detail && detail.querySelector('.edu-banner-error')) return false;
+    const list = document.getElementById('edu-student-assignments-list');
+    return !!(list && list.querySelector('button[data-edu-assignment-id="asg-1"]'));
+  }, null, { timeout: 25000 }).then(() => true, () => false);
+
+  const layout = await page.evaluate(() => ({
+    docDir: document.documentElement.getAttribute('dir') || '',
+    cardDir: (() => {
+      const card = document.getElementById('edu-student-detail');
+      return card ? getComputedStyle(card).direction : '';
+    })(),
+    scrollWidth: document.documentElement.scrollWidth,
+    innerWidth: window.innerWidth
+  })).catch(() => ({ docDir: '', cardDir: '', scrollWidth: -1, innerWidth: -1 }));
+
+  await context.close();
+
+  const dirOk = lang === 'ar'
+    ? (layout.docDir === 'rtl' && layout.cardDir === 'rtl')
+    : (layout.docDir === 'ltr' && layout.cardDir === 'ltr');
+  const ok = baseline && cleared && reselected && bannerShown &&
+    banner.buttons === 1 && banner.text.length > 0 &&
+    retryVisible && noFakeEmpty && clicked && recovered && dirOk &&
+    layout.scrollWidth <= layout.innerWidth + 1 &&
+    unexpectedConsole.length === 0 && unexpectedFailed.length === 0 && pageErrors.length === 0;
+
+  return {
+    lang, ok, baseline, cleared, reselected, bannerShown, clicked, recovered, noFakeEmpty, dirOk,
+    bannerButtons: banner.buttons, bannerText: banner.text,
+    docDir: layout.docDir, cardDir: layout.cardDir,
+    scrollWidth: layout.scrollWidth, innerWidth: layout.innerWidth,
+    unexpectedConsole, unexpectedFailed, pageErrors
+  };
+}
+
 const EDU = '/api/v1/tenant/education';
 
 // One real HTTP call against the same origin the browser uses (the static
@@ -707,6 +858,9 @@ async function runIsolationChecks(port) {
     const apiPort = apiServer.address().port;
     staticServer = await startStaticProxy(apiPort);
     const port = staticServer.address().port;
+    // Handle used by the outage scenario to stop and rebind the SAME app on the
+    // SAME port the proxy targets, so recovery is real rather than simulated.
+    const api = { app, port: apiPort, server: apiServer };
 
     const isolation = await runIsolationChecks(port);
 
@@ -720,6 +874,11 @@ async function runIsolationChecks(port) {
     const reviewedStu = await runReviewedStudentScenario(browser, port, signStudentToken('u-s1', 'asgStudent1'));
     const responsive = await runResponsiveScenario(browser, port, signStudentToken('u-s1', 'asgStudent1'));
     const ltr = await runLtrScenario(browser, port, signStudentToken('u-s1', 'asgStudent1'));
+    const retryRtl = await runErrorRetryScenario(browser, port, api, 'ar');
+    const retryLtr = await runErrorRetryScenario(browser, port, api, 'en');
+    // The outage scenario stops and restarts the app, so the cleanup must close
+    // whichever server instance is live at the end.
+    apiServer = api.server;
 
     const hasRowsText = has.rows.join(' | ');
     const hasRendered = has.listOk && has.rows.length === 3 &&
@@ -774,6 +933,7 @@ async function runIsolationChecks(port) {
       row.detail.textareaCount === 0);
     const ltrOk = ltr.listReady && ltr.docDir === 'ltr' && ltr.computed === 'ltr' &&
       ltr.scrollWidth <= ltr.innerWidth + 1;
+    const errorRetryOk = retryRtl.ok && retryLtr.ok;
 
     const allConsole = has.consoleErrors.concat(empty.consoleErrors, teacher.consoleErrors,
       reviewedStu.consoleErrors, responsive.consoleErrors, ltr.consoleErrors);
@@ -821,6 +981,21 @@ async function runIsolationChecks(port) {
       ' width=' + ltr.scrollWidth + '/' + ltr.innerWidth);
     check('STUDENT_WRITE_SURFACE: assignment list renders no write controls', noWriteSurface,
       'has=' + has.writeControls + ' empty=' + empty.writeControls);
+    check('ERROR_RETRY: a stopped service shows an error with a retry that recovers (RTL + LTR)', errorRetryOk,
+      'rtl=' + JSON.stringify({
+        baseline: retryRtl.baseline, cleared: retryRtl.cleared, reselected: retryRtl.reselected,
+        banner: retryRtl.bannerShown, buttons: retryRtl.bannerButtons,
+        clicked: retryRtl.clicked, recovered: retryRtl.recovered, noFakeEmpty: retryRtl.noFakeEmpty,
+        dir: retryRtl.docDir + '/' + retryRtl.cardDir, unexpectedFailed: retryRtl.unexpectedFailed.length,
+        unexpectedConsole: retryRtl.unexpectedConsole.length, pageErrors: retryRtl.pageErrors.length
+      }) +
+      ' ltr=' + JSON.stringify({
+        baseline: retryLtr.baseline, cleared: retryLtr.cleared, reselected: retryLtr.reselected,
+        banner: retryLtr.bannerShown, buttons: retryLtr.bannerButtons,
+        clicked: retryLtr.clicked, recovered: retryLtr.recovered, noFakeEmpty: retryLtr.noFakeEmpty,
+        dir: retryLtr.docDir + '/' + retryLtr.cardDir, unexpectedFailed: retryLtr.unexpectedFailed.length,
+        unexpectedConsole: retryLtr.unexpectedConsole.length, pageErrors: retryLtr.pageErrors.length
+      }));
     check('TENANT_ISOLATION: anonymous 401, wrong-student 403, field injection 400, foreign tenant 404', isolationOk,
       'anon=' + isolation.anonRead.status + ' stu2.read=' + isolation.stu2Read.status +
       ' stu2.write=' + isolation.stu2Write.status + ' inject=' + isolation.injected.status +
@@ -845,6 +1020,7 @@ async function runIsolationChecks(port) {
     report.UI_UX_DESKTOP_TABLET_MOBILE = responsiveOk ? 'PASS' : 'FAIL';
     report.STUDENT_WRITE_SURFACE = noWriteSurface ? 'PASS' : 'FAIL';
     report.TENANT_ISOLATION = isolationOk ? 'PASS' : 'FAIL';
+    report.ERROR_RETRY = errorRetryOk ? 'PASS' : 'FAIL';
     report.CONSOLE_ERRORS = String(allConsole.length);
     report.PAGE_ERRORS = String(allPage.length);
     report.FAILED_REQUESTS = allFailed.length ? JSON.stringify(allFailed.slice(0, 10)) : 'none';
@@ -876,7 +1052,7 @@ async function runIsolationChecks(port) {
   const scenarioPass = ['STUDENT_WORKSPACE', 'STUDENT_PICKER', 'GET_ASSIGNMENTS', 'ASSIGNMENT_RENDERING',
     'ASSIGNMENT_DETAILS', 'ARCHIVED_STATUS', 'SAFE_TEXT_RENDERING', 'DETAILS_CLOSE',
     'DETAILS_WRITE_SURFACE', 'STUDENT_SUBMISSION', 'TEACHER_REVIEW', 'REVIEWED_LOCK',
-    'EMPTY_STATE', 'RTL', 'RTL_LTR', 'UI_UX_DESKTOP_TABLET_MOBILE', 'TENANT_ISOLATION']
+    'EMPTY_STATE', 'RTL', 'RTL_LTR', 'UI_UX_DESKTOP_TABLET_MOBILE', 'TENANT_ISOLATION', 'ERROR_RETRY']
     .every(k => report[k] === 'PASS');
   const finalResult = report.BLOCKER !== 'none'
     ? 'BLOCKED'
