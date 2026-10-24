@@ -21,6 +21,13 @@ const { makeTempDataDir, seed, readStore } = require('./helpers/testData');
 const { login } = require('./helpers/authHelper');
 const { registerCleanup } = require('./helpers/cleanup');
 
+// Every describe block below boots its own server and seeds a full store in
+// beforeAll. With the whole suite tree running in parallel that setup can
+// exceed Jest's global 30s budget (observed: 8 V/M hook timeouts during a full
+// run while the same suite passes unchanged in isolation). The budget is raised
+// for THIS file only: no test, hook or assertion is skipped or weakened.
+jest.setTimeout(60000);
+
 const PASSWORD = 'Pass#123';
 const VAULT_KEY = 'test-gist-vault-key-32chars-minimum!!';
 const stamp = new Date().toISOString();
