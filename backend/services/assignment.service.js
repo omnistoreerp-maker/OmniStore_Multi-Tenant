@@ -31,6 +31,7 @@
 // ONLY terminal operation and it never cascades: Students, Classes, Courses
 // and Programs are only ever READ here, never written.
 
+const fs = require('fs');
 const storageAdapter = require('../repositories/storageAdapter');
 const classService = require('./class.service');
 const logger = require('../utils/logger');
@@ -77,7 +78,31 @@ function _defaultDoc() {
   return { assignments: [] };
 }
 
+// Education‑specific integrity check that does NOT modify fileStore globally.
+// Reads the raw file to detect corrupt JSON BEFORE fileStore.read() silently resets it.
+// Returns: 'missing' = no file, 'corrupt' = invalid JSON or non-object JSON, 'ok' = valid store.
+function _checkStoreIntegrity() {
+  const filePath = storageAdapter.path(STORE_KEY);
+  if (!fs.existsSync(filePath)) return 'missing';
+  try {
+    const raw = fs.readFileSync(filePath, 'utf-8');
+    const parsed = JSON.parse(raw);
+    // Valid store must be a plain object (e.g. { assignments: [...] }).
+    // Primitives like 1, "string", true are valid JSON but not valid store docs.
+    if (typeof parsed !== 'object' || Array.isArray(parsed) || parsed === null) return 'corrupt';
+    return 'ok';
+  } catch (err) {
+    // SyntaxError = file is corrupt – do NOT call storageAdapter.read() here,
+    // because it would silently reset the file via fileStore.write({}).
+    if (err instanceof SyntaxError) return 'corrupt';
+    return 'ok';
+  }
+}
+
 function _readStore() {
+  const integrity = _checkStoreIntegrity();
+  if (integrity === 'missing') return _defaultDoc();
+  if (integrity === 'corrupt') return null;
   try {
     const raw = storageAdapter.read(STORE_KEY);
     if (raw && typeof raw === 'object') return raw;
@@ -277,7 +302,10 @@ class ReferenceValidationError extends Error {
 function listAssignments(tenantContext, filters) {
   const tid = _requireTenantId(tenantContext);
   const f = (filters && typeof filters === 'object') ? filters : {};
-  let assignments = _assignments(_readStore()).filter(a => String(a.tenantId || '') === tid);
+  const store = _readStore();
+  // If the store is corrupt, surface READ_ERROR instead of silently returning [].
+  if (store === null) return { error: 'READ_ERROR', assignments: [] };
+  let assignments = _assignments(store).filter(a => String(a.tenantId || '') === tid);
 
   if (f.status !== undefined && f.status !== null && String(f.status).trim() !== '') {
     const st = String(f.status).trim();
@@ -300,21 +328,25 @@ function listAssignments(tenantContext, filters) {
 
 function getAssignment(tenantContext, id) {
   const tid = _requireTenantId(tenantContext);
-  const assignments = _assignments(_readStore());
+  const store = _readStore();
+  // If the store is corrupt, surface READ_ERROR instead of returning null silently.
+  if (store === null) return { error: 'READ_ERROR' };
+  const assignments = _assignments(store);
   const idx = _findIndexByTenant(assignments, id, tid);
   if (idx < 0) return null;
   return { ...assignments[idx] };
-}
-
-function createAssignment(tenantContext, input) {
+}function createAssignment(tenantContext, input) {
   const tid = _requireTenantId(tenantContext);
   const errors = _validateAssignment(input, true);
   if (errors.length) throw _validationError(errors);
 
   const clean = _sanitizeWritable(input);
 
-  // Parent first, then the write. A rejected Class never reaches the store
-  // and never leaves a row behind.
+  // If the store is corrupt, we cannot create assignments – surface READ_ERROR.
+  const store = _readStore();
+  if (store === null) return { error: 'READ_ERROR' };
+
+  // Parent first, then the write. A rejected Class never reaches the store  // and never leaves a row behind.
   const classId = String(clean.classId).trim();
   _assertClassInTenant(tid, classId);
 
@@ -330,12 +362,12 @@ function createAssignment(tenantContext, input) {
     createdAt: now,
     updatedAt: now
   };
-  const doc = _readStore();
-  const assignments = _assignments(doc);
+  const assignments = _assignments(store);
   assignments.push(record);
-  _writeStore({ ...doc, assignments });
+  _writeStore({ ...store, assignments });
   return { ...record };
 }
+
 
 // Updates `title`, `description` and `dueDate` only. The parent class is
 // immutable, so there is no parent re-validation to run here and no way for
@@ -347,8 +379,12 @@ function updateAssignment(tenantContext, id, input) {
   if (errors.length) throw _validationError(errors);
 
   const clean = _sanitizeWritable(input);
-  const doc = _readStore();
-  const assignments = _assignments(doc);
+
+  // If the store is corrupt, we cannot update assignments – surface READ_ERROR.
+  const store = _readStore();
+  if (store === null) return { error: 'READ_ERROR' };
+
+  const assignments = _assignments(store);
   const idx = _findIndexByTenant(assignments, id, tid);
   if (idx < 0) return null;
 
@@ -368,14 +404,18 @@ function updateAssignment(tenantContext, id, input) {
     next.dueDate = clean.dueDate ? String(clean.dueDate).trim() : '';
   }
   assignments[idx] = next;
-  _writeStore({ ...doc, assignments });
+  _writeStore({ ...store, assignments });
   return { ...next };
 }
 
 function archiveAssignment(tenantContext, id) {
   const tid = _requireTenantId(tenantContext);
-  const doc = _readStore();
-  const assignments = _assignments(doc);
+
+  // If the store is corrupt, we cannot archive assignments – surface READ_ERROR.
+  const store = _readStore();
+  if (store === null) return { error: 'READ_ERROR' };
+
+  const assignments = _assignments(store);
   const idx = _findIndexByTenant(assignments, id, tid);
   if (idx < 0) return null;
 
@@ -390,7 +430,7 @@ function archiveAssignment(tenantContext, id) {
     updatedAt: _now()
   };
   assignments[idx] = next;
-  _writeStore({ ...doc, assignments });
+  _writeStore({ ...store, assignments });
   return { ...next };
 }
 
