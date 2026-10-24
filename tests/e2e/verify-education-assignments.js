@@ -660,8 +660,8 @@ async function listenOnPort(app, port, attempts) {
   throw lastErr || new Error('could not rebind the API port');
 }
 
-async function runErrorRetryScenario(browser, port, api, lang) {
-  const context = await browser.newContext();
+async function runErrorRetryScenario(browser, port, api, lang, viewport) {
+  const context = await browser.newContext(viewport ? { viewport } : {});
   const page = await context.newPage();
   let outage = false;
   const unexpectedConsole = [];
@@ -721,6 +721,26 @@ async function runErrorRetryScenario(browser, port, api, lang) {
   // A failed read must never be painted as "no assignments": the card is
   // absent entirely rather than rendering a misleading empty state.
   const noFakeEmpty = await page.$('#edu-student-assignments').then(node => !node).catch(() => false);
+  // The banner and its control have to be usable at the tested viewport, not
+  // merely present in the DOM.
+  const bannerBox = retryVisible
+    ? await page.$eval('#edu-student-detail .edu-banner-error', n => {
+      const b = n.getBoundingClientRect();
+      const btn = n.querySelector('button');
+      const r = btn ? btn.getBoundingClientRect() : null;
+      return {
+        bannerWidth: b.width,
+        buttonWidth: r ? r.width : 0,
+        buttonLeft: r ? r.left : -1,
+        buttonRight: r ? r.right : -1,
+        innerWidth: window.innerWidth,
+        scrollWidth: document.documentElement.scrollWidth
+      };
+    }).catch(() => null)
+    : null;
+  const retryFits = !!(bannerBox && bannerBox.bannerWidth > 0 && bannerBox.buttonWidth > 0 &&
+    bannerBox.buttonLeft >= 0 && bannerBox.buttonRight <= bannerBox.innerWidth + 1 &&
+    bannerBox.scrollWidth <= bannerBox.innerWidth + 1);
 
   // Let the failed-resource console entries land while the outage is still the
   // thing that explains them.
@@ -758,12 +778,13 @@ async function runErrorRetryScenario(browser, port, api, lang) {
     : (layout.docDir === 'ltr' && layout.cardDir === 'ltr');
   const ok = baseline && cleared && reselected && bannerShown &&
     banner.buttons === 1 && banner.text.length > 0 &&
-    retryVisible && noFakeEmpty && clicked && recovered && dirOk &&
+    retryVisible && retryFits && noFakeEmpty && clicked && recovered && dirOk &&
     layout.scrollWidth <= layout.innerWidth + 1 &&
     unexpectedConsole.length === 0 && unexpectedFailed.length === 0 && pageErrors.length === 0;
 
   return {
     lang, ok, baseline, cleared, reselected, bannerShown, clicked, recovered, noFakeEmpty, dirOk,
+    retryFits, viewport: viewport || null, bannerBox,
     bannerButtons: banner.buttons, bannerText: banner.text,
     docDir: layout.docDir, cardDir: layout.cardDir,
     scrollWidth: layout.scrollWidth, innerWidth: layout.innerWidth,
@@ -874,8 +895,10 @@ async function runIsolationChecks(port) {
     const reviewedStu = await runReviewedStudentScenario(browser, port, signStudentToken('u-s1', 'asgStudent1'));
     const responsive = await runResponsiveScenario(browser, port, signStudentToken('u-s1', 'asgStudent1'));
     const ltr = await runLtrScenario(browser, port, signStudentToken('u-s1', 'asgStudent1'));
-    const retryRtl = await runErrorRetryScenario(browser, port, api, 'ar');
-    const retryLtr = await runErrorRetryScenario(browser, port, api, 'en');
+    // Desktop RTL and phone-width LTR, so the banner and its retry are proven
+    // in both directions and at both ends of the supported width range.
+    const retryRtl = await runErrorRetryScenario(browser, port, api, 'ar', { width: 1280, height: 800 });
+    const retryLtr = await runErrorRetryScenario(browser, port, api, 'en', { width: 390, height: 844 });
     // The outage scenario stops and restarts the app, so the cleanup must close
     // whichever server instance is live at the end.
     apiServer = api.server;
@@ -986,14 +1009,16 @@ async function runIsolationChecks(port) {
         baseline: retryRtl.baseline, cleared: retryRtl.cleared, reselected: retryRtl.reselected,
         banner: retryRtl.bannerShown, buttons: retryRtl.bannerButtons,
         clicked: retryRtl.clicked, recovered: retryRtl.recovered, noFakeEmpty: retryRtl.noFakeEmpty,
-        dir: retryRtl.docDir + '/' + retryRtl.cardDir, unexpectedFailed: retryRtl.unexpectedFailed.length,
+        retryFits: retryRtl.retryFits, dir: retryRtl.docDir + '/' + retryRtl.cardDir,
+        unexpectedFailed: retryRtl.unexpectedFailed.length,
         unexpectedConsole: retryRtl.unexpectedConsole.length, pageErrors: retryRtl.pageErrors.length
       }) +
       ' ltr=' + JSON.stringify({
         baseline: retryLtr.baseline, cleared: retryLtr.cleared, reselected: retryLtr.reselected,
         banner: retryLtr.bannerShown, buttons: retryLtr.bannerButtons,
         clicked: retryLtr.clicked, recovered: retryLtr.recovered, noFakeEmpty: retryLtr.noFakeEmpty,
-        dir: retryLtr.docDir + '/' + retryLtr.cardDir, unexpectedFailed: retryLtr.unexpectedFailed.length,
+        retryFits: retryLtr.retryFits, dir: retryLtr.docDir + '/' + retryLtr.cardDir,
+        unexpectedFailed: retryLtr.unexpectedFailed.length,
         unexpectedConsole: retryLtr.unexpectedConsole.length, pageErrors: retryLtr.pageErrors.length
       }));
     check('TENANT_ISOLATION: anonymous 401, wrong-student 403, field injection 400, foreign tenant 404', isolationOk,
