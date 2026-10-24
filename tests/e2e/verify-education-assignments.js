@@ -142,13 +142,34 @@ const MIME = {
   '.woff2': 'font/woff2'
 };
 
-function startStaticProxy(apiPort) {
+// The list endpoint only. Detail and submission routes deliberately differ:
+// /assignments/:id and /assignments/:id/submissions must stay reachable while
+// only the list is broken, which is the partial failure under test.
+const ASSIGNMENTS_LIST_PATH = '/api/v1/tenant/education/assignments';
+
+function startStaticProxy(apiPort, fault) {
   const server = http.createServer((req, res) => {
     const urlPath = decodeURIComponent(String(req.url || '/').split('?')[0]);
     if (urlPath.startsWith('/api/')) {
+      // Fault injection at the network boundary, NOT page.route interception:
+      // the real Express app stays up and healthy, and this hop refuses to
+      // forward one route, exactly as a gateway would mid-outage. The page
+      // receives a genuine 502 over a real connection and never sees a
+      // fabricated body. The backend itself cannot produce this state: every
+      // store fault it has degrades to an empty 200 (assignment.service
+      // catches read errors and returns the default doc), so a partial list
+      // failure is only reachable at the transport layer.
+      if (fault && fault.assignmentsList && urlPath === ASSIGNMENTS_LIST_PATH) {
+        res.writeHead(502, { 'Content-Type': 'text/plain' });
+        res.end('injected fault: assignments list unreachable');
+        return;
+      }
       const headers = Object.assign({}, req.headers);
       headers.host = '127.0.0.1:' + apiPort;
-      const proxied = http.request({ hostname: '127.0.0.1', port: apiPort, path: req.url, method: req.method, headers }, upstream => {
+      // agent:false keeps every proxied API call on its own connection, so a
+      // socket the API server closed (see the deliberate outage in the
+      // error/retry scenario) can never be reused for the next call.
+      const proxied = http.request({ hostname: '127.0.0.1', port: apiPort, path: req.url, method: req.method, headers, agent: false }, upstream => {
         res.writeHead(upstream.statusCode || 502, upstream.headers);
         upstream.pipe(res);
       });
@@ -220,14 +241,26 @@ async function runScenario(browser, port, token, linkedId, expectRows, submit) {
   const workspaceOk = await page.waitForSelector('section#edu-body-student', { timeout: 25000 }).then(() => true, () => false);
   const pickerOk = await page.waitForSelector('#edu-student-picker', { timeout: 25000 }).then(() => true, () => false);
   let pickerValue = '';
+  // Counted separately from the blank "Choose a student" entry: the blank is a
+  // prompt, not a student, so it must never contribute to how many students the
+  // picker is claimed to list.
   let pickerOptions = 0;
+  let pickerBlank = 0;
   if (pickerOk) {
     await page.waitForFunction(() => {
       const s = document.getElementById('edu-student-picker');
       return !!(s && s.options && s.options.length > 0 && s.value);
     }, null, { timeout: 25000 }).catch(() => {});
     pickerValue = await page.$eval('#edu-student-picker', s => s.value).catch(() => '');
-    pickerOptions = await page.$eval('#edu-student-picker', s => s.options.length).catch(() => 0);
+    const tally = await page.$eval('#edu-student-picker', s => {
+      const all = Array.from(s.options);
+      return {
+        real: all.filter(o => o.value !== '').length,
+        blank: all.filter(o => o.value === '').length
+      };
+    }).catch(() => ({ real: 0, blank: 0 }));
+    pickerOptions = tally.real;
+    pickerBlank = tally.blank;
   }
 
   let listOk = false;
@@ -372,7 +405,7 @@ async function runScenario(browser, port, token, linkedId, expectRows, submit) {
   await context.close();
 
   return {
-    linkedId, expectRows, workspaceOk, pickerOk, pickerValue, pickerOptions, listOk,
+    linkedId, expectRows, workspaceOk, pickerOk, pickerValue, pickerOptions, pickerBlank, listOk,
     rows, listText, cardPresent, rtl, listStatuses, writeControls, details, submission,
     assignReq, assignCount, consoleErrors, pageErrors, failedApi
   };
@@ -620,6 +653,373 @@ async function runLtrScenario(browser, port, token) {
   return Object.assign({ listReady, consoleErrors, pageErrors }, result);
 }
 
+// ---------------------------------------------------------------------------
+// ERROR / RETRY. A real outage, not an intercepted route: the Express app is
+// stopped, so the page's next read through the static proxy meets a real
+// connection failure, and it is restarted on the same port so the retry the
+// page offers can actually recover. Nothing is stubbed and the page is never
+// reloaded, so the banner asserted here is the one a user would meet.
+// ---------------------------------------------------------------------------
+function stopApiServer(server) {
+  return new Promise(resolve => {
+    try { if (typeof server.closeIdleConnections === 'function') server.closeIdleConnections(); } catch (_) {}
+    try { if (typeof server.closeAllConnections === 'function') server.closeAllConnections(); } catch (_) {}
+    server.close(() => resolve());
+  });
+}
+
+// Rebinding the port the proxy already targets. The short retry loop only
+// absorbs the moment between close and the OS releasing the listener; if the
+// port never comes back the scenario fails instead of pretending otherwise.
+async function listenOnPort(app, port, attempts) {
+  const tries = attempts || 12;
+  let lastErr = null;
+  for (let i = 0; i < tries; i += 1) {
+    try {
+      return await new Promise((resolve, reject) => {
+        const server = app.listen(port, '127.0.0.1');
+        server.on('listening', () => resolve(server));
+        server.on('error', reject);
+      });
+    } catch (err) {
+      lastErr = err;
+      if (err && err.code !== 'EADDRINUSE') throw err;
+      await new Promise(r => setTimeout(r, 150));
+    }
+  }
+  throw lastErr || new Error('could not rebind the API port');
+}
+
+async function runErrorRetryScenario(browser, port, api, lang, viewport) {
+  const context = await browser.newContext(viewport ? { viewport } : {});
+  const page = await context.newPage();
+  let outage = false;
+  const unexpectedConsole = [];
+  const unexpectedFailed = [];
+  const pageErrors = [];
+
+  page.on('pageerror', e => pageErrors.push(e.message));
+  page.on('console', m => {
+    if (m.type() !== 'error') return;
+    const text = m.text();
+    // While the app is deliberately stopped Chromium logs the failed resource.
+    // Every other console error, before or after, still counts as a defect.
+    const expected = outage && /Failed to load resource/.test(text);
+    if (!expected) unexpectedConsole.push(text.slice(0, 200));
+  });
+  page.on('response', res => {
+    const url = res.url();
+    if (url.indexOf('/api/v1/') === -1 || res.status() < 400) return;
+    if (outage && res.status() === 502) return;
+    unexpectedFailed.push({ status: res.status(), url: url.slice(0, 120) });
+  });
+
+  await page.addInitScript((cfg) => {
+    try {
+      localStorage.setItem('access_token', cfg.token);
+      localStorage.setItem('omnistore_language', cfg.lang);
+      localStorage.setItem('omnistore_platform_lang', cfg.lang);
+    } catch (_) {}
+  }, { token: signStudentToken('u-s1', 'asgStudent1'), lang });
+
+  const base = 'http://127.0.0.1:' + port;
+  await page.goto(base + '/education/index.html#student', { waitUntil: 'load', timeout: 30000 });
+
+  const baseline = await page.waitForFunction(() => {
+    const list = document.getElementById('edu-student-assignments-list');
+    return !!(list && list.querySelector('button[data-edu-assignment-id="asg-1"]'));
+  }, null, { timeout: 25000 }).then(() => true, () => false);
+
+  await stopApiServer(api.server);
+  outage = true;
+
+  // A linked student's picker lists only their own record, so the blank entry
+  // forces a real change event and the student is then chosen again. Each
+  // selection re-runs the same reads the first paint used, now against a
+  // stopped service.
+  const cleared = await page.selectOption('#edu-student-picker', '').then(() => true, () => false);
+  const reselected = await page.selectOption('#edu-student-picker', 'stu-1').then(() => true, () => false);
+  const bannerShown = await page.waitForSelector('#edu-student-detail .edu-banner-error', { timeout: 25000 })
+    .then(() => true, () => false);
+  const banner = bannerShown
+    ? await page.$eval('#edu-student-detail .edu-banner-error', n => ({
+      text: (n.textContent || '').trim().slice(0, 160),
+      buttons: n.querySelectorAll('button').length
+    })).catch(() => ({ text: '', buttons: 0 }))
+    : { text: '', buttons: 0 };
+  const retryVisible = await page.isVisible('#edu-student-detail .edu-banner-error button').catch(() => false);
+  // A failed read must never be painted as "no assignments": the card is
+  // absent entirely rather than rendering a misleading empty state.
+  const noFakeEmpty = await page.$('#edu-student-assignments').then(node => !node).catch(() => false);
+  // The banner and its control have to be usable at the tested viewport, not
+  // merely present in the DOM.
+  const bannerBox = retryVisible
+    ? await page.$eval('#edu-student-detail .edu-banner-error', n => {
+      const b = n.getBoundingClientRect();
+      const btn = n.querySelector('button');
+      const r = btn ? btn.getBoundingClientRect() : null;
+      return {
+        bannerWidth: b.width,
+        buttonWidth: r ? r.width : 0,
+        buttonLeft: r ? r.left : -1,
+        buttonRight: r ? r.right : -1,
+        innerWidth: window.innerWidth,
+        scrollWidth: document.documentElement.scrollWidth
+      };
+    }).catch(() => null)
+    : null;
+  const retryFits = !!(bannerBox && bannerBox.bannerWidth > 0 && bannerBox.buttonWidth > 0 &&
+    bannerBox.buttonLeft >= 0 && bannerBox.buttonRight <= bannerBox.innerWidth + 1 &&
+    bannerBox.scrollWidth <= bannerBox.innerWidth + 1);
+
+  // Let the failed-resource console entries land while the outage is still the
+  // thing that explains them.
+  await page.waitForTimeout(700);
+  outage = false;
+
+  api.server = await listenOnPort(api.app, api.port);
+  const clicked = retryVisible
+    ? await page.click('#edu-student-detail .edu-banner-error button').then(() => true, () => false)
+    : false;
+
+  const recovered = await page.waitForFunction(() => {
+    const detail = document.getElementById('edu-student-detail');
+    const card = document.getElementById('edu-student-assignments');
+    if (!card) return false;
+    if (detail && detail.querySelector('.edu-banner-error')) return false;
+    const list = document.getElementById('edu-student-assignments-list');
+    return !!(list && list.querySelector('button[data-edu-assignment-id="asg-1"]'));
+  }, null, { timeout: 25000 }).then(() => true, () => false);
+
+  const layout = await page.evaluate(() => ({
+    docDir: document.documentElement.getAttribute('dir') || '',
+    cardDir: (() => {
+      const card = document.getElementById('edu-student-detail');
+      return card ? getComputedStyle(card).direction : '';
+    })(),
+    scrollWidth: document.documentElement.scrollWidth,
+    innerWidth: window.innerWidth
+  })).catch(() => ({ docDir: '', cardDir: '', scrollWidth: -1, innerWidth: -1 }));
+
+  await context.close();
+
+  const dirOk = lang === 'ar'
+    ? (layout.docDir === 'rtl' && layout.cardDir === 'rtl')
+    : (layout.docDir === 'ltr' && layout.cardDir === 'ltr');
+  const ok = baseline && cleared && reselected && bannerShown &&
+    banner.buttons === 1 && banner.text.length > 0 &&
+    retryVisible && retryFits && noFakeEmpty && clicked && recovered && dirOk &&
+    layout.scrollWidth <= layout.innerWidth + 1 &&
+    unexpectedConsole.length === 0 && unexpectedFailed.length === 0 && pageErrors.length === 0;
+
+  return {
+    lang, ok, baseline, cleared, reselected, bannerShown, clicked, recovered, noFakeEmpty, dirOk,
+    retryFits, viewport: viewport || null, bannerBox,
+    bannerButtons: banner.buttons, bannerText: banner.text,
+    docDir: layout.docDir, cardDir: layout.cardDir,
+    scrollWidth: layout.scrollWidth, innerWidth: layout.innerWidth,
+    unexpectedConsole, unexpectedFailed, pageErrors
+  };
+}
+
+// ---------------------------------------------------------------------------
+// PICKER. A linked student only ever sees their own record (the server narrows
+// /students to the actor), so proving the picker really lists more than one
+// student needs an unlinked identity. The blank "Choose a student" entry is
+// counted on its own so it can never inflate the total.
+// ---------------------------------------------------------------------------
+async function runPickerScenario(browser, port, token) {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const pageErrors = [];
+  page.on('pageerror', e => pageErrors.push(e.message));
+  await page.addInitScript(t => {
+    try {
+      localStorage.setItem('access_token', t);
+      localStorage.setItem('omnistore_language', 'en');
+      localStorage.setItem('omnistore_platform_lang', 'en');
+    } catch (_) {}
+  }, token);
+  await page.goto('http://127.0.0.1:' + port + '/education/index.html#student', { waitUntil: 'load', timeout: 30000 });
+  const found = await page.waitForSelector('#edu-student-picker', { timeout: 25000 }).then(() => true, () => false);
+  if (found) {
+    await page.waitForFunction(() => {
+      const s = document.getElementById('edu-student-picker');
+      return !!(s && s.options && s.options.length > 1);
+    }, null, { timeout: 25000 }).catch(() => {});
+  }
+  const picked = found
+    ? await page.$eval('#edu-student-picker', s => {
+      const all = Array.from(s.options);
+      const real = all.filter(o => o.value !== '');
+      return {
+        blank: all.filter(o => o.value === '').length,
+        values: real.map(o => o.value),
+        labels: real.map(o => (o.textContent || '').trim())
+      };
+    }).catch(() => null)
+    : null;
+  await context.close();
+
+  const values = picked ? picked.values : [];
+  const labels = picked ? picked.labels : [];
+  const ok = found && !!picked && picked.blank === 1 && values.length >= 2 &&
+    new Set(values).size === values.length &&
+    values.indexOf('stu-1') !== -1 && values.indexOf('stu-2') !== -1 &&
+    labels.length === values.length && labels.every(t => t.length > 0) &&
+    pageErrors.length === 0;
+  return {
+    ok, found, blank: picked ? picked.blank : -1, values, labels,
+    validCount: values.length, pageErrors
+  };
+}
+
+// ---------------------------------------------------------------------------
+// ASSIGNMENTS LIST FAULT. The list card owns its own loading/error/retry
+// states, but its request only fires once the detail chain above it has
+// succeeded, so stopping the whole app can never reach it. Break that ONE
+// route and leave the rest of the service healthy: the card must show an error
+// with a working retry, must not pretend the list is empty, and the rows must
+// return once the route is healthy again.
+// ---------------------------------------------------------------------------
+async function runAssignmentsFaultScenario(browser, port, fault) {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await context.newPage();
+  let faultActive = false;
+  const unexpectedConsole = [];
+  const unexpectedFailed = [];
+  const pageErrors = [];
+  const listStatuses = [];
+
+  page.on('pageerror', e => pageErrors.push(e.message));
+  page.on('console', m => {
+    if (m.type() !== 'error') return;
+    const text = m.text();
+    // Chromium logs the 502 it received while this route is deliberately
+    // broken; anything else still counts as a defect.
+    const expected = faultActive && /Failed to load resource/.test(text);
+    if (!expected) unexpectedConsole.push(text.slice(0, 200));
+  });
+  page.on('response', res => {
+    const url = res.url();
+    // res.url() is an absolute URL; compare on the path only.
+    let exact = '';
+    try { exact = new URL(url).pathname; } catch (_) { exact = url.split('?')[0]; }
+    if (exact === ASSIGNMENTS_LIST_PATH) {
+      listStatuses.push(res.request().method() + ' ' + res.status());
+    }
+    if (res.status() >= 400 && url.indexOf('/api/v1/') !== -1) {
+      const expected = faultActive && res.status() === 502 && exact === ASSIGNMENTS_LIST_PATH;
+      if (!expected) unexpectedFailed.push({ status: res.status(), url: url.slice(0, 120) });
+    }
+  });
+
+  await page.addInitScript(t => {
+    try {
+      localStorage.setItem('access_token', t);
+      localStorage.setItem('omnistore_language', 'ar');
+      localStorage.setItem('omnistore_platform_lang', 'ar');
+    } catch (_) {}
+  }, signStudentToken('u-s1', 'asgStudent1'));
+
+  const base = 'http://127.0.0.1:' + port;
+  await page.goto(base + '/education/index.html#student', { waitUntil: 'load', timeout: 30000 });
+  const baseline = await page.waitForFunction(() => {
+    const list = document.getElementById('edu-student-assignments-list');
+    return !!(list && list.querySelectorAll('button[data-edu-assignment-id]').length === 3);
+  }, null, { timeout: 25000 }).then(() => true, () => false);
+
+  // Break only the list route, then re-run the render. Everything the detail
+  // chain needs is still healthy, so the card renders and its own request is
+  // the one that fails.
+  fault.assignmentsList = true;
+  faultActive = true;
+  const cleared = await page.selectOption('#edu-student-picker', '').then(() => true, () => false);
+  const reselected = await page.selectOption('#edu-student-picker', 'stu-1').then(() => true, () => false);
+  const cardShown = await page.waitForSelector('#edu-student-assignments', { timeout: 25000 })
+    .then(() => true, () => false);
+  const bannerShown = await page.waitForSelector('#edu-student-assignments .edu-banner-error', { timeout: 25000 })
+    .then(() => true, () => false);
+  const banner = bannerShown
+    ? await page.$eval('#edu-student-assignments .edu-banner-error', n => ({
+      text: (n.textContent || '').trim().slice(0, 160),
+      buttons: n.querySelectorAll('button').length,
+      box: (() => {
+        const b = n.getBoundingClientRect();
+        const btn = n.querySelector('button');
+        const r = btn ? btn.getBoundingClientRect() : null;
+        return {
+          bannerWidth: b.width,
+          buttonWidth: r ? r.width : 0,
+          buttonLeft: r ? r.left : -1,
+          buttonRight: r ? r.right : -1,
+          innerWidth: window.innerWidth,
+          scrollWidth: document.documentElement.scrollWidth
+        };
+      })()
+    })).catch(() => ({ text: '', buttons: 0, box: null }))
+    : { text: '', buttons: 0, box: null };
+  const rowsDuringFault = await page
+    .$$eval('#edu-student-assignments button[data-edu-assignment-id]', n => n.length)
+    .catch(() => -1);
+  // A failed read must never be painted as "no assignments".
+  const fakeEmpty = await page
+    .$eval('#edu-student-assignments-list', n => {
+      const state = n.querySelector('.edu-state');
+      return !!(state && /No assignments|لا توجد/.test(state.textContent || ''));
+    })
+    .catch(() => false);
+  const retryFits = !!(banner.box && banner.box.bannerWidth > 0 && banner.box.buttonWidth > 0 &&
+    banner.box.buttonLeft >= 0 && banner.box.buttonRight <= banner.box.innerWidth + 1 &&
+    banner.box.scrollWidth <= banner.box.innerWidth + 1);
+
+  // Let the failed-resource console entries land while the fault still explains
+  // them, then heal the route before asking for the retry.
+  await page.waitForTimeout(700);
+  faultActive = false;
+  fault.assignmentsList = false;
+  const clicked = await page.click('#edu-student-assignments .edu-banner-error button')
+    .then(() => true, () => false);
+  const recovered = await page.waitForFunction(() => {
+    const list = document.getElementById('edu-student-assignments-list');
+    const card = document.getElementById('edu-student-assignments');
+    if (!card || !list) return false;
+    if (card.querySelector('.edu-banner-error')) return false;
+    return list.querySelectorAll('button[data-edu-assignment-id]').length === 3;
+  }, null, { timeout: 25000 }).then(() => true, () => false);
+  const bannerGone = await page.$('#edu-student-assignments .edu-banner-error').then(n => !n).catch(() => false);
+
+  const layout = await page.evaluate(() => {
+    const card = document.getElementById('edu-student-assignments');
+    return {
+      docDir: document.documentElement.getAttribute('dir') || '',
+      cardDir: card ? getComputedStyle(card).direction : '',
+      scrollWidth: document.documentElement.scrollWidth,
+      innerWidth: window.innerWidth
+    };
+  }).catch(() => ({ docDir: '', cardDir: '', scrollWidth: -1, innerWidth: -1 }));
+
+  await context.close();
+
+  const saw502 = listStatuses.indexOf('GET 502') !== -1;
+  const saw200After = recovered && listStatuses.indexOf('GET 200') !== -1;
+  const dirOk = layout.docDir === 'rtl' && layout.cardDir === 'rtl';
+  const ok = baseline && cleared && reselected && cardShown && bannerShown &&
+    banner.buttons === 1 && banner.text.length > 0 && retryFits &&
+    rowsDuringFault === 0 && fakeEmpty === false &&
+    clicked && recovered && bannerGone && saw502 && saw200After && dirOk &&
+    layout.scrollWidth <= layout.innerWidth + 1 &&
+    unexpectedConsole.length === 0 && unexpectedFailed.length === 0 && pageErrors.length === 0;
+
+  return {
+    ok, baseline, cleared, reselected, cardShown, bannerShown, bannerButtons: banner.buttons,
+    bannerText: banner.text, retryFits, rowsDuringFault, fakeEmpty, clicked, recovered,
+    bannerGone, saw502, saw200After, dirOk, listStatuses,
+    scrollWidth: layout.scrollWidth, innerWidth: layout.innerWidth,
+    unexpectedConsole, unexpectedFailed, pageErrors
+  };
+}
+
 const EDU = '/api/v1/tenant/education';
 
 // One real HTTP call against the same origin the browser uses (the static
@@ -694,6 +1094,8 @@ async function runIsolationChecks(port) {
     UI_UX_DESKTOP_TABLET_MOBILE: 'NOT_COVERED',
     STUDENT_WRITE_SURFACE: 'NOT_COVERED',
     TENANT_ISOLATION: 'NOT_COVERED',
+    STUDENT_PICKER_MULTI: 'NOT_COVERED',
+    ASSIGNMENTS_ERROR_RETRY: 'NOT_COVERED',
     CONSOLE_ERRORS: '0',
     PAGE_ERRORS: '0',
     FAILED_REQUESTS: 'none',
@@ -705,8 +1107,14 @@ async function runIsolationChecks(port) {
     const app = require(path.join(ROOT, 'backend', 'server.js'));
     apiServer = await listenApp(app);
     const apiPort = apiServer.address().port;
-    staticServer = await startStaticProxy(apiPort);
+    // Fault switch read by the proxy on every request. Shared by reference so a
+    // scenario can break exactly one route and heal it again.
+    const faultState = { assignmentsList: false };
+    staticServer = await startStaticProxy(apiPort, faultState);
     const port = staticServer.address().port;
+    // Handle used by the outage scenario to stop and rebind the SAME app on the
+    // SAME port the proxy targets, so recovery is real rather than simulated.
+    const api = { app, port: apiPort, server: apiServer };
 
     const isolation = await runIsolationChecks(port);
 
@@ -720,6 +1128,15 @@ async function runIsolationChecks(port) {
     const reviewedStu = await runReviewedStudentScenario(browser, port, signStudentToken('u-s1', 'asgStudent1'));
     const responsive = await runResponsiveScenario(browser, port, signStudentToken('u-s1', 'asgStudent1'));
     const ltr = await runLtrScenario(browser, port, signStudentToken('u-s1', 'asgStudent1'));
+    // Desktop RTL and phone-width LTR, so the banner and its retry are proven
+    // in both directions and at both ends of the supported width range.
+    const retryRtl = await runErrorRetryScenario(browser, port, api, 'ar', { width: 1280, height: 800 });
+    const retryLtr = await runErrorRetryScenario(browser, port, api, 'en', { width: 390, height: 844 });
+    const pickerMulti = await runPickerScenario(browser, port, signToken('u-owner', 'asgOwner', 'Owner'));
+    const asgFault = await runAssignmentsFaultScenario(browser, port, faultState);
+    // The outage scenario stops and restarts the app, so the cleanup must close
+    // whichever server instance is live at the end.
+    apiServer = api.server;
 
     const hasRowsText = has.rows.join(' | ');
     const hasRendered = has.listOk && has.rows.length === 3 &&
@@ -755,7 +1172,13 @@ async function runIsolationChecks(port) {
       reviewedStu.values[1] === 'A' && reviewedStu.values[2] === 'Good work' &&
       reviewedStu.textareaCount === 0;
     const pickerOk = has.pickerOk && empty.pickerOk &&
-      has.pickerValue === 'stu-1' && empty.pickerValue === 'stu-2' && has.pickerOptions >= 2;
+      has.pickerValue === 'stu-1' && empty.pickerValue === 'stu-2' &&
+      // A linked student is server-narrowed to their own record, so one real
+      // option each is the correct expectation here. Two real students are
+      // asserted separately by STUDENT_PICKER_MULTI, which uses an unlinked
+      // identity where the server legitimately returns both.
+      has.pickerOptions >= 1 && empty.pickerOptions >= 1 &&
+      has.pickerBlank === 1 && empty.pickerBlank === 1;
     const rtlOk = has.rtl.docDir === 'rtl' && has.rtl.computed === 'rtl' &&
       empty.rtl.docDir === 'rtl' && empty.rtl.computed === 'rtl';
     const workspaceOk = has.workspaceOk && empty.workspaceOk && has.cardPresent && empty.cardPresent;
@@ -774,6 +1197,9 @@ async function runIsolationChecks(port) {
       row.detail.textareaCount === 0);
     const ltrOk = ltr.listReady && ltr.docDir === 'ltr' && ltr.computed === 'ltr' &&
       ltr.scrollWidth <= ltr.innerWidth + 1;
+    const errorRetryOk = retryRtl.ok && retryLtr.ok;
+    const pickerMultiOk = pickerMulti.ok;
+    const asgFaultOk = asgFault.ok;
 
     const allConsole = has.consoleErrors.concat(empty.consoleErrors, teacher.consoleErrors,
       reviewedStu.consoleErrors, responsive.consoleErrors, ltr.consoleErrors);
@@ -784,7 +1210,8 @@ async function runIsolationChecks(port) {
 
     check('STUDENT_WORKSPACE: section#edu-body-student opened for both linked students', workspaceOk);
     check('STUDENT_PICKER: #edu-student-picker present and preselects the linked student', pickerOk,
-      'has=' + has.pickerValue + ' empty=' + empty.pickerValue + ' options=' + has.pickerOptions);
+      'has=' + has.pickerValue + '/' + has.pickerOptions + ' real (blank=' + has.pickerBlank +
+      ') empty=' + empty.pickerValue + '/' + empty.pickerOptions + ' real (blank=' + empty.pickerBlank + ')');
     check('GET_ASSIGNMENTS: real GET /api/v1/tenant/education/assignments returned 200 (3 rows / 0 rows)', getOk,
       'has=' + (has.assignReq ? has.assignReq.status + '/' + has.assignCount : 'none') +
       ' empty=' + (empty.assignReq ? empty.assignReq.status + '/' + empty.assignCount : 'none'));
@@ -821,6 +1248,38 @@ async function runIsolationChecks(port) {
       ' width=' + ltr.scrollWidth + '/' + ltr.innerWidth);
     check('STUDENT_WRITE_SURFACE: assignment list renders no write controls', noWriteSurface,
       'has=' + has.writeControls + ' empty=' + empty.writeControls);
+    check('STUDENT_PICKER_MULTI: unlinked identity lists two distinct, labelled students', pickerMultiOk,
+      JSON.stringify({
+        found: pickerMulti.found, blank: pickerMulti.blank, valid: pickerMulti.validCount,
+        values: pickerMulti.values, labels: pickerMulti.labels, pageErrors: pickerMulti.pageErrors.length
+      }));
+    check('ASSIGNMENTS_ERROR_RETRY: list-only failure shows an error, retries and returns the rows', asgFaultOk,
+      JSON.stringify({
+        baseline: asgFault.baseline, card: asgFault.cardShown, banner: asgFault.bannerShown,
+        buttons: asgFault.bannerButtons, rowsDuringFault: asgFault.rowsDuringFault,
+        fakeEmpty: asgFault.fakeEmpty, retryFits: asgFault.retryFits, clicked: asgFault.clicked,
+        recovered: asgFault.recovered, bannerGone: asgFault.bannerGone,
+        saw502: asgFault.saw502, saw200: asgFault.saw200After, statuses: asgFault.listStatuses,
+        unexpectedFailed: asgFault.unexpectedFailed.length,
+        unexpectedConsole: asgFault.unexpectedConsole.length, pageErrors: asgFault.pageErrors.length
+      }));
+    check('ERROR_RETRY: a stopped service shows an error with a retry that recovers (RTL + LTR)', errorRetryOk,
+      'rtl=' + JSON.stringify({
+        baseline: retryRtl.baseline, cleared: retryRtl.cleared, reselected: retryRtl.reselected,
+        banner: retryRtl.bannerShown, buttons: retryRtl.bannerButtons,
+        clicked: retryRtl.clicked, recovered: retryRtl.recovered, noFakeEmpty: retryRtl.noFakeEmpty,
+        retryFits: retryRtl.retryFits, dir: retryRtl.docDir + '/' + retryRtl.cardDir,
+        unexpectedFailed: retryRtl.unexpectedFailed.length,
+        unexpectedConsole: retryRtl.unexpectedConsole.length, pageErrors: retryRtl.pageErrors.length
+      }) +
+      ' ltr=' + JSON.stringify({
+        baseline: retryLtr.baseline, cleared: retryLtr.cleared, reselected: retryLtr.reselected,
+        banner: retryLtr.bannerShown, buttons: retryLtr.bannerButtons,
+        clicked: retryLtr.clicked, recovered: retryLtr.recovered, noFakeEmpty: retryLtr.noFakeEmpty,
+        retryFits: retryLtr.retryFits, dir: retryLtr.docDir + '/' + retryLtr.cardDir,
+        unexpectedFailed: retryLtr.unexpectedFailed.length,
+        unexpectedConsole: retryLtr.unexpectedConsole.length, pageErrors: retryLtr.pageErrors.length
+      }));
     check('TENANT_ISOLATION: anonymous 401, wrong-student 403, field injection 400, foreign tenant 404', isolationOk,
       'anon=' + isolation.anonRead.status + ' stu2.read=' + isolation.stu2Read.status +
       ' stu2.write=' + isolation.stu2Write.status + ' inject=' + isolation.injected.status +
@@ -845,6 +1304,9 @@ async function runIsolationChecks(port) {
     report.UI_UX_DESKTOP_TABLET_MOBILE = responsiveOk ? 'PASS' : 'FAIL';
     report.STUDENT_WRITE_SURFACE = noWriteSurface ? 'PASS' : 'FAIL';
     report.TENANT_ISOLATION = isolationOk ? 'PASS' : 'FAIL';
+    report.ERROR_RETRY = errorRetryOk ? 'PASS' : 'FAIL';
+    report.STUDENT_PICKER_MULTI = pickerMultiOk ? 'PASS' : 'FAIL';
+    report.ASSIGNMENTS_ERROR_RETRY = asgFaultOk ? 'PASS' : 'FAIL';
     report.CONSOLE_ERRORS = String(allConsole.length);
     report.PAGE_ERRORS = String(allPage.length);
     report.FAILED_REQUESTS = allFailed.length ? JSON.stringify(allFailed.slice(0, 10)) : 'none';
@@ -876,7 +1338,8 @@ async function runIsolationChecks(port) {
   const scenarioPass = ['STUDENT_WORKSPACE', 'STUDENT_PICKER', 'GET_ASSIGNMENTS', 'ASSIGNMENT_RENDERING',
     'ASSIGNMENT_DETAILS', 'ARCHIVED_STATUS', 'SAFE_TEXT_RENDERING', 'DETAILS_CLOSE',
     'DETAILS_WRITE_SURFACE', 'STUDENT_SUBMISSION', 'TEACHER_REVIEW', 'REVIEWED_LOCK',
-    'EMPTY_STATE', 'RTL', 'RTL_LTR', 'UI_UX_DESKTOP_TABLET_MOBILE', 'TENANT_ISOLATION']
+    'EMPTY_STATE', 'RTL', 'RTL_LTR', 'UI_UX_DESKTOP_TABLET_MOBILE', 'TENANT_ISOLATION', 'ERROR_RETRY',
+    'STUDENT_PICKER_MULTI', 'ASSIGNMENTS_ERROR_RETRY']
     .every(k => report[k] === 'PASS');
   const finalResult = report.BLOCKER !== 'none'
     ? 'BLOCKED'
@@ -905,6 +1368,8 @@ async function runIsolationChecks(port) {
   console.log('REVIEWED_LOCK=' + report.REVIEWED_LOCK);
   console.log('EMPTY_STATE=' + report.EMPTY_STATE);
   console.log('ERROR_RETRY=' + report.ERROR_RETRY);
+  console.log('STUDENT_PICKER_MULTI=' + report.STUDENT_PICKER_MULTI);
+  console.log('ASSIGNMENTS_ERROR_RETRY=' + report.ASSIGNMENTS_ERROR_RETRY);
   console.log('RTL=' + report.RTL);
   console.log('RTL_LTR=' + report.RTL_LTR);
   console.log('UI_UX_DESKTOP_TABLET_MOBILE=' + report.UI_UX_DESKTOP_TABLET_MOBILE);
