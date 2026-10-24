@@ -3,8 +3,10 @@ name: CI
 on:
   push:
     branches: [main]
+  # Every pull request, whatever its base. Restricting this to main meant a
+  # stacked PR (one feature branch based on another) got no checks at all, so
+  # a change could sit in review with no CI signal.
   pull_request:
-    branches: [main]
 
 jobs:
   backend:
