@@ -3,8 +3,10 @@ name: CI
 on:
   push:
     branches: [main]
+  # Every pull request, whatever its base. Restricting this to main meant a
+  # stacked PR (one feature branch based on another) got no checks at all, so
+  # a change could sit in review with no CI signal.
   pull_request:
-    branches: [main]
 
 jobs:
   backend:
@@ -57,7 +59,7 @@ jobs:
           retention-days: 14
 
   e2e:
-    name: Playwright regression (index.html, DigiTronics_v5.html)
+    name: Playwright regression (index.html, DigiTronics_v5.html, education assignments)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -69,18 +71,31 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: tests/e2e/package-lock.json
+          cache-dependency-path: |
+            tests/e2e/package-lock.json
+            backend/package-lock.json
 
       - name: Install Playwright
         run: |
           npm ci
           npx playwright install --with-deps chromium
 
+      # verify-education-assignments.js boots the real Express app from
+      # backend/server.js, so the backend runtime dependencies must exist.
+      # The suite seeds a throwaway temp directory and never reads or writes
+      # backend/data; nothing is mocked and no production data is used.
+      - name: Install backend runtime dependencies (education E2E boots the real app)
+        working-directory: backend
+        run: npm ci
+
       - name: Playwright — index.html (fail on failure)
         run: node verify.js index.html 18940
 
       - name: Playwright — DigiTronics_v5.html (fail on failure)
         run: node verify.js DigiTronics_v5.html 18941
+
+      - name: Playwright — education student assignments (real backend, fail on failure)
+        run: node verify-education-assignments.js
 
       - name: Upload Playwright results
         if: always()

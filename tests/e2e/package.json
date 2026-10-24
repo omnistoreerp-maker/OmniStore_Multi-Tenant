@@ -10,6 +10,7 @@
     "test:lang": "node verify-lang.js"
   },
   "devDependencies": {
+    "jsonwebtoken": "^9.0.3",
     "playwright": "1.62.0"
   }
 }

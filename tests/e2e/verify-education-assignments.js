@@ -11,6 +11,10 @@
 // Two linked-student identities are exercised:
 //   stu-1 -> enrolled in a class that HAS assignments   (rendering)
 //   stu-2 -> enrolled in a class with NO assignments     (empty state)
+// A second tenant with its own Owner is seeded so the submission routes can be
+// probed for cross-tenant leakage over the same real HTTP surface the browser
+// uses: 401 anonymous, 403 wrong-student, 400 field injection, 404 for another
+// tenant's records. None of those probes is mocked.
 // All network calls are genuine HTTP requests to the real app; nothing is
 // stubbed. Nothing in backend/data or any product file is read or written.
 //
@@ -59,12 +63,12 @@ function seed(name, payload) {
   fs.writeFileSync(path.join(DATA_DIR, name + '.json'), JSON.stringify(payload, null, 2), 'utf-8');
 }
 
-function signToken(userId, username, role) {
+function signToken(userId, username, role, tenantId) {
   return jwt.sign({
     sub: String(userId),
     username,
     role: role || 'Viewer',
-    tenantId: 'asg-a',
+    tenantId: tenantId || 'asg-a',
     jti: crypto.randomUUID()
   }, JWT_SECRET, { expiresIn: '15m' });
 }
@@ -76,6 +80,10 @@ function signStudentToken(userId, username) {
 const OWNER = { id: 'u-owner', username: 'asgOwner', role: 'Owner', tenantIds: ['asg-a'], tokenVersion: 0, createdAt: STAMP, updatedAt: STAMP };
 const STU1_USER = { id: 'u-s1', username: 'asgStudent1', role: 'Viewer', tenantIds: ['asg-a'], tokenVersion: 0, createdAt: STAMP, updatedAt: STAMP };
 const STU2_USER = { id: 'u-s2', username: 'asgStudent2', role: 'Viewer', tenantIds: ['asg-a'], tokenVersion: 0, createdAt: STAMP, updatedAt: STAMP };
+const FOREIGN_OWNER = {
+  id: 'u-ob', username: 'asgOwnerB', role: 'Owner', tenantIds: ['asg-b'], tokenVersion: 0,
+  createdAt: STAMP, updatedAt: STAMP
+};
 const TEACHER_USER = {
   id: 'u-t1', username: 'asgTeacher', role: 'Viewer', tenantIds: ['asg-a'], tokenVersion: 0,
   permissions: [
@@ -87,8 +95,11 @@ const TEACHER_USER = {
 };
 
 function seedStores() {
-  seed('companies', [{ id: 'asg-a', name: 'Assignments Tenant', code: 'ASG', active: true, status: 'ACTIVE', createdAt: STAMP, updatedAt: STAMP }]);
-  seed('users', { users: [OWNER, STU1_USER, STU2_USER, TEACHER_USER] });
+  seed('companies', [
+    { id: 'asg-a', name: 'Assignments Tenant', code: 'ASG', active: true, status: 'ACTIVE', createdAt: STAMP, updatedAt: STAMP },
+    { id: 'asg-b', name: 'Foreign Tenant', code: 'FGN', active: true, status: 'ACTIVE', createdAt: STAMP, updatedAt: STAMP }
+  ]);
+  seed('users', { users: [OWNER, STU1_USER, STU2_USER, FOREIGN_OWNER, TEACHER_USER] });
   seed('educationCenters', { centers: [
     { id: 'cen-a1', tenantId: 'asg-a', centerCode: 'CA1', name: 'Center A1', status: 'active', createdAt: STAMP, updatedAt: STAMP }
   ] });
@@ -286,6 +297,10 @@ async function runScenario(browser, port, token, linkedId, expectRows, submit) {
     });
 
     details.activeOpened = await open('asg-1');
+    // The submission card is fetched AFTER the detail body paints, so the write
+    // surface is measured only once its save control exists. Without this wait
+    // the count races the async render and intermittently reads 0 controls.
+    await page.waitForSelector('#edu-assignment-submission-save', { timeout: 20000 }).catch(() => {});
     const activeData = await read();
     details.activeTitle = activeData.title;
     details.activeValues = activeData.values;
@@ -605,6 +620,51 @@ async function runLtrScenario(browser, port, token) {
   return Object.assign({ listReady, consoleErrors, pageErrors }, result);
 }
 
+const EDU = '/api/v1/tenant/education';
+
+// One real HTTP call against the same origin the browser uses (the static
+// proxy forwards /api/ to the booted Express app). No interception.
+function httpJson(port, method, urlPath, token, body) {
+  return new Promise(resolve => {
+    const payload = body === undefined ? null : Buffer.from(JSON.stringify(body));
+    const headers = { Accept: 'application/json' };
+    if (payload) { headers['Content-Type'] = 'application/json'; headers['Content-Length'] = payload.length; }
+    if (token) headers.Authorization = 'Bearer ' + token;
+    const req = http.request({ hostname: '127.0.0.1', port, path: urlPath, method, headers }, res => {
+      let text = '';
+      res.setEncoding('utf-8');
+      res.on('data', chunk => { text += chunk; });
+      res.on('end', () => {
+        let json = null;
+        try { json = JSON.parse(text); } catch (_) { json = null; }
+        resolve({ status: res.statusCode, body: json, text: text.slice(0, 400) });
+      });
+    });
+    req.on('error', err => resolve({ status: 0, body: null, text: 'REQUEST_ERROR: ' + err.message }));
+    req.setTimeout(15000, () => { req.destroy(new Error('request timeout')); });
+    if (payload) req.write(payload);
+    req.end();
+  });
+}
+
+// Tenant / ownership isolation on the submission routes. Runs BEFORE the
+// browser scenarios so no submission exists yet: the injected-body case must
+// therefore fail on validation (400), not on the reviewed lock (409).
+async function runIsolationChecks(port) {
+  const stu1 = signStudentToken('u-s1', 'asgStudent1');
+  const stu2 = signStudentToken('u-s2', 'asgStudent2');
+  const foreign = signToken('u-ob', 'asgOwnerB', 'Owner', 'asg-b');
+  const anonRead = await httpJson(port, 'GET', EDU + '/assignments/asg-1/submissions');
+  const stu2Read = await httpJson(port, 'GET', EDU + '/assignments/asg-1/submissions', stu2);
+  const stu2Write = await httpJson(port, 'PUT', EDU + '/assignments/asg-1/submission', stu2, { content: 'Hijack' });
+  const injected = await httpJson(port, 'PUT', EDU + '/assignments/asg-1/submission', stu1, { content: 'Mine', tenantId: 'asg-b' });
+  const foreignRead = await httpJson(port, 'GET', EDU + '/assignments/asg-1/submissions', foreign);
+  const foreignReview = await httpJson(port, 'PATCH', EDU + '/assignments/asg-1/submissions/any/review', foreign, { grade: 'A' });
+  const denied = [stu2Read, stu2Write, foreignRead, foreignReview];
+  const noPayload = denied.every(r => !r.body || r.body.data === undefined || r.body.data === null);
+  return { anonRead, stu2Read, stu2Write, injected, foreignRead, foreignReview, noPayload };
+}
+
 (async () => {
   const beforeHash = sha256(TARGET_FILE);
   let apiServer = null;
@@ -633,6 +693,7 @@ async function runLtrScenario(browser, port, token) {
     RTL_LTR: 'NOT_COVERED',
     UI_UX_DESKTOP_TABLET_MOBILE: 'NOT_COVERED',
     STUDENT_WRITE_SURFACE: 'NOT_COVERED',
+    TENANT_ISOLATION: 'NOT_COVERED',
     CONSOLE_ERRORS: '0',
     PAGE_ERRORS: '0',
     FAILED_REQUESTS: 'none',
@@ -646,6 +707,8 @@ async function runLtrScenario(browser, port, token) {
     const apiPort = apiServer.address().port;
     staticServer = await startStaticProxy(apiPort);
     const port = staticServer.address().port;
+
+    const isolation = await runIsolationChecks(port);
 
     browser = await chromium.launch();
     report.BROWSER_STARTED = 'PASS';
@@ -697,6 +760,11 @@ async function runLtrScenario(browser, port, token) {
       empty.rtl.docDir === 'rtl' && empty.rtl.computed === 'rtl';
     const workspaceOk = has.workspaceOk && empty.workspaceOk && has.cardPresent && empty.cardPresent;
     const noWriteSurface = has.writeControls === 0 && empty.writeControls === 0;
+    const isolationOk = isolation.anonRead.status === 401 &&
+      isolation.stu2Read.status === 403 && isolation.stu2Write.status === 403 &&
+      isolation.injected.status === 400 &&
+      isolation.foreignRead.status === 404 && isolation.foreignReview.status === 404 &&
+      isolation.noPayload;
     const responsiveOk = responsive.checks.length === 3 && responsive.checks.every(row =>
       row.listReady && row.layout &&
       row.layout.scrollWidth <= row.layout.innerWidth + 1 &&
@@ -753,6 +821,11 @@ async function runLtrScenario(browser, port, token) {
       ' width=' + ltr.scrollWidth + '/' + ltr.innerWidth);
     check('STUDENT_WRITE_SURFACE: assignment list renders no write controls', noWriteSurface,
       'has=' + has.writeControls + ' empty=' + empty.writeControls);
+    check('TENANT_ISOLATION: anonymous 401, wrong-student 403, field injection 400, foreign tenant 404', isolationOk,
+      'anon=' + isolation.anonRead.status + ' stu2.read=' + isolation.stu2Read.status +
+      ' stu2.write=' + isolation.stu2Write.status + ' inject=' + isolation.injected.status +
+      ' foreign.read=' + isolation.foreignRead.status + ' foreign.review=' + isolation.foreignReview.status +
+      ' noPayload=' + isolation.noPayload);
 
     report.STUDENT_WORKSPACE = workspaceOk ? 'PASS' : 'FAIL';
     report.STUDENT_PICKER = pickerOk ? 'PASS' : 'FAIL';
@@ -771,6 +844,7 @@ async function runLtrScenario(browser, port, token) {
     report.RTL_LTR = ltrOk ? 'PASS' : 'FAIL';
     report.UI_UX_DESKTOP_TABLET_MOBILE = responsiveOk ? 'PASS' : 'FAIL';
     report.STUDENT_WRITE_SURFACE = noWriteSurface ? 'PASS' : 'FAIL';
+    report.TENANT_ISOLATION = isolationOk ? 'PASS' : 'FAIL';
     report.CONSOLE_ERRORS = String(allConsole.length);
     report.PAGE_ERRORS = String(allPage.length);
     report.FAILED_REQUESTS = allFailed.length ? JSON.stringify(allFailed.slice(0, 10)) : 'none';
@@ -802,7 +876,7 @@ async function runLtrScenario(browser, port, token) {
   const scenarioPass = ['STUDENT_WORKSPACE', 'STUDENT_PICKER', 'GET_ASSIGNMENTS', 'ASSIGNMENT_RENDERING',
     'ASSIGNMENT_DETAILS', 'ARCHIVED_STATUS', 'SAFE_TEXT_RENDERING', 'DETAILS_CLOSE',
     'DETAILS_WRITE_SURFACE', 'STUDENT_SUBMISSION', 'TEACHER_REVIEW', 'REVIEWED_LOCK',
-    'EMPTY_STATE', 'RTL', 'RTL_LTR', 'UI_UX_DESKTOP_TABLET_MOBILE']
+    'EMPTY_STATE', 'RTL', 'RTL_LTR', 'UI_UX_DESKTOP_TABLET_MOBILE', 'TENANT_ISOLATION']
     .every(k => report[k] === 'PASS');
   const finalResult = report.BLOCKER !== 'none'
     ? 'BLOCKED'
@@ -835,6 +909,7 @@ async function runLtrScenario(browser, port, token) {
   console.log('RTL_LTR=' + report.RTL_LTR);
   console.log('UI_UX_DESKTOP_TABLET_MOBILE=' + report.UI_UX_DESKTOP_TABLET_MOBILE);
   console.log('STUDENT_WRITE_SURFACE=' + report.STUDENT_WRITE_SURFACE);
+  console.log('TENANT_ISOLATION=' + report.TENANT_ISOLATION);
   console.log('CONSOLE_ERRORS=' + report.CONSOLE_ERRORS);
   console.log('PAGE_ERRORS=' + report.PAGE_ERRORS);
   console.log('FAILED_REQUESTS=' + report.FAILED_REQUESTS);
