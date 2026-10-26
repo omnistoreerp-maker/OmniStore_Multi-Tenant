@@ -48,6 +48,21 @@ function _ownership403(res, message) {
   error(res, message, 403, { code: 'OWNERSHIP_DENIED' });
 }
 
+// The service signals a corrupt or unreadable assignments store with
+// { error: 'READ_ERROR' } instead of throwing. Left unmapped, that object
+// flows into the 200 payload and clients coerce it into an empty list
+// ("No assignments"); create/update would answer 201/200 as if the write
+// had succeeded; and linked actors would get a misleading 403 because the
+// error object carries no classId. Surface it as a real 500 instead.
+function _isReadError(value) {
+  return !!value && typeof value === 'object' && !Array.isArray(value) &&
+    value.error === 'READ_ERROR';
+}
+
+function _readError(res, message) {
+  return error(res, message, 500, { code: 'READ_ERROR' });
+}
+
 function _teacherId(req) {
   return req && req.teacherActor && req.teacherActor.id ? String(req.teacherActor.id) : '';
 }
@@ -94,6 +109,10 @@ function listAssignments(req, res) {
       search: req.query ? req.query.search : undefined
     };
     let rows = assignmentService.listAssignments({ tenantId }, filters);
+    // A corrupt/unreadable store is a read failure, never an empty list: the
+    // error object must not reach the narrowing filters below (it has no
+    // classId) nor be sent as 200 data the client coerces into [].
+    if (_isReadError(rows)) return _readError(res, 'Failed to retrieve assignments');
     // Every narrowing below composes by intersection: a query can narrow
     // within an actor scope, never widen past it.
     if (_teacherId(req)) {
@@ -120,6 +139,9 @@ function getAssignment(req, res) {
     const tenantId = _tenantIdOr400(req, res);
     if (!tenantId) return;
     const found = assignmentService.getAssignment({ tenantId }, req.params.id);
+    // READ_ERROR must not be mistaken for a found row: its classId is absent,
+    // which would 403 linked actors instead of reporting the read failure.
+    if (_isReadError(found)) return _readError(res, 'Failed to retrieve assignment');
     // A record owned by another tenant is reported as absent, never as
     // forbidden, so existence is not leaked across tenants.
     if (!found) return error(res, 'Assignment not found', 404);
@@ -168,6 +190,8 @@ function createAssignment(req, res) {
       }
     }
     const created = assignmentService.createAssignment({ tenantId }, req.body || {});
+    // Never answer 201 for a write the corrupt store did not perform.
+    if (_isReadError(created)) return _readError(res, 'Failed to create assignment');
     success(res, created, 'Assignment created', 201);
   } catch (err) {
     if (err && Array.isArray(err.validation)) {
@@ -187,6 +211,7 @@ function updateAssignment(req, res) {
     // update runs (404 across tenants still wins).
     if (_teacherId(req)) {
       const existing = assignmentService.getAssignment({ tenantId }, req.params.id);
+      if (_isReadError(existing)) return _readError(res, 'Failed to update assignment');
       if (!existing) return error(res, 'Assignment not found', 404);
       if (!_teacherClassIds(tenantId, req).has(String(existing.classId || ''))) {
         return _ownership403(res, 'Teachers may only edit assignments of their own classes');
@@ -195,12 +220,14 @@ function updateAssignment(req, res) {
     // A LINKED center edits only its own assignments (load-first 404/403).
     if (_centerId(req)) {
       const existing = assignmentService.getAssignment({ tenantId }, req.params.id);
+      if (_isReadError(existing)) return _readError(res, 'Failed to update assignment');
       if (!existing) return error(res, 'Assignment not found', 404);
       if (!_centerClassIds(tenantId, req).has(String(existing.classId || ''))) {
         return _ownership403(res, 'Centers may only edit assignments of their own center');
       }
     }
     const updated = assignmentService.updateAssignment({ tenantId }, req.params.id, req.body || {});
+    if (_isReadError(updated)) return _readError(res, 'Failed to update assignment');
     if (!updated) return error(res, 'Assignment not found', 404);
     success(res, updated, 'Assignment updated');
   } catch (err) {
@@ -219,6 +246,7 @@ function archiveAssignment(req, res) {
     // Same load-first 404/403 ordering as the update path.
     if (_teacherId(req)) {
       const existing = assignmentService.getAssignment({ tenantId }, req.params.id);
+      if (_isReadError(existing)) return _readError(res, 'Failed to archive assignment');
       if (!existing) return error(res, 'Assignment not found', 404);
       if (!_teacherClassIds(tenantId, req).has(String(existing.classId || ''))) {
         return _ownership403(res, 'Teachers may only archive assignments of their own classes');
@@ -226,12 +254,14 @@ function archiveAssignment(req, res) {
     }
     if (_centerId(req)) {
       const existing = assignmentService.getAssignment({ tenantId }, req.params.id);
+      if (_isReadError(existing)) return _readError(res, 'Failed to archive assignment');
       if (!existing) return error(res, 'Assignment not found', 404);
       if (!_centerClassIds(tenantId, req).has(String(existing.classId || ''))) {
         return _ownership403(res, 'Centers may only archive assignments of their own center');
       }
     }
     const archived = assignmentService.archiveAssignment({ tenantId }, req.params.id);
+    if (_isReadError(archived)) return _readError(res, 'Failed to archive assignment');
     if (!archived) return error(res, 'Assignment not found', 404);
     success(res, archived, 'Assignment archived');
   } catch (err) {

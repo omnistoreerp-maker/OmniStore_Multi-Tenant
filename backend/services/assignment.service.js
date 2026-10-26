@@ -90,12 +90,20 @@ function _checkStoreIntegrity() {
     // Valid store must be a plain object (e.g. { assignments: [...] }).
     // Primitives like 1, "string", true are valid JSON but not valid store docs.
     if (typeof parsed !== 'object' || Array.isArray(parsed) || parsed === null) return 'corrupt';
+    // Shape check: an existing store whose `assignments` field is present but not
+    // an array (null, string, object, ...) is corrupted data, not an empty list.
+    // A store without the key at all stays valid for backward compatibility.
+    if (Object.prototype.hasOwnProperty.call(parsed, 'assignments') && !Array.isArray(parsed.assignments)) return 'corrupt';
     return 'ok';
   } catch (err) {
     // SyntaxError = file is corrupt – do NOT call storageAdapter.read() here,
     // because it would silently reset the file via fileStore.write({}).
     if (err instanceof SyntaxError) return 'corrupt';
-    return 'ok';
+    // ENOENT between existsSync() and readFileSync(): the store is simply absent.
+    if (err && err.code === 'ENOENT') return 'missing';
+    // Any other read failure (EACCES, EISDIR, ...) means the store exists but
+    // cannot be read: report it as corrupt so callers surface READ_ERROR.
+    return 'corrupt';
   }
 }
 
