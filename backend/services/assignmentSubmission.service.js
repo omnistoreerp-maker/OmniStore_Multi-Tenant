@@ -177,6 +177,14 @@ function _assignmentInTenant(tenantId, assignmentId, requireActive) {
   const id = String(assignmentId || '').trim();
   if (!id) throw new ReferenceValidationError('assignmentId is required');
   const found = assignmentService.getAssignment({ tenantId }, id);
+  // Corrupt/unreadable assignments store: report a read failure (mapped to
+  // 500 by the controller) instead of the misleading "not an active
+  // Assignment" 400 that the status check below would produce.
+  if (found && typeof found === 'object' && !Array.isArray(found) && found.error === 'READ_ERROR') {
+    const readErr = new Error('assignment store could not be read');
+    readErr.code = 'READ_ERROR';
+    throw readErr;
+  }
   if (!found) {
     throw new ReferenceValidationError('assignmentId does not reference an Assignment in this tenant');
   }

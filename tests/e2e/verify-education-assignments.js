@@ -1020,6 +1020,141 @@ async function runAssignmentsFaultScenario(browser, port, fault) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Corrupt-store READ_ERROR scenario. Corrupts ONLY the isolated temporary
+// store (DATA_DIR), never backend/data, and restores the original bytes even
+// on failure. Proves the full real chain through real HTTP + real Chromium:
+//
+//   valid store   -> GET /assignments 200 + rows, student list renders rows
+//   corrupt store -> GET /assignments 500 { details.code: 'READ_ERROR' } for
+//                    owner AND linked student (never 200 + [])
+//   browser       -> error banner with Retry, RTL intact, and NO empty state
+//                    (no .edu-state block, no "No assignments" text)
+//   data safety   -> the corrupt bytes stay byte-identical after the 500s
+//                    (no silent rewrite to {}, no .corrupt/.tmp artifact)
+//   recovery      -> restoring the store and clicking Retry brings the rows back
+//
+// No page.route interception, no fetch stubbing: the 500 comes from the real
+// service integrity check reading the real file.
+// ---------------------------------------------------------------------------
+async function runCorruptStoreScenario(browser, port, studentToken, ownerToken) {
+  const consoleErrors = [];
+  const pageErrors = [];
+  const storeFile = path.join(DATA_DIR, 'educationAssignments.json');
+  let original = null;
+  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  page.on('console', m => {
+    if (m.type() !== 'error') return;
+    const loc = m.location() || {};
+    consoleErrors.push({ text: m.text(), url: loc.url || '' });
+  });
+  page.on('pageerror', e => pageErrors.push(String(e && e.message || e)));
+
+  const base = 'http://127.0.0.1:' + port;
+  const out = {
+    baseline: false, api200: false, api500: false, apiReadError: false, apiCode: '',
+    apiNotSuccess: false, bannerShown: false, bannerText: '', retryVisible: false,
+    fakeEmpty: true, fileIntact: false, noStray: false, dirOk: false, recovered: false,
+    unexpectedConsole: [], pageErrors: [], error: ''
+  };
+
+  try {
+    // --- baseline: the real populated store renders real rows -------------
+    await page.addInitScript(t => {
+      localStorage.setItem('access_token', t);
+      localStorage.setItem('omnistore_language', 'ar');
+      localStorage.setItem('omnistore_platform_lang', 'ar');
+    }, studentToken);
+    await page.goto(base + '/education/index.html#student', { waitUntil: 'load', timeout: 30000 });
+    out.baseline = await page.waitForFunction(() => {
+      const l = document.getElementById('edu-student-assignments-list');
+      return !!(l && l.querySelectorAll('table tbody tr').length > 0);
+    }, null, { timeout: 25000 }).then(() => true, () => false);
+
+    const okRes = await httpJson(port, 'GET', EDU + '/assignments', ownerToken);
+    out.api200 = okRes.status === 200 && !!(okRes.body && okRes.body.success === true) &&
+      Array.isArray(okRes.body.data) && okRes.body.data.length > 0;
+
+    // --- corrupt the isolated temp store (real bytes, real service) -------
+    original = fs.readFileSync(storeFile);
+    const corruptBytes = Buffer.from('{ "assignments": [ { "id": "asg-1", title', 'utf-8');
+    fs.writeFileSync(storeFile, corruptBytes);
+
+    const ownerRead = await httpJson(port, 'GET', EDU + '/assignments', ownerToken);
+    const studentRead = await httpJson(port, 'GET', EDU + '/assignments', studentToken);
+    out.api500 = ownerRead.status === 500 && studentRead.status === 500;
+    out.apiCode = (ownerRead.body && ownerRead.body.details && ownerRead.body.details.code) || '';
+    out.apiReadError = out.apiCode === 'READ_ERROR';
+    // The old contract was success:true + object data; the fix must be an
+    // explicit failure whose data is not an array.
+    out.apiNotSuccess = !!(ownerRead.body && ownerRead.body.success === false) &&
+      !Array.isArray(ownerRead.body.data);
+
+    // --- browser: error banner, never the empty state ---------------------
+    await page.reload({ waitUntil: 'load', timeout: 30000 });
+    out.bannerShown = await page.waitForSelector('#edu-student-assignments-list .edu-banner-error', {
+      timeout: 25000
+    }).then(() => true, () => false);
+    if (out.bannerShown) {
+      out.bannerText = await page.$eval('#edu-student-assignments-list .edu-banner-error',
+        n => n.textContent).catch(() => '');
+      out.retryVisible = await page.isVisible('#edu-student-assignments-list .edu-banner-error button')
+        .catch(() => false);
+    }
+    // The forbidden outcome: an empty-state block (or its translated text)
+    // standing in for a read failure.
+    out.fakeEmpty = await page.evaluate(() => {
+      const l = document.getElementById('edu-student-assignments-list');
+      if (!l) return true;
+      const text = l.textContent || '';
+      return !!l.querySelector('.edu-state') ||
+        /No assignments for this student yet/.test(text) ||
+        /No assignments/.test(text) ||
+        /لا توجد واجبات/.test(text);
+    }).catch(() => true);
+    const rtl = await page.evaluate(() => {
+      const card = document.getElementById('edu-student-assignments');
+      return {
+        docDir: document.documentElement.getAttribute('dir'),
+        computed: card ? getComputedStyle(card).direction : ''
+      };
+    }).catch(() => ({ docDir: '', computed: '' }));
+    out.dirOk = rtl.docDir === 'rtl' && rtl.computed === 'rtl';
+
+    // --- data safety: nothing silently rewrote or renamed the file --------
+    const after = fs.readFileSync(storeFile);
+    out.fileIntact = Buffer.compare(after, corruptBytes) === 0;
+    const strays = fs.readdirSync(DATA_DIR).filter(f => f.includes('.corrupt') || f.endsWith('.tmp'));
+    out.noStray = strays.length === 0;
+
+    // --- recovery: restore the real bytes, Retry brings the rows back ------
+    fs.writeFileSync(storeFile, original);
+    if (out.retryVisible) {
+      await page.click('#edu-student-assignments-list .edu-banner-error button');
+      out.recovered = await page.waitForFunction(() => {
+        const l = document.getElementById('edu-student-assignments-list');
+        return !!(l && !l.querySelector('.edu-banner-error') &&
+          l.querySelectorAll('table tbody tr').length > 0);
+      }, null, { timeout: 25000 }).then(() => true, () => false);
+    }
+  } catch (err) {
+    out.error = String(err && err.message || err);
+  } finally {
+    // Never leave the temp store corrupted, even if an assertion threw.
+    try {
+      if (original) fs.writeFileSync(storeFile, original);
+    } catch (_) {}
+    try { await page.close(); } catch (_) {}
+  }
+
+  // The only console noise a corrupt store may cause is the resource-load
+  // entry for the expected 500 response; anything else is a defect.
+  const allowed = /status of 500/;
+  out.unexpectedConsole = consoleErrors.filter(c => !allowed.test(c.text));
+  out.pageErrors = pageErrors;
+  return out;
+}
+
 const EDU = '/api/v1/tenant/education';
 
 // One real HTTP call against the same origin the browser uses (the static
@@ -1137,6 +1272,10 @@ async function runIsolationChecks(port) {
     // The outage scenario stops and restarts the app, so the cleanup must close
     // whichever server instance is live at the end.
     apiServer = api.server;
+    // Corrupts ONLY the isolated temp store, proves the real 500 READ_ERROR +
+    // error-banner path, and restores the original bytes before returning.
+    const corruptStore = await runCorruptStoreScenario(browser, port,
+      signStudentToken('u-s1', 'asgStudent1'), signToken('u-owner', 'asgOwner', 'Owner'));
 
     const hasRowsText = has.rows.join(' | ');
     const hasRendered = has.listOk && has.rows.length === 3 &&
@@ -1200,6 +1339,12 @@ async function runIsolationChecks(port) {
     const errorRetryOk = retryRtl.ok && retryLtr.ok;
     const pickerMultiOk = pickerMulti.ok;
     const asgFaultOk = asgFault.ok;
+    const corruptStoreOk = corruptStore.baseline && corruptStore.api200 &&
+      corruptStore.api500 && corruptStore.apiReadError && corruptStore.apiNotSuccess &&
+      corruptStore.bannerShown && corruptStore.retryVisible && !corruptStore.fakeEmpty &&
+      corruptStore.fileIntact && corruptStore.noStray && corruptStore.dirOk &&
+      corruptStore.recovered && corruptStore.unexpectedConsole.length === 0 &&
+      corruptStore.pageErrors.length === 0;
 
     const allConsole = has.consoleErrors.concat(empty.consoleErrors, teacher.consoleErrors,
       reviewedStu.consoleErrors, responsive.consoleErrors, ltr.consoleErrors);
@@ -1280,6 +1425,18 @@ async function runIsolationChecks(port) {
         unexpectedFailed: retryLtr.unexpectedFailed.length,
         unexpectedConsole: retryLtr.unexpectedConsole.length, pageErrors: retryLtr.pageErrors.length
       }));
+    check('ASSIGNMENTS_CORRUPT_STORE: corrupt store -> real 500 READ_ERROR and an error banner, never an empty state, bytes preserved', corruptStoreOk,
+      JSON.stringify({
+        baseline: corruptStore.baseline, api200: corruptStore.api200,
+        api500: corruptStore.api500, apiCode: corruptStore.apiCode,
+        apiNotSuccess: corruptStore.apiNotSuccess, banner: corruptStore.bannerShown,
+        retry: corruptStore.retryVisible, fakeEmpty: corruptStore.fakeEmpty,
+        fileIntact: corruptStore.fileIntact, noStray: corruptStore.noStray,
+        dirOk: corruptStore.dirOk, recovered: corruptStore.recovered,
+        unexpectedConsole: corruptStore.unexpectedConsole.length,
+        pageErrors: corruptStore.pageErrors.length, error: corruptStore.error,
+        bannerText: (corruptStore.bannerText || '').slice(0, 160)
+      }));
     check('TENANT_ISOLATION: anonymous 401, wrong-student 403, field injection 400, foreign tenant 404', isolationOk,
       'anon=' + isolation.anonRead.status + ' stu2.read=' + isolation.stu2Read.status +
       ' stu2.write=' + isolation.stu2Write.status + ' inject=' + isolation.injected.status +
@@ -1307,6 +1464,7 @@ async function runIsolationChecks(port) {
     report.ERROR_RETRY = errorRetryOk ? 'PASS' : 'FAIL';
     report.STUDENT_PICKER_MULTI = pickerMultiOk ? 'PASS' : 'FAIL';
     report.ASSIGNMENTS_ERROR_RETRY = asgFaultOk ? 'PASS' : 'FAIL';
+    report.ASSIGNMENTS_CORRUPT_STORE = corruptStoreOk ? 'PASS' : 'FAIL';
     report.CONSOLE_ERRORS = String(allConsole.length);
     report.PAGE_ERRORS = String(allPage.length);
     report.FAILED_REQUESTS = allFailed.length ? JSON.stringify(allFailed.slice(0, 10)) : 'none';
@@ -1339,7 +1497,7 @@ async function runIsolationChecks(port) {
     'ASSIGNMENT_DETAILS', 'ARCHIVED_STATUS', 'SAFE_TEXT_RENDERING', 'DETAILS_CLOSE',
     'DETAILS_WRITE_SURFACE', 'STUDENT_SUBMISSION', 'TEACHER_REVIEW', 'REVIEWED_LOCK',
     'EMPTY_STATE', 'RTL', 'RTL_LTR', 'UI_UX_DESKTOP_TABLET_MOBILE', 'TENANT_ISOLATION', 'ERROR_RETRY',
-    'STUDENT_PICKER_MULTI', 'ASSIGNMENTS_ERROR_RETRY']
+    'STUDENT_PICKER_MULTI', 'ASSIGNMENTS_ERROR_RETRY', 'ASSIGNMENTS_CORRUPT_STORE']
     .every(k => report[k] === 'PASS');
   const finalResult = report.BLOCKER !== 'none'
     ? 'BLOCKED'
@@ -1370,6 +1528,7 @@ async function runIsolationChecks(port) {
   console.log('ERROR_RETRY=' + report.ERROR_RETRY);
   console.log('STUDENT_PICKER_MULTI=' + report.STUDENT_PICKER_MULTI);
   console.log('ASSIGNMENTS_ERROR_RETRY=' + report.ASSIGNMENTS_ERROR_RETRY);
+  console.log('ASSIGNMENTS_CORRUPT_STORE=' + report.ASSIGNMENTS_CORRUPT_STORE);
   console.log('RTL=' + report.RTL);
   console.log('RTL_LTR=' + report.RTL_LTR);
   console.log('UI_UX_DESKTOP_TABLET_MOBILE=' + report.UI_UX_DESKTOP_TABLET_MOBILE);

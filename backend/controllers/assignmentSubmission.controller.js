@@ -54,6 +54,13 @@ function _studentClassIds(tenantId, req) {
 
 function _loadScopedAssignment(req, res, tenantId, assignmentId) {
   const found = assignmentService.getAssignment({ tenantId }, assignmentId);
+  // A corrupt/unreadable assignments store is a read failure - never a 404
+  // (hiding it) and never a fall-through 403 for linked actors (the error
+  // object carries no classId).
+  if (found && typeof found === 'object' && !Array.isArray(found) && found.error === 'READ_ERROR') {
+    error(res, 'Failed to retrieve assignment', 500, { code: 'READ_ERROR' });
+    return null;
+  }
   if (!found) {
     error(res, 'Assignment not found', 404);
     return null;
@@ -74,6 +81,11 @@ function _loadScopedAssignment(req, res, tenantId, assignmentId) {
 }
 
 function _handleWriteError(res, err, message) {
+  // The assignment store itself could not be read (corrupt/unreadable data):
+  // that is a 500 read failure, not the generic write failure below.
+  if (err && err.code === 'READ_ERROR') {
+    return error(res, message, 500, { code: 'READ_ERROR' });
+  }
   if (err && err.conflict === true) {
     return error(res, err.message, 409, { code: err.code, conflict: true });
   }
