@@ -6,6 +6,7 @@ const platform = require('../services/platform.service');
 const presence = require('../services/presence.service');
 const config = require('../config');
 const platformAdminService = require('../services/platformAdmin.service');
+const platformOverview = require('../services/platformOverview.service');
 
 function _actor(req) {
   return req.user ? { id: req.user.id, username: req.user.username } : null;
@@ -253,8 +254,19 @@ function revokeAdmin(req, res) {
   }
 }
 
+// GET /platform/overview — Master Control Center dashboard aggregate.
+// Platform-scope, read-only, gated by requirePlatformAdmin() in the router.
+function overview(req, res) {
+  try {
+    success(res, platformOverview.getOverview(), 'Platform overview retrieved');
+  } catch (err) {
+    logger.error('platform.overview error:', err.message);
+    error(res, 'Failed to retrieve platform overview', 500);
+  }
+}
+
 module.exports = {
-  heartbeat, me, summary,
+  heartbeat, me, summary, overview,
   listCompanies, getCompanyDetails, suspendCompany, activateCompany, createCompanyOwner,
   listUsers, disableUser, enableUser, forceLogout, resetPassword,
   listPresence, listLicenses, setLicense,

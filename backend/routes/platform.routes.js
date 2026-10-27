@@ -16,6 +16,9 @@ router.get('/me', requireAuth, ctrl.me);
 
 router.get('/summary', admin, ctrl.summary);
 
+// Master Control Center dashboard aggregate (Phase 1).
+router.get('/overview', admin, ctrl.overview);
+
 router.get('/companies', admin, ctrl.listCompanies);
 router.get('/companies/:id', admin, ctrl.getCompanyDetails);
 router.post('/companies/:id/suspend', admin, ctrl.suspendCompany);

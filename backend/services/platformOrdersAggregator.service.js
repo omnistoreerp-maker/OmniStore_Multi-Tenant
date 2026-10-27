@@ -167,7 +167,59 @@ function getOrdersTodayDetail(options) {
   };
 }
 
+// Sales summary for the Master Control Center dashboard.
+//
+// Uses the SAME countable-record predicates as the Orders Today metric
+// (valid identity + business timestamp, no TEST marker, no cancelled/void/
+// refunded/draft status), so "sales" and "orders today" can never disagree
+// by definition. Returns aggregate numbers ONLY — no invoice records, no
+// ids, no customer fields leave this module.
+//
+//   invoicesTotal / valueTotal   — all countable invoices in the store
+//   invoicesToday / valueToday   — countable invoices in the current UTC day
+//   currency                     — informational only; the sales store does
+//                                  NOT carry a currency field, so this is null
+//                                  rather than an invented default.
+function getSalesSummary(options) {
+  const db = salesRepository._rawStore();
+  const invoices = db && typeof db === 'object' && Array.isArray(db.invoices) ? db.invoices : [];
+  const opts = options || {};
+  const now = opts.referenceNow !== undefined
+    ? new Date(opts.referenceNow).getTime()
+    : Date.now();
+  const nowMs = Number.isFinite(now) ? now : Date.now();
+
+  let invoicesTotal = 0;
+  let valueTotal = 0;
+  let invoicesToday = 0;
+  let valueToday = 0;
+
+  for (const record of invoices) {
+    if (!_isValidRecord(record)) continue;
+    if (_isTestInvoice(record)) continue;
+    if (_isExcludedStatus(record)) continue;
+    const value = Number(record.total);
+    const safeValue = Number.isFinite(value) && value > 0 ? value : 0;
+    invoicesTotal++;
+    valueTotal += safeValue;
+    if (_isSameUtcDay(_businessTimestamp(record), nowMs)) {
+      invoicesToday++;
+      valueToday += safeValue;
+    }
+  }
+
+  return {
+    invoicesTotal,
+    valueTotal,
+    invoicesToday,
+    valueToday,
+    currency: null,
+    dayStartUtc: new Date(_startOfDayUtc(nowMs)).toISOString()
+  };
+}
+
 module.exports = {
   getOrdersToday,
-  getOrdersTodayDetail
+  getOrdersTodayDetail,
+  getSalesSummary
 };

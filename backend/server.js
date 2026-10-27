@@ -154,6 +154,18 @@ if (oauthConfig.enabled) {
   app.use(passport.session());
 }
 
+// API responses are per-user and per-tenant and must never be replayed from
+// a browser or shared cache. Without an explicit directive the ETag-only
+// responses were served from cache for later requests (observed: an
+// unauthenticated GET /platform/me answering a previously cached 200, and an
+// expired session receiving cached 401s instead of a real re-auth result).
+// This is both a correctness and an authorization-boundary problem, so every
+// API response is marked no-store at the edge of the API surface.
+app.use('/api', (req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
+
 app.use('/api/v1', apiRateLimiter(config.rateLimitMax));
 
 // Request Context: creates an EMPTY per-request context behind a feature flag.
