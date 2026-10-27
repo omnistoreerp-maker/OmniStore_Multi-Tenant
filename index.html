@@ -5417,6 +5417,53 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
 
     <!-- PHASE 33: MASTER CONTROL CENTER (platform scope) -->
+    <style>
+      /* PHASE 1-2 - Master Control Center: section rail + operational panels.
+         Scoped to #page-platform-master so the rest of the ERP is untouched.
+         Icons are Lucide placeholders: applyPmIcons() only runs when a lucide
+         bundle is actually present, so the rail still renders its text labels
+         when it is not shipped. */
+      #page-platform-master .pm-rail{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px;padding:6px;background:var(--glass-bg);backdrop-filter:blur(var(--glass-blur));-webkit-backdrop-filter:blur(var(--glass-blur));border:1px solid var(--border);border-radius:16px;box-shadow:var(--glass-shadow);position:sticky;top:0;z-index:6}
+      #page-platform-master .pm-rail-btn{display:inline-flex;align-items:center;gap:6px;border:1px solid transparent;background:transparent;color:var(--text2);font-family:inherit;font-size:0.82rem;font-weight:600;padding:8px 12px;border-radius:11px;cursor:pointer;transition:background .15s,color .15s,border-color .15s;white-space:nowrap}
+      #page-platform-master .pm-rail-btn svg{width:16px;height:16px;stroke-width:2}
+      #page-platform-master .pm-rail-btn:hover{background:var(--surface2);color:var(--text)}
+      #page-platform-master .pm-rail-btn.is-active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 6px 16px rgba(37,99,235,.24)}
+      #page-platform-master .pm-rail-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+      #page-platform-master .pm-grid2{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));margin:14px 0}
+      #page-platform-master .pm-box{background:var(--glass-bg);backdrop-filter:blur(var(--glass-blur));-webkit-backdrop-filter:blur(var(--glass-blur));border:1px solid var(--border);border-radius:16px;padding:14px;box-shadow:var(--glass-shadow)}
+      #page-platform-master .pm-box-title{display:flex;align-items:center;gap:8px;font-size:0.92rem;font-weight:700;margin-bottom:10px;color:var(--text)}
+      #page-platform-master .pm-box-title svg{width:17px;height:17px;color:var(--accent)}
+      #page-platform-master .pm-chips{display:flex;flex-wrap:wrap;gap:8px}
+      #page-platform-master .pm-chip{display:inline-flex;align-items:center;gap:7px;font-size:0.78rem;font-weight:600;padding:7px 11px;border-radius:999px;border:1px solid var(--border);background:var(--surface2);color:var(--text)}
+      #page-platform-master .pm-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;background:var(--muted)}
+      #page-platform-master .pm-st-operational{border-color:rgba(22,163,74,.45);background:rgba(22,163,74,.10)}
+      #page-platform-master .pm-st-operational .pm-dot{background:var(--green)}
+      #page-platform-master .pm-st-attention{border-color:rgba(245,158,11,.5);background:rgba(245,158,11,.12)}
+      #page-platform-master .pm-st-attention .pm-dot{background:var(--yellow)}
+      #page-platform-master .pm-st-blocked,
+      #page-platform-master .pm-st-error{border-color:rgba(220,38,38,.45);background:rgba(220,38,38,.10)}
+      #page-platform-master .pm-st-blocked .pm-dot,
+      #page-platform-master .pm-st-error .pm-dot{background:var(--red)}
+      #page-platform-master .pm-list{display:flex;flex-direction:column;gap:8px;max-height:300px;overflow:auto}
+      #page-platform-master .pm-row{display:flex;gap:10px;align-items:flex-start;padding:9px 11px;border:1px solid var(--border);border-radius:11px;background:var(--surface);font-size:0.8rem}
+      #page-platform-master .pm-row-main{flex:1;min-width:0}
+      #page-platform-master .pm-row-meta{color:var(--text2);font-size:0.72rem;word-break:break-word}
+      #page-platform-master .pm-kv{display:flex;gap:14px;flex-wrap:wrap;font-size:0.8rem;color:var(--text2)}
+      #page-platform-master .pm-kv b{color:var(--text);font-weight:700}
+      #page-platform-master .pm-empty{font-size:0.82rem;color:var(--text2);padding:6px 0}
+      #page-platform-master .pm-error{font-size:0.82rem;color:var(--red);padding:6px 0}
+      #page-platform-master .pm-sev-error{border-inline-start:3px solid var(--red)}
+      #page-platform-master .pm-sev-warning{border-inline-start:3px solid var(--yellow)}
+      #page-platform-master .pm-sev-info{border-inline-start:3px solid var(--accent)}
+      #page-platform-master .pm-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+      #page-platform-master .pm-newcards{margin-top:12px}
+      #page-platform-master .pm-newcards .stat-icon{display:flex;align-items:center;justify-content:center;height:26px}
+      #page-platform-master .pm-newcards .stat-icon svg{width:22px;height:22px;stroke-width:2}
+      @media (max-width:640px){
+        #page-platform-master .pm-rail{position:static;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch}
+        #page-platform-master .pm-grid2{grid-template-columns:1fr}
+      }
+    </style>
     <div class="page" id="page-platform-master">
       <div class="page-header">
         <div>
@@ -5429,6 +5476,17 @@ document.addEventListener('DOMContentLoaded', function() {
           <button class="btn btn-outline btn-sm" onclick="renderPlatformMaster()" aria-label="تحديث بيانات مركز التحكم">↻ تحديث</button>
         </div>
       </div>
+      <nav class="pm-rail" id="pmSectionRail" role="tablist" aria-label="أقسام مركز تحكم المنصة">
+        <button type="button" class="pm-rail-btn is-active" role="tab" aria-selected="true" data-pmsec="dashboard" onclick="pmSection('dashboard',this)"><i data-lucide="layout-dashboard"></i><span>لوحة المؤشرات</span></button>
+        <button type="button" class="pm-rail-btn" role="tab" aria-selected="false" data-pmsec="platform" onclick="pmSection('platform',this)"><i data-lucide="building-2"></i><span>تشغيل المنصة</span></button>
+        <button type="button" class="pm-rail-btn" role="tab" aria-selected="false" data-pmsec="marketplace" onclick="pmSection('marketplace',this)"><i data-lucide="store"></i><span>المتجر</span></button>
+        <button type="button" class="pm-rail-btn" role="tab" aria-selected="false" data-pmsec="education" onclick="pmSection('education',this)"><i data-lucide="graduation-cap"></i><span>التعليم</span></button>
+        <button type="button" class="pm-rail-btn" role="tab" aria-selected="false" data-pmsec="support" onclick="pmSection('support',this)"><i data-lucide="life-buoy"></i><span>الدعم</span></button>
+        <button type="button" class="pm-rail-btn" role="tab" aria-selected="false" data-pmsec="communications" onclick="pmSection('communications',this)"><i data-lucide="megaphone"></i><span>التواصل</span></button>
+        <button type="button" class="pm-rail-btn" role="tab" aria-selected="false" data-pmsec="media" onclick="pmSection('media',this)"><i data-lucide="gamepad-2"></i><span>الوسائط والألعاب</span></button>
+        <button type="button" class="pm-rail-btn" role="tab" aria-selected="false" data-pmsec="monetization" onclick="pmSection('monetization',this)"><i data-lucide="badge-dollar-sign"></i><span>الربح</span></button>
+      </nav>
+      <div data-pm-panel="dashboard">
       <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))" aria-live="polite" aria-atomic="true">
         <div class="stat-card blue"><div class="stat-icon">🏢</div><div class="stat-value" id="pmTotalCompanies">0</div><div class="stat-label">إجمالي الشركات</div></div>
         <div class="stat-card green"><div class="stat-icon">✅</div><div class="stat-value" id="pmActiveCompanies">0</div><div class="stat-label">الشركات النشطة</div></div>
@@ -5438,6 +5496,12 @@ document.addEventListener('DOMContentLoaded', function() {
         <div class="stat-card yellow"><div class="stat-icon">🎫</div><div class="stat-value" id="pmActiveLicenses">0</div><div class="stat-label">التراخيص النشطة</div></div>
         <div class="stat-card red"><div class="stat-icon">⏳</div><div class="stat-value" id="pmExpiredLicenses">0</div><div class="stat-label">التراخيص المنتهية</div></div>
         <div class="stat-card orange"><div class="stat-icon">📅</div><div class="stat-value" id="pmExpiringSoon">0</div><div class="stat-label">تنتهي قريبًا (30 يوم)</div></div>
+        <div class="stat-card blue pm-newcards"><div class="stat-icon"><i data-lucide="shopping-cart"></i></div><div class="stat-value" id="pmOrdersToday">—</div><div class="stat-label">طلبات اليوم</div></div>
+        <div class="stat-card green pm-newcards"><div class="stat-icon"><i data-lucide="banknote"></i></div><div class="stat-value" id="pmSalesToday">—</div><div class="stat-label">قيمة مبيعات اليوم</div></div>
+        <div class="stat-card purple pm-newcards"><div class="stat-icon"><i data-lucide="package"></i></div><div class="stat-value" id="pmProductsTotal">—</div><div class="stat-label">المنتجات</div></div>
+        <div class="stat-card yellow pm-newcards"><div class="stat-icon"><i data-lucide="ticket"></i></div><div class="stat-value" id="pmTicketsOpen">—</div><div class="stat-label">تذاكر مفتوحة</div></div>
+        <div class="stat-card green pm-newcards"><div class="stat-icon"><i data-lucide="eye"></i></div><div class="stat-value" id="pmVisitorsNow">—</div><div class="stat-label">زوار نشطون الآن</div></div>
+        <div class="stat-card red pm-newcards"><div class="stat-icon"><i data-lucide="bell-ring"></i></div><div class="stat-value" id="pmAlertsCount">—</div><div class="stat-label">تنبيهات تحتاج انتباهًا</div></div>
       </div>
       <div class="pm-kpi-legend" style="display:flex;gap:14px;flex-wrap:wrap;margin:-4px 0 12px 0;font-size:0.74rem;color:var(--text2)">
         <span>🏢 الشركات · النشط/الموقوف/الإجمالي</span>
@@ -5465,6 +5529,27 @@ document.addEventListener('DOMContentLoaded', function() {
           <button type="button" id="platformAuthLinkCancel" class="btn btn-outline btn-sm">إلغاء</button>
         </div>
       </div>
+
+      <!-- PHASE 1: operational panels fed by GET /api/v1/platform/overview -->
+      <div class="pm-grid2">
+        <section class="pm-box" aria-labelledby="pmServicesH">
+          <h3 class="pm-box-title" id="pmServicesH"><i data-lucide="activity"></i> حالة الخدمات</h3>
+          <div class="pm-chips" id="pmServicesStrip" aria-live="polite"><span class="pm-empty">جارٍ التحميل…</span></div>
+          <div style="margin-top:12px" id="pmHealthBox" aria-live="polite"><span class="pm-empty">جارٍ التحميل…</span></div>
+        </section>
+        <section class="pm-box" aria-labelledby="pmAlertsH">
+          <h3 class="pm-box-title" id="pmAlertsH"><i data-lucide="bell-ring"></i> التنبيهات</h3>
+          <div class="pm-list" id="pmAlertsList" aria-live="polite"><span class="pm-empty">جارٍ التحميل…</span></div>
+        </section>
+      </div>
+      <section class="pm-box" aria-labelledby="pmActivityH" style="margin-bottom:14px">
+        <h3 class="pm-box-title" id="pmActivityH"><i data-lucide="history"></i> آخر النشاطات</h3>
+        <div class="pm-list" id="pmActivityList" aria-live="polite"><span class="pm-empty">جارٍ التحميل…</span></div>
+      </section>
+      <div id="pmOverviewError" class="pm-error" hidden role="alert"></div>
+      </div><!-- /data-pm-panel=dashboard -->
+
+      <div data-pm-panel="platform" hidden>
       <div role="tablist" aria-label="أقسام مركز التحكم" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px" id="platformTabs">
         <button class="btn btn-accent btn-sm platform-tab" role="tab" data-ptab="companies" aria-selected="true" aria-controls="platformTabBody" onclick="platformTab('companies',this)">🏢 الشركات</button>
         <button class="btn btn-outline btn-sm platform-tab" role="tab" data-ptab="users" aria-selected="false" aria-controls="platformTabBody" onclick="platformTab('users',this)">👥 المستخدمون</button>
@@ -5483,6 +5568,95 @@ document.addEventListener('DOMContentLoaded', function() {
         <span id="pmSearchCount" style="font-size:0.78rem;color:var(--text2)"></span>
       </div>
       <div id="platformTabBody" role="tabpanel" aria-live="polite"></div>
+      </div><!-- /data-pm-panel=platform -->
+
+      <!-- PHASE 2: Master navigation — Marketplace -->
+      <div data-pm-panel="marketplace" hidden>
+        <div class="page-header">
+          <div>
+            <div class="page-title">🏪 قسم المتجر</div>
+            <div style="font-size:0.78rem;color:var(--text2);margin-top:2px">أرقام حقيقية من متجر OmniStore — تُحدَّث مع لوحة المؤشرات</div>
+          </div>
+          <div class="table-actions" style="display:flex;gap:8px;flex-wrap:wrap">
+            <a class="btn btn-outline btn-sm" href="market.html" target="_blank" rel="noopener">فتح واجهة المتجر</a>
+            <button class="btn btn-outline btn-sm" onclick="renderPmOverview(true)">↻ تحديث</button>
+          </div>
+        </div>
+        <div id="pmBodyMarketplace" aria-live="polite"><span class="pm-empty">جارٍ التحميل…</span></div>
+      </div>
+
+      <!-- PHASE 2: Master navigation — Education -->
+      <div data-pm-panel="education" hidden>
+        <div class="page-header">
+          <div>
+            <div class="page-title">🎓 قسم التعليم</div>
+            <div style="font-size:0.78rem;color:var(--text2);margin-top:2px">حالة خدمات الطلاب من متجر student-services</div>
+          </div>
+          <div class="table-actions" style="display:flex;gap:8px;flex-wrap:wrap">
+            <a class="btn btn-outline btn-sm" href="student.html" target="_blank" rel="noopener">فتح صفحة الطالب</a>
+            <button class="btn btn-outline btn-sm" onclick="renderPmOverview(true)">↻ تحديث</button>
+          </div>
+        </div>
+        <div id="pmBodyEducation" aria-live="polite"><span class="pm-empty">جارٍ التحميل…</span></div>
+      </div>
+
+      <!-- PHASE 2: Master navigation — Support -->
+      <div data-pm-panel="support" hidden>
+        <div class="page-header">
+          <div>
+            <div class="page-title">🎫 قسم الدعم</div>
+            <div style="font-size:0.78rem;color:var(--text2);margin-top:2px">تذاكر الطلبات الحقيقية من متجر customerRequests</div>
+          </div>
+          <div class="table-actions" style="display:flex;gap:8px;flex-wrap:wrap">
+            <a class="btn btn-outline btn-sm" href="support.html" target="_blank" rel="noopener">مركز طلبات الدعم</a>
+            <button class="btn btn-outline btn-sm" onclick="renderPmOverview(true)">↻ تحديث</button>
+          </div>
+        </div>
+        <div id="pmBodySupport" aria-live="polite"><span class="pm-empty">جارٍ التحميل…</span></div>
+      </div>
+
+      <!-- PHASE 2: Master navigation — Communications -->
+      <div data-pm-panel="communications" hidden>
+        <div class="page-header">
+          <div>
+            <div class="page-title">📣 قسم التواصل</div>
+            <div style="font-size:0.78rem;color:var(--text2);margin-top:2px">حالة إعداد المزوّدين فقط — لا يُبلَّغ عن إرسال فعلي</div>
+          </div>
+          <div class="table-actions">
+            <button class="btn btn-outline btn-sm" onclick="renderPmOverview(true)">↻ تحديث</button>
+          </div>
+        </div>
+        <div id="pmBodyCommunications" aria-live="polite"><span class="pm-empty">جارٍ التحميل…</span></div>
+      </div>
+
+      <!-- PHASE 2: Master navigation — Media / Games -->
+      <div data-pm-panel="media" hidden>
+        <div class="page-header">
+          <div>
+            <div class="page-title">🎮 الوسائط والألعاب</div>
+            <div style="font-size:0.78rem;color:var(--text2);margin-top:2px">حالة الأقسام ومزوّد الألعاب كما يعلنها الكود</div>
+          </div>
+          <div class="table-actions" style="display:flex;gap:8px;flex-wrap:wrap">
+            <a class="btn btn-outline btn-sm" href="market.html#/game-hosting" target="_blank" rel="noopener">واجهة الألعاب</a>
+            <button class="btn btn-outline btn-sm" onclick="renderPmOverview(true)">↻ تحديث</button>
+          </div>
+        </div>
+        <div id="pmBodyMedia" aria-live="polite"><span class="pm-empty">جارٍ التحميل…</span></div>
+      </div>
+
+      <!-- PHASE 2: Master navigation — Monetization -->
+      <div data-pm-panel="monetization" hidden>
+        <div class="page-header">
+          <div>
+            <div class="page-title">💰 قسم الربح</div>
+            <div style="font-size:0.78rem;color:var(--text2);margin-top:2px">حالة الإعداد فقط — لا إيرادات ولا مناطق إعلانية مُفعَّلة</div>
+          </div>
+          <div class="table-actions">
+            <button class="btn btn-outline btn-sm" onclick="renderPmOverview(true)">↻ تحديث</button>
+          </div>
+        </div>
+        <div id="pmBodyMonetization" aria-live="polite"><span class="pm-empty">جارٍ التحميل…</span></div>
+      </div>
     </div>
 
     <!-- MASTER: GIT/GIST CLOUD SYNC (server-authoritative, platform scope) -->
@@ -11980,6 +12154,7 @@ const backendApi = {
   platform: {
     me: () => USE_BACKEND ? backendApi._fetch('GET', '/platform/me') : null,
     summary: () => USE_BACKEND ? backendApi._fetch('GET', '/platform/summary') : null,
+    overview: () => USE_BACKEND ? backendApi._fetch('GET', '/platform/overview') : null,
     companies: () => USE_BACKEND ? backendApi._fetch('GET', '/platform/companies') : null,
     companyDetails: (id) => USE_BACKEND ? backendApi._fetch('GET', '/platform/companies/' + encodeURIComponent(id)) : null,
     suspendCompany: (id) => USE_BACKEND ? backendApi._fetch('POST', '/platform/companies/' + encodeURIComponent(id) + '/suspend') : null,
@@ -14792,11 +14967,318 @@ async function renderPlatformMaster() {
   } catch (e) { /* summary is non-critical */ }
   const lu = document.getElementById('pmLastUpdated');
   if (lu) lu.textContent = 'آخر تحديث: ' + new Date().toLocaleTimeString('ar-EG');
-  platformTab(platformTabCurrent || 'companies');
+  renderPmOverview(true);
+  if (pmCurrentSection === 'platform') platformTab(platformTabCurrent || 'companies');
+  renderPmSectionPanels();
   // Google link section: refresh the linked-state pill on every render of
   // the Master Control Center (same cadence as the KPI cards above).
-  if (window.OmniGoogleLink) OmniGoogleLink.refreshStatus();
 }
+
+// ============ PHASE 1-2 — Master Control Center sections & overview ============
+// Every number painted here comes from GET /api/v1/platform/overview, which
+// aggregates real stores server-side. When the backend cannot answer we show
+// an explicit error instead of zeros — a missing value is never dressed up as
+// a real one.
+var PM_SECTIONS = ['dashboard', 'platform', 'marketplace', 'education', 'support', 'communications', 'media', 'monetization'];
+var pmCurrentSection = 'dashboard';
+var pmOverviewData = null;
+var pmOverviewInFlight = false;
+
+function applyPmIcons() {
+  try {
+    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+      window.lucide.createIcons();
+    }
+  } catch (e) { /* icons are decorative */ }
+}
+
+function pmSection(section, button) {
+  if (PM_SECTIONS.indexOf(section) === -1) section = 'dashboard';
+  pmCurrentSection = section;
+  document.querySelectorAll('#page-platform-master [data-pm-panel]').forEach(function (panel) {
+    panel.hidden = panel.getAttribute('data-pm-panel') !== section;
+  });
+  document.querySelectorAll('#pmSectionRail .pm-rail-btn').forEach(function (b) {
+    var active = b.getAttribute('data-pmsec') === section;
+    b.classList.toggle('is-active', active);
+    b.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+  if (button && button.blur) button.blur();
+  if (section === 'platform' && typeof platformTab === 'function') platformTab(platformTabCurrent || 'companies');
+  if (!pmOverviewData) renderPmOverview();
+  else renderPmSectionPanels();
+}
+
+function pmNum(v) { return (v === null || v === undefined) ? '—' : String(v); }
+
+function pmMoney(v) {
+  if (v === null || v === undefined) return '—';
+  var n = Number(v);
+  if (!isFinite(n)) return '—';
+  return n.toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
+
+function pmStatusClass(status) {
+  var s = String(status || '').toLowerCase();
+  if (s === 'operational' || s === 'configured' || s === 'active' || s === 'healthy') return 'pm-st-operational';
+  if (s === 'attention' || s === 'coming-soon' || s === 'under-construction' || s === 'not_configured') return 'pm-st-attention';
+  if (s === 'blocked' || s === 'error' || s === 'unwritable') return 'pm-st-error';
+  return '';
+}
+
+function pmStatusLabel(status) {
+  var map = {
+    operational: 'تعمل', configured: 'مُعد', active: 'مُفعَّل', healthy: 'سليمة',
+    attention: 'تحتاج انتباهًا', 'coming-soon': 'قريبًا', 'under-construction': 'قيد الإنشاء',
+    not_configured: 'غير مُعد', blocked: 'موقوفة', error: 'خطأ', degraded: 'متدهورة', unwritable: 'غير قابل للكتابة'
+  };
+  var s = String(status || '').toLowerCase();
+  return map[s] || (status ? String(status) : 'غير معروفة');
+}
+
+function pmChip(status, label, detail) {
+  return '<span class="pm-chip ' + pmStatusClass(status) + '"' + (detail ? ' title="' + escapeHtml(detail) + '"' : '') + '>' +
+    '<span class="pm-dot"></span>' + escapeHtml(label) + ' · ' + escapeHtml(pmStatusLabel(status)) + '</span>';
+}
+
+function pmBox(title, icon, inner) {
+  return '<section class="pm-box" style="margin-bottom:12px"><h3 class="pm-box-title"><i data-lucide="' + icon + '"></i>' +
+    escapeHtml(title) + '</h3>' + inner + '</section>';
+}
+
+function pmKv(pairs) {
+  var html = '<div class="pm-kv">';
+  pairs.forEach(function (p) {
+    html += '<span>' + escapeHtml(p[0]) + ': <b>' + escapeHtml(String(p[1])) + '</b></span>';
+  });
+  return html + '</div>';
+}
+
+function pmSet(id, value) {
+  var el = document.getElementById(id);
+  if (el) el.textContent = value;
+}
+
+function setPmLoading() {
+  if (pmOverviewData) return;
+  ['pmServicesStrip', 'pmHealthBox', 'pmAlertsList', 'pmActivityList'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.innerHTML = '<span class="pm-empty">جارٍ التحميل…</span>';
+  });
+}
+
+function pmPaintUnavailable(message) {
+  var err = document.getElementById('pmOverviewError');
+  if (err) { err.hidden = false; err.textContent = message; }
+  ['pmServicesStrip', 'pmHealthBox', 'pmAlertsList', 'pmActivityList'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.innerHTML = '<span class="pm-error">' + escapeHtml(message) + '</span>';
+  });
+  var bodies = ['pmBodyMarketplace', 'pmBodyEducation', 'pmBodySupport', 'pmBodyCommunications', 'pmBodyMedia', 'pmBodyMonetization'];
+  bodies.forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.innerHTML = '<div class="pm-error" role="alert">' + escapeHtml(message) + '</div>';
+  });
+}
+
+async function renderPmOverview(force) {
+  if (!USE_BACKEND || !backendApi || !backendApi.platform) {
+    pmPaintUnavailable('وضع العرض المحلي — لا يمكن جلب بيانات المنصة دون Backend، ولن تُعرض أرقام غير حقيقية.');
+    return;
+  }
+  if (pmOverviewInFlight) return;
+  pmOverviewInFlight = true;
+  setPmLoading();
+  try {
+    var res = await backendApi.platform.overview();
+    if (!(res && res.success && res.data)) throw new Error('استجابة غير متوقعة من الخادم');
+    pmOverviewData = res.data;
+    paintPmOverview(res.data);
+    var err = document.getElementById('pmOverviewError');
+    if (err) { err.hidden = true; err.textContent = ''; }
+  } catch (e) {
+    pmPaintUnavailable('تعذّر تحميل لوحة المؤشرات: ' + (e && e.message ? e.message : 'خطأ غير معروف'));
+  } finally {
+    pmOverviewInFlight = false;
+    var lu = document.getElementById('pmLastUpdated');
+    if (lu) lu.textContent = 'آخر تحديث: ' + new Date().toLocaleTimeString('ar-EG');
+    applyPmIcons();
+  }
+}
+
+function paintPmOverview(d) {
+  // ---- KPI cards ----
+  pmSet('pmOrdersToday', pmNum(d.orders && d.orders.ordersToday));
+  pmSet('pmSalesToday', pmMoney(d.orders && d.orders.sales && d.orders.sales.valueToday));
+  pmSet('pmProductsTotal', pmNum(d.products && d.products.total));
+  pmSet('pmTicketsOpen', pmNum(d.tickets && d.tickets.open));
+  pmSet('pmVisitorsNow', pmNum(d.activity && d.activity.visitorsNow));
+  pmSet('pmAlertsCount', pmNum(d.alerts && d.alerts.length));
+
+  // ---- services strip ----
+  var strip = document.getElementById('pmServicesStrip');
+  if (strip) {
+    strip.innerHTML = (d.services || []).map(function (s) { return pmChip(s.status, s.label, s.detail); }).join('') ||
+      '<span class="pm-empty">لا توجد خدمات مسجَّلة</span>';
+  }
+
+  // ---- health ----
+  var health = document.getElementById('pmHealthBox');
+  if (health && d.health) {
+    health.innerHTML = pmChip(d.health.status, 'صحة النظام', d.health.persistence) +
+      '<div class="pm-kv" style="margin-top:10px">' +
+      '<span>الإصدار: <b>' + escapeHtml(String(d.health.appVersion || '—')) + '</b></span>' +
+      '<span>بيئة التشغيل: <b>' + escapeHtml(String(d.health.env || '—')) + '</b></span>' +
+      '<span>Node: <b>' + escapeHtml(String(d.health.node || '—')) + '</b></span>' +
+      '<span>مدة التشغيل (ث): <b>' + escapeHtml(pmNum(d.health.uptimeSeconds)) + '</b></span>' +
+      '<span>الذاكرة RSS: <b>' + escapeHtml(pmNum(d.health.memory && d.health.memory.rssMb)) + ' MB</b></span>' +
+      '<span>الذاكرة المستخدمة: <b>' + escapeHtml(pmNum(d.health.memory && d.health.memory.heapUsedMb)) + ' MB</b></span>' +
+      '<span>التخزين: <b>' + escapeHtml(pmStatusLabel(d.health.persistence)) + '</b></span>' +
+      '</div>';
+  }
+
+  // ---- alerts ----
+  var alerts = document.getElementById('pmAlertsList');
+  if (alerts) {
+    alerts.innerHTML = (d.alerts || []).length
+      ? d.alerts.map(function (a) {
+          return '<div class="pm-row pm-sev-' + escapeHtml(a.severity || 'info') + '"><div class="pm-row-main">' +
+            '<div><b>' + escapeHtml(a.message) + '</b></div>' +
+            '<div class="pm-row-meta">' + escapeHtml(a.code) + ' · العدد: ' + escapeHtml(String(a.count)) + '</div>' +
+            '</div></div>';
+        }).join('')
+      : '<span class="pm-empty">لا توجد تنبيهات</span>';
+  }
+
+  // ---- recent activity ----
+  var act = document.getElementById('pmActivityList');
+  if (act) {
+    var entries = (d.activity && d.activity.recentAudit) || [];
+    act.innerHTML = entries.length
+      ? entries.map(function (e) {
+          return '<div class="pm-row"><div class="pm-row-main">' +
+            '<div><b>' + escapeHtml(e.action || '—') + '</b>' + (e.statusCode ? ' · ' + escapeHtml(String(e.statusCode)) : '') + '</div>' +
+            '<div class="pm-row-meta">' + escapeHtml(String(e.method || '')) + ' ' + escapeHtml(String(e.path || '')) +
+            (e.userId ? ' · ' + escapeHtml(String(e.userId)) : '') +
+            (e.timestamp ? ' · ' + escapeHtml(String(e.timestamp)) : '') + '</div>' +
+            '</div></div>';
+        }).join('')
+      : '<span class="pm-empty">لا يوجد نشاط مسجَّل بعد</span>';
+  }
+
+  renderPmSectionPanels();
+}
+
+function renderPmSectionPanels() {
+  var d = pmOverviewData;
+  if (!d) return;
+
+  // ---------- Marketplace ----------
+  var mk = document.getElementById('pmBodyMarketplace');
+  if (mk) {
+    var byStatus = (d.orders && d.orders.marketplace && d.orders.marketplace.byStatus) || {};
+    var statusRows = Object.keys(byStatus).map(function (k) { return k + ': ' + byStatus[k]; }).join(' · ');
+    var sales = (d.orders && d.orders.sales) || {};
+    mk.innerHTML =
+      pmBox('المخزون', 'package', pmKv([
+        ['إجمالي المنتجات', pmNum(d.products && d.products.total)],
+        ['منخفض المخزون (≤ ' + pmNum(d.products && d.products.threshold) + ')', pmNum(d.products && d.products.lowStock)],
+        ['نفد المخزون', pmNum(d.products && d.products.outOfStock)]
+      ])) +
+      pmBox('الطلبات والفواتير', 'shopping-cart', pmKv([
+        ['طلبات اليوم', pmNum(d.orders && d.orders.ordersToday)],
+        ['طلبات المتجر الإجمالية', pmNum(d.orders && d.orders.marketplace && d.orders.marketplace.total)],
+        ['طلبات المتجر اليوم', pmNum(d.orders && d.orders.marketplace && d.orders.marketplace.today)],
+        ['فواتير المبيعات', pmNum(sales.invoicesTotal)],
+        ['قيمة المبيعات', pmMoney(sales.valueTotal)],
+        ['قيمة مبيعات اليوم', pmMoney(sales.valueToday)]
+      ]) + (statusRows ? '<div class="pm-kv" style="margin-top:8px"><span>حالة طلبات المتجر: <b>' + escapeHtml(statusRows) + '</b></span></div>' : '') +
+        '<div class="pm-kv" style="margin-top:8px"><span>العملة: <b>' + escapeHtml(sales.currency || 'غير محددة في المتجر') + '</b></span></div>');
+  }
+
+  // ---------- Education ----------
+  var ed = document.getElementById('pmBodyEducation');
+  if (ed) {
+    var svc = (d.services || []).filter(function (s) { return s.id === 'education'; })[0];
+    ed.innerHTML =
+      pmBox('حالة قسم التعليم', 'graduation-cap',
+        pmChip(d.education && d.education.status, 'خدمات الطلاب', svc && svc.detail) +
+        (d.media && d.media.studentServices
+          ? '<div style="margin-top:10px">' + pmChip(d.media.studentServices.status, 'قسم student-services في المنصة', d.media.source) + '</div>'
+          : '')) +
+      pmBox('بيانات حقيقية من المتجر', 'database', pmKv([
+        ['أسعار الطباعة المسجَّلة', pmNum(d.education && d.education.printRates)],
+        ['طلبات الطباعة', pmNum(d.education && d.education.printOrders)],
+        ['اشتراكات الطلاب', pmNum(d.education && d.education.studentPasses)],
+        ['إعدادات محفوظة', d.education && d.education.hasSettings ? 'نعم' : 'لا']
+      ]));
+  }
+
+  // ---------- Support ----------
+  var sp = document.getElementById('pmBodySupport');
+  if (sp) {
+    var t = d.tickets || {};
+    var pri = t.byPriority || {};
+    var prod = t.byProduct || {};
+    sp.innerHTML =
+      pmBox('ملخص التذاكر', 'life-buoy', pmKv([
+        ['الإجمالي', pmNum(t.total)], ['مفتوحة', pmNum(t.open)], ['مغلقة', pmNum(t.closed)], ['غير مُسندة', pmNum(t.unassigned)]
+      ])) +
+      pmBox('حسب الأولوية', 'list-ordered',
+        Object.keys(pri).map(function (k) { return pmChip(pri[k] > 0 && (k === 'P0' || k === 'P1') ? 'attention' : 'operational', k, ''); }).join('') ||
+        '<span class="pm-empty">لا توجد أولويات</span>') +
+      pmBox('حسب المنتج', 'boxes',
+        Object.keys(prod).map(function (k) { return '<span class="pm-chip"><span class="pm-dot"></span>' + escapeHtml(k) + ' · ' + escapeHtml(String(prod[k])) + '</span>'; }).join('') ||
+        '<span class="pm-empty">لا توجد منتجات</span>') +
+      '<div class="pm-actions"><a class="btn btn-outline btn-sm" href="support.html" target="_blank" rel="noopener">فتح مركز الطلبات</a></div>';
+  }
+
+  // ---------- Communications ----------
+  var cm = document.getElementById('pmBodyCommunications');
+  if (cm) {
+    var c = d.communications || {};
+    cm.innerHTML =
+      pmBox('مزوّدو الرسائل', 'megaphone',
+        pmChip(c.whatsapp && c.whatsapp.status, 'WhatsApp', c.whatsapp && c.whatsapp.provider) + ' ' +
+        pmChip(c.telegram && c.telegram.status, 'Telegram', '') +
+        (c.note ? '<div class="pm-error" style="margin-top:10px">' + escapeHtml(c.note) + '</div>' : '')) +
+      pmBox('الإعدادات والإشعارات', 'settings', pmKv([
+        ['إعدادات إشعارات محفوظة', pmNum(c.notificationSettings)],
+        ['حالة WhatsApp', pmStatusLabel(c.whatsapp && c.whatsapp.status)],
+        ['حالة Telegram', pmStatusLabel(c.telegram && c.telegram.status)]
+      ]) + '<div class="pm-kv" style="margin-top:8px"><span>ملاحظة: حالة «مُعد» تعني وجود إعداد المزوّد فقط، ولا تعني وصول أي رسالة.</span></div>');
+  }
+
+  // ---------- Media / Games ----------
+  var me = document.getElementById('pmBodyMedia');
+  if (me) {
+    var games = (d.services || []).filter(function (s) { return s.id === 'games'; })[0];
+    var media = d.media || {};
+    me.innerHTML =
+      pmBox('حالة الأقسام', 'film',
+        (media.reels ? pmChip(media.reels.status, 'Media / Reels', media.source) : '<span class="pm-empty">قسم غير معرَّف</span>') + ' ' +
+        (media.gameHosting ? pmChip(media.gameHosting.status, 'Game Hosting', media.source) : '') + ' ' +
+        (media.marketplace ? pmChip(media.marketplace.status, 'Marketplace', media.source) : '')) +
+      pmBox('مزوّد الألعاب', 'gamepad-2',
+        pmChip(games && games.status, 'Game Hosting Provider', games && games.detail) +
+        (games && games.detail ? '<div class="pm-row-meta" style="margin-top:10px">' + escapeHtml(games.detail) + '</div>' : '') +
+        '<div class="pm-actions"><a class="btn btn-outline btn-sm" href="market.html#/game-hosting" target="_blank" rel="noopener">واجهة الألعاب</a></div>') +
+      (media.source === 'default' ? '<div class="pm-kv"><span>مصدر حالة الأقسام: القيم الافتراضية للـcatalog (المخزن لا يحتوي sections).</span></div>' : '');
+  }
+
+  // ---------- Monetization ----------
+  var mo = document.getElementById('pmBodyMonetization');
+  if (mo) {
+    // Deliberately not rendering the ported monetization config box: main's
+    // shipped boundary test (backend/tests) requires this
+    // authenticated surface to stay free of any ad-network reference, and the
+    // section subtitle already promises configuration state only.
+    mo.innerHTML = '<span class="pm-empty">غير متوفرة لعرضها من هذه اللوحة.</span>';
+  }
+
+  applyPmIcons();
+}
+
 
 function platformTab(tab, button) {
   platformTabCurrent = tab;
