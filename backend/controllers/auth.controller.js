@@ -1,4 +1,6 @@
 const usersService = require('../services/users.service');
+const oauthService = require('../services/oauth.service');
+const googleIdentity = require('../utils/googleIdentity');
 const mfaService = require('../services/mfa.service');
 const config = require('../config');
 const tenantMembership = require('../services/tenantMembership.service');
@@ -273,6 +275,91 @@ function changePassword(req, res) {
   }
 }
 
+// Link the authenticated user's own Google identity.
+//
+// The Google subject comes ONLY from a verified ID token; the request body is
+// never trusted for identity or for the target user. `req.user.id` is the
+// single source of the account being modified, so a caller cannot link an
+// identity onto someone else's account by adding userId/id/role fields.
+// The atomic store update (usersService.linkOAuthProvider) touches only the
+// oauth mapping, leaving role, tenant membership and permissions intact.
+// Audit helper for the linking surface. Records only non-sensitive metadata:
+// never the ID token, access token, client secret or credentials.
+function _recordLinkAudit(req, action, statusCode, changes) {
+  try {
+    auditService.record({
+      method: 'POST',
+      path: '/api/v1/auth/link/google',
+      statusCode,
+      userId: req.user ? req.user.id : null,
+      ip: req.ip,
+      userAgent: req.get ? req.get('user-agent') : null,
+      action,
+      resource: 'user',
+      resourceId: req.user ? req.user.id : null,
+      changes
+    });
+  } catch (err) {
+    logger.error('auth.linkGoogle audit error:', err.message);
+  }
+}
+
+async function linkGoogle(req, res) {
+  try {
+    if (!req.user) return error(res, 'Authentication required', 401);
+
+    const { idToken } = req.body || {};
+    const identity = await googleIdentity.verifyIdToken(idToken);
+    if (identity.error) {
+      _recordLinkAudit(req, 'USER_OAUTH_LINK_FAILED', identity.statusCode || 401, {
+        provider: 'google',
+        result: 'failure',
+        reason: identity.statusCode === 503 ? 'google_not_configured' : 'google_verification_failed'
+      });
+      return error(res, identity.error, identity.statusCode || 401);
+    }
+
+    const result = await oauthService.linkProvider(req.user.id, 'google', {
+      id: identity.sub,
+      emails: identity.email ? [{ value: identity.email }] : [],
+      _json: { sub: identity.sub, email: identity.email }
+    });
+
+    if (result.error) {
+      let reason = 'persistence_failed';
+      if (result.conflict) reason = 'identity_already_linked';
+      else if (result.statusCode === 404) reason = 'user_not_found';
+      else if (result.statusCode === 503) reason = 'lock_unavailable';
+      _recordLinkAudit(req, 'USER_OAUTH_LINK_FAILED', result.statusCode || 400, {
+        provider: 'google',
+        result: 'failure',
+        reason
+      });
+      return error(res, result.error, result.statusCode || 400);
+    }
+
+    _recordLinkAudit(req, 'USER_OAUTH_LINKED', 200, {
+      provider: 'google',
+      result: 'success',
+      alreadyLinked: !!result.alreadyLinked
+    });
+
+    return success(res, {
+      linked: true,
+      alreadyLinked: !!result.alreadyLinked,
+      user: usersService.sanitizeUser(result.user)
+    }, result.alreadyLinked ? 'Google account already linked' : 'Google account linked');
+  } catch (err) {
+    logger.error('auth.linkGoogle error:', err.message);
+    _recordLinkAudit(req, 'USER_OAUTH_LINK_FAILED', 500, {
+      provider: 'google',
+      result: 'failure',
+      reason: 'internal_error'
+    });
+    return error(res, 'Failed to link Google account', 500);
+  }
+}
+
 function me(req, res) {
   try {
     if (req.user) {
@@ -339,4 +426,4 @@ function permissions(req, res) {
   }
 }
 
-module.exports = { login, refresh, logout, changePassword, me, roles, permissions };
+module.exports = { login, refresh, logout, changePassword, linkGoogle, me, roles, permissions };

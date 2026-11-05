@@ -40,6 +40,7 @@ function record(entry) {
     action: entry.action || 'unknown',
     resource: entry.resource || null,
     resourceId: entry.resourceId || null,
+    tenantId: entry.tenantId || null,
     duration: entry.duration || null,
     changes: entry.changes || null
   };
@@ -144,7 +145,7 @@ function _sanitizeValue(value) {
 }
 
 // Query audit log with filtering and pagination.
-function query({ userId, apiKeyId, resource, method, startDate, endDate, page, limit } = {}) {
+function query({ userId, apiKeyId, resource, method, action, startDate, endDate, page, limit } = {}) {
   const store = _store();
   let entries = store.entries || [];
 
@@ -153,6 +154,7 @@ function query({ userId, apiKeyId, resource, method, startDate, endDate, page, l
   if (apiKeyId) entries = entries.filter(e => e.apiKeyId === apiKeyId);
   if (resource) entries = entries.filter(e => e.resource === resource);
   if (method) entries = entries.filter(e => e.method === method.toUpperCase());
+  if (action) entries = entries.filter(e => e.action === action);
   if (startDate) {
     const start = new Date(startDate);
     entries = entries.filter(e => new Date(e.timestamp) >= start);
