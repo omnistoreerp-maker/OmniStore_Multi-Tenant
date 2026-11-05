@@ -15,6 +15,11 @@ const INSTANCE_ENV_KEYS = [
   // its environment into the next one sharing this worker.
   'OAUTH_ENABLED', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET',
   'GOOGLE_CALLBACK_URL', 'GOOGLE_MASTER_CALLBACK_URL', 'OAUTH_MASTER_EMAIL',
+  // OAuth linking configuration (Google/GitHub). ADDITIVE to main: every key
+  // main resets is still reset here, so no main-side isolation is weakened.
+  'OAUTH_DEFAULT_ROLE', 'OAUTH_LINK_EXISTING', 'SESSION_SECRET',
+  'GOOGLE_TOKENINFO_URL',
+  'GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET', 'GITHUB_CALLBACK_URL',
   // Binding-cookie domain scoping (P0): cleared unless passed explicitly.
   'PLATFORM_DOMAIN', 'OAUTH_COOKIE_DOMAIN'
 ];

@@ -221,6 +221,41 @@ function _tenantScopeChanged(target, payload) {
   return false;
 }
 
+// Generic user update protection.
+//
+// `PUT /users/:id` accepts a free-form profile payload. Identity bindings and
+// session state must never be writable through it:
+//   - oauth/oauthProvider are bound only by /auth/link/google after a verified
+//     provider token, so a users.edit holder cannot forge or duplicate a
+//     Google subject through this route;
+//   - tenantId is owned by provisioning, not by user edits;
+//   - tokenVersion is only bumped by the password/MFA/tenant-revocation flows
+//     that revoke sessions (main's _tenantScopeChanged handling is preserved).
+// Administrative fields stay editable, but only through the existing
+// authorization model: tenant mode keeps canManageUser/canManageRole; legacy
+// mode requires a global Owner/Admin so a Manager with users.edit cannot
+// escalate their own role or rewrite membership/permissions.
+const NON_EDITABLE_USER_FIELDS = ['oauth', 'oauthProvider', 'tenantId', 'tokenVersion', 'tenantPermissions'];
+// Administration surfaces: users.edit is NOT users.permissions.grant. Only an
+// Owner/Admin may touch these through PUT; everyone else must use the dedicated
+// /users/:id/permissions endpoint (which enforces canGrantPermission,
+// self-modification refusal and last-Owner protection).
+const PRIVILEGED_ONLY_USER_FIELDS = ['permissions', 'tenantIds', 'tenantRoles'];
+// Legacy (no tenant context) role changes stay Owner/Admin-only. In tenant mode
+// role changes keep main's canManageRole path (Managers may assign lower roles).
+const LEGACY_ADMIN_ONLY_USER_FIELDS = ['role'];
+
+function _changedAnyField(body, target, fields) {
+  return fields.some((field) => {
+    if (body[field] === undefined) return false;
+    try {
+      return JSON.stringify(body[field]) !== JSON.stringify(target[field]);
+    } catch (_) {
+      return true;
+    }
+  });
+}
+
 function update(req, res) {
   try {
     const targetId = String(req.params.id || '');
@@ -259,16 +294,44 @@ function update(req, res) {
     // change would be a silent no-op (effective role resolves from tenantRoles).
     // Legacy users WITHOUT a per-tenant role keep the historical global-role
     // update exactly as before (record shape untouched).
-    const updatePayload = { ...req.body };
-    if (tenantId && req.body && req.body.role !== undefined && req.body.role !== target.role) {
-      const existing = (target.tenantRoles && typeof target.tenantRoles === 'object') ? target.tenantRoles : {};
-      if (Object.prototype.hasOwnProperty.call(existing, tenantId)) {
-        updatePayload.tenantRoles = { ...existing, [tenantId]: req.body.role };
+    // Block identity/session fields entirely and gate administrative changes
+    // to authorized actors (see NON_EDITABLE_USER_FIELDS above). Fields are
+    // stripped rather than rejected so a client that round-trips a full user
+    // object keeps working without being able to write them.
+    const body = (req.body && typeof req.body === 'object') ? req.body : {};
+    if (req.user) {
+      // Effective role of the ACTOR in this request's tenant (the authorize
+      // middleware sets it when tenant roles resolve); falls back to the
+      // signed global role. A user whose global role is Manager but whose
+      // tenant role is Owner therefore still administers their tenant.
+      const actorRole = tenantId
+        ? String(req.user.effectiveRole || authorization.resolveEffectiveRole(req.user, tenantId) || '')
+        : String(req.user.role || '');
+      const privilegedActor = actorRole === 'Owner' || actorRole === 'Admin';
+
+      if (!privilegedActor && _changedAnyField(body, target, PRIVILEGED_ONLY_USER_FIELDS)) {
+        return error(res, 'Insufficient permission to modify permissions or tenant membership', 403, { code: 'PERMISSION_DENIED' });
+      }
+
+      if (!tenantId && !privilegedActor && _changedAnyField(body, target, LEGACY_ADMIN_ONLY_USER_FIELDS)) {
+        return error(res, 'Insufficient permission to modify roles, membership or permissions', 403, { code: 'PERMISSION_DENIED' });
       }
     }
 
+    const updatePayload = { ...body };
+    for (const field of NON_EDITABLE_USER_FIELDS) delete updatePayload[field];
+    if (tenantId && req.body && req.body.role !== undefined && req.body.role !== target.role) {
+      // Tenant-scoped role change: never write the global role field.
+      // Always set/overwrite the per-tenant role entry for this tenant only.
+      // Legacy users (no tenantRoles) get their first tenant-scoped entry here;
+      // their global role is preserved as the fallback for other tenants.
+      delete updatePayload.role;
+      const existing = (target.tenantRoles && typeof target.tenantRoles === 'object') ? { ...target.tenantRoles } : {};
+      updatePayload.tenantRoles = { ...existing, [tenantId]: req.body.role };
+    }
+
     const scopeRevoked = _tenantScopeChanged(target, updatePayload);
-    const result = usersService.update(targetId, updatePayload);
+    const result = usersService.update(targetId, updatePayload, tenantId);
     if (result.error === 'User not found') return error(res, result.error, 404);
     if (result.error) return error(res, result.error, 400);
 
@@ -283,6 +346,7 @@ function update(req, res) {
 
     if (tenantId && req.body && req.body.role !== undefined && req.body.role !== target.role) {
       try {
+        const beforeEffective = authorization.resolveEffectiveRole(target, tenantId);
         auditService.record({
           method: 'PUT',
           path: '/api/v1/users/' + targetId,
@@ -291,7 +355,8 @@ function update(req, res) {
           action: 'USER_ROLE_CHANGED',
           resource: 'user',
           resourceId: targetId,
-          changes: { before: { role: target.role }, after: { role: req.body.role } }
+          tenantId,
+          changes: { before: { role: beforeEffective }, after: { role: req.body.role } }
         });
       } catch (err) {
         logger.error('users.update audit error:', err.message);

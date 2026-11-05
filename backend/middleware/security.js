@@ -69,6 +69,24 @@ function loginRateLimiter() {
   });
 }
 
+// Account-linking limiter. Linking is a rare, security-sensitive action, so
+// the quota is intentionally small. Keyed by authenticated user (falling back
+// to IP for unauthenticated attempts) so one user cannot exhaust another's
+// quota, and so a shared NAT does not lock out real users after a few links.
+function linkRateLimiter() {
+  return rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator(req) {
+      if (req.user && req.user.id) return 'user:' + String(req.user.id);
+      return ipKeyGenerator(req.ip || req.connection.remoteAddress || 'unknown');
+    },
+    message: { success: false, message: 'Too many account-linking attempts, please try again later', data: null }
+  });
+}
+
 // Per-API-key rate limiter. Keyed by the API key ID so each key gets its own
 // quota. Falls back to IP if no key is present (should not happen in practice).
 function apiKeyRateLimiter(max) {
@@ -84,4 +102,4 @@ function apiKeyRateLimiter(max) {
   });
 }
 
-module.exports = { sanitizeBody, jsonParseErrorHandler, apiRateLimiter, loginRateLimiter, apiKeyRateLimiter };
+module.exports = { sanitizeBody, jsonParseErrorHandler, apiRateLimiter, loginRateLimiter, linkRateLimiter, apiKeyRateLimiter };

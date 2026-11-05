@@ -3,6 +3,11 @@ module.exports = {
   roots: ['<rootDir>/tests'],
   testMatch: ['**/*.test.js'],
   testTimeout: 30000,
+  // Tests control configuration exclusively via process.env. Loading the
+  // developer's real backend/.env would re-inject values a test just cleared.
+  moduleNameMapper: {
+    '^dotenv$': '<rootDir>/tests/helpers/dotenvMock.js'
+  },
   collectCoverageFrom: [
     '**/*.js',
     '!tests/**',

@@ -1,8 +1,11 @@
 const { v4: uuidv4 } = require('uuid');
+const path = require('path');
 const logger = require('../utils/logger');
 const { hashPassword, verifyPassword, verifyDummy, isBcryptHash } = require('../utils/password');
 const { validatePassword } = require('../utils/passwordPolicy');
-const repository = require('../repositories').users;
+const repositories = require('../repositories');
+const repository = repositories.users;
+const fileLock = require('../utils/fileLock');
 const config = require('../config');
 const tenantMembership = require('./tenantMembership.service');
 const tenantRole = require('./tenantRole.service');
@@ -15,6 +18,19 @@ class UsersService {
     return db;
   }
   _save(db) { return repository.write(db); }
+
+  // Cross-process lock serialising user read-modify-write operations. The
+  // data directory is resolved through the repository so tests (which point
+  // DIGITRONICS_DATA_DIR at a temp dir) get an isolated lock file. The lock
+  // module refuses to steal a lock whose owning PID is still alive and only
+  // releases a lock it can prove it owns.
+  get _lockPath() {
+    return path.join(path.dirname(repositories.resolvePath('users')), '.users.lock');
+  }
+
+  _withWriteLock(fn) {
+    return fileLock.withLock(this._lockPath, fn, { timeout: 10000, stale: 10000, retry: 20 });
+  }
 
   // FULL, unfiltered store document for WRITES. Persisting must never be
   // derived from the tenant-filtered view (BaseRepository._rawStore rule):
@@ -210,7 +226,7 @@ class UsersService {
     return { error: 'Failed to persist user' };
   }
 
-  update(id, data) {
+  update(id, data, tenantId) {
     const db = this._loadRaw();
     const normalized = this._normalizeId(id);
     const idx = (db.users || []).findIndex(u => this._matchesId(u, normalized));
@@ -223,6 +239,16 @@ class UsersService {
     if (data.username !== undefined) {
       const clash = (db.users || []).find((u, i) => i !== idx && String(u.username || '').toLowerCase() === String(data.username).toLowerCase());
       if (clash) return { error: 'Duplicate username: ' + data.username };
+    }
+
+    // Tenant-scoped role change: when a tenantId is provided and the role is
+    // being changed, write to tenantRoles[tenantId] instead of the global
+    // role field. This keeps role changes isolated to the requesting tenant.
+    if (tenantId && data.role !== undefined) {
+      const roleValue = data.role;
+      delete data.role;
+      const existing = (db.users[idx].tenantRoles && typeof db.users[idx].tenantRoles === 'object') ? { ...db.users[idx].tenantRoles } : {};
+      data.tenantRoles = { ...existing, [tenantId]: roleValue };
     }
 
     const merged = { ...db.users[idx], ...data, id: db.users[idx].id, updatedAt: new Date().toISOString() };
@@ -272,6 +298,71 @@ class UsersService {
     db.users[idx].updatedAt = new Date().toISOString();
     if (this._save(db)) return { user: db.users[idx], tokenVersion: next };
     return { error: 'Failed to persist token version update' };
+  }
+
+  // Atomically link a verified OAuth identity to a user.
+  //
+  // The caller is responsible for verifying the provider response (e.g. a
+  // Google ID token); this method enforces only the store invariants:
+  //   - the target user exists;
+  //   - the provider subject is not already bound to a DIFFERENT user;
+  //   - the provider email is not already the username of a DIFFERENT user;
+  //   - repeat links of the same subject to the same user are idempotent.
+  // Only `oauth`, `oauthProvider` and `updatedAt` are touched, so role,
+  // tenant membership and permissions are preserved by construction.
+  async linkOAuthProvider(userId, provider, providerId, email) {
+    if (!provider || providerId === undefined || providerId === null || String(providerId).trim() === '') {
+      return { error: 'Missing provider identity', statusCode: 400 };
+    }
+    const subject = String(providerId).trim();
+
+    return this._withWriteLock(() => {
+      const db = this._loadRaw();
+      if (!Array.isArray(db.users)) db.users = [];
+      const normalized = this._normalizeId(userId);
+      const idx = db.users.findIndex((u) => this._matchesId(u, normalized));
+      if (idx === -1) return { error: 'User not found', statusCode: 404 };
+
+      const current = db.users[idx];
+      const alreadyLinked = !!(current.oauth && String(current.oauth[provider]) === subject);
+
+      const owner = db.users.find((u, i) =>
+        i !== idx && u && u.oauth && u.oauth[provider] !== undefined &&
+        String(u.oauth[provider]) === subject
+      );
+      if (owner) {
+        return { error: 'Provider identity already linked to another account', conflict: true, statusCode: 409 };
+      }
+
+      if (email) {
+        const normalizedEmail = String(email).trim().toLowerCase();
+        const matched = new Set();
+        db.users.forEach((u, i) => {
+          if (i === idx || !u) return;
+          const uEmail = String(u.email || '').trim().toLowerCase();
+          const uUsername = String(u.username || '').trim().toLowerCase();
+          if (uEmail === normalizedEmail || uUsername === normalizedEmail) {
+            matched.add(i);
+          }
+        });
+        if (matched.size > 0) {
+          return { error: 'Email already linked to another account', conflict: true, statusCode: 409 };
+        }
+      }
+
+      if (alreadyLinked) return { user: current, alreadyLinked: true };
+
+      const oauth = { ...(current.oauth || {}), [provider]: subject };
+      db.users[idx] = {
+        ...current,
+        oauth,
+        oauthProvider: provider,
+        updatedAt: new Date().toISOString()
+      };
+
+      if (this._save(db)) return { user: db.users[idx], alreadyLinked: false };
+      return { error: 'Failed to persist provider link' };
+    });
   }
 
   // Exact, case-insensitive email lookup used by authenticate() as a fallback

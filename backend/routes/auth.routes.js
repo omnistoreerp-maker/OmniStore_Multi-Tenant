@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/auth.controller');
-const { loginRateLimiter } = require('../middleware/security');
+const { requireAuth } = require('../middleware/auth');
+const { loginRateLimiter, linkRateLimiter } = require('../middleware/security');
 
 /**
  * @openapi
@@ -118,6 +119,39 @@ router.post('/logout', ctrl.logout);
  *         description: User not found
  */
 router.post('/change-password', ctrl.changePassword);
+
+/**
+ * @openapi
+ * /api/v1/auth/link/google:
+ *   post:
+ *     tags: [Authentication]
+ *     summary: Link the authenticated user's Google identity
+ *     description: |
+ *       Verifies a Google-issued ID token and binds its subject to the
+ *       authenticated account. The target account is always taken from the
+ *       bearer token; request-body identity fields are ignored. Role, tenant
+ *       membership and permissions are never modified.
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [idToken]
+ *             properties:
+ *               idToken:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Google identity linked (idempotent)
+ *       401:
+ *         description: Missing/invalid bearer token or Google ID token
+ *       409:
+ *         description: Identity already linked to another account
+ */
+router.post('/link/google', requireAuth, linkRateLimiter(), ctrl.linkGoogle);
 
 /**
  * @openapi

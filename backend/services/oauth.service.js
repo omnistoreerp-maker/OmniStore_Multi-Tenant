@@ -58,33 +58,20 @@ class OAuthService {
     }
   }
 
-  linkProvider(userId, provider, profile) {
+  // Link a VERIFIED provider identity to an existing user. Verification of the
+  // provider response (e.g. a Google ID token) belongs to the caller; the
+  // atomic store invariants live in usersService.linkOAuthProvider.
+  async linkProvider(userId, provider, profile) {
     try {
-      const user = usersService.getById(userId);
-      if (!user) return { error: 'User not found' };
-
       const providerId = this._extractProviderId(profile);
+      if (!providerId) return { error: 'Missing provider identity', statusCode: 400 };
       const email = this._extractEmail(profile);
-
-      if (email) {
-        const existingUser = usersService.getByUsername(email);
-        if (existingUser && existingUser.id !== userId) {
-          return { error: 'Email already linked to another account' };
-        }
-      }
-
-      if (!user.oauth) user.oauth = {};
-      user.oauth[provider] = providerId;
-
-      const result = usersService.update(userId, {
-        oauth: user.oauth,
-        oauthProvider: provider
-      });
-
-      if (result.error) return { error: result.error };
-      return { user: result.user };
+      return await usersService.linkOAuthProvider(userId, provider, providerId, email);
     } catch (err) {
       logger.error('OAuth linkProvider error:', err.message);
+      if (err && err.code === 'ELOCKED') {
+        return { error: 'Account linking is temporarily unavailable', statusCode: 503 };
+      }
       return { error: 'Failed to link provider' };
     }
   }
