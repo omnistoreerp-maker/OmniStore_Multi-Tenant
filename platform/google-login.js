@@ -64,8 +64,26 @@
 
     // Status/code → stable message key. The server is the only authority on
     // WHY a request was refused; this only picks the wording.
+    // The backend error envelope carries the machine code in
+    // `body.details.code`: utils/apiResponse.error(res, message, status,
+    // details) serializes details as-is, which is how every other endpoint
+    // reports it. A legacy top-level `body.code` is still honoured so an
+    // older server keeps its wording. Missing, null or non-object details,
+    // or a non-string code, yield NO code — never a guess from the message
+    // text — and the caller falls through to the generic refusal.
+    function errorCode(body) {
+      if (!body || typeof body !== 'object') return '';
+      var details = body.details;
+      if (details && typeof details === 'object' &&
+          typeof details.code === 'string' && details.code) {
+        return details.code;
+      }
+      if (typeof body.code === 'string' && body.code) return body.code;
+      return '';
+    }
+
     function mapError(status, body, context) {
-      var code = body && body.code ? String(body.code) : '';
+      var code = errorCode(body);
       if (status === 429) return 'rate_limited';
       if (status === 503) return 'unavailable';
       if (status === 400) return 'invalid_request';

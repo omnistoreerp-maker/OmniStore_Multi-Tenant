@@ -237,12 +237,24 @@ check('tenant selection may itself require MFA and then complete', async () => {
 // ---------------------------------------------------------------------------
 // 5. Failure mapping
 // ---------------------------------------------------------------------------
+// Exactly what backend/utils/apiResponse.error() serializes: the machine
+// code lives in `details.code`, NOT at the top level.
+function backendError(status, message, details) {
+  return {
+    success: false,
+    message,
+    statusCode: status,
+    details: details === undefined ? null : details,
+    time: new Date().toISOString()
+  };
+}
+
 check('401/403/429/503 are mapped and never reported as success', async () => {
   const cases = [
     [401, {}, 'invalid_identity'],
-    [403, { code: 'ACCOUNT_DISABLED' }, 'account_disabled'],
-    [403, { code: 'COMPANY_SUSPENDED' }, 'company_suspended'],
-    [403, { code: 'TENANT_MEMBERSHIP_REQUIRED' }, 'membership_required'],
+    [403, backendError(403, 'User is disabled', { code: 'ACCOUNT_DISABLED' }), 'account_disabled'],
+    [403, backendError(403, 'Company is suspended', { code: 'COMPANY_SUSPENDED' }), 'company_suspended'],
+    [403, backendError(403, 'No tenant membership is configured for this account.', { code: 'TENANT_MEMBERSHIP_REQUIRED' }), 'membership_required'],
     [403, {}, 'denied'],
     [429, {}, 'rate_limited'],
     [503, {}, 'unavailable'],
@@ -255,6 +267,56 @@ check('401/403/429/503 are mapped and never reported as success', async () => {
     assert(out.error === expected, status + ' -> ' + out.error + ' (want ' + expected + ')');
     assert(events.sessions.length === 0, status + ' must not mint a session');
   }
+});
+
+// F1 (P6.77): codes are read from the real envelope, a legacy top-level
+// code still works, and malformed details degrade to the generic refusal.
+check('error codes come from the backend envelope and never guess', async () => {
+  const specific = [
+    ['ACCOUNT_DISABLED', 'account_disabled'],
+    ['COMPANY_SUSPENDED', 'company_suspended'],
+    ['TENANT_MEMBERSHIP_REQUIRED', 'membership_required']
+  ];
+  for (const [code, expected] of specific) {
+    const { flow, events } = makeFlow([response(403, backendError(403, 'refused', { code }))]);
+    const out = await flow.loginWithIdToken('x');
+    assert(out.error === expected, code + ' in details.code -> ' + out.error + ' (want ' + expected + ')');
+    assert(events.sessions.length === 0, code + ' must not mint a session');
+    const key = (PLATFORM_JS.match(new RegExp(expected + ": '(auth_google_[a-z_]+)'")) || [])[1];
+    assert(key && key !== 'auth_google_generic', code + ' must map to a specific message key, got ' + key);
+    assert(PLATFORM_JS.includes(key + ':'), 'message key ' + key + ' must exist in the translations');
+  }
+  const legacy = makeFlow([response(403, { success: false, code: 'ACCOUNT_DISABLED' })]);
+  assert((await legacy.flow.loginWithIdToken('x')).error === 'account_disabled', 'legacy body.code must still be honoured');
+  assert(legacy.events.sessions.length === 0, 'legacy refusal must not mint a session');
+  const malformed = [
+    ['details missing', { success: false }],
+    ['details null', { success: false, details: null }],
+    ['details string', { success: false, details: 'ACCOUNT_DISABLED' }],
+    ['details number', { success: false, details: 42 }],
+    ['details array', { success: false, details: ['ACCOUNT_DISABLED'] }],
+    ['details.code number', { success: false, details: { code: 42 } }],
+    ['details.code blank', { success: false, details: { code: '   ' } }]
+  ];
+  for (const [label, body] of malformed) {
+    const { flow, events } = makeFlow([response(403, body)]);
+    const out = await flow.loginWithIdToken('x');
+    assert(!out.ok, label + ' must not succeed');
+    assert(out.error === 'denied', label + ' -> ' + out.error + ' (want denied)');
+    assert(events.sessions.length === 0, label + ' must not mint a session');
+  }
+  const unknown = makeFlow([response(403, backendError(403, 'refused', { code: 'SOMETHING_NEW' }))]);
+  assert((await unknown.flow.loginWithIdToken('x')).error === 'denied', 'unknown code must fall back to denied');
+  assert(unknown.events.sessions.length === 0, 'unknown code must not mint a session');
+  const tenant = makeFlow([
+    okLogin({ tenantSelectionRequired: true, tempToken: 'temp-t', availableTenants: [{ id: 't1', name: 'One' }] }),
+    response(403, backendError(403, 'Unauthorized tenant selection', { code: 'SOMETHING_NEW' }))
+  ]);
+  await tenant.flow.loginWithIdToken('x');
+  const tOut = await tenant.flow.selectTenant('t1');
+  assert(tOut.error === 'tenant_denied', 'unknown tenant code -> ' + tOut.error + ' (want tenant_denied)');
+  assert(tenant.events.sessions.length === 0, 'tenant refusal must not mint a session');
+  assert(!tenant.flow.isBusy(), 'a refusal must release the busy lock');
 });
 
 check('a network failure never produces a session', async () => {
