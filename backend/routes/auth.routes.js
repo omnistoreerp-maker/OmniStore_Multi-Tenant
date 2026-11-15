@@ -155,6 +155,22 @@ router.post('/link/google', requireAuth, linkRateLimiter(), ctrl.linkGoogle);
 
 /**
  * @openapi
+ * /api/v1/auth/google-login/config:
+ *   get:
+ *     tags: [Authentication]
+ *     summary: Public Google sign-in configuration
+ *     description: |
+ *       Returns whether Google ID-token sign-in is configured and the PUBLIC
+ *       OAuth client ID the browser needs to obtain an ID token. The client
+ *       secret is never included.
+ *     responses:
+ *       200:
+ *         description: Public configuration
+ */
+router.get('/google-login/config', ctrl.googleLoginConfig);
+
+/**
+ * @openapi
  * /api/v1/auth/google-login:
  *   post:
  *     tags: [Authentication]

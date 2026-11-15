@@ -250,14 +250,41 @@ check('every asset the education page references exists in the repository', () =
   }
 });
 
-check('the production CSP is self-only for scripts, so the no-CDN rule is required', () => {
-  // nginx.conf is the production edge and permits only 'self' plus inline for
-  // scripts. backend/server.js additionally lists third-party script origins
-  // that Master-owned shipped surfaces still use, so the self-only guarantee
-  // this page depends on is nginx's, not the dev server's.
-  assert(NGINX.includes("script-src 'self' 'unsafe-inline'"), 'nginx script-src is not self-only');
-  assert(!/script-src[^;]*https?:/.test(NGINX), 'nginx script-src unexpectedly allows a remote origin');
+check('the production CSP allows the Google Identity Services origin and no other remote script', () => {
+  // nginx.conf is the production edge. It still permits only 'self' and inline
+  // scripts, plus exactly ONE remote script origin: https://accounts.google.com,
+  // which the Universal Google Login entry point needs for Google Identity
+  // Services. backend/server.js additionally lists the third-party Monetag /
+  // Multitag origins that Master-owned shipped surfaces still use, so the
+  // no-extra-CDN guarantee this page depends on is nginx's, not the dev server's.
+  const directive = (NGINX.match(/script-src ([^;"]*)/) || [])[1] || '';
+  const remoteOrigins = (line) => (line.match(/https?:\/\/[^ ;"']+/g) || []);
+  const disallowed = (line) => remoteOrigins(line).filter((o) => o !== 'https://accounts.google.com');
+  const sameList = (actual, expected, message) =>
+    assert(JSON.stringify(actual) === JSON.stringify(expected),
+      message + ' (expected ' + JSON.stringify(expected) + ', got ' + JSON.stringify(actual) + ')');
+
+  assert(directive.includes("'self'"), 'nginx script-src must still allow self');
+  assert(directive.includes("'unsafe-inline'"), 'nginx script-src must still allow inline');
+  assert(!directive.includes('*'), 'wildcard forbidden in nginx script-src');
+
+  // Negative proof: the rule really rejects anything that is not the GIS origin
+  // (a third-party CDN, another Google host, the same host over plain http).
+  sameList(disallowed("'self' 'unsafe-inline'"), [], 'the baseline must carry no remote origin');
+  sameList(disallowed("'self' https://cdn.example.com"), ['https://cdn.example.com'], 'a third-party CDN origin must be rejected');
+  sameList(disallowed("'self' https://www.google.com"), ['https://www.google.com'], 'no other Google host may be allowed');
+  sameList(disallowed("'self' http://accounts.google.com"), ['http://accounts.google.com'], 'the GIS origin must be https');
+  sameList(disallowed("'self' https://accounts.google.com.evil.test"), ['https://accounts.google.com.evil.test'], 'a look-alike host must be rejected');
+
+  // The real production edge: exactly one remote origin, and no more.
+  sameList(remoteOrigins(directive), ['https://accounts.google.com'],
+    'nginx script-src must allow exactly the Google Identity Services origin and no other remote origin');
+  sameList(disallowed(directive), [], 'nginx script-src unexpectedly allows a remote origin');
+
   assert(SERVER_JS.includes('scriptSrc:'), 'the server CSP block changed shape; re-check the no-CDN rule');
+  // The exemption above is a platform policy for the login widget only: the
+  // Education page itself must keep shipping no remote script.
+  assert(!/<script[^>]+src\s*=\s*["']https?:/i.test(PAGE), 'education page must not load a remote script');
 });
 
 check('education stylesheet introduces no remote import or font', () => {

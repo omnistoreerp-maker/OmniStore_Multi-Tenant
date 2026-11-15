@@ -52,6 +52,25 @@
       auth_error_invalid: 'Incorrect username or password.',
       auth_error_denied: 'Your account cannot access this company.',
       auth_error_network: 'Network error. Please try again.',
+      auth_google_or: 'or sign in with a linked Google account',
+      auth_google_mfa_label: 'Two-factor code',
+      auth_google_mfa_submit: 'Verify and continue',
+      auth_google_tenant_hint: 'Choose the company you want to enter:',
+      auth_google_invalid_identity: 'This Google account is not linked. Sign in with your password, then link Google.',
+      auth_google_denied: 'Your account cannot sign in here.',
+      auth_google_account_disabled: 'This account is disabled.',
+      auth_google_company_suspended: 'This company is suspended.',
+      auth_google_membership_required: 'No company membership is configured for this account. Contact an administrator.',
+      auth_google_rate_limited: 'Too many attempts. Wait a moment and try again.',
+      auth_google_unavailable: 'Google verification is temporarily unavailable. Try again later.',
+      auth_google_network: 'Network error. Please try again.',
+      auth_google_challenge: 'This step expired. Start the Google sign-in again.',
+      auth_google_mfa_required: 'Enter the verification code.',
+      // A rejected code burns the server-side challenge (single use), so the
+      // only way forward is a fresh Google sign-in — say it explicitly.
+      auth_google_mfa_invalid: 'Incorrect verification code. That attempt is finished — start the Google sign-in again.',
+      auth_google_tenant_denied: 'That company selection is not authorized.',
+      auth_google_generic: 'Google sign-in could not be completed.',
       nav_soon: 'Soon',
       footer_text: 'OmniStore Platform v',
       footer_rights: 'All rights reserved',
@@ -134,6 +153,25 @@
       auth_error_invalid: 'بيانات الدخول غير صحيحة.',
       auth_error_denied: 'لا يملك حسابك صلاحية الوصول.',
       auth_error_network: 'تعذر الاتصال. حاول مجددًا.',
+      auth_google_or: 'أو سجّل الدخول بحساب Google مرتبط',
+      auth_google_mfa_label: 'رمز التحقق الثنائي',
+      auth_google_mfa_submit: 'تأكيد واستكمال الدخول',
+      auth_google_tenant_hint: 'اختر الشركة التي تريد الدخول إليها:',
+      auth_google_invalid_identity: 'حساب Google غير مرتبط — سجّل الدخول بكلمة المرور ثم اربط Google',
+      auth_google_denied: 'لا يملك حسابك صلاحية الدخول',
+      auth_google_account_disabled: 'هذا الحساب معطّل',
+      auth_google_company_suspended: 'الشركة موقوفة',
+      auth_google_membership_required: 'لا توجد عضوية مستأجر لهذا الحساب — راجع المسؤول',
+      auth_google_rate_limited: 'محاولات كثيرة — انتظر قليلًا ثم حاول مجددًا',
+      auth_google_unavailable: 'خدمة التحقق من Google غير متاحة حاليًا — حاول لاحقًا',
+      auth_google_network: 'تعذر الاتصال. حاول مجددًا.',
+      auth_google_challenge: 'انتهت صلاحية الخطوة السابقة — ابدأ تسجيل الدخول من جديد',
+      auth_google_mfa_required: 'أدخل رمز التحقق.',
+      // رفض الرمز يستهلك التحدي على الخادم (استخدام واحد)، لذا الحل هو بدء
+      // تسجيل الدخول عبر Google من جديد — الرسالة توضح ذلك صراحة.
+      auth_google_mfa_invalid: 'رمز تحقق غير صحيح — انتهت هذه المحاولة، اضغط «الدخول عبر Google» من جديد.',
+      auth_google_tenant_denied: 'اختيار مستأجر غير مصرح به',
+      auth_google_generic: 'تعذّر تسجيل الدخول عبر Google',
       nav_soon: 'قريباً',
       footer_text: 'منصة OmniStore إصدار',
       footer_rights: 'جميع الحقوق محفوظة',
@@ -727,6 +765,81 @@
   }
 
   // ------------------------------------------------------------------
+  // Universal Google Login — Google ID token → existing LINKED account.
+  // Separate from the Platform Master OIDC entry below: the ID token is
+  // posted to /api/v1/auth/google-login and only the SERVER can
+  // authenticate. The intermediate challenge token stays in memory; tenant
+  // options are exactly what the server returned, never a client list.
+  // ------------------------------------------------------------------
+  var googleLoginFlow = null;
+
+  var GOOGLE_LOGIN_MESSAGE_KEYS = {
+    busy: 'auth_google_generic',
+    invalid_request: 'auth_google_generic',
+    invalid_identity: 'auth_google_invalid_identity',
+    denied: 'auth_google_denied',
+    account_disabled: 'auth_google_account_disabled',
+    company_suspended: 'auth_google_company_suspended',
+    membership_required: 'auth_google_membership_required',
+    rate_limited: 'auth_google_rate_limited',
+    unavailable: 'auth_google_unavailable',
+    network_error: 'auth_google_network',
+    challenge_invalid: 'auth_google_challenge',
+    challenge_missing: 'auth_google_challenge',
+    mfa_invalid: 'auth_google_mfa_invalid',
+    tenant_denied: 'auth_google_tenant_denied',
+    tenant_not_allowed: 'auth_google_tenant_denied',
+    server_error: 'auth_google_generic'
+  };
+
+  function googleLoginMessage(code) {
+    return authText(GOOGLE_LOGIN_MESSAGE_KEYS[code] || 'auth_google_generic');
+  }
+
+  function setGoogleLoginBusy(busy) {
+    const bar = document.getElementById('platformGoogleBusy');
+    if (bar) { if (busy) bar.removeAttribute('hidden'); else bar.setAttribute('hidden', ''); }
+    const options = document.querySelectorAll('#platformGoogleTenantList button');
+    for (let i = 0; i < options.length; i++) options[i].disabled = !!busy;
+    const submit = document.getElementById('platformGoogleMfaSubmit');
+    if (submit) submit.disabled = !!busy;
+  }
+
+  function resetGoogleLoginPanels() {
+    const mfa = document.getElementById('platformGoogleMfa');
+    if (mfa) mfa.setAttribute('hidden', '');
+    const tenant = document.getElementById('platformGoogleTenant');
+    if (tenant) tenant.setAttribute('hidden', '');
+    const list = document.getElementById('platformGoogleTenantList');
+    if (list) { while (list.firstChild) list.removeChild(list.firstChild); }
+    const code = document.getElementById('platformGoogleMfaCode');
+    if (code) code.value = '';
+    if (googleLoginFlow) googleLoginFlow.reset();
+    setGoogleLoginBusy(false);
+  }
+
+  // Renders ONLY the tenants the server returned. There is deliberately no
+  // free-text tenant field: an id that is not in this list can never be
+  // submitted (the module refuses it before the request leaves the browser).
+  function renderGoogleTenants(tenants) {
+    const list = document.getElementById('platformGoogleTenantList');
+    const box = document.getElementById('platformGoogleTenant');
+    if (!list || !box) return;
+    while (list.firstChild) list.removeChild(list.firstChild);
+    (tenants || []).forEach(function (t) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn-secondary auth-tenant-option';
+      b.textContent = t.name || t.id;
+      b.setAttribute('data-tenant-id', String(t.id));
+      b.addEventListener('click', function () { submitUniversalGoogleTenant(String(t.id)); });
+      list.appendChild(b);
+    });
+    box.removeAttribute('hidden');
+  }
+
+
+  // ------------------------------------------------------------------
   // Platform Master Google sign-in entry (server-side OIDC at
   // /auth/google/master). The browser only starts the round-trip: state,
   // nonce, PKCE and ID-token verification all live server-side, and the
@@ -960,6 +1073,20 @@
     return { href: 'index.html', postLoginPage: null };
   }
 
+  // Server-issued session → the SAME hand-off a password login uses: tokens
+  // stored by the existing mechanism, identity written to the shared session
+  // key, then the app entry. Nothing is trusted from the Google SDK itself.
+  function completeGoogleLogin(data) {
+    storeAuthTokens(data.accessToken, data.refreshToken);
+    try {
+      if (data.user && data.user.username) localStorage.setItem(SESSION_USER_KEY, data.user.username);
+    } catch (_) {}
+    resetGoogleLoginPanels();
+    refreshAuthDrawer();
+    const target = resolvePostLoginTarget(null);
+    window.location.href = target.href;
+  }
+
   function authError(msg) {
     const el = document.getElementById('platformAuthError');
     if (!el) return;
@@ -1003,6 +1130,109 @@
     if (loginBtn) loginBtn.textContent = authText(hasSession ? 'nav_logout' : 'nav_login');
   }
 
+  function googleLoginFlowFor() {
+    if (googleLoginFlow) return googleLoginFlow;
+    const mod = window.OmniGoogleLogin;
+    if (!mod || typeof mod.createFlow !== 'function') return null;
+    googleLoginFlow = mod.createFlow({
+      fetch: function (url, init) { return window.fetch(url, init); },
+      onSession: completeGoogleLogin,
+      onChallenge: function (challenge) {
+        const type = challenge && challenge.type;
+        if (type === 'mfa') {
+          const mfa = document.getElementById('platformGoogleMfa');
+          if (mfa) mfa.removeAttribute('hidden');
+          authError(authText('auth_google_mfa_label'));
+          const input = document.getElementById('platformGoogleMfaCode');
+          if (input && typeof input.focus === 'function') input.focus();
+          return;
+        }
+        if (type === 'tenant') {
+          renderGoogleTenants(challenge.tenants);
+          authError(authText('auth_google_tenant_hint'));
+        }
+      },
+      onError: function (code) {
+        // A spent/invalid challenge can never be retried: drop the panels so
+        // the only way forward is a fresh Google sign-in.
+        if (code === 'challenge_invalid' || code === 'challenge_missing' ||
+            code === 'mfa_invalid' || code === 'tenant_denied' || code === 'tenant_not_allowed') {
+          resetGoogleLoginPanels();
+        }
+        authError(googleLoginMessage(code));
+      }
+    });
+    return googleLoginFlow;
+  }
+
+  // Google returns an ID token here. It is forwarded once and never stored,
+  // logged or rendered; a successful SDK call alone authenticates nothing.
+  function handleGoogleCredential(response) {
+    const flow = googleLoginFlowFor();
+    const credential = response && response.credential ? String(response.credential) : '';
+    if (!flow) { authError(googleLoginMessage('server_error')); return; }
+    if (!credential) { authError(authText('auth_google_generic')); return; }
+    setGoogleLoginBusy(true);
+    flow.loginWithIdToken(credential).then(function () { setGoogleLoginBusy(false); });
+  }
+
+  function submitUniversalGoogleMfa() {
+    const flow = googleLoginFlowFor();
+    if (!flow) { authError(googleLoginMessage('server_error')); return; }
+    const input = document.getElementById('platformGoogleMfaCode');
+    const code = input ? String(input.value || '').trim() : '';
+    if (!code) { authError(authText('auth_google_mfa_required')); return; }
+    setGoogleLoginBusy(true);
+    flow.submitMfa(code).then(function (out) {
+      setGoogleLoginBusy(false);
+      if (out && out.ok && input) input.value = '';
+    });
+  }
+
+  function submitUniversalGoogleTenant(tenantId) {
+    const flow = googleLoginFlowFor();
+    if (!flow) { authError(googleLoginMessage('server_error')); return; }
+    setGoogleLoginBusy(true);
+    flow.selectTenant(tenantId).then(function () { setGoogleLoginBusy(false); });
+  }
+
+  // Loads the public configuration, then Google Identity Services, then
+  // renders Google's own button. Any failure leaves the section hidden: an
+  // unconfigured or unreachable backend never shows a dead Google entry.
+  function initUniversalGoogleLogin() {
+    const mfaBtn = document.getElementById('platformGoogleMfaSubmit');
+    if (mfaBtn) mfaBtn.addEventListener('click', submitUniversalGoogleMfa);
+    const mfaInput = document.getElementById('platformGoogleMfaCode');
+    if (mfaInput) mfaInput.addEventListener('keydown', function (e) {
+      if (e && e.key === 'Enter') { e.preventDefault(); submitUniversalGoogleMfa(); }
+    });
+    const host = document.getElementById('platformGoogleLoginButton');
+    const section = document.getElementById('platformGoogleLoginSection');
+    const mod = window.OmniGoogleLogin;
+    if (!host || !section || !mod || typeof mod.loadConfig !== 'function') return;
+    mod.loadConfig().then(function (cfg) {
+      if (!cfg || cfg.enabled !== true || !cfg.clientId) return null;
+      return mod.loadGis().then(function () {
+        if (!window.google || !window.google.accounts || !window.google.accounts.id) return;
+        window.google.accounts.id.initialize({
+          client_id: cfg.clientId,
+          auto_select: false,
+          cancel_on_tap_outside: true,
+          callback: handleGoogleCredential
+        });
+        window.google.accounts.id.renderButton(host, {
+          type: 'standard',
+          theme: 'outline',
+          size: 'large',
+          text: 'continue_with',
+          shape: 'pill',
+          logo_alignment: 'center'
+        });
+        section.removeAttribute('hidden');
+      });
+    }).catch(function () { /* stay hidden */ });
+  }
+
   function openAuthDrawer() {
     const overlay = document.getElementById('platformAuthOverlay');
     const drawer = document.getElementById('platformAuthDrawer');
@@ -1022,6 +1252,7 @@
     if (drawer) drawer.setAttribute('hidden', '');
     const btn = document.getElementById('platformLoginBtn');
     if (btn && typeof btn.focus === 'function') btn.focus();
+    if (typeof resetGoogleLoginPanels === 'function') resetGoogleLoginPanels();
   }
 
   async function submitAuthDrawer(event) {
@@ -1152,6 +1383,9 @@
     if (googleMfaInput) googleMfaInput.addEventListener('keydown', function (e) {
       if (e && e.key === 'Enter') { e.preventDefault(); submitGoogleMfaChallenge(); }
     });
+    // Optional module: when the shared flow failed to load this is a no-op,
+    // the password/refresh paths keep working and no Google entry appears.
+    if (typeof initUniversalGoogleLogin === 'function') initUniversalGoogleLogin();
     refreshAuthDrawer();
   }
 

@@ -483,6 +483,21 @@ function permissions(req, res) {
 // matching, no auto-creation, no auto-linking, no Master accounts.
 // ---------------------------------------------------------------------------
 
+// Public, non-secret configuration for the browser Google button.
+// Exposes ONLY the OAuth client ID — a public identifier that Google Identity
+// Services embeds in every request anyway. The client SECRET is never read
+// here, never serialized and never leaves the server. "enabled: false" means
+// ID-token sign-in is not configured, so the UI must not offer it.
+function googleLoginConfig(req, res) {
+  try {
+    const clientId = process.env.GOOGLE_CLIENT_ID || '';
+    return success(res, { enabled: Boolean(clientId), clientId }, 'Google login configuration');
+  } catch (err) {
+    logger.error('auth.googleLoginConfig error:', err.message);
+    return error(res, 'Failed to read Google login configuration', 500);
+  }
+}
+
 async function googleLogin(req, res) {
   try {
     const { idToken } = req.body || {};
@@ -898,7 +913,7 @@ async function googleLoginSelectTenant(req, res) {
 }
 
 module.exports = {
-  login, refresh, logout, changePassword, linkGoogle, googleLogin,
+  login, refresh, logout, changePassword, linkGoogle, googleLoginConfig, googleLogin,
   googleLoginMfaVerify, googleLoginSelectTenant, me, roles, permissions,
   // Test seam for challenge-store failure injection
   _setChallengeDbForTests
