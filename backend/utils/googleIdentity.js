@@ -39,7 +39,9 @@ async function verifyIdToken(idToken) {
       signal: AbortSignal.timeout(TIMEOUT_MS)
     });
   } catch (_) {
-    return { error: 'Google token verification unavailable' };
+    // An unreachable/timed-out verifier is an outage, not a verdict on the
+    // credential: report 503 so callers never mistake it for a bad token.
+    return { error: 'Google token verification unavailable', statusCode: 503 };
   }
 
   if (!response.ok) return { error: 'Invalid Google token' };
