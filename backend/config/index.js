@@ -4,6 +4,34 @@ dotenv.config();
 
 const env = process.env.NODE_ENV || 'development';
 
+// Universal Google Login challenge TTL — the ONE authoritative value for
+// both the signed JWT expiration and the SQLite row expiration, so the two
+// can never drift apart (P6.66 L-3). Accepts an ms-style duration string
+// ("5m", "90s", "1h") exactly like jsonwebtoken does.
+const _DURATION_UNITS_MS = {
+  ms: 1, s: 1000, m: 60000, h: 3600000, d: 86400000, w: 604800000, y: 31557600000
+};
+
+function durationToMs(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  const text = String(value == null ? "" : value).trim().toLowerCase();
+  if (!text) return null;
+  let index = 0;
+  while (index < text.length && (text[index] === "." || (text[index] >= "0" && text[index] <= "9"))) index++;
+  if (index === 0) return null;
+  const amount = Number(text.slice(0, index));
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  const unit = text.slice(index) || "ms";
+  if (!Object.prototype.hasOwnProperty.call(_DURATION_UNITS_MS, unit)) return null;
+  return Math.round(amount * _DURATION_UNITS_MS[unit]);
+}
+
+const loginChallengeTtl = process.env.LOGIN_CHALLENGE_TTL || "5m";
+const loginChallengeTtlMs = durationToMs(loginChallengeTtl);
+if (!loginChallengeTtlMs || loginChallengeTtlMs <= 0) {
+  throw new Error(`LOGIN_CHALLENGE_TTL is not a valid duration: ${loginChallengeTtl}`);
+}
+
 module.exports = {
   env,
   isProduction: env === 'production',
@@ -26,6 +54,8 @@ module.exports = {
   jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || (process.env.JWT_SECRET || 'dev-secret') + ':refresh',
   jwtAccessTtl: process.env.JWT_ACCESS_TTL || '15m',
   jwtRefreshTtl: process.env.JWT_REFRESH_TTL || '7d',
+  loginChallengeTtl,
+  loginChallengeTtlMs,
   authRequired: process.env.AUTH_REQUIRED === 'true',
 
   // API security
@@ -135,3 +165,4 @@ function validateProductionConfig(cfg = module.exports) {
 }
 
 module.exports.validateProductionConfig = validateProductionConfig;
+module.exports.durationToMs = durationToMs;

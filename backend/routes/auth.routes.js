@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/auth.controller');
 const { requireAuth } = require('../middleware/auth');
-const { loginRateLimiter, linkRateLimiter } = require('../middleware/security');
+const { loginRateLimiter, googleLoginRateLimiter, googleLoginChallengeRateLimiter, linkRateLimiter } = require('../middleware/security');
 
 /**
  * @openapi
@@ -152,6 +152,107 @@ router.post('/change-password', ctrl.changePassword);
  *         description: Identity already linked to another account
  */
 router.post('/link/google', requireAuth, linkRateLimiter(), ctrl.linkGoogle);
+
+/**
+ * @openapi
+ * /api/v1/auth/google-login:
+ *   post:
+ *     tags: [Authentication]
+ *     summary: Google Login for existing linked accounts
+ *     description: |
+ *       Authenticate with a verified Google ID token. Resolves the account
+ *       exclusively through an existing linked Google provider identity (sub).
+ *       No email-only matching, no auto-creation, no auto-linking, no Master
+ *       accounts. Returns mfaRequired or tenantSelectionRequired when
+ *       additional steps are needed.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [idToken]
+ *             properties:
+ *               idToken:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Login successful or challenge required
+ *       400:
+ *         description: Missing ID token
+ *       401:
+ *         description: Invalid Google token or unlinked identity
+ *       403:
+ *         description: Disabled account, suspended company, or Master account
+ *       503:
+ *         description: Google verification unavailable
+ */
+router.post('/google-login', googleLoginRateLimiter(), ctrl.googleLogin);
+
+/**
+ * @openapi
+ * /api/v1/auth/google-login/mfa-verify:
+ *   post:
+ *     tags: [Authentication]
+ *     summary: Complete MFA after Google Login
+ *     description: |
+ *       Verify an MFA code against a temporary challenge token issued by
+ *       Google Login. Issues full access and refresh tokens on success.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [tempToken, mfaToken]
+ *             properties:
+ *               tempToken:
+ *                 type: string
+ *               mfaToken:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: MFA completed, tokens issued
+ *       400:
+ *         description: Missing tempToken or mfaToken
+ *       401:
+ *         description: Invalid or expired challenge, or invalid MFA code
+ */
+router.post('/google-login/mfa-verify', googleLoginChallengeRateLimiter(), ctrl.googleLoginMfaVerify);
+
+/**
+ * @openapi
+ * /api/v1/auth/google-login/select-tenant:
+ *   post:
+ *     tags: [Authentication]
+ *     summary: Select a tenant after Google Login
+ *     description: |
+ *       Select an authorized active tenant after Google Login when the user
+ *       has multiple active memberships. Issues full tenant-bound tokens on
+ *       success.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [tempToken, tenantId]
+ *             properties:
+ *               tempToken:
+ *                 type: string
+ *               tenantId:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Tenant selected, tokens issued
+ *       400:
+ *         description: Missing tempToken or tenantId
+ *       401:
+ *         description: Invalid or expired challenge
+ *       403:
+ *         description: Unauthorized tenant or suspended company
+ */
+router.post('/google-login/select-tenant', googleLoginChallengeRateLimiter(), ctrl.googleLoginSelectTenant);
 
 /**
  * @openapi

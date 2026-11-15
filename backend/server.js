@@ -33,6 +33,7 @@ const webhookService = require('./services/webhook.service');
 const notificationEngine = require('./services/notificationEngine.service');
 const jobService = require('./services/job.service');
 const schedulerService = require('./services/scheduler.service');
+const challengeStore = require('./utils/challengeStore.sqlite');
 
 const app = express();
 
@@ -638,6 +639,20 @@ if (require.main === module) {
     process.exit(1);
   }
   prodChecks.warnings.forEach(msg => logger.warn('Production warning: ' + msg));
+
+  // P6.67 — the durable login-challenge database must be provisioned before
+  // the process serves traffic: explicit CHALLENGE_DB_PATH in production-like
+  // environments, an existing writable directory, and an openable database.
+  // Failing here is intentional; without it every Google Login would 500 after
+  // the first request instead of the misconfiguration being obvious at boot.
+  try {
+    const challengeDbPath = challengeStore.validateStartupConfiguration();
+    logger.info('Login challenge store ready: ' + challengeDbPath);
+  } catch (challengeErr) {
+    logger.error('Refusing to start: the login challenge store is not configured correctly.');
+    logger.error('  - ' + challengeErr.message);
+    process.exit(1);
+  }
 
   // Start background job worker and scheduler (recoverable, in-process).
   jobService.startWorker({ concurrency: 1 });
