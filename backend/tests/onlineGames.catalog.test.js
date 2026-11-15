@@ -339,9 +339,9 @@ describe('license attribution page', () => {
 describe('CSP, frame sandbox and the Monetag boundary', () => {
   test('Express frame-src is TikTok plus the configured games origin only', () => {
     const frameLine = (SERVER_JS.match(/frameSrc: \[[^\]]*\]/) || [])[0];
-    expect(frameLine).toBe("frameSrc: ['https://www.tiktok.com', GAMES_ORIGIN]");
+    expect(frameLine).toBe("frameSrc: ['https://www.tiktok.com', 'https://accounts.google.com', GAMES_ORIGIN]");
     expect(frameLine.includes("'self'")).toBe(false);
-    expect(SERVER_JS).toContain("frameSrc: ['https://www.tiktok.com', GAMES_ORIGIN].filter(Boolean)");
+    expect(SERVER_JS).toContain("frameSrc: ['https://www.tiktok.com', 'https://accounts.google.com', GAMES_ORIGIN].filter(Boolean)");
     expect(SERVER_JS).toContain('process.env.GAMES_ORIGIN');
     expect(/GAMES_ORIGIN\s*=\s*['"]https?:/.test(SERVER_JS)).toBe(false);
   });
@@ -351,7 +351,7 @@ describe('CSP, frame sandbox and the Monetag boundary', () => {
     const csp = (NGINX_CONF.match(/add_header Content-Security-Policy "([^"]*frame-src[^"]*)"/) || [])[1];
     expect(csp).toBeTruthy();
     const frameSrc = (csp.match(/frame-src ([^;"]*)/) || [])[1];
-    expect(frameSrc).toBe('https://www.tiktok.com $omnistore_games_origin');
+    expect(frameSrc).toBe('https://www.tiktok.com https://accounts.google.com $omnistore_games_origin');
     expect(frameSrc.includes("'self'")).toBe(false);
     expect(/GAMES_ORIGIN\s*=\s*['"]https?:/.test(NGINX_CONF)).toBe(false);
   });
