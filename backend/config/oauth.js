@@ -15,7 +15,7 @@ const oauth = {
       httpOnly: true,
       secure: env === 'production' || env === 'staging',
       // sameSite: production=none (requires secure), staging=none (requires secure), development=lax
-      sameSite: env === 'production' ? 'none' : env === 'staging' ? 'none' : 'lax',
+      sameSite: env === 'production' ? 'none' :  'lax',
       maxAge: 24 * 60 * 60 * 1000
     }
   },
