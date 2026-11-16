@@ -13,8 +13,9 @@ const oauth = {
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: env === 'production',
-      sameSite: env === 'production' ? 'none' : 'lax',
+      secure: env === 'production' || env === 'staging',
+      // sameSite: production=none, staging=lax, development=lax
+      sameSite: env === 'production' ? 'none' :  'lax',
       maxAge: 24 * 60 * 60 * 1000
     }
   },
