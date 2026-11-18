@@ -1,8 +1,19 @@
 const { error } = require('../utils/apiResponse');
 const { verifyCustomerToken } = require('../utils/marketJwt');
-const { isRevoked } = require('../utils/tokenStore');
+const tokenStore = require('../utils/tokenStore.sqlite');
 const marketAuthService = require('../services/marketAuth.service');
 const marketConfigService = require('../services/marketConfig.service');
+
+// Marketplace tokens are revoked through the SQLite store (hash of the exact
+// bearer token). A storage failure must never be treated as "not revoked".
+function _revokedOrUnavailable(token, res) {
+  try {
+    return { revoked: tokenStore.isRevoked(token) };
+  } catch (_) {
+    error(res, 'Auth store unavailable', 503);
+    return { handled: true };
+  }
+}
 
 function extractToken(req) {
   const header = req.headers.authorization || '';
@@ -28,7 +39,10 @@ function requireMarketTenant(req, res, next) {
 
 function requireCustomer(req, res, next) {
   const token = extractToken(req);
-  if (!token || isRevoked(token)) return error(res, 'Authentication required', 401);
+  if (!token) return error(res, 'Authentication required', 401);
+  const revoked = _revokedOrUnavailable(token, res);
+  if (revoked.handled) return;
+  if (revoked.revoked) return error(res, 'Authentication required', 401);
   const payload = verifyCustomerToken(token);
   if (!payload) return error(res, 'Authentication required', 401);
   const customer = marketAuthService.getById(payload.sub);
@@ -51,7 +65,10 @@ function requireCustomer(req, res, next) {
 
 function requireOperator(req, res, next) {
   const token = extractToken(req);
-  if (!token || isRevoked(token)) return error(res, 'Authentication required', 401);
+  if (!token) return error(res, 'Authentication required', 401);
+  const revoked = _revokedOrUnavailable(token, res);
+  if (revoked.handled) return;
+  if (revoked.revoked) return error(res, 'Authentication required', 401);
   const payload = verifyCustomerToken(token);
   if (!payload) return error(res, 'Authentication required', 401);
   const customer = marketAuthService.getById(payload.sub);
@@ -76,7 +93,10 @@ function requireOperator(req, res, next) {
 
 function optionalCustomer(req, res, next) {
   const token = extractToken(req);
-  if (token && !isRevoked(token)) {
+  if (!token) return next();
+  const revoked = _revokedOrUnavailable(token, res);
+  if (revoked.handled) return;
+  if (!revoked.revoked) {
     const payload = verifyCustomerToken(token);
     if (payload) {
       const customer = marketAuthService.getById(payload.sub);

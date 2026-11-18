@@ -41,7 +41,10 @@ beforeAll(async () => {
 
 afterAll(() => {
   delete process.env.DIGITRONICS_DATA_DIR;
-  if (dataDir && fs.existsSync(dataDir)) fs.rmSync(dataDir, { recursive: true, force: true });
+  try { require('../utils/tokenStore.sqlite').closeDb(); } catch (_) {}
+  if (dataDir && fs.existsSync(dataDir)) {
+    try { fs.rmSync(dataDir, { recursive: true, force: true }); } catch (_) {}
+  }
 });
 
 const H = { 'X-Tenant-Id': 'default' };

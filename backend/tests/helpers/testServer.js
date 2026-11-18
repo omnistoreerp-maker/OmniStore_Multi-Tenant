@@ -26,6 +26,9 @@ const INSTANCE_ENV_KEYS = [
 
 function startServer(dataDir, extraEnv) {
   const dir = dataDir || makeTempDataDir('app');
+  // Close any store from a previous in-process instance before the module
+  // registry is reset, otherwise its file handle outlives the temp dir.
+  try { require('../../utils/tokenStore.sqlite').closeDb(); } catch (_) {}
   jest.resetModules();
   process.env.DIGITRONICS_DATA_DIR = dir;
   process.env.JWT_SECRET = TEST_JWT_SECRET;

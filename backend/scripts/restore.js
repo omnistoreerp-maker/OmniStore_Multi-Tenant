@@ -2,6 +2,7 @@
 // The backup is verified against its manifest BEFORE anything is copied.
 // Existing data files are only overwritten when --force is given; a
 // pre-restore snapshot of the current data is always taken first.
+// Also restores the SQLite token revocation store if present in backup.
 // Usage:
 //   node scripts/restore.js --from <backupDir> [--dir <dataDir>] [--force]
 const fs = require('fs');
@@ -49,6 +50,19 @@ function main() {
     fs.copyFileSync(path.join(from, name), path.join(dir, name));
   }
   console.log('Restored ' + Object.keys(manifest.files).length + ' files into ' + dir);
+
+  // 5. If tokenStore.sqlite was restored, validate the ACTUAL restored file
+  //    (never the environment's configured path).
+  const tokenStorePath = path.join(dir, 'tokenStore.sqlite');
+  if (fs.existsSync(tokenStorePath)) {
+    try {
+      const tokenStore = require('../utils/tokenStore.sqlite');
+      const validatedPath = tokenStore.validateDatabaseFile(tokenStorePath);
+      console.log('Token revocation store validated: ' + validatedPath);
+    } catch (e) {
+      console.error('WARNING: Restored tokenStore.sqlite failed validation: ' + e.message);
+    }
+  }
 }
 
 main();

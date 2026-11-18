@@ -155,7 +155,10 @@ beforeAll(async () => {
 afterAll(() => {
   delete process.env.DIGITRONICS_DATA_DIR;
   delete process.env.GAME_HOSTING_PROVIDER;
-  if (dataDir && fs.existsSync(dataDir)) fs.rmSync(dataDir, { recursive: true, force: true });
+  try { require('../utils/tokenStore.sqlite').closeDb(); } catch (_) {}
+  if (dataDir && fs.existsSync(dataDir)) {
+    try { fs.rmSync(dataDir, { recursive: true, force: true }); } catch (_) {}
+  }
 });
 
 // ============================================================================
