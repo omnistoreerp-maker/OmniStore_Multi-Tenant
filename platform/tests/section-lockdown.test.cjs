@@ -391,8 +391,12 @@ check('CSP narrowly allows the official Monetag chain only (no wildcard, policy 
   assert.ok(scriptLine.includes("'https://auqot.com'"), 'observed Multitag child origin missing');
   assert.ok(scriptLine.includes("'https://ekhay.com'"), 'observed Multitag child origin missing');
   assert.ok(scriptLine.includes("'https://b3mny.com'"), 'observed Multitag child origin missing');
+  // P6.71: Google Identity Services loads from this ONE exact origin only —
+  // never a *.google.com wildcard — and only when the backend reports
+  // ID-token sign-in configured.
+  assert.ok(scriptLine.includes("'https://accounts.google.com'"), 'Google Identity Services origin missing from script-src');
   assert.ok(!scriptLine.includes('*'), 'wildcard forbidden in script-src');
-  assert.strictEqual((scriptLine.match(/https:\/\//g) || []).length, 6, 'unexpected extra origin in script-src');
+  assert.strictEqual((scriptLine.match(/https:\/\//g) || []).length, 7, 'unexpected extra origin in script-src');
   const connectLine = (serverJs.match(/connectSrc: \[[^\]]*\]/) || [])[0];
   assert.ok(connectLine, 'connectSrc directive missing');
   assert.ok(connectLine.includes("'https://6opo.com'"), 'observed Multitag beacon origin missing from connect-src');
@@ -400,8 +404,9 @@ check('CSP narrowly allows the official Monetag chain only (no wildcard, policy 
   assert.ok(connectLine.includes("'https://my.rtmark.net'"), 'observed Multitag beacon origin missing from connect-src');
   assert.ok(connectLine.includes("'https://jmosl.com'"), 'observed Multitag beacon origin missing from connect-src');
   assert.ok(connectLine.includes("'https://094kk.com'"), 'observed Multitag beacon origin missing from connect-src');
+  assert.ok(connectLine.includes("'https://accounts.google.com'"), 'Google Identity Services origin missing from connect-src');
   assert.ok(!connectLine.includes('*'), 'wildcard forbidden in connect-src');
-  assert.strictEqual((connectLine.match(/https:\/\//g) || []).length, 7, 'unexpected extra origin in connect-src');
+  assert.strictEqual((connectLine.match(/https:\/\//g) || []).length, 8, 'unexpected extra origin in connect-src');
   assert.ok(!connectLine.includes('*'), 'wildcard forbidden in connect-src');
   // -------------------------------------------------------------------------
   // frame-src / img-src - TikTok embedded playback (TikTok Display API cycle),
@@ -423,7 +428,7 @@ check('CSP narrowly allows the official Monetag chain only (no wildcard, policy 
   assert.ok(!frameLine.includes("'self'"), "frame-src must not re-allow same-origin frames");
   assert.ok(!frameLine.includes("'unsafe-inline'"), 'frame-src must not allow inline frames');
   assert.ok(!/(^|[^.\w])\*/.test(frameLine), 'wildcard forbidden in frame-src');
-  assert.strictEqual((frameLine.match(/https:\/\//g) || []).length, 1, 'unexpected extra literal origin in frame-src');
+  assert.strictEqual((frameLine.match(/https:\/\//g) || []).length, 2, 'unexpected extra literal origin in frame-src');
   // The second entry is CONFIGURATION, not a literal. Two things have to hold:
   // the array holds exactly TikTok and the GAMES_ORIGIN symbol — never a
   // written-down hostname — and whatever GAMES_ORIGIN resolves to is dropped
@@ -435,15 +440,18 @@ check('CSP narrowly allows the official Monetag chain only (no wildcard, policy 
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
-  assert.deepStrictEqual(frameEntries, ["'https://www.tiktok.com'", 'GAMES_ORIGIN'],
-    'frame-src must be exactly TikTok plus the GAMES_ORIGIN symbol');
+  assert.deepStrictEqual(frameEntries, ["'https://www.tiktok.com'", "'https://accounts.google.com'", 'GAMES_ORIGIN'],
+    'frame-src must be exactly TikTok, the Google Identity Services iframe origin and the GAMES_ORIGIN symbol');
   const frameStmt = (serverJs.match(/frameSrc: [^\n]+/) || [])[0] || '';
   assert.ok(/\]\.filter\(Boolean\)/.test(frameStmt),
     'the games origin must be dropped from frame-src when it is not configured');
   assert.ok(serverJs.includes('process.env.GAMES_ORIGIN'), 'GAMES_ORIGIN must be read from the environment');
   assert.ok(!/GAMES_ORIGIN\s*=\s*['"]https?:/.test(serverJs), 'GAMES_ORIGIN must never be given a default origin');
+  // accounts.google.com is the ONLY Google origin allowed (the Google Identity
+  // Services button iframe); every other Google host stays forbidden.
+  const frameLineWithoutGis = frameLine.split("'https://accounts.google.com'").join('');
   for (const blocked of ['youtube.com', 'vimeo.com', 'facebook.com', 'instagram.com', 'tiktokcdn.com', 'tiktokcdn-us.com', 'quge5.com', 'auqot.com', 'ekhay.com', 'b3mny.com', 'google.com']) {
-    assert.ok(!frameLine.includes(blocked), 'unrelated origin must not be allowed in frame-src: ' + blocked);
+    assert.ok(!frameLineWithoutGis.includes(blocked), 'unrelated origin must not be allowed in frame-src: ' + blocked);
   }
   const imgLine = (serverJs.match(/imgSrc: \[[^\]]*\]/) || [])[0];
   assert.ok(imgLine, 'imgSrc directive missing');
@@ -489,8 +497,8 @@ check('nginx.conf and backend/server.js express the same CSP allowlist (TikTok +
   // the origin arrive as configuration. Unset, $omnistore_games_origin expands
   // to nothing and the directive is TikTok-only — the value it had before.
   assert.ok(nginxDirectives['frame-src'], 'nginx frame-src directive missing');
-  assert.strictEqual(nginxDirectives['frame-src'], 'https://www.tiktok.com $omnistore_games_origin',
-    'nginx frame-src must allow TikTok plus the games-origin map entry');
+  assert.strictEqual(nginxDirectives['frame-src'], 'https://www.tiktok.com https://accounts.google.com $omnistore_games_origin',
+    'nginx frame-src must allow TikTok, the Google Identity Services iframe origin and the games-origin map entry');
   assert.ok(!nginxDirectives['frame-src'].includes("'self'"), 'nginx frame-src must not re-allow same-origin frames');
 
   // The map is the only place an extra frame origin may come from, and it
@@ -515,7 +523,8 @@ check('nginx.conf and backend/server.js express the same CSP allowlist (TikTok +
 
   // Unrelated directives must remain as restrictive as before.
   assert.strictEqual(nginxDirectives['default-src'], "'self'", 'nginx default-src changed');
-  assert.strictEqual(nginxDirectives['connect-src'], "'self'", 'nginx connect-src changed');
+  assert.strictEqual(nginxDirectives['connect-src'], "'self' https://accounts.google.com",
+    'nginx connect-src must stay self plus the Google Identity Services origin');
 
   // Parity: the same origins must be present in the Express policy.
   const frameLine = (serverJs.match(/frameSrc: \[[^\]]*\]/) || [])[0] || '';
@@ -645,6 +654,15 @@ check('working-tree diff touches only intended platform files', () => {
     'platform.html',
     'platform/platform.js',
     'platform/platform.css',
+    // P6.71 Universal Google Login: shared ID-token flow module + its focused
+    // suite, plus the PUBLIC client-id config endpoint (read-only; no auth,
+    // permission or Password/Master behavior change) and that endpoint's test.
+    'platform/google-login.js',
+    'platform/tests/universal-google-login.test.cjs',
+    'backend/controllers/auth.controller.js',
+    'backend/tests/onlineGames.catalog.test.js',
+    'backend/routes/auth.routes.js',
+    'backend/tests/googleLoginConfig.test.js',
     'business.html',
     // Official Multitag integration: minimal CSP change + focused tests.
     'backend/server.js',
@@ -860,6 +878,11 @@ check('working-tree diff touches only intended platform files', () => {
       'backend/controllers/oauthMaster.controller.js',
       'backend/routes/oauthMaster.routes.js',
       'backend/tests/googleMasterSignin.test.js',
+      // P6.71 Universal Google Login UI cycle: the PUBLIC client-id endpoint
+      // (read-only; no authentication, permission or Password/Master change).
+      'backend/controllers/auth.controller.js',
+      'backend/tests/onlineGames.catalog.test.js',
+      'backend/routes/auth.routes.js',
       'backend/config/oauth.js',
       'backend/tests/helpers/testServer.js',
       'backend/package.json',
@@ -887,6 +910,11 @@ check('working-tree diff touches only intended platform files', () => {
     // Compact login + Master entry cycle: focused regression suite for the
     // public homepage auth drawer and the post-login redirect contract.
     'platform/tests/compact-login.test.cjs',
+    // P6.71 Universal Google Login UI cycle: shared ID-token flow module, its
+    // focused suite, and the PUBLIC client-id endpoint test.
+    'platform/google-login.js',
+    'platform/tests/universal-google-login.test.cjs',
+    'backend/tests/googleLoginConfig.test.js',
     // Online Games discoverability follow-up: catalog, lockdown policy and
     // license attribution are asserted from the shipped bytes.
     'backend/tests/onlineGames.catalog.test.js',
@@ -1145,6 +1173,11 @@ check('working-tree diff touches only intended platform files', () => {
       'backend/controllers/oauthMaster.controller.js',
       'backend/routes/oauthMaster.routes.js',
       'backend/tests/googleMasterSignin.test.js',
+      // P6.71 Universal Google Login UI cycle: PUBLIC client-id endpoint only
+      // (read-only; no authentication, permission or Password/Master change).
+      'backend/controllers/auth.controller.js',
+      'backend/tests/onlineGames.catalog.test.js',
+      'backend/routes/auth.routes.js',
       'backend/config/oauth.js',
       'backend/tests/helpers/testServer.js',
       'backend/package.json',

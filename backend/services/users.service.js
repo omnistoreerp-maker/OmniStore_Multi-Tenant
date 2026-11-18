@@ -365,6 +365,32 @@ class UsersService {
     });
   }
 
+  // Find a user by a verified OAuth provider identity (e.g. Google `sub`).
+  // Searches the COMPLETE authoritative user store — not truncated at 1000
+  // records — so no linked account is missed regardless of store size.
+  //
+  // Returns { user, ambiguous: false } when exactly one user maps to the
+  // provider identity, { user: null, ambiguous: true } when multiple users
+  // claim the same provider identity (fail closed — never log into the wrong
+  // account), or { user: null, ambiguous: false } when no user is linked.
+  findByOAuthProvider(provider, providerId) {
+    if (!provider || providerId === undefined || providerId === null || String(providerId).trim() === '') {
+      return { user: null, ambiguous: false };
+    }
+    const subject = String(providerId).trim();
+    // Identity lookup must see the COMPLETE authoritative store: at this point
+    // in the flow there is no request tenant yet, so a tenant-filtered read
+    // would hide legitimately linked accounts. Tenant authorization is applied
+    // afterwards by the login-tenant resolution, never here.
+    const db = this._loadRaw();
+    const matches = (db.users || []).filter(
+      u => u && u.oauth && String(u.oauth[provider]) === subject
+    );
+    if (matches.length === 1) return { user: matches[0], ambiguous: false };
+    if (matches.length > 1) return { user: null, ambiguous: true };
+    return { user: null, ambiguous: false };
+  }
+
   // Exact, case-insensitive email lookup used by authenticate() as a fallback
   // when the submitted identifier is not a username. Empty/missing emails never
   // match (a blank email must not select every user without an email). If more

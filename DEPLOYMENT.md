@@ -99,6 +99,26 @@ repo root for compose, `backend/.env.example` for bare metal). Required in
 production: `JWT_SECRET` (≥32 random chars). `node scripts/checkEnv.js`
 validates everything before startup.
 
+### Login challenge database (Google Login / MFA / tenant selection)
+
+`CHALLENGE_DB_PATH` must point at a SQLite file inside a directory that
+already exists and is writable by the service account. The backend refuses to
+start when the variable is missing in `NODE_ENV=production` or `staging`, and
+it never creates directories on its own:
+
+```bash
+# POSIX example (service user "omnistore")
+install -d -m 0700 -o omnistore -g omnistore /var/lib/omnistore/challenges
+CHALLENGE_DB_PATH=/var/lib/omnistore/challenges/login-challenges.sqlite
+```
+
+SQLite also creates `-wal` and `-shm` siblings, so the directory — not just the
+file — needs write access. The file holds only SHA-256 hashes of single-use
+login challenges (never the tokens themselves). `LOGIN_CHALLENGE_TTL`
+(default `5m`) is the single TTL applied to both the signed challenge token and
+its database row.
+
+
 ## 3. Upgrade
 
 ```bash

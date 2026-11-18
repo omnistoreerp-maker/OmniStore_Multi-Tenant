@@ -289,7 +289,9 @@ describe('Monetag Multitag — official Get-tag integration (platform.html)', ()
     expect(scriptLine).toContain("'unsafe-inline'");
     expect(scriptLine).toContain('https://cdnjs.cloudflare.com');
     expect(scriptLine).toContain('https://cdn.jsdelivr.net');
-    expect((scriptLine.match(/https:\/\//g) || []).length).toBe(6);
+    // P6.71: Google Identity Services — exact origin, never *.google.com.
+    expect(scriptLine).toContain("'https://accounts.google.com'");
+    expect((scriptLine.match(/https:\/\//g) || []).length).toBe(7);
     const connectLine = (SERVER_JS.match(/connectSrc: \[[^\]]*\]/) || [])[0];
     expect(connectLine).toBeTruthy();
     expect(connectLine).toContain("'https://6opo.com'");
@@ -297,8 +299,9 @@ describe('Monetag Multitag — official Get-tag integration (platform.html)', ()
     expect(connectLine).toContain("'https://my.rtmark.net'");
     expect(connectLine).toContain("'https://jmosl.com'");
     expect(connectLine).toContain("'https://094kk.com'");
+    expect(connectLine).toContain("'https://accounts.google.com'");
     expect(connectLine).not.toContain('*');
-    expect((connectLine.match(/https:\/\//g) || []).length).toBe(7);
+    expect((connectLine.match(/https:\/\//g) || []).length).toBe(8);
     // Intentional TikTok change: frame-src allows ONLY the official TikTok
     // Embed Player origin so reels.html can play videos on TikTok's own player.
     // This is deliberately NOT weakened to "frame-src exists" — the exact
@@ -308,10 +311,13 @@ describe('Monetag Multitag — official Get-tag integration (platform.html)', ()
     const frameLine = (SERVER_JS.match(/frameSrc: \[[^\]]*\]/) || [])[0];
     expect(frameLine).toBeTruthy();
     expect(frameLine).toContain("'https://www.tiktok.com'");
+    // P6.71: the GIS button is an accounts.google.com iframe; still no 'self'.
+    expect(frameLine).toContain("'https://accounts.google.com'");
+    expect(frameLine.split("'https://accounts.google.com'").join('')).not.toContain('google.com');
     expect(frameLine).not.toContain("'self'");
     expect(frameLine).not.toContain("'none'");
     expect(frameLine).not.toMatch(/(^|[^.\w])\*/);
-    expect((frameLine.match(/https:\/\//g) || []).length).toBe(1);
+    expect((frameLine.match(/https:\/\//g) || []).length).toBe(2);
     for (const blocked of [MONETAG_SCRIPT_ORIGIN, 'auqot.com', 'ekhay.com', 'b3mny.com', '6opo.com', 'my.rtmark.net', 'jmosl.com', '094kk.com', 'youtube.com', 'tiktokcdn.com']) {
       expect(frameLine).not.toContain(blocked);
     }

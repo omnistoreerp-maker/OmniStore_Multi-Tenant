@@ -9,9 +9,18 @@ const authorization = require('../services/authorization.service');
 const auditService = require('../services/audit.service');
 const CompanyService = require('../services/company.service');
 const loginTenant = require('../services/loginTenant.service');
+const platformAdmin = require('../services/platformAdmin.service');
 const { success, error } = require('../utils/apiResponse');
 const logger = require('../utils/logger');
-const { signAccessToken, signRefreshToken, verifyRefreshToken } = require('../utils/jwt');
+const {
+  signAccessToken,
+  signRefreshToken,
+  verifyRefreshToken,
+  signChallengeToken,
+  verifyChallengeToken,
+  CHALLENGE_PURPOSES
+} = require('../utils/jwt');
+const challengeStore = require('../utils/challengeStore.sqlite');
 const { revokeToken, isRevoked } = require('../utils/tokenStore');
 const { extractToken, parseCookies } = require('../middleware/auth');
 const { verifyPassword } = require('../utils/password');
@@ -38,6 +47,48 @@ function _setAuthCookies(res, accessToken, refreshToken) {
 function _clearAuthCookies(res) {
   res.clearCookie('access_token', { path: '/' });
   res.clearCookie('refresh_token', { path: '/' });
+}
+
+// ── Durable login challenges ────────────────────────────────────────────────
+// Google Login issues short-lived intermediate challenges (MFA verification,
+// tenant selection). Each one is:
+//   * purpose-bound and subject-bound (signed claims + stored row),
+//   * persisted only as a SHA-256 hash in SQLite, and
+//   * consumable exactly once, atomically, before any session is issued.
+// Any failure to persist or consume is fatal for the login attempt: no access
+// token, refresh token or auth cookie is issued.
+let _challengeDb = null;
+
+function _getChallengeDb() {
+  if (_challengeDb && _challengeDb.open) return _challengeDb;
+  _challengeDb = challengeStore.initialise(challengeStore.resolveDefaultPath()).db;
+  return _challengeDb;
+}
+
+// Test seam: lets a suite point the controller at an isolated database.
+function _setChallengeDbForTests(db) {
+  _challengeDb = db;
+}
+
+function _issueChallenge(user, purpose, extra) {
+  const token = signChallengeToken(user, purpose, extra);
+  const db = _getChallengeDb();
+  // P6.67 — bounded, throttled housekeeping: at most one small batch of
+  // expired rows is removed per interval, never on every request. Active
+  // challenges are never eligible (expiresAt <= now only).
+  challengeStore.purgeExpiredIfDue(db);
+  // The row TTL defaults to the SAME configured value the JWT uses, so the
+  // signed token and the durable row always expire together.
+  challengeStore.persistChallenge(db, { token, sub: String(user.id), purpose });
+  return token;
+}
+
+function _burnChallenge(token, purpose, userId) {
+  return challengeStore.consumeChallenge(_getChallengeDb(), {
+    token,
+    purpose,
+    sub: String(userId)
+  });
 }
 
 function login(req, res) {
@@ -426,4 +477,444 @@ function permissions(req, res) {
   }
 }
 
-module.exports = { login, refresh, logout, changePassword, linkGoogle, me, roles, permissions };
+// ---------------------------------------------------------------------------
+// Google Login — ordinary-user sign-in with a verified Google ID token.
+// The Google subject comes ONLY from a verified ID token. No email-only
+// matching, no auto-creation, no auto-linking, no Master accounts.
+// ---------------------------------------------------------------------------
+
+// Public, non-secret configuration for the browser Google button.
+// Exposes ONLY the OAuth client ID — a public identifier that Google Identity
+// Services embeds in every request anyway. The client SECRET is never read
+// here, never serialized and never leaves the server. "enabled: false" means
+// ID-token sign-in is not configured, so the UI must not offer it.
+function googleLoginConfig(req, res) {
+  try {
+    const clientId = process.env.GOOGLE_CLIENT_ID || '';
+    return success(res, { enabled: Boolean(clientId), clientId }, 'Google login configuration');
+  } catch (err) {
+    logger.error('auth.googleLoginConfig error:', err.message);
+    return error(res, 'Failed to read Google login configuration', 500);
+  }
+}
+
+async function googleLogin(req, res) {
+  try {
+    const { idToken } = req.body || {};
+    if (!idToken || typeof idToken !== 'string') {
+      return error(res, 'Google ID token is required', 400);
+    }
+
+    const identity = await googleIdentity.verifyIdToken(idToken);
+    if (identity.error) {
+      const statusCode = identity.statusCode === 503 ? 503 : 401;
+      try {
+        auditService.record({
+          method: 'POST',
+          path: '/api/v1/auth/google-login',
+          statusCode,
+          ip: req.ip,
+          userAgent: req.get ? req.get('user-agent') : null,
+          action: 'USER_GOOGLE_LOGIN_FAILED',
+          resource: 'auth',
+          changes: { reason: identity.statusCode === 503 ? 'google_not_configured_or_unavailable' : 'google_verification_failed' }
+        });
+      } catch (_) {}
+      return error(res, statusCode === 503 ? 'Google authentication temporarily unavailable' : 'Invalid Google token', statusCode);
+    }
+
+    const lookup = usersService.findByOAuthProvider('google', identity.sub);
+    if (lookup.ambiguous) {
+      try {
+        auditService.record({
+          method: 'POST',
+          path: '/api/v1/auth/google-login',
+          statusCode: 401,
+          ip: req.ip,
+          userAgent: req.get ? req.get('user-agent') : null,
+          action: 'USER_GOOGLE_LOGIN_FAILED',
+          resource: 'auth',
+          changes: { reason: 'ambiguous_google_identity' }
+        });
+      } catch (_) {}
+      return error(res, 'Invalid Google token', 401);
+    }
+    const user = lookup.user;
+    if (!user) {
+      try {
+        auditService.record({
+          method: 'POST',
+          path: '/api/v1/auth/google-login',
+          statusCode: 401,
+          ip: req.ip,
+          userAgent: req.get ? req.get('user-agent') : null,
+          action: 'USER_GOOGLE_LOGIN_FAILED',
+          resource: 'auth',
+          changes: { reason: 'unlinked_google_identity' }
+        });
+      } catch (_) {}
+      return error(res, 'Invalid Google token', 401);
+    }
+
+    if (user.status === 'disabled') {
+      return error(res, 'User is disabled', 403, { code: 'ACCOUNT_DISABLED' });
+    }
+
+    if (platformAdmin.platformRoleFor(user.username)) {
+      try {
+        auditService.record({
+          method: 'POST',
+          path: '/api/v1/auth/google-login',
+          statusCode: 403,
+          userId: user.id,
+          ip: req.ip,
+          userAgent: req.get ? req.get('user-agent') : null,
+          action: 'USER_GOOGLE_LOGIN_REJECTED_MASTER',
+          resource: 'auth',
+          resourceId: user.id,
+          changes: { reason: 'master_account_isolation' }
+        });
+      } catch (_) {}
+      return error(res, 'Master accounts must use the Master sign-in flow', 403);
+    }
+
+    const resolution = loginTenant.resolveLoginTenantId({
+      user,
+      requestedCompany: undefined,
+      selectedTenantId: undefined
+    });
+
+    if (resolution.source === loginTenant.SOURCE.AMBIGUOUS) {
+      const activeCompanies = CompanyService.getActiveCompanies();
+      const membership = tenantMembership.idsFor(user);
+      // P6.68 — Google tenant selection fails closed. A user without an
+      // explicit, non-empty server-side membership is NOT offered the company
+      // catalog as a fallback: the login flow never invents, widens or guesses
+      // membership. (Password login policy is unchanged; this branch is
+      // reachable only through Google Login.)
+      if (membership.length === 0) {
+        try {
+          auditService.record({
+            method: 'POST',
+            path: '/api/v1/auth/google-login',
+            statusCode: 403,
+            userId: user.id,
+            ip: req.ip,
+            userAgent: req.get ? req.get('user-agent') : null,
+            action: 'USER_GOOGLE_LOGIN_REJECTED_NO_TENANT_MEMBERSHIP',
+            resource: 'auth',
+            resourceId: user.id,
+            changes: { reason: 'tenant_membership_required' }
+          });
+        } catch (_) {}
+        return error(res, 'No tenant membership is configured for this account. Contact an administrator.', 403, { code: 'TENANT_MEMBERSHIP_REQUIRED' });
+      }
+      const availableTenants = activeCompanies.filter(c => membership.includes(String(c.id)));
+      // Intermediate credential only: purpose-bound and unusable as a session.
+      const tempToken = _issueChallenge(user, CHALLENGE_PURPOSES.GOOGLE_TENANT_SELECTION);
+      return success(res, {
+        tenantSelectionRequired: true,
+        tempToken,
+        userId: user.id,
+        availableTenants: availableTenants.map(c => ({ id: c.id, name: c.name }))
+      }, 'Tenant selection required');
+    }
+
+    const tenantId = resolution.tenantId;
+
+    if (tenantId) {
+      // P6.68-FINAL — a Google session may only be bound to a tenant the user
+      // provably belongs to. The single-active-company DERIVED path is NOT an
+      // exception: `resolveLoginTenantId` uses the whole active catalog when the
+      // membership list is empty, so one active company must not be mistaken for
+      // membership (also reachable when tenantUserMembershipEnabled is off, which
+      // is why this check is unconditional in the Google flow).
+      const membership = tenantMembership.idsFor(user);
+      if (membership.length === 0) {
+        try {
+          auditService.record({
+            method: 'POST',
+            path: '/api/v1/auth/google-login',
+            statusCode: 403,
+            userId: user.id,
+            ip: req.ip,
+            userAgent: req.get ? req.get('user-agent') : null,
+            action: 'USER_GOOGLE_LOGIN_REJECTED_NO_TENANT_MEMBERSHIP',
+            resource: 'auth',
+            resourceId: user.id,
+            changes: { reason: 'tenant_membership_required', source: resolution.source }
+          });
+        } catch (_) {}
+        return error(res, 'No tenant membership is configured for this account. Contact an administrator.', 403, { code: 'TENANT_MEMBERSHIP_REQUIRED' });
+      }
+      if (!membership.includes(String(tenantId))) {
+        return error(res, 'User is not a member of the selected company', 403);
+      }
+      const company = CompanyService.getCompany(tenantId);
+      if (!company || company.active === false || String(company.status || '').toUpperCase() === 'SUSPENDED') {
+        return error(res, 'Company is suspended', 403, { code: 'COMPANY_SUSPENDED' });
+      }
+      if (config.tenantUserMembershipEnabled && tenantMembership.isTenantDenied(user, tenantId)) {
+        return error(res, 'User is not a member of the selected company', 403);
+      }
+    }
+
+    if (user.mfaEnabled) {
+      // Persisted single-use challenge; nothing is usable twice.
+      const tempToken = _issueChallenge(
+        user,
+        CHALLENGE_PURPOSES.GOOGLE_MFA,
+        tenantId ? { tenantId } : undefined
+      );
+      return success(res, {
+        mfaRequired: true,
+        tempToken,
+        userId: user.id,
+        message: 'MFA verification required'
+      }, 'MFA required');
+    }
+
+    const tokenIdentity = tenantId ? { ...user, tenantId } : user;
+    const accessToken = signAccessToken(tokenIdentity);
+    const refreshToken = signRefreshToken(tokenIdentity);
+    _setAuthCookies(res, accessToken, refreshToken);
+
+    try {
+      auditService.record({
+        method: 'POST',
+        path: '/api/v1/auth/google-login',
+        statusCode: 200,
+        userId: user.id,
+        ip: req.ip,
+        userAgent: req.get ? req.get('user-agent') : null,
+        action: 'USER_GOOGLE_LOGIN',
+        resource: 'auth',
+        resourceId: user.id,
+        tenantId: tenantId || null,
+        changes: { provider: 'google' }
+      });
+    } catch (_) {}
+
+    const result = { user: usersService.sanitizeUser(user), accessToken, refreshToken };
+    if (config.tenantRolesEnabled && tenantId) {
+      result.effectiveRole = tenantRole.resolveEffectiveRole(user, tenantId);
+    }
+    return success(res, result, 'Login successful');
+  } catch (err) {
+    logger.error('auth.googleLogin error:', err.message);
+    error(res, 'Failed to login', 500);
+  }
+}
+
+// Complete MFA after Google Login primary authentication.
+// The temp token carries mfaPending: true and binds the user identity;
+// the client cannot supply a userId. MFA completion issues full tokens.
+async function googleLoginMfaVerify(req, res) {
+  try {
+    const { tempToken, mfaToken } = req.body || {};
+    if (!tempToken || typeof tempToken !== 'string') {
+      return error(res, 'Temporary challenge token is required', 400);
+    }
+    if (!mfaToken) {
+      return error(res, 'MFA code is required', 400);
+    }
+
+    const payload = verifyChallengeToken(tempToken, CHALLENGE_PURPOSES.GOOGLE_MFA);
+    if (!payload) {
+      return error(res, 'Invalid or expired challenge', 401);
+    }
+
+    const user = usersService.getById(payload.sub);
+    if (!user) {
+      return error(res, 'Invalid or expired challenge', 401);
+    }
+
+    // Consume the challenge atomically BEFORE issuing anything. If the
+    // challenge is already spent, expired, or belongs to another subject, the
+    // attempt fails here and no session is created. Burning before the MFA
+    // check also means a stolen challenge cannot be retried for a second guess.
+    let burned;
+    try {
+      burned = _burnChallenge(tempToken, CHALLENGE_PURPOSES.GOOGLE_MFA, user.id);
+    } catch (err) {
+      logger.error('auth.googleLoginMfaVerify challenge store error:', err.message);
+      return error(res, 'Invalid or expired challenge', 401);
+    }
+    if (!burned || burned.consumed !== true) {
+      return error(res, 'Invalid or expired challenge', 401);
+    }
+
+    const mfaResult = mfaService.verifyLogin(user.id, mfaToken);
+    if (mfaResult.error || !mfaResult.verified) {
+      return error(res, 'Invalid MFA code', 401);
+    }
+
+    const tenantId = payload.tenantId || undefined;
+
+    if (tenantId) {
+      // P6.68-FINAL — re-authorise the tenant bound into the MFA challenge
+      // against the CURRENT server-side membership (covers challenges minted
+      // before this rule, and membership revoked between the two steps).
+      const membership = tenantMembership.idsFor(user);
+      if (membership.length === 0) {
+        return error(res, 'No tenant membership is configured for this account. Contact an administrator.', 403, { code: 'TENANT_MEMBERSHIP_REQUIRED' });
+      }
+      if (!membership.includes(String(tenantId))) {
+        return error(res, 'User is not a member of the selected company', 403);
+      }
+      const company = CompanyService.getCompany(tenantId);
+      if (!company || company.active === false || String(company.status || '').toUpperCase() === 'SUSPENDED') {
+        return error(res, 'Company is suspended', 403, { code: 'COMPANY_SUSPENDED' });
+      }
+      if (config.tenantUserMembershipEnabled && tenantMembership.isTenantDenied(user, tenantId)) {
+        return error(res, 'User is not a member of the selected company', 403);
+      }
+    }
+
+    const tokenIdentity = tenantId ? { ...user, tenantId } : user;
+    const accessToken = signAccessToken(tokenIdentity);
+    const refreshToken = signRefreshToken(tokenIdentity);
+    _setAuthCookies(res, accessToken, refreshToken);
+
+    try {
+      auditService.record({
+        method: 'POST',
+        path: '/api/v1/auth/google-login/mfa-verify',
+        statusCode: 200,
+        userId: user.id,
+        ip: req.ip,
+        userAgent: req.get ? req.get('user-agent') : null,
+        action: 'USER_GOOGLE_LOGIN_MFA_COMPLETED',
+        resource: 'auth',
+        resourceId: user.id,
+        tenantId: tenantId || null,
+        changes: { provider: 'google', usedBackupCode: !!mfaResult.usedBackupCode }
+      });
+    } catch (_) {}
+
+    const result = { user: usersService.sanitizeUser(user), accessToken, refreshToken };
+    if (config.tenantRolesEnabled && tenantId) {
+      result.effectiveRole = tenantRole.resolveEffectiveRole(user, tenantId);
+    }
+    return success(res, result, 'Login successful');
+  } catch (err) {
+    logger.error('auth.googleLoginMfaVerify error:', err.message);
+    error(res, 'Failed to complete MFA', 500);
+  }
+}
+
+// Select a tenant after Google Login primary authentication when the user
+// has multiple active memberships. The temp token carries
+// tenantSelectionRequired: true and binds the user identity.
+async function googleLoginSelectTenant(req, res) {
+  try {
+    const { tempToken, tenantId } = req.body || {};
+    if (!tempToken || typeof tempToken !== 'string') {
+      return error(res, 'Temporary challenge token is required', 400);
+    }
+    if (!tenantId || typeof tenantId !== 'string') {
+      return error(res, 'Tenant ID is required', 400);
+    }
+
+    const payload = verifyChallengeToken(tempToken, CHALLENGE_PURPOSES.GOOGLE_TENANT_SELECTION);
+    if (!payload) {
+      return error(res, 'Invalid or expired challenge', 401);
+    }
+
+    const user = usersService.getById(payload.sub);
+    if (!user) {
+      return error(res, 'Invalid or expired challenge', 401);
+    }
+
+    const activeCompanies = CompanyService.getActiveCompanies();
+    const membership = tenantMembership.idsFor(user);
+    // P6.68 — fail closed: without an explicit membership the user has no
+    // authority to select ANY tenant, so the catalog is never offered.
+    if (membership.length === 0) {
+      return error(res, 'No tenant membership is configured for this account. Contact an administrator.', 403, { code: 'TENANT_MEMBERSHIP_REQUIRED' });
+    }
+    // The server-side membership is the authority; a tenantId supplied by the
+    // client is only ever a lookup key into that membership.
+    if (!membership.includes(String(tenantId))) {
+      return error(res, 'Unauthorized tenant selection', 403);
+    }
+    const availableTenants = activeCompanies.filter(c => membership.includes(String(c.id)));
+    const selected = availableTenants.find(c => String(c.id) === String(tenantId));
+    if (!selected) {
+      return error(res, 'Unauthorized tenant selection', 403);
+    }
+
+    if (selected.active === false || String(selected.status || '').toUpperCase() === 'SUSPENDED') {
+      return error(res, 'Company is suspended', 403, { code: 'COMPANY_SUSPENDED' });
+    }
+
+    // Consume the tenant-selection challenge BEFORE issuing anything, so a
+    // replayed or cross-subject selection can never reach session issuance.
+    let burned;
+    try {
+      burned = _burnChallenge(tempToken, CHALLENGE_PURPOSES.GOOGLE_TENANT_SELECTION, user.id);
+    } catch (err) {
+      logger.error('auth.googleLoginSelectTenant challenge store error:', err.message);
+      return error(res, 'Invalid or expired challenge', 401);
+    }
+    if (!burned || burned.consumed !== true) {
+      return error(res, 'Invalid or expired challenge', 401);
+    }
+
+    if (user.mfaEnabled) {
+      // The tenant choice is carried into the MFA challenge so the completed
+      // session stays bound to the tenant this user actually selected.
+      const mfaTempToken = _issueChallenge(user, CHALLENGE_PURPOSES.GOOGLE_MFA, {
+        tenantId: String(selected.id)
+      });
+      return success(res, {
+        mfaRequired: true,
+        tempToken: mfaTempToken,
+        userId: user.id,
+        message: 'MFA verification required'
+      }, 'MFA required');
+    }
+
+    // Session is bound to the tenant the user selected, never a default.
+    const tenantIdentity = { ...user, tenantId: String(selected.id) };
+    const accessToken = signAccessToken(tenantIdentity);
+    const refreshToken = signRefreshToken(tenantIdentity);
+    _setAuthCookies(res, accessToken, refreshToken);
+
+    try {
+      auditService.record({
+        method: 'POST',
+        path: '/api/v1/auth/google-login/select-tenant',
+        statusCode: 200,
+        userId: user.id,
+        ip: req.ip,
+        userAgent: req.get ? req.get('user-agent') : null,
+        action: 'USER_GOOGLE_LOGIN_TENANT_SELECTED',
+        resource: 'auth',
+        resourceId: user.id,
+        tenantId: String(selected.id),
+        changes: { provider: 'google', tenantId: String(selected.id) }
+      });
+    } catch (_) {}
+
+    const result = {
+      user: usersService.sanitizeUser(user),
+      accessToken,
+      refreshToken
+    };
+    if (config.tenantRolesEnabled) {
+      result.effectiveRole = tenantRole.resolveEffectiveRole(user, String(selected.id));
+    }
+    return success(res, result, 'Login successful');
+  } catch (err) {
+    logger.error('auth.googleLoginSelectTenant error:', err.message);
+    error(res, 'Failed to select tenant', 500);
+  }
+}
+
+module.exports = {
+  login, refresh, logout, changePassword, linkGoogle, googleLoginConfig, googleLogin,
+  googleLoginMfaVerify, googleLoginSelectTenant, me, roles, permissions,
+  // Test seam for challenge-store failure injection
+  _setChallengeDbForTests
+};

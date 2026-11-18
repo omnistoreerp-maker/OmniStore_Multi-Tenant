@@ -33,6 +33,7 @@ const webhookService = require('./services/webhook.service');
 const notificationEngine = require('./services/notificationEngine.service');
 const jobService = require('./services/job.service');
 const schedulerService = require('./services/scheduler.service');
+const challengeStore = require('./utils/challengeStore.sqlite');
 
 const app = express();
 
@@ -82,7 +83,11 @@ app.use(helmet({
       // single-file build with inline onclick handlers, and the project's own
       // nginx.conf already allows 'unsafe-inline'. Leaving the directive out
       // makes attribute handlers fall back to script-src ('unsafe-inline').
-      scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdnjs.cloudflare.com', 'https://cdn.jsdelivr.net', 'https://quge5.com', 'https://auqot.com', 'https://ekhay.com', 'https://b3mny.com'],
+      // Google Identity Services (Universal Google Login button): the SDK
+      // script and its button iframe are served from this ONE exact origin —
+      // no wildcard and no *.google.com suffix. The SDK is injected only after
+      // /api/v1/auth/google-login/config reports ID-token sign-in configured.
+      scriptSrc: ["'self'", "'unsafe-inline'", 'https://accounts.google.com', 'https://cdnjs.cloudflare.com', 'https://cdn.jsdelivr.net', 'https://quge5.com', 'https://auqot.com', 'https://ekhay.com', 'https://b3mny.com'],
       scriptSrcAttr: ["'self'", "'unsafe-inline'"], // overrides helmet's default 'none'
       styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
@@ -95,7 +100,7 @@ app.use(helmet({
       // tiktokDisplayApi.service also validates the host server-side before the
       // URL ever reaches a browser, so this allowlist is sufficient by design.
       imgSrc: ["'self'", 'data:', 'https://*.tiktokcdn.com', 'https://*.tiktokcdn-us.com'],
-      connectSrc: ["'self'", 'https://api.github.com', 'https://cdn.jsdelivr.net', 'https://6opo.com', 'https://auqot.com', 'https://my.rtmark.net', 'https://jmosl.com', 'https://094kk.com'],
+      connectSrc: ["'self'", 'https://accounts.google.com', 'https://api.github.com', 'https://cdn.jsdelivr.net', 'https://6opo.com', 'https://auqot.com', 'https://my.rtmark.net', 'https://jmosl.com', 'https://094kk.com'],
       // TikTok embedded playback: the official Embed Player is served from
       // https://www.tiktok.com/player/v1/<video_id> and is built in reels.html
       // from the numeric post id alone. The second entry is the online-games
@@ -105,7 +110,9 @@ app.use(helmet({
       // deliberately NOT re-added: same-origin frames stay blocked, and the
       // games are cross-origin by design so they cannot touch this origin's
       // cookies, storage or tenant data.
-      frameSrc: ['https://www.tiktok.com', GAMES_ORIGIN].filter(Boolean),
+      // accounts.google.com hosts the GIS button iframe. It is an exact
+      // origin: 'self' stays absent, so same-origin framing is still blocked.
+      frameSrc: ['https://www.tiktok.com', 'https://accounts.google.com', GAMES_ORIGIN].filter(Boolean),
       objectSrc: ["'none'"]
     }
   }
@@ -633,6 +640,20 @@ if (require.main === module) {
   // (both are legitimately used during bootstrap / same-origin installs).
   const gate = config.runProductionStartupGate(config, logger);
   if (!gate.ok) {
+    process.exit(1);
+  }
+
+  // P6.67 — the durable login-challenge database must be provisioned before
+  // the process serves traffic: explicit CHALLENGE_DB_PATH in production-like
+  // environments, an existing writable directory, and an openable database.
+  // Failing here is intentional; without it every Google Login would 500 after
+  // the first request instead of the misconfiguration being obvious at boot.
+  try {
+    const challengeDbPath = challengeStore.validateStartupConfiguration();
+    logger.info('Login challenge store ready: ' + challengeDbPath);
+  } catch (challengeErr) {
+    logger.error('Refusing to start: the login challenge store is not configured correctly.');
+    logger.error('  - ' + challengeErr.message);
     process.exit(1);
   }
 

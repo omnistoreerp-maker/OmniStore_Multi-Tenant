@@ -93,7 +93,13 @@ const SENSITIVE_KEYS = new Set([
   'privatekey',
   'signingkey',
   'jwt',
-  'idtoken'
+  'idtoken',
+  // P6.67 — intermediate Google Login challenges and TOTP codes: the generic
+  // request-body capture must never persist a reusable challenge credential
+  // or a live MFA code (P6.66 L-1).
+  'temptoken',
+  'mfatoken',
+  'mfacode'
 ]);
 
 // Header-style aliases of secrets ALREADY listed in SENSITIVE_KEYS above

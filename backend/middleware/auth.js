@@ -26,6 +26,12 @@ function extractToken(req) {
   return cookies.access_token || null;
 }
 
+// Intermediate Google Login challenges carry these markers. They must never be
+// accepted as an ordinary authenticated identity, so this middleware rejects
+// them outright even though they are signed with a separate key.
+const CHALLENGE_PURPOSES = ['google_mfa', 'google_tenant_selection'];
+const LEGACY_CHALLENGE_MARKERS = ['mfaPending', 'mfaRequired', 'tenantSelectionRequired'];
+
 // Global middleware: populates req.user when a valid token is present.
 // Never rejects — route protection is opt-in via requireAuth/requireRole.
 function authMiddleware(req, res, next) {
@@ -34,6 +40,17 @@ function authMiddleware(req, res, next) {
   if (token && !isRevoked(token)) {
     const payload = verifyAccessToken(token);
     if (payload) {
+      // Phase 22B — a valid signature alone must not grant ordinary API access
+      // when the credential is actually a login challenge.
+      if (payload.purpose && CHALLENGE_PURPOSES.includes(payload.purpose)) {
+        return errorResponse(res, 'Authentication required', 401);
+      }
+      const legacyMarker = Object.keys(payload).find(
+        (key) => LEGACY_CHALLENGE_MARKERS.includes(key) && payload[key] === true
+      );
+      if (legacyMarker) {
+        return errorResponse(res, 'Authentication required', 401);
+      }
       // Phase D — token-version validation against the STORED user record. When
       // the sub resolves to a real user, a token signed before a tokenVersion
       // bump (e.g. a password change/reset) is treated as unauthenticated.

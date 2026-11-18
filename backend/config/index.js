@@ -4,6 +4,34 @@ dotenv.config();
 
 const env = process.env.NODE_ENV || 'development';
 
+// Universal Google Login challenge TTL — the ONE authoritative value for
+// both the signed JWT expiration and the SQLite row expiration, so the two
+// can never drift apart (P6.66 L-3). Accepts an ms-style duration string
+// ("5m", "90s", "1h") exactly like jsonwebtoken does.
+const _DURATION_UNITS_MS = {
+  ms: 1, s: 1000, m: 60000, h: 3600000, d: 86400000, w: 604800000, y: 31557600000
+};
+
+function durationToMs(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  const text = String(value == null ? "" : value).trim().toLowerCase();
+  if (!text) return null;
+  let index = 0;
+  while (index < text.length && (text[index] === "." || (text[index] >= "0" && text[index] <= "9"))) index++;
+  if (index === 0) return null;
+  const amount = Number(text.slice(0, index));
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+  const unit = text.slice(index) || "ms";
+  if (!Object.prototype.hasOwnProperty.call(_DURATION_UNITS_MS, unit)) return null;
+  return Math.round(amount * _DURATION_UNITS_MS[unit]);
+}
+
+const loginChallengeTtl = process.env.LOGIN_CHALLENGE_TTL || "5m";
+const loginChallengeTtlMs = durationToMs(loginChallengeTtl);
+if (!loginChallengeTtlMs || loginChallengeTtlMs <= 0) {
+  throw new Error(`LOGIN_CHALLENGE_TTL is not a valid duration: ${loginChallengeTtl}`);
+}
+
 module.exports = {
   env,
   isProduction: env === 'production',
@@ -27,6 +55,8 @@ module.exports = {
   jwtRefreshSecretExplicit: !!process.env.JWT_REFRESH_SECRET,
   jwtAccessTtl: process.env.JWT_ACCESS_TTL || '15m',
   jwtRefreshTtl: process.env.JWT_REFRESH_TTL || '7d',
+  loginChallengeTtl,
+  loginChallengeTtlMs,
   authRequired: process.env.AUTH_REQUIRED === 'true',
 
   // API security
@@ -151,25 +181,27 @@ function validateProductionConfig(cfg = module.exports) {
   if (!cfg.corsOrigins) {
     warnings.push('CORS_ORIGINS is empty in production: CORS is open. Set a comma-separated allowlist unless the API is served same-origin.');
   }
-return { fatal, warnings };
-  }
+  return { fatal, warnings };
+}
 
-  // F3 — production startup gate. Pure and side-effect free: it returns the
-  // validation result instead of exiting the process, so callers (server.js
-  // and tests) can decide how to enforce it. The actual refusal to boot stays
-  // in backend/server.js, which logs every fatal message and calls
-  // process.exit(1). Passing a custom `log` lets tests capture output without
-  // touching the real logger or binding a port.
-  function runProductionStartupGate(cfg, log) {
-    const { fatal, warnings } = validateProductionConfig(cfg);
-    const ok = fatal.length === 0;
-    if (!ok) {
-      if (log) log.error('Refusing to start: unsafe production configuration.');
-      if (log) fatal.forEach((msg) => log.error('  - ' + msg));
-    }
-    if (log) warnings.forEach((msg) => log.warn('Production warning: ' + msg));
-    return { ok, fatal, warnings };
+// F3 — production startup gate. Pure and side-effect free: it returns the
+// validation result instead of exiting the process, so callers (server.js
+// and tests) can decide how to enforce it. The actual refusal to boot stays
+// in backend/server.js, which logs every fatal message and calls
+// process.exit(1). Passing a custom `log` lets tests capture output without
+// touching the real logger or binding a port.
+function runProductionStartupGate(cfg, log) {
+  const { fatal, warnings } = validateProductionConfig(cfg);
+  const ok = fatal.length === 0;
+  if (!ok) {
+    if (log) log.error('Refusing to start: unsafe production configuration.');
+    if (log) fatal.forEach((msg) => log.error('  - ' + msg));
   }
+  if (log) warnings.forEach((msg) => log.warn('Production warning: ' + msg));
+  return { ok, fatal, warnings };
+}
 
-  module.exports.validateProductionConfig = validateProductionConfig;
-  module.exports.runProductionStartupGate = runProductionStartupGate;
+module.exports.validateProductionConfig = validateProductionConfig;
+module.exports.runProductionStartupGate = runProductionStartupGate;
+module.exports.durationToMs = durationToMs;
+

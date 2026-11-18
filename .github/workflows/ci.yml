@@ -20,7 +20,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
@@ -69,7 +69,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
           cache-dependency-path: |
             tests/e2e/package-lock.json
@@ -117,7 +117,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
           cache-dependency-path: marketplace/package-lock.json
 
@@ -149,7 +149,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Roster + licence + vendoring-scope gate
         run: node online-games/roster-gate.test.cjs
@@ -180,7 +180,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
           cache-dependency-path: online-games/runtime/package-lock.json
 
@@ -200,3 +200,36 @@ jobs:
           ../tests/search.test.cjs
           ../tests/surface.test.cjs
           ../tests/runtime.test.cjs
+
+  # Verify Node 24 Docker image build and runtime on GitHub-hosted runners
+  docker-node24-verification:
+    name: Docker Node 24 verification
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Node 24 Docker image
+        run: |
+          docker build -f Dockerfile -t omnistore-node24-ci:${{ github.sha }} .
+          # Fail immediately on build failure - no continue-on-error
+
+      - name: Verify Node 24 runtime in image
+        run: |
+          RESULT=$(docker run --rm --entrypoint node omnistore-node24-ci:${{ github.sha }} --version) || exit 1
+          echo "Node version: $RESULT"
+          # Assert Node 24.x.x is reported
+          if [[ "$RESULT" != v24* ]]; then
+            echo "ERROR: Expected Node 24.x.x but got: $RESULT"
+            exit 1
+          fi
+
+      - name: Report image metadata
+        run: |
+          IMAGE_ID=$(docker image inspect omnistore-node24-ci:${{ github.sha }} --format='{{.ID}}')
+          echo "Image ID: $IMAGE_ID"
+          echo "Image size: $(docker image inspect omnistore-node24-ci:${{ github.sha }} --format='{{.Size}}') bytes"
+          echo "Image architecture: $(docker image inspect omnistore-node24-ci:${{ github.sha }} --format='{{.architecture}}')"
+          echo "Image OS: $(docker image inspect omnistore-node24-ci:${{ github.sha }} --format='{{.Os}}')"
