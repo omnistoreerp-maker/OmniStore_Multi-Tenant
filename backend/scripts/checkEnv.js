@@ -23,7 +23,23 @@ if (isProduction) {
   else if (jwtSecret === 'dev-secret') errors.push('JWT_SECRET is still the development default — set a long random value');
   else if (jwtSecret.length < 32) warnings.push('JWT_SECRET is shorter than 32 characters');
 }
-if (!process.env.JWT_REFRESH_SECRET) info.push('JWT_REFRESH_SECRET not set (derived from JWT_SECRET)');
+
+const refreshSecret = process.env.JWT_REFRESH_SECRET;
+if (isProduction) {
+  if (!refreshSecret) {
+    errors.push('JWT_REFRESH_SECRET is required in production. Configure it independently of JWT_SECRET.');
+  } else if (refreshSecret === 'dev-secret' || refreshSecret === 'dev-secret:refresh') {
+    errors.push('JWT_REFRESH_SECRET is still the development default — set an independent random value');
+  } else if (refreshSecret === jwtSecret) {
+    errors.push('JWT_REFRESH_SECRET must differ from JWT_SECRET');
+  } else if (refreshSecret === jwtSecret + ':refresh') {
+    errors.push('JWT_REFRESH_SECRET is derived from JWT_SECRET in production. Set an independent JWT_REFRESH_SECRET before boot.');
+  } else if (refreshSecret.length < 32) {
+    warnings.push('JWT_REFRESH_SECRET is shorter than 32 characters');
+  }
+} else if (!refreshSecret) {
+  info.push('JWT_REFRESH_SECRET not set (derived from JWT_SECRET)');
+}
 
 // Port
 const port = parseInt(process.env.PORT, 10) || 3001;
