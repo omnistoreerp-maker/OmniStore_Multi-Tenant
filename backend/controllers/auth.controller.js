@@ -51,6 +51,19 @@ function _clearAuthCookies(res) {
   res.clearCookie('refresh_token', { path: '/' });
 }
 
+// P6 F4/F5 — bounded, throttled housekeeping for the durable token store.
+// At most one small batch of already-expired rows is removed per interval, so
+// no login or refresh pays for a full-table purge. Cleanup is advisory only:
+// it fails closed on nothing, it can never grant access, and a storage error is
+// swallowed so authentication behaves exactly as it would without cleanup.
+function _runTokenStoreHousekeeping() {
+  try {
+    tokenStore.purgeExpiredIfDue();
+  } catch (_) {
+    // Never let housekeeping affect the auth outcome.
+  }
+}
+
 // ── Durable login challenges ────────────────────────────────────────────────
 // Google Login issues short-lived intermediate challenges (MFA verification,
 // tenant selection). Each one is:
@@ -172,6 +185,9 @@ function login(req, res) {
 
     const tokenIdentity = carryTenantId ? { ...user, tenantId: carryTenantId } : user;
 
+    // Throttled housekeeping (at most one bounded batch per interval).
+    _runTokenStoreHousekeeping();
+
     // F4: Create session family and issue first refresh token
     const issuedAt = Date.now();
     const expiresAt = issuedAt + config.jwtRefreshTtlMs || (issuedAt + 7 * 24 * 60 * 60 * 1000);
@@ -251,6 +267,9 @@ function refresh(req, res) {
     }
 
     try {
+      // Throttled housekeeping (at most one bounded batch per interval).
+      _runTokenStoreHousekeeping();
+
       const newJti = crypto.randomUUID();
       const issuedAt = Date.now();
       const expiresAt = issuedAt + config.jwtRefreshTtlMs || (issuedAt + 7 * 24 * 60 * 60 * 1000);

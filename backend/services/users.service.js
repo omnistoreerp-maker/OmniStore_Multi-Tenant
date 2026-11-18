@@ -301,7 +301,7 @@ class UsersService {
       // all outstanding refresh tokens and access tokens
       try {
         const tokenStore = require('../utils/tokenStore.sqlite');
-        tokenStore.revokeAllFamiliesForUser(String(id));
+        tokenStore.revokeAllFamiliesForUser(String(normalized));
       } catch (_) {
         // Fail-closed: if token store is unavailable, the version bump still
         // takes effect so future tokens are invalid, but existing ones may

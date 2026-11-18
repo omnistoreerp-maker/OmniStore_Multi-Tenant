@@ -538,23 +538,90 @@ function _revokeAllUserFamilies(db, sub, reason) {
   }, "IMMEDIATE")(sub, reason);
 }
 
+// Housekeeping cadence for the token store: at most one bounded batch per
+// interval. Kept in parity with the login-challenge store so a single login or
+// refresh cycle never runs an unbounded delete.
+const PURGE_INTERVAL_MS = 5 * 60 * 1000;
+const PURGE_BATCH_LIMIT = 500;
+
+// Delete expired rows in bounded batches.
+//
+// Only rows whose `expiresAt` is at or before `now` are eligible, so active
+// credentials can never be removed. At most `limit` rows per table are deleted
+// per call, which keeps the write small even when a backlog has accumulated.
+//
+// Retention policy:
+//   - refresh_tokens: removed once expired (all statuses; an expired row can no
+//     longer rotate or authenticate).
+//   - access_token_denylist: removed once expired; the access token it denied
+//     has expired too, so revocation state is no longer needed.
+//   - legacy_revocations: removed once their recorded expiry has passed. Rows
+//     imported without an expiry are retained indefinitely (unknown lifetime).
+//   - session_families: NEVER removed here. Families are the revocation ledger
+//     and the FK parent of refresh_tokens.
+//   - replay_audit: NEVER removed here. Replay incidents are audit records and
+//     follow their own retention policy.
 function purgeExpired(db, options = {}) {
-  const now = options.now || Date.now();
-  const limit = options.limit || 500;
+  const now = Number.isFinite(options.now) ? Number(options.now) : Date.now();
+  const rawLimit = Number(options.limit);
+  const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.floor(rawLimit) : PURGE_BATCH_LIMIT;
 
   const deletedAccess = db.prepare(`
-    DELETE FROM access_token_denylist WHERE expiresAt <= ?
-  `).run(now).changes;
+    DELETE FROM access_token_denylist WHERE jti IN (
+      SELECT jti FROM access_token_denylist
+      WHERE expiresAt <= ? ORDER BY expiresAt ASC LIMIT ?
+    )
+  `).run(now, limit).changes;
 
   const deletedRefresh = db.prepare(`
-    DELETE FROM refresh_tokens WHERE expiresAt <= ? AND status IN ('active','consumed')
-  `).run(now).changes;
+    DELETE FROM refresh_tokens WHERE jti IN (
+      SELECT jti FROM refresh_tokens
+      WHERE expiresAt <= ? ORDER BY expiresAt ASC LIMIT ?
+    )
+  `).run(now, limit).changes;
 
   const deletedLegacy = db.prepare(`
-    DELETE FROM legacy_revocations WHERE expiresAt IS NOT NULL AND expiresAt <= ?
-  `).run(now).changes;
+    DELETE FROM legacy_revocations WHERE hash IN (
+      SELECT hash FROM legacy_revocations
+      WHERE expiresAt IS NOT NULL AND expiresAt <= ?
+      ORDER BY expiresAt ASC LIMIT ?
+    )
+  `).run(now, limit).changes;
 
   return { access: deletedAccess, refresh: deletedRefresh, legacy: deletedLegacy };
+}
+
+// Per-database throttle state. Uses the connection object as the key so unit
+// tests with several databases and separate app instances never suppress each
+// other's housekeeping.
+const _purgeState = new WeakMap();
+
+// Throttled housekeeping: at most one bounded purge per interval per database.
+// Never throws — a cleanup failure is advisory and must never influence the
+// outcome of the authentication request that triggered it.
+function purgeExpiredIfDue(db, options = {}) {
+  let target = db;
+  let opts = options;
+  // Allow the no-argument wrapper form used by controllers: purgeExpiredIfDue().
+  if (!target || typeof target.prepare !== "function") {
+    opts = db || {};
+    target = null;
+  }
+  const now = Number.isFinite(opts.now) ? Number(opts.now) : Date.now();
+  try {
+    const handle = target || _getDb();
+    const last = _purgeState.get(handle) || 0;
+    if (now - last < PURGE_INTERVAL_MS) {
+      return { throttled: true, access: 0, refresh: 0, legacy: 0 };
+    }
+    // Record the attempt before running it so a persistently failing database
+    // is retried once per interval instead of on every request.
+    _purgeState.set(handle, now);
+    const removed = purgeExpired(handle, { now, limit: PURGE_BATCH_LIMIT });
+    return { throttled: false, ...removed };
+  } catch (_) {
+    return { throttled: false, access: 0, refresh: 0, legacy: 0, error: true };
+  }
 }
 
 function _migrateLegacyRevocations(db, jsonPath) {
@@ -1104,6 +1171,9 @@ module.exports = {
   revokeAllUserFamilies,
   revokeAllFamiliesForUser,
   purgeExpired,
+  purgeExpiredIfDue,
+  PURGE_INTERVAL_MS,
+  PURGE_BATCH_LIMIT,
   migrateLegacyRevocations,
   verifyParity,
   backupDatabase,

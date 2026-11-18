@@ -36,10 +36,20 @@ function main() {
     const hash = sha256(file);
     const ok = bytes === meta.bytes && hash === meta.sha256;
 
-    // Validate JSON only for .json files; skip for SQLite files
+    // Validate JSON only for .json files; the SQLite token store is validated
+    // against the real schema/integrity rules instead of being parsed as JSON.
     if (name.endsWith('.json')) {
       try { JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) {
         console.log('FAIL  ' + name + '  invalid JSON: ' + e.message);
+        failures++;
+        continue;
+      }
+    }
+    if (name.endsWith('.sqlite')) {
+      try {
+        require('../utils/tokenStore.sqlite').validateDatabaseFile(file);
+      } catch (e) {
+        console.log('FAIL  ' + name + '  invalid token store: ' + e.message);
         failures++;
         continue;
       }

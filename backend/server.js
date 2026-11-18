@@ -674,7 +674,11 @@ if (require.main === module) {
 
     // F5 — Migrate legacy JSON revocations to SQLite (idempotent, runs once).
     // The source path follows the configured data directory, never a
-    // hardcoded backend/data path.
+    // hardcoded backend/data path. This import only runs at startup: a
+    // pre-upgrade instance writing to the JSON file while this process is
+    // already running would not be observed until the next restart. Deploy by
+    // replacing the single instance (see DEPLOYMENT.md); rolling/blue-green
+    // overlap is not supported for this change.
     const legacyPath = config.legacyRevocationPath;
     if (require('fs').existsSync(legacyPath)) {
       const migrated = tokenStore.migrateLegacyRevocations(legacyPath);
