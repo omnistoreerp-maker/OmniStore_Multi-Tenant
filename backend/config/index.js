@@ -52,6 +52,7 @@ module.exports = {
   // Authentication / JWT
   jwtSecret: process.env.JWT_SECRET || 'dev-secret',
   jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || (process.env.JWT_SECRET || 'dev-secret') + ':refresh',
+  jwtRefreshSecretExplicit: !!process.env.JWT_REFRESH_SECRET,
   jwtAccessTtl: process.env.JWT_ACCESS_TTL || '15m',
   jwtRefreshTtl: process.env.JWT_REFRESH_TTL || '7d',
   loginChallengeTtl,
@@ -155,6 +156,25 @@ function validateProductionConfig(cfg = module.exports) {
   if (!cfg.jwtSecret || cfg.jwtSecret === 'dev-secret') {
     fatal.push('JWT_SECRET is not set to a strong value in production (the development default is unsafe). Set JWT_SECRET before boot.');
   }
+  // F3 — the refresh secret must be independently configured. In production a
+  // missing, default, or access-derived refresh secret lets an attacker who
+  // holds one credential mint the other. The setting name is named; the value
+  // is never printed.
+  if (!cfg.jwtRefreshSecret) {
+    fatal.push('JWT_REFRESH_SECRET is not set in production. Configure it independently of JWT_SECRET.');
+  } else if (!cfg.jwtRefreshSecretExplicit) {
+    // The value was derived from JWT_SECRET at config time. In production the
+    // refresh secret must be an independently provided value: an attacker who
+    // compromises one credential can derive the other. The setting name is
+    // named; the value is never printed.
+    fatal.push('JWT_REFRESH_SECRET is derived from JWT_SECRET in production. Set an independent JWT_REFRESH_SECRET before boot.');
+  } else if (cfg.jwtRefreshSecret === 'dev-secret') {
+    fatal.push('JWT_REFRESH_SECRET is still the development default. Set an independent random value before boot.');
+  } else if (cfg.jwtRefreshSecret === cfg.jwtSecret) {
+    fatal.push('JWT_REFRESH_SECRET must differ from JWT_SECRET. Identical values let one compromised credential mint the other.');
+  } else if (cfg.jwtRefreshSecret.length < 32) {
+    warnings.push('JWT_REFRESH_SECRET is shorter than 32 characters');
+  }
   if (!cfg.authRequired) {
     warnings.push('AUTH_REQUIRED is false in production: all /api/v1 business routes are open. Enable it after the first Owner bootstrap.');
   }
@@ -164,5 +184,24 @@ function validateProductionConfig(cfg = module.exports) {
   return { fatal, warnings };
 }
 
+// F3 — production startup gate. Pure and side-effect free: it returns the
+// validation result instead of exiting the process, so callers (server.js
+// and tests) can decide how to enforce it. The actual refusal to boot stays
+// in backend/server.js, which logs every fatal message and calls
+// process.exit(1). Passing a custom `log` lets tests capture output without
+// touching the real logger or binding a port.
+function runProductionStartupGate(cfg, log) {
+  const { fatal, warnings } = validateProductionConfig(cfg);
+  const ok = fatal.length === 0;
+  if (!ok) {
+    if (log) log.error('Refusing to start: unsafe production configuration.');
+    if (log) fatal.forEach((msg) => log.error('  - ' + msg));
+  }
+  if (log) warnings.forEach((msg) => log.warn('Production warning: ' + msg));
+  return { ok, fatal, warnings };
+}
+
 module.exports.validateProductionConfig = validateProductionConfig;
+module.exports.runProductionStartupGate = runProductionStartupGate;
 module.exports.durationToMs = durationToMs;
+

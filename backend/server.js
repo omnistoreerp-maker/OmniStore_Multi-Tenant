@@ -638,13 +638,10 @@ if (require.main === module) {
   // Phase 37 — production startup safety: refuse to boot with the weak
   // development JWT secret, and loudly warn about disabled auth / open CORS
   // (both are legitimately used during bootstrap / same-origin installs).
-  const prodChecks = config.validateProductionConfig();
-  if (prodChecks.fatal.length > 0) {
-    logger.error('Refusing to start: unsafe production configuration.');
-    prodChecks.fatal.forEach(msg => logger.error('  - ' + msg));
+  const gate = config.runProductionStartupGate(config, logger);
+  if (!gate.ok) {
     process.exit(1);
   }
-  prodChecks.warnings.forEach(msg => logger.warn('Production warning: ' + msg));
 
   // P6.67 — the durable login-challenge database must be provisioned before
   // the process serves traffic: explicit CHALLENGE_DB_PATH in production-like
