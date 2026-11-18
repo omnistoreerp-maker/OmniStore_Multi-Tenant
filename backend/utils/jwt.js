@@ -17,9 +17,17 @@ const REFRESH_SECRET = config.jwtRefreshSecret;
 // minted without tenant carry) verify exactly as before. `jsonwebtoken` ignores
 // unknown claims, so existing verification is unchanged.
 function _claims(user) {
-  const claims = { sub: String(user.id), username: user.username, role: user.role || '', jti: randomUUID() };
+  const claims = {
+    sub: String(user.id),
+    username: user.username,
+    role: user.role || '',
+    jti: user.jti ? String(user.jti) : randomUUID()
+  };
   if (user.tenantId !== undefined && user.tenantId !== null && String(user.tenantId) !== '') {
     claims.tenantId = String(user.tenantId);
+  }
+  if (user.familyId !== undefined && user.familyId !== null && String(user.familyId) !== '') {
+    claims.familyId = String(user.familyId);
   }
   // Phase D — token version. Optional and additive: `ver` is only embedded when
   // the signed user carries a tokenVersion, so pre-Phase-D tokens behave
@@ -31,7 +39,7 @@ function _claims(user) {
 }
 
 function signAccessToken(user) {
-  return jwt.sign(_claims(user), config.jwtSecret, { expiresIn: ACCESS_TTL });
+  return jwt.sign({ ..._claims(user), type: 'access' }, config.jwtSecret, { expiresIn: ACCESS_TTL });
 }
 
 function signRefreshToken(user) {

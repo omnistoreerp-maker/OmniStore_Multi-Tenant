@@ -1,4 +1,5 @@
 // Verify a backup directory against its SHA-256 manifest.
+// Also verifies SQLite token store if present.
 // Usage:
 //   node scripts/verify.js <backupDir>
 // Exit code 0 = integrity OK, 1 = mismatch/missing, 2 = bad usage.
@@ -34,10 +35,24 @@ function main() {
     const bytes = fs.statSync(file).size;
     const hash = sha256(file);
     const ok = bytes === meta.bytes && hash === meta.sha256;
-    try { JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) {
-      console.log('FAIL  ' + name + '  invalid JSON: ' + e.message);
-      failures++;
-      continue;
+
+    // Validate JSON only for .json files; the SQLite token store is validated
+    // against the real schema/integrity rules instead of being parsed as JSON.
+    if (name.endsWith('.json')) {
+      try { JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) {
+        console.log('FAIL  ' + name + '  invalid JSON: ' + e.message);
+        failures++;
+        continue;
+      }
+    }
+    if (name.endsWith('.sqlite')) {
+      try {
+        require('../utils/tokenStore.sqlite').validateDatabaseFile(file);
+      } catch (e) {
+        console.log('FAIL  ' + name + '  invalid token store: ' + e.message);
+        failures++;
+        continue;
+      }
     }
     console.log((ok ? 'PASS  ' : 'FAIL  ') + name + (ok ? '' : '  checksum/size mismatch'));
     if (!ok) failures++;

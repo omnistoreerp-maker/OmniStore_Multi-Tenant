@@ -32,10 +32,18 @@ if (!loginChallengeTtlMs || loginChallengeTtlMs <= 0) {
   throw new Error(`LOGIN_CHALLENGE_TTL is not a valid duration: ${loginChallengeTtl}`);
 }
 
+// Authoritative data directory for JSON stores and the legacy revocation file.
+// TOKEN_STORE_PATH may relocate the SQLite store to a dedicated volume, but the
+// data directory itself stays the source of truth for file-based state.
+const dataDir = process.env.DIGITRONICS_DATA_DIR
+  ? path.resolve(process.env.DIGITRONICS_DATA_DIR)
+  : path.join(__dirname, '..', 'data');
+
 module.exports = {
   env,
   isProduction: env === 'production',
   port: parseInt(process.env.PORT, 10) || 3001,
+  dataDir,
 
   // Authoritative application version (single source of truth — read from the
   // backend package.json). Used by the in-app update rail.
@@ -55,8 +63,20 @@ module.exports = {
   jwtRefreshSecretExplicit: !!process.env.JWT_REFRESH_SECRET,
   jwtAccessTtl: process.env.JWT_ACCESS_TTL || '15m',
   jwtRefreshTtl: process.env.JWT_REFRESH_TTL || '7d',
+  // F4/F5 — refresh token TTL in milliseconds for token store expiration tracking
+  jwtRefreshTtlMs: durationToMs(process.env.JWT_REFRESH_TTL || '7d'),
   loginChallengeTtl,
   loginChallengeTtlMs,
+  // F5 — Token revocation store (SQLite). Must be an absolute path to a .sqlite
+  // file in a writable directory. In production-like environments (env !==
+  // 'development'), this MUST be explicitly set via env var. In development,
+  // a default under data/ is used. The startup gate in server.js refuses to
+  // boot if the directory is missing or not writable.
+  tokenStorePath: process.env.TOKEN_STORE_PATH || path.join(dataDir, 'tokenStore.sqlite'),
+  tokenStoreExplicit: Boolean(process.env.TOKEN_STORE_PATH),
+  // Legacy JSON revocation file, migrated into SQLite at startup. Derived from
+  // the configured data directory (never a hardcoded backend/data path).
+  legacyRevocationPath: path.join(dataDir, 'revoked-tokens.json'),
   authRequired: process.env.AUTH_REQUIRED === 'true',
 
   // API security
@@ -180,6 +200,12 @@ function validateProductionConfig(cfg = module.exports) {
   }
   if (!cfg.corsOrigins) {
     warnings.push('CORS_ORIGINS is empty in production: CORS is open. Set a comma-separated allowlist unless the API is served same-origin.');
+  }
+  // F5 — token store path must be explicit in production-like environments.
+  // If it falls back to the dev default, warn (not fatal) because the gate
+  // in server.js will also validate directory existence and writability.
+  if (cfg.isProduction && cfg.tokenStoreExplicit === false) {
+    warnings.push('TOKEN_STORE_PATH not explicitly set in production; using default data/tokenStore.sqlite. Set TOKEN_STORE_PATH to a dedicated volume.');
   }
   return { fatal, warnings };
 }

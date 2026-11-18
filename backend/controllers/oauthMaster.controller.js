@@ -8,12 +8,36 @@ const platformAdminService = require('../services/platformAdmin.service');
 const auditService = require('../services/audit.service');
 const mfaService = require('../services/mfa.service');
 const { signAccessToken, signRefreshToken, verifyRefreshToken } = require('../utils/jwt');
-const { isRevoked } = require('../utils/tokenStore');
+const tokenStore = require('../utils/tokenStore.sqlite');
 const { parseCookies } = require('../middleware/auth');
 const { verifyPassword } = require('../utils/password');
 const crypto = require('crypto');
+const config = require('../config');
 
 const IS_PROD = (process.env.NODE_ENV || 'development') === 'production';
+
+function issueTokens(user) {
+  const issuedAt = Date.now();
+  const expiresAt = issuedAt + config.jwtRefreshTtlMs || (issuedAt + 7 * 24 * 60 * 60 * 1000);
+  const jti = crypto.randomUUID();
+
+  // Create session family first (required for FK constraint)
+  const { familyId } = tokenStore.createSessionFamily(user.id, undefined);
+
+  tokenStore.issueRefreshToken(jti, {
+    jti,
+    familyId,
+    sub: user.id,
+    ver: user.tokenVersion || 0,
+    tenantId: undefined,
+    issuedAt,
+    expiresAt
+  });
+
+  const accessToken = signAccessToken({ ...user, familyId });
+  const refreshToken = signRefreshToken({ ...user, familyId, jti });
+  return { accessToken, refreshToken };
+}
 
 // Login-CSRF mitigation: the browser that starts a LOGIN flow receives a
 // random bearer value in this httpOnly cookie; only its hash is carried
@@ -115,14 +139,49 @@ function _audit(entry) {
 function _sessionSubject(req) {
   if (req.user && req.user.id) return { id: req.user.id, username: req.user.username };
   const refreshToken = parseCookies(req).refresh_token;
-  if (!refreshToken || isRevoked(refreshToken)) return null;
+  if (!refreshToken) return null;
   const payload = verifyRefreshToken(refreshToken);
-  if (!payload) return null;
+  if (!payload || !payload.jti || !payload.sub) return null;
+
+  // Authoritative server-side state: the refresh row AND its family must still
+  // be usable. A valid signature alone is not a session.
+  let record;
+  try {
+    record = tokenStore.inspectRefreshToken(payload.jti);
+  } catch (err) {
+    const storeErr = new Error('Session store unavailable');
+    storeErr.code = 'STORAGE_UNAVAILABLE';
+    throw storeErr;
+  }
+  if (!record) return null;
+  if (String(record.sub) !== String(payload.sub)) return null;
+  if (record.status !== 'active') return null;
+  if (record.consumedAt) return null;
+  if (record.expiresAt && Number(record.expiresAt) <= Date.now()) return null;
+  if (record.familyRevokedAt) return null;
+  if (payload.familyId && record.familyId && String(payload.familyId) !== String(record.familyId)) {
+    return null;
+  }
+
   const user = usersService.getById(payload.sub);
   if (!user || user.status === 'disabled') return null;
   const tokenVersion = payload.ver === undefined ? 0 : Number(payload.ver);
   if (tokenVersion !== (Number(user.tokenVersion) || 0)) return null;
   return { id: user.id, username: user.username };
+}
+
+// Session errors that are NOT authentication failures (storage unavailable)
+// must not be downgraded to "no session"; report them as 503.
+function _sessionSubjectSafe(req, res) {
+  try {
+    return { subject: _sessionSubject(req) };
+  } catch (err) {
+    if (err && err.code === 'STORAGE_UNAVAILABLE') {
+      error(res, 'Auth store unavailable', 503);
+      return { handled: true };
+    }
+    throw err;
+  }
 }
 
 // Lightweight CSRF posture for the state-changing endpoints, on top of
@@ -186,7 +245,9 @@ function initiateMaster(req, res) {
 // issued by POST link-session after password re-auth; both the ticket and
 // the live session must name the same username.
 function initiateMasterLink(req, res) {
-  const subject = _sessionSubject(req);
+  const resolved = _sessionSubjectSafe(req, res);
+  if (resolved.handled) return;
+  const subject = resolved.subject;
   if (!subject) {
     // A browser top-level navigation (the step-up's automatic
     // location.assign) that cannot be authenticated gets a safe redirect
@@ -252,8 +313,7 @@ async function _completeLogin(req, res, claims, returnTo) {
     });
     return res.redirect(302, _appendParam(_safeReturnTo(returnTo, '/'), 'gmfa', '1'));
   }
-  const accessToken = signAccessToken(user);
-  const refreshToken = signRefreshToken(user);
+  const { accessToken, refreshToken } = issueTokens(user);
   _setAuthCookies(res, accessToken, refreshToken);
   _audit({
     path: '/auth/google/master/callback', statusCode: 302, userId: user.id,
@@ -267,7 +327,9 @@ async function _completeLink(req, res, state, claims, returnTo) {
   // Linking is a separate, explicitly authorized operation: authenticated
   // session bound in the state + verified Google identity + the approved
   // linking policy (configured master email, verified by Google).
-  const subject = _sessionSubject(req);
+  const resolved = _sessionSubjectSafe(req, res);
+  if (resolved.handled) return;
+  const subject = resolved.subject;
   if (!subject || !state.u || String(subject.username) !== String(state.u)) {
     _audit({
       path: '/auth/google/master/callback', statusCode: 302, action: 'GOOGLE_MASTER_LINK_DENIED',
@@ -431,7 +493,9 @@ function linkSession(req, res) {
 // user, and is the server-side link policy configured at all". Session
 // and membership are enforced exactly like the link-session step-up.
 function linkStatus(req, res) {
-  const subject = _sessionSubject(req);
+  const resolved = _sessionSubjectSafe(req, res);
+  if (resolved.handled) return;
+  const subject = resolved.subject;
   if (!subject) return error(res, 'Authentication required', 401);
   const user = usersService.getById(subject.id);
   if (!user || user.status === 'disabled') return error(res, 'Authentication required', 401);
@@ -520,8 +584,7 @@ async function completeMfa(req, res) {
     return error(res, 'MFA challenge invalid or expired', 401);
   }
   res.clearCookie('g_mfa_ticket', { path: '/' });
-  const accessToken = signAccessToken(user);
-  const refreshToken = signRefreshToken(user);
+  const { accessToken, refreshToken } = issueTokens(user);
   _setAuthCookies(res, accessToken, refreshToken);
   _audit({
     method: 'POST', path: '/auth/google/master/mfa', statusCode: 200, userId: user.id,

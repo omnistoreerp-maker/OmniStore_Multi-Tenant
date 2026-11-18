@@ -296,7 +296,19 @@ class UsersService {
     const next = (Number(db.users[idx].tokenVersion) || 0) + 1;
     db.users[idx].tokenVersion = next;
     db.users[idx].updatedAt = new Date().toISOString();
-    if (this._save(db)) return { user: db.users[idx], tokenVersion: next };
+    if (this._save(db)) {
+      // F5: Revoke all session families for this user to immediately invalidate
+      // all outstanding refresh tokens and access tokens
+      try {
+        const tokenStore = require('../utils/tokenStore.sqlite');
+        tokenStore.revokeAllFamiliesForUser(String(normalized));
+      } catch (_) {
+        // Fail-closed: if token store is unavailable, the version bump still
+        // takes effect so future tokens are invalid, but existing ones may
+        // briefly remain valid until the store recovers.
+      }
+      return { user: db.users[idx], tokenVersion: next };
+    }
     return { error: 'Failed to persist token version update' };
   }
 

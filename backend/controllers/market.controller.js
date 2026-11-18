@@ -5,7 +5,7 @@ const marketConfigService = require('../services/marketConfig.service');
 const marketCheckoutService = require('../services/marketCheckout.service');
 const marketOrderService = require('../services/marketOrder.service');
 const marketOrderStateMachine = require('../services/marketOrderStateMachine.service');
-const { revokeToken } = require('../utils/tokenStore');
+const tokenStore = require('../utils/tokenStore.sqlite');
 const { extractToken } = require('../middleware/marketAuth');
 
 async function register(req, res) {
@@ -41,7 +41,7 @@ async function login(req, res) {
 async function logout(req, res) {
   try {
     const token = extractToken(req);
-    if (token) revokeToken(token);
+    if (token) tokenStore.revokeToken(token);
     success(res, null, 'Logout successful');
   } catch (err) {
     return error(res, 'Logout failed', 500);

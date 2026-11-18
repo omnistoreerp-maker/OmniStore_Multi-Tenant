@@ -118,8 +118,44 @@ login challenges (never the tokens themselves). `LOGIN_CHALLENGE_TTL`
 (default `5m`) is the single TTL applied to both the signed challenge token and
 its database row.
 
+### Token store (refresh rotation / revocation)
+
+Refresh-token rotation, replay detection and durable revocation live in a
+SQLite database at `TOKEN_STORE_PATH` (default: `tokenStore.sqlite` inside the
+data dir). It is created on first boot and must sit in an existing, writable
+directory; it creates `-wal` and `-shm` siblings. Startup is fail-closed: the
+process exits rather than serve traffic if the store is missing, corrupt, or
+not writable. Back it up with `npm run backup` / validate with
+`npm run verify-backup` (see `DISASTER_RECOVERY.md`).
+
+Housekeeping removes only already-expired rows (refresh tokens, access-token
+denylist entries, legacy revocation records) in small batches, at most once per
+five minutes, triggered by login/refresh traffic. Active refresh tokens, active
+session families, replay audit records and legacy revocations with no recorded
+expiry are never deleted.
+
+**Deployment requirement — single-instance cutover.** Upgrade this release by
+replacing the running process, not by running old and new instances side by
+side. A pre-upgrade instance writes revocations to the JSON file
+`revoked-tokens.json`, while this release consults the SQLite
+`legacy_revocations` table (imported once at startup). During an overlap, a
+revocation written by an old instance is not visible to a new instance until
+the new process restarts and re-runs the import, so a token revoked in that
+window could still be accepted. Rolling / blue-green deployment with both
+versions serving at once is **not supported** for this change.
+
+**Client requirement — serialize refresh.** Refresh tokens are strictly
+single-use. Two concurrent refresh calls with the same token make the second
+one a replay; replay detection revokes the whole session family, including the
+successor token issued to the winning request. Clients must serialize refresh
+requests (one in flight, shared promise for concurrent callers) and must not
+retry a refresh with a token that was already used.
+
 
 ## 3. Upgrade
+
+Replace the running instance; do not overlap old and new versions (see
+"Deployment requirement — single-instance cutover" above).
 
 ```bash
 git pull origin main

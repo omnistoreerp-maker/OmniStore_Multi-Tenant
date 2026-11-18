@@ -65,3 +65,20 @@ backend/data/educationGrading.json
 # must never reach git.
 backend/data/educationBookings.json
 backend/data/educationRatings.json
+
+# P6 F5: SQLite token store (session families, refresh rotation, revocation
+# denylist, replay audit). Contains live session metadata and is created on
+# first boot, so it must never be committed. WAL/SHM companions are likewise
+# runtime-only, as are the automatic pre-migration backups.
+backend/data/tokenStore.sqlite
+backend/data/tokenStore.sqlite-wal
+backend/data/tokenStore.sqlite-shm
+backend/data/tokenStore.sqlite.*.bak
+backend/data/tokenStore.sqlite.lock
+backend/data/tokenStore.sqlite.restore.*
+backend/data/tokenStore.sqlite.rollback.*
+backend/data/.token_store_initialized
+# Pre-F4 revocation source; migrated into SQLite at startup and then archived.
+# Runtime state (hashes + expiries) that must never be committed.
+backend/data/revoked-tokens.json
+backend/data/revoked-tokens.json.migrated.*

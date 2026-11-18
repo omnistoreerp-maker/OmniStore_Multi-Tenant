@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const usersService = require('../services/users.service');
 const oauthService = require('../services/oauth.service');
 const googleIdentity = require('../utils/googleIdentity');
@@ -21,7 +22,8 @@ const {
   CHALLENGE_PURPOSES
 } = require('../utils/jwt');
 const challengeStore = require('../utils/challengeStore.sqlite');
-const { revokeToken, isRevoked } = require('../utils/tokenStore');
+const tokenStore = require('../utils/tokenStore.sqlite');
+const { revokeToken } = require('../utils/tokenStore');
 const { extractToken, parseCookies } = require('../middleware/auth');
 const { verifyPassword } = require('../utils/password');
 const { validatePassword } = require('../utils/passwordPolicy');
@@ -47,6 +49,19 @@ function _setAuthCookies(res, accessToken, refreshToken) {
 function _clearAuthCookies(res) {
   res.clearCookie('access_token', { path: '/' });
   res.clearCookie('refresh_token', { path: '/' });
+}
+
+// P6 F4/F5 — bounded, throttled housekeeping for the durable token store.
+// At most one small batch of already-expired rows is removed per interval, so
+// no login or refresh pays for a full-table purge. Cleanup is advisory only:
+// it fails closed on nothing, it can never grant access, and a storage error is
+// swallowed so authentication behaves exactly as it would without cleanup.
+function _runTokenStoreHousekeeping() {
+  try {
+    tokenStore.purgeExpiredIfDue();
+  } catch (_) {
+    // Never let housekeeping affect the auth outcome.
+  }
 }
 
 // ── Durable login challenges ────────────────────────────────────────────────
@@ -170,8 +185,29 @@ function login(req, res) {
 
     const tokenIdentity = carryTenantId ? { ...user, tenantId: carryTenantId } : user;
 
-    const accessToken = signAccessToken(tokenIdentity);
-    const refreshToken = signRefreshToken(tokenIdentity);
+    // Throttled housekeeping (at most one bounded batch per interval).
+    _runTokenStoreHousekeeping();
+
+    // F4: Create session family and issue first refresh token
+    const issuedAt = Date.now();
+    const expiresAt = issuedAt + config.jwtRefreshTtlMs || (issuedAt + 7 * 24 * 60 * 60 * 1000);
+    const jti = crypto.randomUUID();
+
+    // Create session family first (required for FK constraint)
+    const { familyId } = tokenStore.createSessionFamily(user.id, carryTenantId);
+
+    tokenStore.issueRefreshToken(jti, {
+      jti,
+      familyId,
+      sub: user.id,
+      ver: user.tokenVersion || 0,
+      tenantId: carryTenantId,
+      issuedAt,
+      expiresAt
+    });
+
+    const accessToken = signAccessToken({ ...tokenIdentity, familyId });
+    const refreshToken = signRefreshToken({ ...tokenIdentity, familyId, jti });
     _setAuthCookies(res, accessToken, refreshToken);
 
     // Phase 17 — tenant-scoped role resolution. When enabled and a valid ACTIVE
@@ -197,41 +233,29 @@ function refresh(req, res) {
   try {
     const token = (req.body && req.body.refreshToken) || parseCookies(req).refresh_token;
     if (!token) return error(res, 'refreshToken is required', 400);
-    if (isRevoked(token)) return error(res, 'Refresh token has been revoked', 401);
-    const payload = verifyRefreshToken(token);
+
+    let payload;
+    try {
+      payload = verifyRefreshToken(token);
+    } catch {
+      return error(res, 'Invalid refresh token', 401);
+    }
     if (!payload) return error(res, 'Invalid or expired refresh token', 401);
-    const user = usersService.getById(payload.sub);
+
+    const { jti, familyId, sub, ver, tenantId } = payload;
+
+    const user = usersService.getById(sub);
     if (!user) return error(res, 'User not found', 401);
 
-    // Phase D — refresh tokens are invalidated by a tokenVersion bump too.
-    if (payload.ver !== undefined && Number(payload.ver) !== (Number(user.tokenVersion) || 0)) {
-      return error(res, 'Invalid or expired refresh token', 401);
-    }
-
-    // P0-004 — a disabled account cannot obtain a fresh access token. Mirrors
-    // the Phase E login gate so refresh can never become a bypass for disabled
-    // users.
     if (user.status === 'disabled') {
       return error(res, 'User is disabled', 403, { code: 'ACCOUNT_DISABLED' });
     }
 
-    // Phase 19 — preserve the securely-carried tenant across a refresh. The
-    // refresh token embeds tenantId via the same _claims; forward it into the
-    // freshly minted access token ONLY when the feature is enabled and the
-    // refresh payload actually carries a tenant. Otherwise the token is signed
-    // exactly as before (no tenant claim).
     const carriedTenantId =
-      (config.tenantCarryEnabled && payload.tenantId !== undefined && payload.tenantId !== null)
-        ? String(payload.tenantId)
+      (config.tenantCarryEnabled && tenantId !== undefined && tenantId !== null)
+        ? String(tenantId)
         : undefined;
 
-    // P0-004 — a carried tenant is a context HINT, never an authorization
-    // grant. Before minting a new access token, re-validate against CURRENT
-    // server-side state:
-    //   1. the company must still exist and be active;
-    //   2. the user's membership must still include that tenant (when the
-    //      membership feature is on and the user holds a membership).
-    // Any lapse rejects the refresh — no new token, no stale context.
     if (carriedTenantId) {
       const company = CompanyService.getCompany(carriedTenantId);
       if (!company || company.active === false) {
@@ -242,19 +266,53 @@ function refresh(req, res) {
       }
     }
 
-    const tokenIdentity = carriedTenantId ? { ...user, tenantId: carriedTenantId } : user;
-    const accessToken = signAccessToken(tokenIdentity);
+    try {
+      // Throttled housekeeping (at most one bounded batch per interval).
+      _runTokenStoreHousekeeping();
 
-    // P0-004 — resolve the effective role from the CURRENT user record so a
-    // role change (e.g. Admin -> Cashier) is reflected immediately. Additive
-    // field mirroring the login response; absent when the feature is off or no
-    // tenant is carried, exactly like login.
-    const result = { accessToken };
-    if (config.tenantRolesEnabled && carriedTenantId) {
-      result.effectiveRole = tenantRole.resolveEffectiveRole(user, carriedTenantId);
+      const newJti = crypto.randomUUID();
+      const issuedAt = Date.now();
+      const expiresAt = issuedAt + config.jwtRefreshTtlMs || (issuedAt + 7 * 24 * 60 * 60 * 1000);
+
+      const rotationResult = tokenStore.rotateRefreshToken(jti, {
+        jti: newJti,
+        familyId,
+        sub,
+        ver: Number(user.tokenVersion) || 0,
+        tenantId: carriedTenantId,
+        issuedAt,
+        expiresAt
+      }, user);
+
+      const tokenIdentity = carriedTenantId ? { ...user, tenantId: carriedTenantId, familyId } : { ...user, familyId };
+      const accessToken = signAccessToken(tokenIdentity);
+      const refreshToken = signRefreshToken({ ...tokenIdentity, jti: newJti });
+
+      const result = { accessToken, refreshToken };
+      if (config.tenantRolesEnabled && carriedTenantId) {
+        result.effectiveRole = tenantRole.resolveEffectiveRole(user, carriedTenantId);
+      }
+      res.cookie('access_token', accessToken, { httpOnly: true, sameSite: 'lax', secure: IS_PROD, path: '/', maxAge: 15 * 60 * 1000 });
+      res.cookie('refresh_token', refreshToken, { httpOnly: true, sameSite: 'lax', secure: IS_PROD, path: '/', maxAge: 7 * 24 * 60 * 60 * 1000 });
+      success(res, result, 'Token refreshed');
+    } catch (e) {
+      const map = {
+        TOKEN_UNKNOWN: 401,
+        REPLAY_DETECTED: 401,
+        TOKEN_EXPIRED: 401,
+        TOKEN_REVOKED: 401,
+        SESSION_REVOKED: 401,
+        TOKEN_SUB_MISMATCH: 401,
+        FAMILY_ID_MISMATCH: 401,
+        TOKEN_VERSION_MISMATCH: 401,
+        TENANT_MISMATCH: 403,
+        ACCOUNT_DISABLED: 403,
+        STORAGE_UNAVAILABLE: 503,
+        CONCURRENT_CONSUME: 401,
+        FAMILY_REVOKE_FAILED: 503
+      };
+      return error(res, e.message, map[e.code] || 500, { code: e.code });
     }
-    res.cookie('access_token', accessToken, { httpOnly: true, sameSite: 'lax', secure: IS_PROD, path: '/', maxAge: 15 * 60 * 1000 });
-    success(res, result, 'Token refreshed');
   } catch (err) {
     logger.error('auth.refresh error:', err.message);
     error(res, 'Failed to refresh token', 500);
@@ -265,8 +323,33 @@ function logout(req, res) {
   try {
     const accessToken = extractToken(req);
     const refreshToken = (req.body && req.body.refreshToken) || parseCookies(req).refresh_token;
-    if (accessToken) revokeToken(accessToken);
-    if (refreshToken) revokeToken(refreshToken);
+
+    if (accessToken) {
+      try {
+        const payload = require('../utils/jwt').verifyAccessToken(accessToken);
+        if (payload && payload.familyId && payload.sub) {
+          tokenStore.revokeFamily(payload.familyId, payload.sub);
+        } else if (payload && payload.jti) {
+          tokenStore.revokeAccessToken(payload.jti, payload.sub, payload.exp || Date.now() / 1000);
+        }
+      } catch {
+        revokeToken(accessToken);
+      }
+    }
+
+    if (refreshToken) {
+      try {
+        const payload = require('../utils/jwt').verifyRefreshToken(refreshToken);
+        if (payload && payload.familyId && payload.sub) {
+          tokenStore.revokeFamily(payload.familyId, payload.sub);
+        } else if (payload && payload.jti) {
+          tokenStore.revokeRefreshToken(payload.jti, payload.sub, payload.exp || Date.now() / 1000);
+        }
+      } catch {
+        revokeToken(refreshToken);
+      }
+    }
+
     _clearAuthCookies(res);
     success(res, null, 'Logout successful');
   } catch (err) {
@@ -313,7 +396,7 @@ function changePassword(req, res) {
         action: 'USER_PASSWORD_CHANGED',
         resource: 'user',
         resourceId: req.user.id,
-        changes: { before: {}, after: { password: newPassword, tokenVersion: bump.tokenVersion } }
+        changes: { before: {}, after: { tokenVersion: bump.tokenVersion, passwordRedacted: true } }
       });
     } catch (err) {
       logger.error('auth.changePassword audit error:', err.message);
@@ -675,8 +758,24 @@ async function googleLogin(req, res) {
     }
 
     const tokenIdentity = tenantId ? { ...user, tenantId } : user;
-    const accessToken = signAccessToken(tokenIdentity);
-    const refreshToken = signRefreshToken(tokenIdentity);
+
+    const { familyId } = tokenStore.createSessionFamily(user.id, tenantId);
+    const issuedAt = Date.now();
+    const expiresAt = issuedAt + config.jwtRefreshTtlMs || (issuedAt + 7 * 24 * 60 * 60 * 1000);
+    const jti = crypto.randomUUID();
+
+    tokenStore.issueRefreshToken(jti, {
+      jti,
+      familyId,
+      sub: user.id,
+      ver: user.tokenVersion || 0,
+      tenantId,
+      issuedAt,
+      expiresAt
+    });
+
+    const accessToken = signAccessToken({ ...tokenIdentity, familyId });
+    const refreshToken = signRefreshToken({ ...tokenIdentity, familyId, jti });
     _setAuthCookies(res, accessToken, refreshToken);
 
     try {
@@ -772,8 +871,24 @@ async function googleLoginMfaVerify(req, res) {
     }
 
     const tokenIdentity = tenantId ? { ...user, tenantId } : user;
-    const accessToken = signAccessToken(tokenIdentity);
-    const refreshToken = signRefreshToken(tokenIdentity);
+
+    const { familyId } = tokenStore.createSessionFamily(user.id, tenantId);
+    const issuedAt = Date.now();
+    const expiresAt = issuedAt + config.jwtRefreshTtlMs || (issuedAt + 7 * 24 * 60 * 60 * 1000);
+    const jti = crypto.randomUUID();
+
+    tokenStore.issueRefreshToken(jti, {
+      jti,
+      familyId,
+      sub: user.id,
+      ver: user.tokenVersion || 0,
+      tenantId,
+      issuedAt,
+      expiresAt
+    });
+
+    const accessToken = signAccessToken({ ...tokenIdentity, familyId });
+    const refreshToken = signRefreshToken({ ...tokenIdentity, familyId, jti });
     _setAuthCookies(res, accessToken, refreshToken);
 
     try {
@@ -877,8 +992,24 @@ async function googleLoginSelectTenant(req, res) {
 
     // Session is bound to the tenant the user selected, never a default.
     const tenantIdentity = { ...user, tenantId: String(selected.id) };
-    const accessToken = signAccessToken(tenantIdentity);
-    const refreshToken = signRefreshToken(tenantIdentity);
+
+    const { familyId } = tokenStore.createSessionFamily(user.id, String(selected.id));
+    const issuedAt = Date.now();
+    const expiresAt = issuedAt + config.jwtRefreshTtlMs || (issuedAt + 7 * 24 * 60 * 60 * 1000);
+    const jti = crypto.randomUUID();
+
+    tokenStore.issueRefreshToken(jti, {
+      jti,
+      familyId,
+      sub: user.id,
+      ver: user.tokenVersion || 0,
+      tenantId: String(selected.id),
+      issuedAt,
+      expiresAt
+    });
+
+    const accessToken = signAccessToken({ ...tenantIdentity, familyId });
+    const refreshToken = signRefreshToken({ ...tenantIdentity, familyId, jti });
     _setAuthCookies(res, accessToken, refreshToken);
 
     try {

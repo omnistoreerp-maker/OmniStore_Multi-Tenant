@@ -472,7 +472,7 @@ function resetPassword(req, res) {
         action: 'USER_PASSWORD_RESET',
         resource: 'user',
         resourceId: targetId,
-        changes: { before: {}, after: { password: newPassword, tokenVersion: bump.tokenVersion } }
+        changes: { before: {}, after: { tokenVersion: bump.tokenVersion, passwordRedacted: true } }
       });
     } catch (err) {
       logger.error('users.resetPassword audit error:', err.message);

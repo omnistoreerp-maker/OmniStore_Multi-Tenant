@@ -1,7 +1,9 @@
 const { error: errorResponse } = require('../utils/apiResponse');
 const { verifyAccessToken } = require('../utils/jwt');
-const { isRevoked } = require('../utils/tokenStore');
+const { isAccessTokenRevoked, isFamilyRevoked, isLegacyTokenRevoked } = require('../utils/tokenStore.sqlite');
 const usersService = require('../services/users.service');
+const tenantMembership = require('../services/tenantMembership.service');
+const config = require('../config');
 
 function parseCookies(req) {
   const header = req.headers.cookie;
@@ -12,7 +14,6 @@ function parseCookies(req) {
     if (idx > -1) {
       const key = part.slice(0, idx).trim();
       const raw = part.slice(idx + 1).trim();
-      // Tolerate malformed percent-encoding instead of throwing URIError.
       try { out[key] = decodeURIComponent(raw); } catch (_) { out[key] = raw; }
     }
   });
@@ -26,63 +27,85 @@ function extractToken(req) {
   return cookies.access_token || null;
 }
 
-// Intermediate Google Login challenges carry these markers. They must never be
-// accepted as an ordinary authenticated identity, so this middleware rejects
-// them outright even though they are signed with a separate key.
 const CHALLENGE_PURPOSES = ['google_mfa', 'google_tenant_selection'];
 const LEGACY_CHALLENGE_MARKERS = ['mfaPending', 'mfaRequired', 'tenantSelectionRequired'];
 
-// Global middleware: populates req.user when a valid token is present.
-// Never rejects — route protection is opt-in via requireAuth/requireRole.
 function authMiddleware(req, res, next) {
   req.user = null;
   const token = extractToken(req);
-  if (token && !isRevoked(token)) {
+  if (!token) return next();
+
+  try {
     const payload = verifyAccessToken(token);
-    if (payload) {
-      // Phase 22B — a valid signature alone must not grant ordinary API access
-      // when the credential is actually a login challenge.
-      if (payload.purpose && CHALLENGE_PURPOSES.includes(payload.purpose)) {
-        return errorResponse(res, 'Authentication required', 401);
+    if (!payload) return next();
+
+    // Non-access credentials (e.g. market customer tokens) are verified by
+    // their own middleware; this global hook must not reject them.
+    if (payload.type && payload.type !== 'access') {
+      return next();
+    }
+    if (payload.purpose && CHALLENGE_PURPOSES.includes(payload.purpose)) {
+      return errorResponse(res, 'Authentication required', 401);
+    }
+    const legacyMarker = Object.keys(payload).find(
+      (key) => LEGACY_CHALLENGE_MARKERS.includes(key) && payload[key] === true
+    );
+    if (legacyMarker) {
+      return errorResponse(res, 'Authentication required', 401);
+    }
+
+    const { jti, familyId, sub, ver, tenantId } = payload;
+
+    // Pre-F4 revocations were hashes of the exact token. The migration imports
+    // them into legacy_revocations; keep honouring them here so a token revoked
+    // before the upgrade cannot regain access.
+    if (isLegacyTokenRevoked(token)) {
+      return next();
+    }
+
+    if (isAccessTokenRevoked(jti)) {
+      return next();
+    }
+
+    if (familyId) {
+      if (isFamilyRevoked(familyId, sub)) {
+        return next();
       }
-      const legacyMarker = Object.keys(payload).find(
-        (key) => LEGACY_CHALLENGE_MARKERS.includes(key) && payload[key] === true
-      );
-      if (legacyMarker) {
-        return errorResponse(res, 'Authentication required', 401);
+    }
+
+    const storedUser = usersService.getById(sub);
+    // Legacy/synthetic identities (no stored record) keep the historic trust
+    // contract: the signed token alone authenticates.
+    if (storedUser) {
+      if (storedUser.status === 'disabled') {
+        return next();
       }
-      // Phase D — token-version validation against the STORED user record. When
-      // the sub resolves to a real user, a token signed before a tokenVersion
-      // bump (e.g. a password change/reset) is treated as unauthenticated.
-      // Tokens without a `ver` claim are interpreted as version 0, so
-      // pre-Phase-D credentials stay valid for users whose version is still 0.
-      // A token whose sub has NO stored record is trusted exactly as before
-      // (legacy/synthetic identities — Phase C contract): version enforcement
-      // applies to real records only.
-      const storedUser = usersService.getById(payload.sub);
-      if (storedUser) {
-        const tokenVersion = payload.ver === undefined ? 0 : Number(payload.ver);
-        const storedVersion = Number(storedUser.tokenVersion) || 0;
-        if (tokenVersion !== storedVersion) {
-          next();
-          return;
+
+      const tokenVersion = ver === undefined ? 0 : Number(ver);
+      const storedVersion = Number(storedUser.tokenVersion) || 0;
+      if (tokenVersion !== storedVersion) {
+        return next();
+      }
+
+      if (tenantId && config.tenantUserMembershipEnabled) {
+        if (tenantMembership.isTenantDenied(storedUser, tenantId)) {
+          return next();
         }
       }
-      // Phase 19 — carry the securely-bound tenant (when present) alongside the
-      // authenticated identity. `payload.tenantId` is an optional claim: tokens
-      // without it (legacy / pre-Phase-19) simply yield `tenantId: undefined`.
-      req.user = {
-        id: payload.sub,
-        username: payload.username,
-        role: payload.role,
-        tenantId: payload.tenantId
-      };
     }
+
+    req.user = {
+      id: sub,
+      username: payload.username,
+      role: payload.role,
+      tenantId
+    };
+  } catch (e) {
+    return errorResponse(res, 'Auth store unavailable', 503);
   }
   next();
 }
 
-// Gate: rejects only when no valid token is presented.
 function requireAuth(req, res, next) {
   if (req.user) return next();
   return errorResponse(res, 'Authentication required', 401);

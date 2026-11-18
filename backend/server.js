@@ -601,6 +601,8 @@ function gracefulShutdown(server, exitCode) {
   // Stop background workers so no timers keep the process alive.
   try { schedulerService.stop(); } catch (_) {}
   try { jobService.stopWorker(); } catch (_) {}
+  // Close token store database connection
+  try { require('./utils/tokenStore.sqlite').closeDb(); } catch (_) {}
   // finish must run exactly once: the server.close callback and the
   // 3s fallback timer can both fire, and process.exit is not idempotent.
   let finished = false;
@@ -654,6 +656,45 @@ if (require.main === module) {
   } catch (challengeErr) {
     logger.error('Refusing to start: the login challenge store is not configured correctly.');
     logger.error('  - ' + challengeErr.message);
+    process.exit(1);
+  }
+
+  // F5 — the durable token revocation database must be provisioned before
+  // the process serves traffic: explicit TOKEN_STORE_PATH in production-like
+  // environments, an existing writable directory, and an openable database.
+  // Fail-closed: if the token store is unavailable, NO tokens can be validated.
+  try {
+    const tokenStore = require('./utils/tokenStore.sqlite');
+    const tokenDbPath = tokenStore.validateStartupConfiguration();
+    logger.info('Token revocation store ready: ' + tokenDbPath);
+
+    // F5 — Initialize the token store (creates global DB connection)
+    tokenStore.initialise();
+    logger.info('Token revocation store initialized');
+
+    // F5 — Migrate legacy JSON revocations to SQLite (idempotent, runs once).
+    // The source path follows the configured data directory, never a
+    // hardcoded backend/data path. This import only runs at startup: a
+    // pre-upgrade instance writing to the JSON file while this process is
+    // already running would not be observed until the next restart. Deploy by
+    // replacing the single instance (see DEPLOYMENT.md); rolling/blue-green
+    // overlap is not supported for this change.
+    const legacyPath = config.legacyRevocationPath;
+    if (require('fs').existsSync(legacyPath)) {
+      const migrated = tokenStore.migrateLegacyRevocations(legacyPath);
+      if (migrated.imported > 0 || migrated.rejected > 0) {
+        logger.info(
+          `Migrated ${migrated.imported} legacy revocations to SQLite token store` +
+          (migrated.rejected > 0 ? ` (${migrated.rejected} malformed entries skipped, retained in ${migrated.archivePath || 'the source file'})` : '')
+        );
+      }
+      if (migrated.error) {
+        logger.error(`Legacy revocation migration incomplete: ${migrated.error} (source retained at ${legacyPath})`);
+      }
+    }
+  } catch (tokenErr) {
+    logger.error('Refusing to start: the token revocation store is not configured correctly.');
+    logger.error('  - ' + tokenErr.message);
     process.exit(1);
   }
 
