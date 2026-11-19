@@ -779,7 +779,7 @@ async function runRestore(options) {
   }
 
   // (2) Resolve every actual destination and refuse to invent a configured
-  // database's parent directory. This runs before any lock is created.  
+  // database's parent directory. This runs before any lock is created.
   const plan = _planTargets(verification.manifest, dir);
   for (const entry of plan) {
     const parent = path.dirname(entry.target);
