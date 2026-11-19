@@ -1,68 +1,48 @@
-// Restore backend/data from a backup directory.
-// The backup is verified against its manifest BEFORE anything is copied.
-// Existing data files are only overwritten when --force is given; a
-// pre-restore snapshot of the current data is always taken first.
-// Also restores the SQLite token revocation store if present in backup.
+// Restore backend/data from a verified backup directory.
+//
+// The backup is verified against its manifest BEFORE anything is copied. SQLite
+// token/challenge stores are restored through the rollback-safe path
+// (WAL/SHM sidecars moved aside, original kept until final validation).
+// Existing destinations are only overwritten with --force; --force does NOT
+// bypass integrity/schema validation.
+//
+// OPERATIONAL REQUIREMENT: stop the service before restoring. The scripts
+// refuse to replace a database that an active writer currently holds, but an
+// open-but-idle connection cannot be detected reliably, so this is a documented
+// precondition — not a guarantee.
+//
 // Usage:
-//   node scripts/restore.js --from <backupDir> [--dir <dataDir>] [--force]
-const fs = require('fs');
+//   node scripts/restore.js --from <backupDir> [--dir <dataDir>] [--force] [--allow-unlisted]
+//
+// --force allows overwriting existing targets. --allow-unlisted is a separate,
+// explicit opt-in that keeps destination stores the backup does not contain.
 const path = require('path');
-const { execFileSync } = require('child_process');
+const { runRestore } = require('./lib/backupRestore');
 
 function parseArgs(argv) {
-  const args = { from: '', dir: path.join(__dirname, '..', 'data'), force: false };
+  const args = { from: '', dir: path.join(__dirname, '..', 'data'), force: false, allowUnlisted: false };
   for (let i = 2; i < argv.length; i++) {
     if (argv[i] === '--from') args.from = path.resolve(argv[++i]);
     else if (argv[i] === '--dir') args.dir = path.resolve(argv[++i]);
     else if (argv[i] === '--force') args.force = true;
-    else if (argv[i] === '--help') { console.log('Usage: node scripts/restore.js --from <backupDir> [--dir <dataDir>] [--force]'); process.exit(0); }
+    else if (argv[i] === '--allow-unlisted') args.allowUnlisted = true;
+    else if (argv[i] === '--help') { console.log('Usage: node scripts/restore.js --from <backupDir> [--dir <dataDir>] [--force] [--allow-unlisted]'); process.exit(0); }
     else { console.error('Unknown argument: ' + argv[i]); process.exit(2); }
   }
   return args;
 }
 
-function main() {
-  const { from, dir, force } = parseArgs(process.argv);
-  if (!from || !fs.existsSync(path.join(from, 'manifest.json'))) {
-    console.error('Backup directory (with manifest.json) required: --from <backupDir>');
-    process.exit(2);
+async function main() {
+  const { from, dir, force, allowUnlisted } = parseArgs(process.argv);
+  const result = await runRestore({ from, dir, force, allowUnlisted });
+  if (result.unlistedKept.length) {
+    console.log('Kept unlisted stores (--allow-unlisted): ' + result.unlistedKept.join(', '));
   }
-
-  // 1. Verify backup integrity before touching live data.
-  execFileSync(process.execPath, [path.join(__dirname, 'verify.js'), from], { stdio: 'inherit' });
-
-  // 2. Refuse to overwrite existing non-empty data unless --force.
-  fs.mkdirSync(dir, { recursive: true });
-  const existing = fs.readdirSync(dir).filter(f => f.endsWith('.json'));
-  if (existing.length > 0 && !force) {
-    console.error('Data directory is not empty (' + existing.length + ' files). Re-run with --force to overwrite.');
-    process.exit(1);
-  }
-
-  // 3. Pre-restore snapshot of the current data (safety net).
-  if (existing.length > 0) {
-    execFileSync(process.execPath, [path.join(__dirname, 'backup.js'), '--dir', dir], { stdio: 'inherit' });
-  }
-
-  // 4. Copy verified backup files into place.
-  const manifest = JSON.parse(fs.readFileSync(path.join(from, 'manifest.json'), 'utf8'));
-  for (const name of Object.keys(manifest.files)) {
-    fs.copyFileSync(path.join(from, name), path.join(dir, name));
-  }
-  console.log('Restored ' + Object.keys(manifest.files).length + ' files into ' + dir);
-
-  // 5. If tokenStore.sqlite was restored, validate the ACTUAL restored file
-  //    (never the environment's configured path).
-  const tokenStorePath = path.join(dir, 'tokenStore.sqlite');
-  if (fs.existsSync(tokenStorePath)) {
-    try {
-      const tokenStore = require('../utils/tokenStore.sqlite');
-      const validatedPath = tokenStore.validateDatabaseFile(tokenStorePath);
-      console.log('Token revocation store validated: ' + validatedPath);
-    } catch (e) {
-      console.error('WARNING: Restored tokenStore.sqlite failed validation: ' + e.message);
-    }
-  }
+  console.log('Restored ' + result.restored + ' files into ' + result.dir);
+  console.log('Restore integrity OK');
 }
 
-main();
+main().catch((err) => {
+  console.error('Restore failed: ' + err.message);
+  process.exit(1);
+});

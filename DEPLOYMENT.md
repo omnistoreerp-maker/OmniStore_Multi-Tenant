@@ -128,6 +128,13 @@ process exits rather than serve traffic if the store is missing, corrupt, or
 not writable. Back it up with `npm run backup` / validate with
 `npm run verify-backup` (see `DISASTER_RECOVERY.md`).
 
+The login-challenge database is a second SQLite file, taken from
+`CHALLENGE_DB_PATH` (required in production/staging; locally it defaults to
+`challengeStore.sqlite` in the data dir). The same backup/verify/restore
+scripts cover both databases: a backup in a production-like environment fails
+loudly if the challenge database is unconfigured or missing, rather than
+producing a silently incomplete backup.
+
 Housekeeping removes only already-expired rows (refresh tokens, access-token
 denylist entries, legacy revocation records) in small batches, at most once per
 five minutes, triggered by login/refresh traffic. Active refresh tokens, active
