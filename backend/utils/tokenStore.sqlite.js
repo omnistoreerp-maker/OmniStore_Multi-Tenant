@@ -242,6 +242,17 @@ function _requiredTablesPresent(db) {
   return { ok: missing.length === 0, missing };
 }
 
+// Schema check run by the shared restore primitive against a candidate file.
+// Receives the readonly connection opened by validateSqliteFile.
+function _tokenSchemaValidator(db, resolved) {
+  const schema = _requiredTablesPresent(db);
+  if (!schema.ok) {
+    throw new TokenStoreError(
+      `Schema mismatch at ${resolved}: missing table(s) ${schema.missing.join(", ")}`
+    );
+  }
+}
+
 // Validate an arbitrary SQLite file (used for startup configuration and for
 // the actual restored file after a restore). Throws TokenStoreError when the
 // file is not an intact, schema-compatible token store. Never creates or
@@ -252,42 +263,20 @@ function validateDatabaseFile(dbPath) {
   if (!fs.existsSync(resolved)) {
     throw new TokenStoreError(`Token store database missing: ${resolved}`);
   }
-  // Reject non-SQLite payloads by magic header before SQLite can treat a short
-  // file as an empty database and initialise it.
-  let header = null;
+  // Validation must not modify the artifact at all. Even a read-only open of a
+  // WAL database creates -wal/-shm next to it (and a read-write open can
+  // checkpoint a stray -wal and rewrite the main file), so the file and its
+  // sidecars are copied to an isolated temporary directory and validated there.
+  // This also works when the artifact sits on read-only media.
+  const sqliteSnapshot = require("./sqliteSnapshot");
   try {
-    const fd = fs.openSync(resolved, "r");
-    try {
-      header = Buffer.alloc(16);
-      fs.readSync(fd, header, 0, 16, 0);
-    } finally {
-      fs.closeSync(fd);
-    }
-  } catch (_) {
-    header = null;
-  }
-  if (!header || header.toString("utf8") !== "SQLite format 3\u0000") {
-    throw new TokenStoreError(`Token store database corrupt (invalid header): ${resolved}`);
-  }
-  let db = null;
-  try {
-    db = new Database(resolved);
-    if (!_integrityCheckOk(db)) {
-      throw new TokenStoreError(`Token store database corrupt (integrity_check failed): ${resolved}`);
-    }
-    const schema = _requiredTablesPresent(db);
-    if (!schema.ok) {
-      throw new TokenStoreError(
-        `Schema mismatch at ${resolved}: missing table(s) ${schema.missing.join(", ")}`
-      );
-    }
+    return sqliteSnapshot.validateSqliteIsolated(resolved, _tokenSchemaValidator);
   } catch (err) {
-    if (err instanceof TokenStoreError) throw err;
-    throw new TokenStoreError(`Token store database not usable at ${resolved}: ${err.message}`, err);
-  } finally {
-    if (db) { try { db.close(); } catch (_) {} }
+    throw new TokenStoreError(
+      `Token store database not usable at ${resolved}: ${err.message}`,
+      err
+    );
   }
-  return resolved;
 }
 
 function createSessionFamily(db, sub, tenantId) {
@@ -737,7 +726,13 @@ async function backupDatabase(sourcePath, destPath) {
 
   // Validate the source before opening it read-write: SQLite treats a short
   // non-database file as an empty database and could otherwise initialise it.
-  validateDatabaseFile(sourcePath);
+  // The read-only primitive is used here (not the isolated variant) because the
+  // source is a live database and a snapshot copy could be torn mid-write.
+  // Careful: "read-only" only means SQLite opens the file without write access.
+  // Opening a closed WAL database read-only still creates -wal/-shm beside it, so
+  // this validation is not side-effect free; the read-write open below then
+  // checkpoints and leaves the source clean.
+  require("./sqliteSnapshot").validateSqliteFile(sourcePath, _tokenSchemaValidator);
 
   // Open read-write so a WAL checkpoint can complete and report busy state.
   const sourceDb = new Database(sourcePath);
@@ -772,6 +767,18 @@ async function backupDatabase(sourcePath, destPath) {
   return destPath;
 }
 
+// Restore a verified token-store backup over `targetPath`.
+//
+// Delegates to the shared rollback-safe primitive so the token store gets the same
+// protection as the challenge store and the CLI restore:
+//   * the backup is integrity- and schema-validated before the target is touched;
+//   * an active writer is refused up front via isDatabaseInUse (fail closed);
+//   * the authoritative file plus -wal/-shm sidecars move aside and are rolled back
+//     on any failure; the original database is never deleted before final validation.
+//
+// Limitations: the in-use probe only observes a live write lock — it cannot see an idle
+// open connection or detect service shutdown. Callers must still document that the service
+// is stopped before restoring.
 function restoreDatabase(backupPath, targetPath) {
   if (!backupPath || !targetPath) {
     throw new TokenStoreError("restoreDatabase requires a backup path and a target path");
@@ -779,78 +786,11 @@ function restoreDatabase(backupPath, targetPath) {
   if (!fs.existsSync(backupPath)) {
     throw new TokenStoreError(`Backup file missing: ${backupPath}`);
   }
-
-  const backupDb = new Database(backupPath, { readonly: true });
-  try {
-    if (!_integrityCheckOk(backupDb)) {
-      throw new TokenStoreError("Backup corrupt");
-    }
-    const schema = _requiredTablesPresent(backupDb);
-    if (!schema.ok) {
-      throw new TokenStoreError(`Backup schema mismatch: missing ${schema.missing.join(", ")}`);
-    }
-  } finally {
-    try { backupDb.close(); } catch (_) {}
-  }
-
-  const fileLock = require("./fileLock");
-  const lockPath = targetPath + ".lock";
-
-  return fileLock.withLock(lockPath, () => {
-    const tag = ".rollback." + Date.now();
-    const tmpPath = targetPath + ".restore." + Date.now();
-    const rollbackPath = targetPath + tag;
-    fs.copyFileSync(backupPath, tmpPath);
-
-    // Move the authoritative database AND its sidecars aside together. The
-    // sidecar names must stay associated with the moved database, otherwise
-    // committed WAL frames would be orphaned.
-    const moved = [];
-    const moveAside = (from, to) => {
-      if (!fs.existsSync(from)) return;
-      fs.renameSync(from, to);
-      moved.push({ from, to });
-    };
-    const restoreMoved = () => {
-      for (const item of moved) {
-        try {
-          if (fs.existsSync(item.to) && !fs.existsSync(item.from)) {
-            fs.renameSync(item.to, item.from);
-          }
-        } catch (_) {}
-      }
-    };
-
-    try {
-      moveAside(targetPath, rollbackPath);
-      moveAside(targetPath + "-wal", rollbackPath + "-wal");
-      moveAside(targetPath + "-shm", rollbackPath + "-shm");
-      fs.renameSync(tmpPath, targetPath);
-    } catch (err) {
-      try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); } catch (_) {}
-      restoreMoved();
-      throw err instanceof TokenStoreError
-        ? err
-        : new TokenStoreError(`Restore failed and was rolled back: ${err.message}`, err);
-    }
-
-    try {
-      // Validate the file that is actually in place, not the configured path.
-      validateDatabaseFile(targetPath);
-    } catch (err) {
-      // The replacement is unusable: put the original database back.
-      try { if (fs.existsSync(targetPath)) fs.unlinkSync(targetPath); } catch (_) {}
-      restoreMoved();
-      throw err;
-    }
-
-    // Success: the rollback copies are no longer authoritative.
-    for (const item of moved) {
-      try { if (fs.existsSync(item.to)) fs.unlinkSync(item.to); } catch (_) {}
-    }
-  }, { timeout: 10000, stale: 10000 });
+  const sqliteSnapshot = require("./sqliteSnapshot");
+  return sqliteSnapshot.restoreSqlite(backupPath, targetPath, {
+    validate: _tokenSchemaValidator
+  });
 }
-
 function openDbInMemory() {
   const db = new Database(":memory:");
   db.pragma("busy_timeout = 5000");
@@ -1183,6 +1123,7 @@ module.exports = {
   _reset,
   resolveTokenStorePath,
   TokenStoreError,
+  tokenSchemaValidator: _tokenSchemaValidator, _tokenSchemaValidator,
   _hashToken,
   _decodePayload,
   INITIALIZED_FLAG,

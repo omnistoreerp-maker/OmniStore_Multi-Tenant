@@ -407,10 +407,67 @@ function closeDb(db) {
   } catch (_) {}
 }
 
+// ── Backup / restore / validation via the shared safe-SQLite primitive ──────
+// The challenge database has its own schema (a single `challenges` table), so
+// it cannot reuse the token store's schema validator. It reuses the generic
+// WAL-consistent backup and the rollback-safe restore instead.
+const sqliteSnapshot = require("./sqliteSnapshot");
+
+function _challengeSchemaValidator(db, resolved) {
+  const table = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='challenges'")
+    .get();
+  if (!table) {
+    throw new sqliteSnapshot.SqliteSnapshotError(
+      `Schema mismatch at ${resolved}: missing table challenges`
+    );
+  }
+}
+
+/**
+ * Validate an arbitrary SQLite file as a challenge database.
+ * @param {string} dbPath
+ * @returns {string} the resolved path
+ */
+function validateDatabaseFile(dbPath) {
+  // Side-effect free, like the token-store validator: a read-only open of a WAL
+  // database still creates -wal/-shm beside it, so the candidate and its
+  // sidecars are copied to an isolated temporary directory and validated there.
+  // This keeps validation safe for backup artifacts and read-only media.
+  return sqliteSnapshot.validateSqliteIsolated(dbPath, _challengeSchemaValidator);
+}
+
+/**
+ * WAL-consistent backup of the challenge database.
+ * @param {string} sourcePath
+ * @param {string} destPath
+ * @returns {Promise<string>}
+ */
+async function backupDatabase(sourcePath, destPath) {
+  return sqliteSnapshot.backupSqlite(sourcePath, destPath, {
+    validate: _challengeSchemaValidator
+  });
+}
+
+/**
+ * Rollback-safe restore of the challenge database.
+ * @param {string} backupPath
+ * @param {string} targetPath
+ * @returns {Promise<void>}
+ */
+function restoreDatabase(backupPath, targetPath) {
+  return sqliteSnapshot.restoreSqlite(backupPath, targetPath, {
+    validate: _challengeSchemaValidator
+  });
+}
+
 module.exports = {
   initialise,
   validateStartupConfiguration,
   validateDbPath,
+  validateDatabaseFile,
+  backupDatabase,
+  restoreDatabase,
   persistChallenge,
   consumeChallenge,
   purgeExpired,
@@ -420,6 +477,7 @@ module.exports = {
   hashChallenge,
   resolveDefaultPath,
   ChallengeStoreError,
+  challengeSchemaValidator: _challengeSchemaValidator,
   DEFAULT_TTL_MS,
   PURGE_INTERVAL_MS,
   PURGE_BATCH_LIMIT
