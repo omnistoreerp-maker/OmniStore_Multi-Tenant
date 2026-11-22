@@ -187,6 +187,41 @@ test('F4: concurrent backups never share or overwrite a destination directory', 
   }
 });
 
+test('F4: ENOTEMPTY destination collision retries to a unique backup directory', async () => {
+  const dir = seedDataDir();
+  const fixed = Date.now();
+
+  // Pre-create a destination directory that will collide with the publish target.
+  const collidingDir = path.join(outDir, 'backup-' + lib.stamp(fixed));
+  fs.mkdirSync(collidingDir, { recursive: true });
+  fs.writeFileSync(path.join(collidingDir, 'sentinel.txt'), 'pre-existing', 'utf8');
+
+  const realRename = fs.renameSync;
+  const spy = jest.spyOn(fs, 'renameSync').mockImplementation((from, to) => {
+    const toStr = String(to);
+    // Inject ENOTEMPTY only when renaming into our colliding directory.
+    if (toStr === collidingDir) {
+      throw Object.assign(new Error('directory not empty'), { code: 'ENOTEMPTY' });
+    }
+    return realRename(from, to);
+  });
+  try {
+    const result = await lib.runBackup({ dir, out: outDir, now: fixed });
+    // The losing operation publishes to a different valid destination.
+    expect(result.dest).not.toBe(collidingDir);
+    expect(lib.verifyBackupDir(result.dest).ok).toBe(true);
+
+    // The pre-existing destination contents remain unchanged.
+    expect(fs.readFileSync(path.join(collidingDir, 'sentinel.txt'), 'utf8')).toBe('pre-existing');
+  } finally {
+    spy.mockRestore();
+  }
+
+  // No partial staging directories should remain.
+  const leftovers = fs.readdirSync(outDir).filter((e) => e.startsWith('.partial-'));
+  expect(leftovers).toEqual([]);
+});
+
 // ── F1: rollback / sidecar failure reporting ────────────────────────────────
 
 test('F1/F6: a sidecar move failure is surfaced and the original database survives', async () => {

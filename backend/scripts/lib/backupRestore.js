@@ -568,8 +568,8 @@ async function runBackup(options) {
     }
     // Atomic publish: one rename within the destination filesystem. The
     // destination name must be unique too, because concurrent backups share the
-    // same base timestamp. Retry on EEXIST/EPERM (Windows reports EPERM when
-    // renaming over an existing directory).
+    // same base timestamp. Retry on EEXIST/EPERM/ENOTEMPTY (Linux reports
+    // ENOTEMPTY when renaming over an existing non-empty directory).
     let dest;
     for (let i = 0; i < 1000; i++) {
       const candidate = path.join(out, baseName + (i === 0 ? "" : "-" + i));
@@ -578,7 +578,7 @@ async function runBackup(options) {
         dest = candidate;
         break;
       } catch (err) {
-        if (err && (err.code === "EEXIST" || err.code === "EPERM")) continue;
+        if (err && (err.code === "EEXIST" || err.code === "EPERM" || err.code === "ENOTEMPTY")) continue;
         throw err;
       }
     }
