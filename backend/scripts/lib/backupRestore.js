@@ -169,9 +169,14 @@ function _stores() {
 // One resolver used by backup, verify and restore so all three address the same
 // physical databases. An explicit environment path always wins over the data
 // directory default.
-function resolveConfiguredPaths(dir) {
-  const tokenEnv = process.env.TOKEN_STORE_PATH;
-  const challengeEnv = process.env.CHALLENGE_DB_PATH;
+// `overrides` lets a caller state the database paths explicitly instead of
+// inheriting them from the environment. It exists so a scheduled job never
+// depends on ambient variables, and `undefined` keeps the historical
+// environment-first behaviour byte-for-byte.
+function resolveConfiguredPaths(dir, overrides) {
+  const own = overrides || {};
+  const tokenEnv = own.tokenPath !== undefined ? own.tokenPath : process.env.TOKEN_STORE_PATH;
+  const challengeEnv = own.challengePath !== undefined ? own.challengePath : process.env.CHALLENGE_DB_PATH;
   const tokenConfigured = !!(tokenEnv && String(tokenEnv).trim());
   const challengeConfigured = !!(challengeEnv && String(challengeEnv).trim());
   return {
@@ -477,7 +482,10 @@ async function runBackup(options) {
 async function _writeBackup(ctx) {
   const { dir, dest, jsonFiles, tokenStore, challengeStore, opts } = ctx;
   const { sqliteSnapshot } = _stores();
-  const configured = resolveConfiguredPaths(dir);
+  const configured = resolveConfiguredPaths(dir, {
+    tokenPath: opts.tokenPath,
+    challengePath: opts.challengePath
+  });
 
   const manifest = {
     created: new Date(opts.now || Date.now()).toISOString(),
@@ -689,13 +697,91 @@ function findUnlistedArtifacts(dir, plan) {
   return entries.filter((f) => DATA_ARTIFACT.test(f) && !planned.has(f)).sort();
 }
 
-function _planTargets(manifest, dir) {
+// ── Isolated destination planning (P6 restore isolation) ───────────────────
+// Without `isolated`, database destinations come from the environment first
+// (resolveConfiguredPaths), which is correct for the operator-driven restore
+// but dangerous for a rehearsal: a shell that still carries the production
+// TOKEN_STORE_PATH / CHALLENGE_DB_PATH would silently target the live stores
+// while the JSON artifacts went to the scratch directory. With `isolated`, the
+// environment is never consulted and every artifact is named inside `dir`.
+function _planTargets(manifest, dir, options) {
+  const opts = options || {};
+  const root = path.resolve(dir);
+  if (opts.isolated) {
+    return Object.keys(manifest.files).map((name) => ({
+      name,
+      kind: name.endsWith(".sqlite") ? "sqlite" : "json",
+      target: path.join(root, name)
+    }));
+  }
   const configured = resolveConfiguredPaths(dir);
   return Object.keys(manifest.files).map((name) => {
     if (name === "tokenStore.sqlite") return { name, kind: "sqlite", target: configured.tokenPath };
     if (name === "challengeStore.sqlite") return { name, kind: "sqlite", target: configured.challengePath };
     return { name, kind: "json", target: path.join(dir, name) };
   });
+}
+
+function _realpathOrFail(p, label) {
+  try {
+    return fs.realpathSync.native(p);
+  } catch (err) {
+    throw new BackupRestoreError(
+      `Isolated restore cannot prove containment for ${label}: ${err.message}. ` +
+        "The directory must exist and be readable before an isolated restore.",
+      err
+    );
+  }
+}
+
+// Prove, before a single byte is written, that every destination an isolated
+// restore would touch resolves inside `dir`: JSON files, both SQLite databases,
+// their -wal/-shm/-journal sidecars, the staging (.incoming.<tag>) and
+// preservation (.origin.<tag>) names derived from those targets, and the lock
+// files. Any symlink on a target or sidecar, any parent that resolves
+// elsewhere, and any unreadable component fail closed.
+function assertIsolatedPlan(dir, plan) {
+  const declaredRoot = path.resolve(dir);
+  const rootReal = _realpathOrFail(declaredRoot, "the restore destination");
+  const failures = [];
+
+  for (const entry of plan) {
+    const target = path.resolve(entry.target);
+    const expected = path.join(declaredRoot, entry.name);
+    const expectedReal = path.join(rootReal, entry.name);
+
+    if (target !== expected && target !== expectedReal) {
+      failures.push(`${entry.name} is not named directly inside the destination (${target})`);
+      continue;
+    }
+    if (!_isContained(declaredRoot, target) && !_isContained(rootReal, target)) {
+      failures.push(`${entry.name} escapes the destination (${target})`);
+      continue;
+    }
+
+    let parentReal;
+    try {
+      parentReal = fs.realpathSync.native(path.dirname(target));
+    } catch (err) {
+      failures.push(`${entry.name} has an unreadable parent (${path.dirname(target)}): ${err.message}`);
+      continue;
+    }
+    if (parentReal !== rootReal) {
+      failures.push(`${entry.name} would be written outside the destination (resolves to ${parentReal})`);
+      continue;
+    }
+
+    for (const candidate of [target, ..._sidecarPaths(target)]) {
+      let stats;
+      try { stats = fs.lstatSync(candidate); } catch (_) { continue; }
+      if (stats.isSymbolicLink()) failures.push(`${candidate} is a symbolic link, which an isolated restore refuses`);
+    }
+  }
+
+  if (failures.length > 0) {
+    throw new BackupRestoreError(`Isolated restore refused: ${failures.join("; ")}`);
+  }
+  return { root: rootReal };
 }
 
 // Resolve the physical path of a destination for lock naming. An existing file
@@ -801,6 +887,7 @@ async function runRestore(options) {
   if (!dir) throw new BackupRestoreError("Restore requires a destination data directory");
 
   // (1) Manifest + artifact validation. Nothing has been modified yet.
+  const isolated = !!opts.isolated;
   const verification = verifyBackupDir(from);
   if (!verification.manifest) {
     throw new BackupRestoreError(`Backup directory (with a valid manifest.json) required: ${from}`);
@@ -819,7 +906,8 @@ async function runRestore(options) {
 
   // (2) Resolve every actual destination and refuse to invent a configured
   // database's parent directory. This runs before any lock is created.
-  const plan = _planTargets(verification.manifest, dir);
+  const plan = _planTargets(verification.manifest, dir, { isolated });
+  if (isolated) assertIsolatedPlan(dir, plan);
   for (const entry of plan) {
     const parent = path.dirname(entry.target);
     if (!fs.existsSync(parent)) {
@@ -845,7 +933,7 @@ async function runRestore(options) {
       const contended = (err && err.lockPath) || lockPaths[0];
       throw new BackupRestoreError(
         `Another restore is already running for ${contended}. ` +
-          "Wait for it to finish, then retry."
+          "A unified backup job holds the same data-directory lock; wait for it to finish, then retry."
       );
     }
     throw err;
@@ -875,6 +963,9 @@ function _applyManifestMode(entry, manifest) {
 
 function _runRestoreLocked(opts) {
   const { from, dir, manifest, plan } = opts;
+  // Re-prove containment once the lock is held, so a target turned into a
+  // symlink between planning and applying is still refused.
+  if (opts.isolated) assertIsolatedPlan(dir, plan);
   const force = !!opts.force;
   const allowUnlisted = !!opts.allowUnlisted;
   const names = Object.keys(manifest.files);
@@ -1021,6 +1112,7 @@ module.exports = {
   validateSqliteByName,
   validateSqliteArtifact,
   findUnlistedArtifacts,
+  assertIsolatedPlan,
   isProductionLike,
   sha256Buffer,
   sha256File,
