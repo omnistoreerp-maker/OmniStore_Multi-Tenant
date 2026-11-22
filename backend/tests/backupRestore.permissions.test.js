@@ -59,7 +59,10 @@ function seedDataDir(tag, tokenMode) {
   const challenge = path.join(dir, 'challengeStore.sqlite');
   makeTokenDb(token, 'user-1', 2);
   makeChallengeDb(challenge);
-  if (!isWindows && tokenMode) fs.chmodSync(token, tokenMode);
+  if (!isWindows && tokenMode) {
+    fs.chmodSync(token, tokenMode);
+    fs.chmodSync(challenge, tokenMode);
+  }
   return { dir, token, challenge };
 }
 
