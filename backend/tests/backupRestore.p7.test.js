@@ -115,6 +115,21 @@ describe('P7 manifest versioning', () => {
     expect(verification.failures.some((f) => f.reason.match(/version/i))).toBe(true);
   });
 
+  test('verifyBackupDir rejects manifest version 1', async () => {
+    const src = seedSource();
+    const out = tmp('p7-v1-out');
+    const { dest } = await lib.runBackup({ dir: src, out });
+
+    const manifestPath = path.join(dest, 'manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifest.version = 1;
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+
+    const verification = lib.verifyBackupDir(dest);
+    expect(verification.ok).toBe(false);
+    expect(verification.failures.some((f) => f.reason.match(/version/i))).toBe(true);
+  });
+
   test('a legacy manifest without version still verifies', async () => {
     const src = seedSource();
     const out = tmp('p7-legacy-out');
@@ -183,6 +198,65 @@ describe('P7 authoritative JSON inventory', () => {
       expect(name).not.toMatch(/[\/\\]/);
     }
   });
+
+  test('revoked-tokens.json is in the authoritative inventory', () => {
+    expect(lib.AUTHORITATIVE_JSON_STORES).toContain('revoked-tokens.json');
+  });
+
+  test('explicit inventory backup includes an existing revoked-tokens.json', async () => {
+    const src = seedSource();
+    fs.writeFileSync(
+      path.join(src, 'revoked-tokens.json'),
+      JSON.stringify([{ hash: 'deadbeef', exp: Math.floor(Date.now() / 1000) + 3600 }]),
+      'utf8'
+    );
+    const out = tmp('p7-revoked-out');
+    const result = await lib.runBackup({
+      dir: src,
+      out,
+      jsonInventory: lib.AUTHORITATIVE_JSON_STORES
+    });
+
+    const files = Object.keys(result.manifest.files);
+    expect(files).toContain('revoked-tokens.json');
+    expect(result.manifest.files['revoked-tokens.json'].bytes).toBeGreaterThan(0);
+  });
+
+  test('explicit inventory backup does not fail when revoked-tokens.json is absent', async () => {
+    const src = tmp('p7-revoked-absent-src');
+    fs.writeFileSync(path.join(src, 'users.json'), JSON.stringify([{ id: 'u1' }]), 'utf8');
+    const out = tmp('p7-revoked-absent-out');
+    const result = await lib.runBackup({
+      dir: src,
+      out,
+      jsonInventory: lib.AUTHORITATIVE_JSON_STORES
+    });
+
+    const files = Object.keys(result.manifest.files);
+    expect(files).toContain('users.json');
+    expect(files).not.toContain('revoked-tokens.json');
+    expect(result.manifest.skipped.some((s) => s.name === 'revoked-tokens.json')).toBe(false);
+  });
+
+  test('revoked-tokens.json content survives isolated backup and restore', async () => {
+    const src = seedSource();
+    const revokedPayload = [
+      { hash: 'aaaa', exp: Math.floor(Date.now() / 1000) + 3600 },
+      { hash: 'bbbb', exp: Math.floor(Date.now() / 1000) + 7200 }
+    ];
+    fs.writeFileSync(path.join(src, 'revoked-tokens.json'), JSON.stringify(revokedPayload), 'utf8');
+    const out = tmp('p7-revoked-restore-out');
+    const { dest } = await lib.runBackup({ dir: src, out });
+
+    const restoreDir = tmp('p7-revoked-restore-dest');
+    const result = await lib.runRestore({ from: dest, dir: restoreDir, force: true, isolated: true });
+
+    expect(result.restored).toBeGreaterThan(0);
+    const restored = JSON.parse(
+      fs.readFileSync(path.join(restoreDir, 'revoked-tokens.json'), 'utf8')
+    );
+    expect(restored).toEqual(revokedPayload);
+  });
 });
 
 describe('P7 JSON permission hardening', () => {
@@ -237,6 +311,63 @@ describe('P7 restore to isolated destination', () => {
     expect(error.message).toMatch(/checksum\/size mismatch|verification failed/i);
     // Destination untouched.
     expect(fs.readFileSync(path.join(restoreDir, 'sentinel.txt'), 'utf8')).toBe('untouched');
+  });
+
+  test('apply-phase failure triggers rollback and preserves pre-existing destination data', async () => {
+    const src = seedSource();
+    fs.writeFileSync(path.join(src, 'companies.json'), JSON.stringify([{ id: 'c1', name: 'Original' }]), 'utf8');
+    const out = tmp('p7-rollback-out');
+    const { dest } = await lib.runBackup({ dir: src, out });
+
+    // Pre-existing destination data to protect.
+    const restoreDir = tmp('p7-rollback-dest');
+    fs.writeFileSync(path.join(restoreDir, 'users.json'), JSON.stringify([{ id: 'pre-existing' }]), 'utf8');
+    fs.writeFileSync(path.join(restoreDir, 'companies.json'), JSON.stringify([{ id: 'pre-existing-c' }]), 'utf8');
+    fs.writeFileSync(path.join(restoreDir, 'sentinel.txt'), 'never-touch-me', 'utf8');
+
+    // Inject a failure during the apply phase: fail when moving an incoming
+    // file into its final target (renameSync where `to` ends with a .json name
+    // under the restore directory). The original has already been moved aside
+    // at this point, so rollback must restore it.
+    const realRename = fs.renameSync;
+    let renameCalls = 0;
+    jest.spyOn(fs, 'renameSync').mockImplementation((from, to) => {
+      renameCalls += 1;
+      const toStr = String(to);
+      if (toStr.includes(restoreDir) && toStr.endsWith('.json')) {
+        throw new Error('simulated apply-phase rename failure');
+      }
+      return realRename(from, to);
+    });
+
+    let error = null;
+    try {
+      await lib.runRestore({ from: dest, dir: restoreDir, force: true, isolated: true });
+    } catch (err) {
+      error = err;
+    } finally {
+      jest.restoreAllMocks();
+    }
+    expect(error).not.toBeNull();
+    expect(error.message).toMatch(/simulated apply-phase rename failure/);
+
+    // Pre-existing destination data must be restored (rollback).
+    expect(fs.readFileSync(path.join(restoreDir, 'users.json'), 'utf8')).toBe(JSON.stringify([{ id: 'pre-existing' }]));
+    expect(fs.readFileSync(path.join(restoreDir, 'companies.json'), 'utf8')).toBe(JSON.stringify([{ id: 'pre-existing-c' }]));
+    expect(fs.readFileSync(path.join(restoreDir, 'sentinel.txt'), 'utf8')).toBe('never-touch-me');
+
+    // No rollback origin artifacts should remain beside the targets.
+    const entries = fs.readdirSync(restoreDir);
+    const originArtifacts = entries.filter((e) => e.includes(lib.ORIGIN_TAG));
+    const incomingArtifacts = entries.filter((e) => e.includes(lib.INCOMING_TAG));
+    expect(originArtifacts).toEqual([]);
+    expect(incomingArtifacts).toEqual([]);
+
+    // No path escaped the isolated destination.
+    for (const entry of entries) {
+      expect(entry).not.toMatch(/\.\./);
+      expect(path.isAbsolute(entry)).toBe(false);
+    }
   });
 });
 

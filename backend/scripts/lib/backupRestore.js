@@ -141,8 +141,9 @@ const SHA256_HEX = /^[0-9a-f]{64}$/;
 const DATA_ARTIFACT = /\.(json|sqlite)$/i;
 
 // P7: manifest schema version. Manifests written by this release carry version 2.
-// Legacy manifests (no version field, or version 1) continue to verify; any other
-// version is rejected.
+// Legacy manifests with no `version` field continue to verify (backward
+// compatibility). A `version` field present but not equal to MANIFEST_VERSION
+// (including version 1) is rejected. Unknown future versions are rejected.
 const MANIFEST_VERSION = 2;
 // P7: prefix for in-flight backup directories. A partial backup never matches the
 // `backup-` discovery pattern, so it is never mistaken for a completed backup.
@@ -167,6 +168,7 @@ const AUTHORITATIVE_JSON_STORES = [
   "purchases.json",
   "reelsCache.json",
   "reports.json",
+  "revoked-tokens.json",
   "sales.json",
   "suppliers.json",
   "tenantAddons.json",
