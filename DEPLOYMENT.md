@@ -135,6 +135,13 @@ scripts cover both databases: a backup in a production-like environment fails
 loudly if the challenge database is unconfigured or missing, rather than
 producing a silently incomplete backup.
 
+**Restore permissions and ownership.** A backup records the POSIX permission
+bits of each SQLite database and a restore re-applies them, so a hardened
+`0600` token/challenge store is not widened to SQLite's default `0644`.
+Ownership is not restored: the files belong to the user that runs the restore.
+Run the restore as the service account; restoring as `root` leaves `root`-owned
+databases that the service user may then be unable to write.
+
 Housekeeping removes only already-expired rows (refresh tokens, access-token
 denylist entries, legacy revocation records) in small batches, at most once per
 five minutes, triggered by login/refresh traffic. Active refresh tokens, active

@@ -43,6 +43,13 @@
 //     (even from different --dir values) and a partial overlap cannot deadlock.
 //     Every acquired lock is released on every success and failure path. Lock
 //     names end in "-lock"/".lock", so they are never mistaken for stores.
+//   * POSIX permissions travel with the databases. A backup records each SQLite
+//     artifact's permission bits in the manifest, and a restore re-applies them,
+//     so a hardened 0600 token/challenge database is not widened to SQLite's
+//     default 0644. Manifests written before this field restore exactly as
+//     before. OWNERSHIP IS NOT RESTORED: a restored file belongs to the user
+//     that ran the restore, so run it as the service account; restoring as root
+//     can leave files the application user cannot write.
 //
 // LIMITS — stated precisely so they are not over-claimed:
 //   * Reconciliation is OPERATION-LEVEL only: it covers an error thrown while
@@ -330,6 +337,20 @@ function validateManifest(manifest, dir, rawText) {
       failures.push({ name, reason: "invalid sha256" });
       continue;
     }
+    // Optional POSIX permission bits. Only SQLite artifacts may carry them, and
+    // only as an integer in range: strings, floats, negatives and values with
+    // bits outside 0..0o777 are rejected rather than coerced.
+    if (Object.prototype.hasOwnProperty.call(meta, "mode")) {
+      if (!name.endsWith(".sqlite")) {
+        failures.push({ name, reason: "mode is only valid for SQLite artifacts" });
+        continue;
+      }
+      const mode = meta.mode;
+      if (typeof mode !== "number" || !Number.isInteger(mode) || mode < 0 || mode > 0o777) {
+        failures.push({ name, reason: "invalid mode (integer 0..0o777 required)" });
+        continue;
+      }
+    }
   }
   return failures;
 }
@@ -412,6 +433,18 @@ function uniqueBackupDir(out, now) {
   return path.join(out, "backup-" + stamp(now));
 }
 
+// Attach the source database's POSIX permission bits to its manifest entry. The
+// field stays optional: a manifest without it (any release before this one)
+// restores with the historical behaviour. Windows records nothing because it
+// has no POSIX mode to reproduce. On POSIX the read is fail-closed: if the mode
+// cannot be determined the backup aborts instead of emitting a manifest that
+// says nothing about permissions.
+function _withMode(meta, sourcePath) {
+  const mode = _stores().sqliteSnapshot.sourcePermissionBits(sourcePath);
+  if (mode !== null) meta.mode = mode;
+  return meta;
+}
+
 function deleteDir(dir) {
   if (dir && fs.existsSync(dir)) {
     try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}
@@ -479,7 +512,10 @@ async function _writeBackup(ctx) {
     const storeDest = path.join(dest, "tokenStore.sqlite");
     await tokenStore.backupDatabase(tokenPath, storeDest);
     sqliteSnapshot.compactSidecars(storeDest);
-    manifest.files["tokenStore.sqlite"] = { bytes: fs.statSync(storeDest).size, sha256: sha256File(storeDest) };
+    manifest.files["tokenStore.sqlite"] = _withMode(
+      { bytes: fs.statSync(storeDest).size, sha256: sha256File(storeDest) },
+      tokenPath
+    );
     manifest.databases.tokenStore = { name: "tokenStore.sqlite", source: tokenPath, included: true };
   } else if (configured.tokenConfigured) {
     throw new BackupRestoreError(
@@ -495,7 +531,10 @@ async function _writeBackup(ctx) {
     const storeDest = path.join(dest, "challengeStore.sqlite");
     await challengeStore.backupDatabase(challengePath, storeDest);
     sqliteSnapshot.compactSidecars(storeDest);
-    manifest.files["challengeStore.sqlite"] = { bytes: fs.statSync(storeDest).size, sha256: sha256File(storeDest) };
+    manifest.files["challengeStore.sqlite"] = _withMode(
+      { bytes: fs.statSync(storeDest).size, sha256: sha256File(storeDest) },
+      challengePath
+    );
     manifest.databases.challengeStore = { name: "challengeStore.sqlite", source: challengePath, included: true };
   } else if (configured.challengeConfigured) {
     throw new BackupRestoreError(
@@ -819,6 +858,21 @@ async function runRestore(options) {
   }
 }
 
+// Re-apply the POSIX permission bits recorded for this entry. Skipped on Windows
+// (chmod there only toggles the read-only attribute) and skipped for manifests
+// that carry no mode, which is how legacy backups keep their old behaviour.
+// Failures propagate untouched: applyFileMode throws a SqliteSnapshotError that
+// carries no OS error `code`, so the caller cannot mistake it for a locked-file
+// (EBUSY/EPERM) condition, and the outer handler wraps it with the rollback
+// outcome and the exact path.
+function _applyManifestMode(entry, manifest) {
+  if (entry.kind !== "sqlite") return;
+  if (process.platform === "win32") return;
+  const meta = manifest.files[entry.name];
+  if (!meta || typeof meta.mode !== "number") return;
+  _stores().sqliteSnapshot.applyFileMode(entry.target, meta.mode);
+}
+
 function _runRestoreLocked(opts) {
   const { from, dir, manifest, plan } = opts;
   const force = !!opts.force;
@@ -881,6 +935,12 @@ function _runRestoreLocked(opts) {
         // Validation sidecars of the incoming copy are not part of the target (the
         // main file has been moved into place, only its -wal/-shm/-journal remain).
         _removeFileWithSidecars(entry.incoming);
+        // (7b) Permissions last, and only once the entry is already registered in
+        // `applied` as installed: if this throws, the outer catch rolls the whole
+        // operation back, restoring both the original bytes and the original mode
+        // (a rename back). No later step touches the mode, and this runs after
+        // every copy, so nothing widens it again.
+        _applyManifestMode(entry, manifest);
       } catch (err) {
         // Windows refuses to rename over a file another process holds open, with
         // EBUSY (or EPERM for a locked file). The writer probe cannot detect an
