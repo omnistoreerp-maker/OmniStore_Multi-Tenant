@@ -12,6 +12,7 @@
     "test:edu": "cd .. && npm run test:edu",
     "test:edu:full": "node run-suite.js student.test.js teacher.test.js center.test.js class.test.js enrollment.test.js grading.test.js attendance.test.js",
     "backup": "node scripts/backup.js",
+    "backup:job": "node scripts/backupJob.js",
     "restore": "node scripts/restore.js",
     "verify-backup": "node scripts/verify.js"
   },

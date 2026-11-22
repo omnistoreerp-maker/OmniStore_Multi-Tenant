@@ -81,7 +81,7 @@ jobs:
         run: npm ci
 
       - name: Backup/restore and SQLite suites (Node 20)
-        run: npm test -- tests/backupRestore tests/tokenStore.backup tests/challengeStore.sqlite
+        run: npm test -- tests/backupRestore tests/backupJob tests/restoreIsolation tests/tokenStore.backup tests/challengeStore.sqlite
 
       # The POSIX-only cases must run here, not be skipped: a silent skip would
       # leave the security property untested on the platform that deploys. Only
@@ -92,6 +92,17 @@ jobs:
           npm test -- tests/backupRestore.permissions --verbose 2>&1 | tee /tmp/permissions.log
           if grep -E "skipped .*(0600 source|source mode in the manifest|re-applies 0o600|each entry its own mode)" /tmp/permissions.log; then
             echo "POSIX permission assertions were skipped on Linux"
+            exit 1
+          fi
+
+      # Same rule for the unified backup job and restore isolation: their POSIX
+      # mode, umask and mount-identity assertions ARE the security property, so a
+      # silent skip on the platform that deploys must fail the job.
+      - name: Backup-job and isolation POSIX assertions are not skipped
+        run: |
+          npm test -- tests/backupJob tests/restoreIsolation --verbose 2>&1 | tee /tmp/backupjob.log
+          if grep -E "skipped .*(backup directory is 0700|status directory is 0700|insufficient destination permissions)" /tmp/backupjob.log; then
+            echo "POSIX backup-job assertions were skipped on Linux"
             exit 1
           fi
 
