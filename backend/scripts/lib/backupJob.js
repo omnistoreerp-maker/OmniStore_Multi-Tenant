@@ -512,12 +512,14 @@ async function runBackupJob(options) {
 
     // (2) Create. The existing implementation performs the WAL-consistent online
     // backup and writes the manifest; explicit paths are passed through so
-    // ambient environment values cannot redirect them.
+    // ambient environment values cannot redirect them. The authoritative JSON
+    // inventory limits the backup to known application stores.
     const created = await lib.runBackup({
       dir: dataDir,
       out: outDir,
       tokenPath,
-      challengePath
+      challengePath,
+      jsonInventory: lib.AUTHORITATIVE_JSON_STORES
     });
     const backupDir = created.dest;
     status.backupDir = backupDir;
