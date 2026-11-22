@@ -140,6 +140,44 @@ const ARTIFACT_NAME = /^(?:tokenStore\.sqlite|challengeStore\.sqlite|[A-Za-z0-9.
 const SHA256_HEX = /^[0-9a-f]{64}$/;
 const DATA_ARTIFACT = /\.(json|sqlite)$/i;
 
+// P7: manifest schema version. Manifests written by this release carry version 2.
+// Legacy manifests (no version field, or version 1) continue to verify; any other
+// version is rejected.
+const MANIFEST_VERSION = 2;
+// P7: prefix for in-flight backup directories. A partial backup never matches the
+// `backup-` discovery pattern, so it is never mistaken for a completed backup.
+const PARTIAL_PREFIX = ".partial-";
+// P7: default allowlist of authoritative JSON store names. When a caller supplies
+// `jsonInventory`, only listed files that exist in the source directory are backed
+// up. When omitted, every `*.json` file in the directory is captured (the legacy
+// behaviour, retained for backward compatibility).
+const AUTHORITATIVE_JSON_STORES = [
+  "apiKeys.json",
+  "auditLog.json",
+  "companies.json",
+  "companyProfile.json",
+  "customers.json",
+  "marketConfig.json",
+  "platformActivity.json",
+  "platformAdmins.json",
+  "platformPublic.json",
+  "playstationDevices.json",
+  "presence.json",
+  "products.json",
+  "purchases.json",
+  "reelsCache.json",
+  "reports.json",
+  "sales.json",
+  "suppliers.json",
+  "tenantAddons.json",
+  "tenantCustomDomains.json",
+  "tenantNotifications.json",
+  "tenantPaymentTransactions.json",
+  "tenantTransactionFees.json",
+  "updateManifest.json",
+  "users.json"
+];
+
 function isProductionLike(env) {
   return PRODUCTION_LIKE_ENVS.has(String(env || process.env.NODE_ENV || "").trim().toLowerCase());
 }
@@ -384,6 +422,14 @@ function verifyBackupDir(dir) {
   }
 
   const failures = [];
+
+  // P7: manifest schema version. A missing version means a legacy manifest
+  // (pre-P7) which continues to verify. Any non-matching version is rejected.
+  if (typeof manifest.version === "number" && manifest.version !== MANIFEST_VERSION) {
+    failures.push({ name: "manifest.json", reason: `unsupported manifest version ${manifest.version}` });
+    return { ok: false, failures, manifest };
+  }
+
   for (const [name, meta] of Object.entries(manifest.files)) {
     const file = path.join(dir, name);
     if (!fs.existsSync(file)) {
@@ -465,16 +511,97 @@ async function runBackup(options) {
 
   const { tokenStore, challengeStore } = _stores();
 
-  const jsonFiles = fs.readdirSync(dir).filter((f) => f.endsWith(".json")).sort();
+  // P7: when an explicit inventory is supplied, only those JSON stores are
+  // captured. Otherwise every *.json file is backed up (legacy behaviour).
+  let jsonFiles;
+  if (Array.isArray(opts.jsonInventory)) {
+    jsonFiles = opts.jsonInventory
+      .filter((f) => typeof f === "string" && f.endsWith(".json"))
+      .filter((f) => fs.existsSync(path.join(dir, f)))
+      .sort();
+  } else {
+    jsonFiles = fs.readdirSync(dir).filter((f) => f.endsWith(".json")).sort();
+  }
+
   fs.mkdirSync(out, { recursive: true });
-  const dest = createUniqueBackupDir(out, opts.now);
+
+  // P7: atomic publication. Write to a .partial-* directory, verify it, then
+  // rename to backup-*. A crash mid-copy leaves only a .partial-* entry that
+  // never matches the backup- discovery pattern.
+  const baseName = "backup-" + stamp(opts.now);
+  let partial;
+  for (let i = 0; i < 1000; i++) {
+    const candidate = path.join(out, PARTIAL_PREFIX + baseName + (i === 0 ? "" : "-" + i));
+    try {
+      fs.mkdirSync(candidate);
+      partial = candidate;
+      break;
+    } catch (err) {
+      if (err && err.code === "EEXIST") continue;
+      throw new BackupRestoreError(
+        `Could not create backup staging directory ${candidate}: ${err.message}`,
+        err
+      );
+    }
+  }
+  if (!partial) {
+    throw new BackupRestoreError(`Could not create a unique backup staging directory under ${out}`);
+  }
 
   try {
-    return await _writeBackup({ dir, dest, jsonFiles, tokenStore, challengeStore, opts });
+    const result = await _writeBackup({ dir, dest: partial, jsonFiles, tokenStore, challengeStore, opts });
+    // P7: mark the manifest complete only after every artifact is written.
+    result.manifest.status = "complete";
+    fs.writeFileSync(
+      path.join(partial, "manifest.json"),
+      JSON.stringify(result.manifest, null, 2)
+    );
+    // Independent verification before publication.
+    const verification = verifyBackupDir(partial);
+    if (!verification.ok) {
+      throw new BackupRestoreError(
+        "Staged backup failed verification: " +
+          verification.failures.map((f) => `${f.name}: ${f.reason}`).join("; ")
+      );
+    }
+    // Atomic publish: one rename within the destination filesystem. The
+    // destination name must be unique too, because concurrent backups share the
+    // same base timestamp. Retry on EEXIST/EPERM (Windows reports EPERM when
+    // renaming over an existing directory).
+    let dest;
+    for (let i = 0; i < 1000; i++) {
+      const candidate = path.join(out, baseName + (i === 0 ? "" : "-" + i));
+      try {
+        fs.renameSync(partial, candidate);
+        dest = candidate;
+        break;
+      } catch (err) {
+        if (err && (err.code === "EEXIST" || err.code === "EPERM")) continue;
+        throw err;
+      }
+    }
+    if (!dest) {
+      throw new BackupRestoreError(`Could not publish backup under ${out}`);
+    }
+    // P7: re-apply POSIX permission bits on the published paths so the final
+    // artifacts carry the correct mode regardless of where chmod ran during
+    // staging. SQLite modes come from the manifest; JSON stores are narrowed to
+    // 0640 on POSIX.
+    if (process.platform !== "win32") {
+      for (const [name, meta] of Object.entries(result.manifest.files)) {
+        const finalPath = path.join(dest, name);
+        if (name.endsWith(".sqlite") && typeof meta.mode === "number") {
+          try { fs.chmodSync(finalPath, meta.mode); } catch (_) {}
+        } else if (name.endsWith(".json")) {
+          try { fs.chmodSync(finalPath, 0o640); } catch (_) {}
+        }
+      }
+    }
+    return { dest, manifest: result.manifest };
   } catch (err) {
-    // A directory without manifest.json is not a valid backup; don't leave one
-    // behind that could later look restorable. Created by us, so removal is safe.
-    try { fs.rmSync(dest, { recursive: true, force: true }); } catch (_) {}
+    // Remove the partial staging directory so a failed run never leaves a
+    // discoverable backup behind.
+    try { fs.rmSync(partial, { recursive: true, force: true }); } catch (_) {}
     throw err;
   }
 }
@@ -488,6 +615,7 @@ async function _writeBackup(ctx) {
   });
 
   const manifest = {
+    version: MANIFEST_VERSION,
     created: new Date(opts.now || Date.now()).toISOString(),
     source: dir,
     consistency: "best-effort (JSON re-read; SQLite WAL-checkpointed)",
@@ -1125,5 +1253,8 @@ module.exports = {
   TARGET_LOCK_SUFFIX,
   INCOMING_TAG,
   ORIGIN_TAG,
-  STAGING_PREFIX
+  STAGING_PREFIX,
+  MANIFEST_VERSION,
+  PARTIAL_PREFIX,
+  AUTHORITATIVE_JSON_STORES
 };
