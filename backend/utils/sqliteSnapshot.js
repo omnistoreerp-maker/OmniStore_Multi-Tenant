@@ -48,6 +48,55 @@ class RecoveryRequiredError extends SqliteSnapshotError {
   }
 }
 
+// ── POSIX permission preservation ───────────────────────────────────────────
+// A new SQLite database file is created with SQLITE_DEFAULT_FILE_PERMISSIONS
+// (0644) masked by the process umask, no matter what the database it was copied
+// FROM looked like. A backup artifact is a new database, so a hardened 0600
+// source would otherwise come back as a world-readable 0644 artifact — and a
+// restore would faithfully install that 0644 file. These helpers carry the
+// permission bits across explicitly. Only permission bits are ever handled;
+// file-type bits are masked out.
+//
+// Windows is deliberately out of scope: chmod there only toggles the read-only
+// attribute, so the historical behaviour must be preserved untouched.
+
+// Permission bits (never file-type bits) of the database a backup must
+// reproduce. Windows has no POSIX mode to carry, so this returns null there and
+// no chmod is ever attempted. On POSIX an unreadable source is FATAL: an unknown
+// mode must never fall through to SQLite's default 0644, so the caller aborts the
+// backup rather than writing a wider artifact. The error keeps the path and the
+// original cause.
+function sourcePermissionBits(file) {
+  if (process.platform === "win32") return null;
+  let stat;
+  try {
+    stat = fs.statSync(file);
+  } catch (err) {
+    throw new SqliteSnapshotError(
+      `Could not read the permissions of ${file}, so the backup cannot preserve them: ${err.message}`,
+      err
+    );
+  }
+  return stat.mode & 0o777;
+}
+
+// Apply `mode` to `file`. Windows is a no-op. Any failure throws, so a caller
+// can never continue as if permissions had been set when they were not.
+function applyFileMode(file, mode) {
+  if (process.platform === "win32") return;
+  if (!Number.isInteger(mode) || mode < 0 || mode > 0o777) {
+    throw new SqliteSnapshotError(`Refusing to apply invalid permission bits ${mode} to ${file}`);
+  }
+  try {
+    fs.chmodSync(file, mode);
+  } catch (err) {
+    throw new SqliteSnapshotError(
+      `Could not apply permissions ${mode.toString(8)} to ${file}: ${err.message}`,
+      err
+    );
+  }
+}
+
 const SQLITE_MAGIC = "SQLite format 3\u0000";
 
 function _headerOk(file) {
@@ -171,6 +220,10 @@ async function backupSqlite(sourcePath, destPath, options) {
   }
 
   validateSqliteFile(sourcePath, opts.validate);
+  // Captured before the copy, and fatal on POSIX when it cannot be read: this is
+  // the mode the live database is meant to keep, not SQLite's default for a new
+  // artifact. Throws before any artifact exists, so nothing is left behind.
+  const sourceMode = sourcePermissionBits(sourcePath);
 
   const sourceDb = new Database(sourcePath);
   try {
@@ -195,6 +248,17 @@ async function backupSqlite(sourcePath, destPath, options) {
       : new SqliteSnapshotError(`Backup verification failed: ${err.message}`, err);
   }
   compactSidecars(destPath);
+  // The artifact is complete and compacted, so its final mode is set now and
+  // nothing later in the backup rewrites the file. Fail closed: an artifact
+  // whose permissions could not be restricted is removed, not kept.
+  if (sourceMode !== null) {
+    try {
+      applyFileMode(destPath, sourceMode);
+    } catch (err) {
+      try { fs.unlinkSync(destPath); } catch (_) {}
+      throw err;
+    }
+  }
   return destPath;
 }
 
@@ -352,6 +416,8 @@ function restoreSqlite(backupPath, targetPath, options) {
 module.exports = {
   backupSqlite,
   restoreSqlite,
+  sourcePermissionBits,
+  applyFileMode,
   validateSqliteFile,
   validateSqliteIsolated,
   isDatabaseInUse,

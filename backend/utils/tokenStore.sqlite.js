@@ -724,6 +724,12 @@ async function backupDatabase(sourcePath, destPath) {
     throw new TokenStoreError(`Backup destination already exists: ${destPath}`);
   }
 
+  // Permission bits of the live database, captured before anything is copied so
+  // the artifact reproduces the mode the store is meant to keep. Windows keeps
+  // its historical behaviour (null = nothing to preserve); on POSIX an
+  // unreadable mode aborts the backup before an artifact exists.
+  const sourceMode = require("./sqliteSnapshot").sourcePermissionBits(sourcePath);
+
   // Validate the source before opening it read-write: SQLite treats a short
   // non-database file as an empty database and could otherwise initialise it.
   // The read-only primitive is used here (not the isolated variant) because the
@@ -764,6 +770,29 @@ async function backupDatabase(sourcePath, destPath) {
     throw err instanceof TokenStoreError ? err : new TokenStoreError(`Backup verification failed: ${err.message}`, err);
   }
   try { verifyDb.close(); } catch (_) {}
+
+  // Fold any -wal/-shm the backup produced into the artifact first, so its
+  // final mode is set on the compacted file (the challenge store's
+  // sqliteSnapshot.backupSqlite does the same).
+  require("./sqliteSnapshot").compactSidecars(destPath);
+
+  // SQLite created the artifact with its default 0644 & ~umask, so the source
+  // database's permission bits are re-applied here. This store has its own
+  // backup implementation (the challenge store delegates to
+  // sqliteSnapshot.backupSqlite), so it needs the same step explicitly.
+  // Fail closed: an artifact whose permissions could not be restricted is
+  // removed rather than kept.
+  if (sourceMode !== null) {
+    try {
+      require("./sqliteSnapshot").applyFileMode(destPath, sourceMode);
+    } catch (err) {
+      try { fs.unlinkSync(destPath); } catch (_) {}
+      throw new TokenStoreError(
+        `Backup permissions could not be preserved for ${destPath}: ${err.message}`,
+        err
+      );
+    }
+  }
   return destPath;
 }
 
