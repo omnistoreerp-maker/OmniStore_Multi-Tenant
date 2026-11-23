@@ -38,7 +38,8 @@ const OAUTH_ENV = {
   OAUTH_ENABLED: 'true',
   GOOGLE_CLIENT_ID: CLIENT_ID,
   GOOGLE_CLIENT_SECRET: CLIENT_SECRET,
-  GOOGLE_CALLBACK_URL: 'http://127.0.0.1/auth/google-login-code/callback'
+  GOOGLE_CALLBACK_URL: 'http://127.0.0.1/auth/google/callback',
+  GOOGLE_AUTHCODE_CALLBACK_URL: 'http://127.0.0.1/auth/google-login-code/callback'
 };
 const REAL_FETCH = global.fetch;
 
@@ -713,4 +714,74 @@ describe('role coverage — all existing linked non-Master roles sign in', () =>
       expect(usersOnDisk()).toHaveLength(1);
     });
   }
+});
+
+describe('Google callback URL configuration isolation', () => {
+  function configEnv(overrides = {}) {
+    return {
+      ...OAUTH_ENV,
+      BASE_URL: 'http://127.0.0.1',
+      GOOGLE_CALLBACK_URL: 'http://127.0.0.1/auth/google/callback',
+      GOOGLE_AUTHCODE_CALLBACK_URL: 'http://127.0.0.1/auth/google-login-code/callback',
+      GOOGLE_MASTER_CALLBACK_URL: 'http://127.0.0.1/auth/google/master/callback',
+      OAUTH_MASTER_EMAIL: 'master@example.com',
+      ...overrides
+    };
+  }
+
+  function redirectUriFor(app, path) {
+    return request(app).get(path).redirects(0).then((res) => {
+      expect(res.status).toBe(302);
+      return new URL(res.headers.location).searchParams.get('redirect_uri');
+    });
+  }
+
+  function isolatedApp(overrides) {
+    const dir = makeTempDataDir('callback-config');
+    tempDirs.push(dir);
+    return startServer(dir, configEnv(overrides)).app;
+  }
+
+  test('each Google flow sends its own redirect_uri to Google', async () => {
+    const app = isolatedApp();
+    expect(await redirectUriFor(app, '/auth/google-login-code')).toBe('http://127.0.0.1/auth/google-login-code/callback');
+    expect(await redirectUriFor(app, '/auth/google')).toBe('http://127.0.0.1/auth/google/callback');
+    expect(await redirectUriFor(app, '/auth/google/master')).toBe('http://127.0.0.1/auth/google/master/callback');
+  });
+
+  test('changing only GOOGLE_AUTHCODE_CALLBACK_URL leaves legacy and Master untouched', async () => {
+    const app = isolatedApp({ GOOGLE_AUTHCODE_CALLBACK_URL: 'http://127.0.0.1/custom/authcode/cb' });
+    expect(await redirectUriFor(app, '/auth/google-login-code')).toBe('http://127.0.0.1/custom/authcode/cb');
+    expect(await redirectUriFor(app, '/auth/google')).toBe('http://127.0.0.1/auth/google/callback');
+    expect(await redirectUriFor(app, '/auth/google/master')).toBe('http://127.0.0.1/auth/google/master/callback');
+  });
+
+  test('GOOGLE_CALLBACK_URL cannot redirect the AuthCode flow', async () => {
+    const app = isolatedApp({
+      GOOGLE_CALLBACK_URL: 'http://127.0.0.1/hijacked/legacy/cb',
+      GOOGLE_AUTHCODE_CALLBACK_URL: 'http://127.0.0.1/auth/google-login-code/callback'
+    });
+    expect(await redirectUriFor(app, '/auth/google-login-code')).toBe('http://127.0.0.1/auth/google-login-code/callback');
+    expect(await redirectUriFor(app, '/auth/google')).toBe('http://127.0.0.1/hijacked/legacy/cb');
+  });
+
+  test('authCode callback falls back to the correct default when the variable is unset', async () => {
+    const env = configEnv();
+    delete env.GOOGLE_AUTHCODE_CALLBACK_URL;
+    const dir = makeTempDataDir('callback-default');
+    tempDirs.push(dir);
+    const app = startServer(dir, env).app;
+    expect(await redirectUriFor(app, '/auth/google-login-code')).toBe('http://127.0.0.1/auth/google-login-code/callback');
+    expect(await redirectUriFor(app, '/auth/google')).toBe('http://127.0.0.1/auth/google/callback');
+  });
+
+  test('the config module exposes independent callback settings', () => {
+    const env = configEnv();
+    for (const k of Object.keys(env)) process.env[k] = env[k];
+    jest.resetModules();
+    const cfg = require('../config/oauth');
+    expect(cfg.providers.google.callbackURL).toBe('http://127.0.0.1/auth/google/callback');
+    expect(cfg.providers.google.authCodeCallbackURL).toBe('http://127.0.0.1/auth/google-login-code/callback');
+    expect(cfg.master.callbackURL).toBe('http://127.0.0.1/auth/google/master/callback');
+  });
 });
