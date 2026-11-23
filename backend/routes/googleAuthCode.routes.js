@@ -21,6 +21,7 @@ const { googleLoginRateLimiter, googleLoginChallengeRateLimiter } = require('../
  *         description: Google login not configured
  */
 router.get('/google-login-code', googleLoginRateLimiter(), ctrl.initiate);
+router.get('/google-login-code/challenge', googleLoginChallengeRateLimiter(), ctrl.challengeStatus);
 
 /**
  * @openapi

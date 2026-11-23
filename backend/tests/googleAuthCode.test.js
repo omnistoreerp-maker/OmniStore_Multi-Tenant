@@ -575,6 +575,147 @@ describe('14-16. Authentication boundaries and regressions', () => {
   });
 });
 
+describe('challenge status (read-only tenant picker metadata)', () => {
+  async function reachTenantSelection() {
+    seedUsers([linkedUser({ id: 'u-multi', username: 'multi', tenantIds: ['t1', 't2'] })]);
+    seedCompanies([
+      { id: 't1', name: 'Tenant One', active: true, status: 'active' },
+      { id: 't2', name: 'Tenant Two', active: true, status: 'active' }
+    ]);
+    const a = await initiate();
+    mockVerify();
+    const cb = await callback(a.state, a.cookies);
+    expect(cb.headers.location).toContain('tenant_selection_required=1');
+    return { a, cookies: handoffCookies(a, cb) };
+  }
+
+  test('returns only server-owned tenant choices for a valid browser-bound challenge', async () => {
+    const { cookies } = await reachTenantSelection();
+    const res = await request(app).get('/api/v1/auth/google-login-code/challenge').set('Cookie', cookies);
+    expect(res.status).toBe(200);
+    expect(res.body.data.purpose).toBe('google_tenant_selection');
+    expect(res.body.data.allowedTenantIds).toEqual(['t1', 't2']);
+    expect(res.body.data.availableTenants).toEqual([
+      { id: 't1', name: 'Tenant One' },
+      { id: 't2', name: 'Tenant Two' }
+    ]);
+    expect(res.body.data.token).toBeUndefined();
+    expect(res.body.data.tempToken).toBeUndefined();
+  });
+
+  test('MFA challenge exposes purpose only, never tenant metadata', async () => {
+    seedUsers([linkedUser({ mfaEnabled: true, mfaSecret: MFA_SECRET, tenantIds: ['t1'] })]);
+    seedCompanies([{ id: 't1', name: 'Tenant One', active: true, status: 'active' }]);
+    const a = await initiate();
+    mockVerify();
+    const cb = await callback(a.state, a.cookies);
+    const res = await request(app).get('/api/v1/auth/google-login-code/challenge').set('Cookie', handoffCookies(a, cb));
+    expect(res.status).toBe(200);
+    expect(res.body.data.purpose).toBe('google_mfa');
+    expect(res.body.data.availableTenants).toBeUndefined();
+  });
+
+  test('wrong browser cannot read the challenge', async () => {
+    const { cookies, a } = await reachTenantSelection();
+    const pending = cookies.split('; ').find(c => c.startsWith('glogin_pending='));
+    const other = a.cookies.split('; ').map(c => c.replace(/^glogin_bs=.*/, 'glogin_bs=' + crypto.randomBytes(32).toString('base64url'))).join('; ');
+    const res = await request(app).get('/api/v1/auth/google-login-code/challenge').set('Cookie', other + '; ' + pending);
+    expect(res.status).toBe(401);
+  });
+
+  test('pending cookie is required', async () => {
+    const res = await request(app).get('/api/v1/auth/google-login-code/challenge');
+    expect(res.status).toBe(401);
+  });
+
+  test('status does not consume the challenge; completion still succeeds', async () => {
+    const { cookies } = await reachTenantSelection();
+    const status = await request(app).get('/api/v1/auth/google-login-code/challenge').set('Cookie', cookies);
+    expect(status.status).toBe(200);
+    const res = await request(app).post('/api/v1/auth/google-login-code/select-tenant')
+      .set('Cookie', cookies).send({ tenantId: 't1' });
+    expect(res.status).toBe(200);
+    expect(res.body.data.accessToken).toBeTruthy();
+    const replay = await request(app).get('/api/v1/auth/google-login-code/challenge').set('Cookie', cookies);
+    expect(replay.status).toBe(401);
+  });
+
+  test('response is minimal: no email, sub, user id, role or token is exposed', async () => {
+    const { cookies } = await reachTenantSelection();
+    const res = await request(app).get('/api/v1/auth/google-login-code/challenge').set('Cookie', cookies);
+    expect(res.status).toBe(200);
+    expect(Object.keys(res.body.data).sort()).toEqual(['allowedTenantIds', 'availableTenants', 'purpose']);
+    const body = JSON.stringify(res.body);
+    expect(body).not.toMatch(/alice@example\.com|google-sub-1|u-multi|"role"|tempToken|accessToken|id_token|code_verifier|client_secret/i);
+  });
+
+  test('status reads never extend the challenge expiry', async () => {
+    const { cookies } = await reachTenantSelection();
+    const pair = cookies.split('; ').find(c => c.startsWith('glogin_pending='));
+    const pending = pair.slice('glogin_pending='.length);
+    const db = challengeStore.initialise(challengeDbPath).db;
+    const hash = challengeStore.hashChallenge(pending);
+    const before = db.prepare('SELECT expiresAt FROM challenges WHERE hash = ?').get(hash);
+    challengeStore.closeDb(db);
+    expect(before).toBeTruthy();
+    await request(app).get('/api/v1/auth/google-login-code/challenge').set('Cookie', cookies);
+    await request(app).get('/api/v1/auth/google-login-code/challenge').set('Cookie', cookies);
+    const db2 = challengeStore.initialise(challengeDbPath).db;
+    const after = db2.prepare('SELECT expiresAt FROM challenges WHERE hash = ?').get(hash);
+    challengeStore.closeDb(db2);
+    expect(after.expiresAt).toBe(before.expiresAt);
+  });
+
+  test('expired pending challenge is rejected by status', async () => {
+    const { cookies } = await reachTenantSelection();
+    const pair = cookies.split('; ').find(c => c.startsWith('glogin_pending='));
+    const pending = pair.slice('glogin_pending='.length);
+    const db = challengeStore.initialise(challengeDbPath).db;
+    db.prepare('UPDATE challenges SET expiresAt = 1 WHERE hash = ?').run(challengeStore.hashChallenge(pending));
+    challengeStore.closeDb(db);
+    const res = await request(app).get('/api/v1/auth/google-login-code/challenge').set('Cookie', cookies);
+    expect(res.status).toBe(401);
+  });
+
+  test('repeated status reads are rate limited', async () => {
+    const { cookies } = await reachTenantSelection();
+    const statuses = [];
+    for (let i = 0; i < 14; i += 1) {
+      const res = await request(app).get('/api/v1/auth/google-login-code/challenge').set('Cookie', cookies);
+      statuses.push(res.status);
+    }
+    expect(statuses).toContain(429);
+  });
+});
+
+describe('role coverage — all existing linked non-Master roles sign in', () => {
+  const ROLES = [
+    'Owner', 'Admin', 'CenterOwner', 'CenterAdmin', 'Teacher',
+    'Student', 'EducationUser', 'Cashier', 'Technician', 'Viewer'
+  ];
+
+  for (const role of ROLES) {
+    test(`${role} with an existing Google link completes login`, async () => {
+      const sub = 'linked-sub-' + role;
+      seedUsers([linkedUser({
+        id: 'u-' + role, username: role.toLowerCase(), role,
+        oauth: { google: sub }, tenantIds: ['t1']
+      })]);
+      seedCompanies([{ id: 't1', name: 'Tenant One', active: true, status: 'active' }]);
+      const a = await initiate();
+      mockVerify({ sub });
+      const cb = await callback(a.state, a.cookies);
+      expect(cb.headers.location).toContain('gsignin=1');
+      const token = cookieValue(cb, 'access_token');
+      expect(token).toBeTruthy();
+      const claims = require('jsonwebtoken').decode(token);
+      expect(claims.role).toBe(role);
+      expect(claims.tenantId).toBe('t1');
+      expect(usersOnDisk()).toHaveLength(1);
+    });
+  }
+});
+
 describe('Google callback URL configuration isolation', () => {
   function configEnv(overrides = {}) {
     return {

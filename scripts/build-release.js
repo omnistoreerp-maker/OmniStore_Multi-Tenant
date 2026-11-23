@@ -29,6 +29,14 @@ const INCLUDE = [
   'package.json',
   '.env.example',
   'index.html',
+  // Frontend shells + shared assets. The server rewrites `/` to platform.html
+  // (server.js) and sw.js precaches these relative paths; omitting them ships
+  // a release whose service worker install fails and whose home page 404s.
+  'platform.html',
+  'business.html',
+  'terms-of-service.html',
+  'privacy-policy.html',
+  'platform',
   'manifest.json',
   'sw.js',
   'icons',
@@ -42,6 +50,10 @@ const INCLUDE = [
 
 // Relative paths (from ROOT) excluded — even if inside an included dir.
 const EXCLUDE = [
+  // Development-only tests must never be packaged, even when their parent
+  // directory (platform/) is included above.
+  'platform/tests',
+  'platform/education/education.test.cjs',
   'backend/data',
   'backend/tests',
   'backend/coverage',

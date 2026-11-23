@@ -240,7 +240,8 @@
           <div id="platformGoogleTenantList" class="auth-tenant-list"></div>
         </div>
       </div>
-      <button type="button" id="platformAuthGoogle" class="btn-secondary" style="width:100%;margin-top:8px">🔵 الدخول عبر Google</button>
+      <button type="button" id="platformNormalGoogleSignIn" class="btn-secondary" style="width:100%;margin-top:8px" data-i18n="auth_google_normal_signin">🔵 الدخول عبر Google (حساب مرتبط)</button>
+      <button type="button" id="platformAuthGoogle" class="btn-secondary" style="width:100%;margin-top:8px">🔵 الدخول عبر Google (الماستر)</button>
     </form>
     <!-- Message region deliberately OUTSIDE the form: refreshAuthDrawer
          hides the whole form whenever a session exists, and every
@@ -263,6 +264,7 @@
 
   <script src="platform/google-login.js?v=20261115"></script>
   <script src="platform/google-link.js?v=20261014"></script>
+  <script src="platform/google-authcode.js?v=20261123"></script>
   <script src="platform/platform.js?v=20261017"></script>
   <!--
     Monetag integration boundary - PUBLIC Platform Home only.

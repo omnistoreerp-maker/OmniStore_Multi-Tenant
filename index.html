@@ -16,6 +16,7 @@
 <script src="platform/omni-i18n.js"></script>
 <script src="platform/i18n/index.dict.js"></script>
 <script src="platform/google-link.js?v=20261014"></script>
+<script src="platform/google-authcode.js?v=20261123"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap');
 :root {
@@ -1580,6 +1581,26 @@ document.addEventListener('DOMContentLoaded', function() {
       window.location.assign('/auth/google/master?returnTo=' + encodeURIComponent(window.location.pathname || '/'));
     });
   }
+});
+</script>
+      <button
+  id="normalGoogleSignInBtn"
+  type="button"
+  class="social-btn google"
+  title="تسجيل الدخول عبر Google لحساب مرتبط"
+>🔵 Google Sign-In</button>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var normalBtn = document.getElementById('normalGoogleSignInBtn');
+  if (normalBtn && window.OmniGoogleAuthCode) {
+    normalBtn.addEventListener('click', function() {
+      // Normal users — Authorization Code + PKCE. No Google SDK, no secrets
+      // or tokens in browser code; the backend owns the whole exchange.
+      window.OmniGoogleAuthCode.start(window.location.pathname || '/');
+    });
+  }
+  if (window.OmniGoogleAuthCode) window.OmniGoogleAuthCode.boot();
 });
 </script>
     </div>
@@ -17351,7 +17372,19 @@ function handleGoogleSigninResult() {
       sub_taken: '❌ حساب Google هذا مرتبط بمستخدم آخر',
       link_policy_unconfigured: '⚙️ سياسة ربط Google غير مكوّنة على الخادم',
       link_failed: '❌ تعذّر إتمام الربط',
-      session_invalid: '⌛ الجلسة غير صالحة — أعد المحاولة'
+      session_invalid: '⌛ الجلسة غير صالحة — أعد المحاولة',
+      state_missing: '⌛ انتهت جلسة الدخول — أعد المحاولة',
+      browser_binding_mismatch: '🔒 جلسة الدخول مرتبطة بمتصفح آخر — ابدأ من نفس المتصفح',
+      code_missing: '❌ لم يتم استلام رمز Google — أعد المحاولة',
+      exchange_failed: '❌ تعذّر إتمام الدخول عبر Google — أعد المحاولة',
+      unlinked_identity: 'ℹ️ حساب Google غير مرتبط بأي مستخدم — سجّل الدخول بكلمة المرور ثم اربط Google',
+      master_account_isolation: 'ℹ️ حساب الماستر له مسار دخول منفصل',
+      tenant_membership_required: 'ℹ️ لا توجد عضوية مستأجر لهذا الحساب — راجع المسؤول',
+      unauthorized_tenant: '❌ اختيار مستأجر غير مصرح به',
+      company_suspended: '🔒 الشركة موقوفة',
+      nonce_mismatch: '⌛ جلسة دخول غير صالحة — أعد المحاولة',
+      invalid_idtoken: '❌ تعذّر التحقق من هوية Google',
+      server_error: '❌ تعذّر استكمال تسجيل الدخول — أعد المحاولة'
     };
     var el = document.getElementById('loginError');
     if (!el) return;
