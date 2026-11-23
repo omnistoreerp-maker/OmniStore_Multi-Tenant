@@ -379,6 +379,68 @@ function consumeChallenge(db, { token, purpose, sub } = {}) {
   return { consumed: false, reason: "already_consumed" };
 }
 
+/**
+ * Atomically validate every binding condition and consume a challenge.
+ *
+ * Unlike consumeChallenge(), all checks (hash, purpose, subject, expiry,
+ * browser binding) happen INSIDE a single IMMEDIATE transaction. The row is
+ * deleted only after every validation passes. A wrong-browser request can
+ * therefore never burn a valid challenge, and concurrent attempts can never
+ * both succeed. Database errors fail closed by throwing.
+ *
+ * Existing consumeChallenge() callers are unchanged and remain compatible.
+ *
+ * @returns {{consumed: boolean, reason: string, sub?: string, purpose?: string, extra?: object}}
+ */
+function consumeChallengeWithBinding(db, { token, purpose, sub, browserBindingHash } = {}) {
+  _requireString(token, "token");
+  _requireString(purpose, "purpose");
+
+  const hash = hashChallenge(token);
+  const now = Date.now();
+  const tx = db.transaction(() => {
+    const row = db
+      .prepare("SELECT sub, purpose, extra, expiresAt FROM challenges WHERE hash = ?")
+      .get(hash);
+    if (!row) return { consumed: false, reason: "not_found" };
+    if (Number(row.expiresAt) <= now) {
+      db.prepare("DELETE FROM challenges WHERE hash = ? AND expiresAt <= ?").run(hash, now);
+      return { consumed: false, reason: "expired" };
+    }
+    if (row.purpose !== String(purpose)) return { consumed: false, reason: "purpose_mismatch" };
+    if (sub && row.sub !== String(sub)) return { consumed: false, reason: "subject_mismatch" };
+
+    let extra = {};
+    if (row.extra) {
+      try {
+        extra = JSON.parse(row.extra) || {};
+      } catch (_) {
+        return { consumed: false, reason: "malformed_context" };
+      }
+    }
+    if (extra.browserBindingHash) {
+      if (!browserBindingHash || typeof browserBindingHash !== "string") {
+        return { consumed: false, reason: "browser_binding_mismatch" };
+      }
+      const a = Buffer.from(String(extra.browserBindingHash));
+      const b = Buffer.from(browserBindingHash);
+      if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+        return { consumed: false, reason: "browser_binding_mismatch" };
+      }
+    }
+
+    const deleted = db.prepare("DELETE FROM challenges WHERE hash = ?").run(hash);
+    if (deleted.changes !== 1) return { consumed: false, reason: "already_consumed" };
+    return { consumed: true, reason: "success", sub: row.sub, purpose: row.purpose, extra };
+  }, "IMMEDIATE");
+
+  try {
+    return tx();
+  } catch (err) {
+    throw new ChallengeStoreError(`Could not consume challenge: ${err.message}`, err);
+  }
+}
+
 function persistOAuthLoginTransaction(db, { state, browserBindingHash, payload, ttlMs } = {}) {
   _requireString(state, "state");
   _requireString(browserBindingHash, "browser binding hash");
@@ -565,6 +627,7 @@ module.exports = {
   restoreDatabase,
   persistChallenge,
   consumeChallenge,
+  consumeChallengeWithBinding,
   persistOAuthLoginTransaction,
   consumeOAuthLoginTransaction,
   purgeExpired,

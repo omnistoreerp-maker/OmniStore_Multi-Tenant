@@ -53,6 +53,14 @@ function cookieValue(res, name) {
   const hit = (res.headers['set-cookie'] || []).find(c => c.startsWith(name + '='));
   return hit ? hit.split(';')[0].slice(name.length + 1) : null;
 }
+function pendingPair(res) {
+  const hit = (res.headers['set-cookie'] || []).find(c => c.startsWith('glogin_pending='));
+  return hit ? hit.split(';')[0] : null;
+}
+function handoffCookies(initiation, callbackRes) {
+  const binding = initiation.cookies || cookieHeader(initiation);
+  return binding + '; ' + pendingPair(callbackRes);
+}
 function totpNow() { return speakeasy.totp({ secret: MFA_SECRET, encoding: 'base32' }); }
 function sha256b64url(v) { return crypto.createHash('sha256').update(v).digest('base64url'); }
 
@@ -168,6 +176,35 @@ function linkedUser(over = {}) {
 }
 
 // ---------------------------------------------------------------------------
+describe('_safeReturnTo — same-origin relative paths only', () => {
+  test.each([
+    ['/dashboard', '/dashboard'],
+    ['/dashboard?tab=1&x=2', '/dashboard?tab=1&x=2'],
+    ['/a/b/c#section', '/a/b/c#section'],
+    ['/', '/']
+  ])('accepts valid same-origin path %s', async (input, expected) => {
+    const a = await initiate(input);
+    expect(a.payload.returnTo).toBe(expected);
+  });
+
+  test.each([
+    ['//evil.example/path'],
+    ['/\\evil.example'],
+    ['/a\\b'],
+    ['https://evil.example'],
+    ['http://evil.example'],
+    ['javascript:alert(1)'],
+    ['/a\u0000b'],
+    ['/a\nb'],
+    ['/a\u007fb'],
+    [''],
+    ['not-a-path']
+  ])('rejects unsafe return URL %p and falls back to /', async (input) => {
+    const a = await initiate(input);
+    expect(a.payload.returnTo).toBe('/');
+  });
+});
+
 describe('1-2. Initiation + callback happy path and missing-dependency regression', () => {
   test('initiation emits PKCE S256, nonce, state, and a httpOnly binding cookie', async () => {
     const a = await initiate('/dashboard');
@@ -306,10 +343,12 @@ describe('9-10. MFA: required, success, invalid, replay, bypass, tenant-then-MFA
     mockVerify();
     const cb = await callback(a.state, a.cookies);
     expect(cb.headers.location).toContain('mfa_required=1');
-    const tempToken = new URL('http://x' + cb.headers.location).searchParams.get('tempToken');
+    expect(cb.headers.location).not.toContain('tempToken');
+    expect(cb.headers.location).not.toMatch(/token|code=/i);
+    const tempToken = cookieValue(cb, 'glogin_pending');
     expect(tempToken).toBeTruthy();
     const res = await request(app).post('/api/v1/auth/google-login-code/mfa-verify')
-      .set('Cookie', a.cookies).send({ tempToken, mfaToken: totpNow() });
+      .set('Cookie', handoffCookies(a, cb)).send({ mfaToken: totpNow() });
     expect(res.status).toBe(200);
     expect(res.body.data.accessToken).toBeTruthy();
   });
@@ -320,14 +359,15 @@ describe('9-10. MFA: required, success, invalid, replay, bypass, tenant-then-MFA
     const a = await initiate();
     mockVerify();
     const cb = await callback(a.state, a.cookies);
-    const tempToken = new URL('http://x' + cb.headers.location).searchParams.get('tempToken');
+    const cookies = handoffCookies(a, cb);
+    expect(cookieValue(cb, 'glogin_pending')).toBeTruthy();
 
     const bad = await request(app).post('/api/v1/auth/google-login-code/mfa-verify')
-      .set('Cookie', a.cookies).send({ tempToken, mfaToken: '000000' });
+      .set('Cookie', cookies).send({ mfaToken: '000000' });
     expect(bad.status).toBe(401);
 
     const good = await request(app).post('/api/v1/auth/google-login-code/mfa-verify')
-      .set('Cookie', a.cookies).send({ tempToken, mfaToken: totpNow() });
+      .set('Cookie', cookies).send({ mfaToken: totpNow() });
     expect(good.status).toBe(401); // burned by the invalid attempt
   });
 
@@ -337,9 +377,8 @@ describe('9-10. MFA: required, success, invalid, replay, bypass, tenant-then-MFA
     const a = await initiate();
     mockVerify();
     const cb = await callback(a.state, a.cookies);
-    const tempToken = new URL('http://x' + cb.headers.location).searchParams.get('tempToken');
     const bypass = await request(app).post('/api/v1/auth/google-login-code/select-tenant')
-      .set('Cookie', a.cookies).send({ tempToken, tenantId: 't1' });
+      .set('Cookie', handoffCookies(a, cb)).send({ tenantId: 't1' });
     expect(bypass.status).toBe(401);
   });
 
@@ -349,10 +388,9 @@ describe('9-10. MFA: required, success, invalid, replay, bypass, tenant-then-MFA
     const a = await initiate();
     mockVerify();
     const cb = await callback(a.state, a.cookies);
-    const tempToken = new URL('http://x' + cb.headers.location).searchParams.get('tempToken');
     const other = 'glogin_bs=' + crypto.randomBytes(32).toString('base64url');
     const res = await request(app).post('/api/v1/auth/google-login-code/mfa-verify')
-      .set('Cookie', other).send({ tempToken, mfaToken: totpNow() });
+      .set('Cookie', other + '; ' + pendingPair(cb)).send({ mfaToken: totpNow() });
     expect(res.status).toBe(401);
   });
 });
@@ -371,31 +409,84 @@ describe('11-12. Tenant selection restricted to existing memberships', () => {
     mockVerify({ sub: 'google-sub-1' });
     const cb = await callback(a.state, a.cookies);
     expect(cb.headers.location).toContain('tenant_selection_required=1');
-    const tempToken = new URL('http://x' + cb.headers.location).searchParams.get('tempToken');
-    return { a, tempToken };
+    expect(cb.headers.location).not.toContain('tempToken');
+    expect(cookieValue(cb, 'glogin_pending')).toBeTruthy();
+    return { a, cb, cookies: handoffCookies(a, cb) };
   }
 
-  test('allowed membership tenant issues tokens', async () => {
-    const { a, tempToken } = await reachSelection();
+  test('allowed membership tenant issues tokens via cookie handoff', async () => {
+    const { cookies } = await reachSelection();
     const res = await request(app).post('/api/v1/auth/google-login-code/select-tenant')
-      .set('Cookie', a.cookies).send({ tempToken, tenantId: 't1' });
+      .set('Cookie', cookies).send({ tenantId: 't1' });
     expect(res.status).toBe(200);
     expect(res.body.data.accessToken).toBeTruthy();
   });
 
   test('forged/unauthorized tenant rejected', async () => {
-    const { a, tempToken } = await reachSelection();
+    const { cookies } = await reachSelection();
     const res = await request(app).post('/api/v1/auth/google-login-code/select-tenant')
-      .set('Cookie', a.cookies).send({ tempToken, tenantId: 't3-not-a-member' });
+      .set('Cookie', cookies).send({ tenantId: 't3-not-a-member' });
     expect(res.status).toBe(403);
   });
 
   test('selection challenge from another browser rejected', async () => {
-    const { tempToken } = await reachSelection();
+    const { cb } = await reachSelection();
     const other = 'glogin_bs=' + crypto.randomBytes(32).toString('base64url');
     const res = await request(app).post('/api/v1/auth/google-login-code/select-tenant')
-      .set('Cookie', other).send({ tempToken, tenantId: 't1' });
+      .set('Cookie', other + '; ' + pendingPair(cb)).send({ tenantId: 't1' });
     expect(res.status).toBe(401);
+  });
+});
+
+describe('Secure challenge handoff (no tokens in URLs)', () => {
+  test('tenant selection then MFA completes entirely through httpOnly cookies', async () => {
+    seedUsers([linkedUser({
+      id: 'u-chain', username: 'chain', mfaEnabled: true, mfaSecret: MFA_SECRET,
+      tenantIds: ['t1', 't2']
+    })]);
+    seedCompanies([
+      { id: 't1', name: 'T1', active: true, status: 'active' },
+      { id: 't2', name: 'T2', active: true, status: 'active' }
+    ]);
+    const a = await initiate('/home?x=1');
+    mockVerify({ sub: 'google-sub-1' });
+    const cb = await callback(a.state, a.cookies);
+    expect(cb.headers.location).toContain('tenant_selection_required=1');
+    expect(cb.headers.location).not.toContain('tempToken');
+    const firstPending = pendingPair(cb);
+    expect(firstPending).toBeTruthy();
+
+    const selected = await request(app).post('/api/v1/auth/google-login-code/select-tenant')
+      .set('Cookie', a.cookies + '; ' + firstPending).send({ tenantId: 't1' });
+    expect(selected.status).toBe(200);
+    expect(selected.body.data.mfaRequired).toBe(true);
+    expect(selected.body.data.tempToken).toBeUndefined();
+    const secondPending = pendingPair(selected);
+    expect(secondPending).toBeTruthy();
+    expect(secondPending).not.toBe(firstPending);
+
+    const verified = await request(app).post('/api/v1/auth/google-login-code/mfa-verify')
+      .set('Cookie', a.cookies + '; ' + secondPending).send({ mfaToken: totpNow() });
+    expect(verified.status).toBe(200);
+    expect(verified.body.data.accessToken).toBeTruthy();
+  });
+
+  test('pending challenge cookie is httpOnly, SameSite=Lax and cleared after success', async () => {
+    seedUsers([linkedUser({ mfaEnabled: true, mfaSecret: MFA_SECRET, tenantIds: ['t1'] })]);
+    seedCompanies([{ id: 't1', name: 'T1', active: true, status: 'active' }]);
+    const a = await initiate();
+    mockVerify();
+    const cb = await callback(a.state, a.cookies);
+    const set = cb.headers['set-cookie'] || [];
+    const pending = set.find(c => c.startsWith('glogin_pending='));
+    expect(pending).toContain('HttpOnly');
+    expect(pending).toContain('SameSite=Lax');
+    const res = await request(app).post('/api/v1/auth/google-login-code/mfa-verify')
+      .set('Cookie', handoffCookies(a, cb)).send({ mfaToken: totpNow() });
+    expect(res.status).toBe(200);
+    const cleared = (res.headers['set-cookie'] || []).find(c => c.startsWith('glogin_pen'));
+    expect(cleared).toBeTruthy();
+    expect(cleared).toMatch(/glogin_pending=;/);
   });
 });
 

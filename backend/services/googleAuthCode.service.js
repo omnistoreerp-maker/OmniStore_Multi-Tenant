@@ -35,10 +35,26 @@ function _sha256hex(value) {
 
 const BROWSER_BINDING_COOKIE = 'glogin_bs';
 const BROWSER_BINDING_PATH = '/';
+// Short-lived httpOnly cookie that carries the pending MFA/tenant challenge
+// from the callback to the completion endpoints. Never placed in a URL.
+const PENDING_COOKIE = 'glogin_pending';
+
+const RETURN_TO_BASE = 'https://omni.invalid';
 
 function _safeReturnTo(value) {
   const text = typeof value === 'string' ? value : '';
-  if (!text.startsWith('/') || text.startsWith('//') || /[\\\u0000-\u001f]/.test(text) || text.startsWith(BROWSER_BINDING_PATH)) return '/';
+  if (!text || text[0] !== '/') return '/';
+  // Protocol-relative (//host) and backslash-based (/\host) URLs are hostile.
+  if (text[1] === '/' || text[1] === '\\') return '/';
+  // Control characters and backslashes anywhere enable parser confusion.
+  if (/[\\\u0000-\u001f\u007f]/.test(text)) return '/';
+  let parsed;
+  try {
+    parsed = new URL(text, RETURN_TO_BASE);
+  } catch (_) {
+    return '/';
+  }
+  if (parsed.origin !== RETURN_TO_BASE || parsed.pathname[0] !== '/') return '/';
   return text;
 }
 
@@ -195,5 +211,6 @@ module.exports = {
   findUserByGoogleSub,
   BROWSER_BINDING_COOKIE,
   BROWSER_BINDING_PATH,
+  PENDING_COOKIE,
   hashBrowserBinding: _sha256hex
 };

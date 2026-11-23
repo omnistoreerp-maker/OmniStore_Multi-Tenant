@@ -50,18 +50,47 @@ function _issueChallenge(user, purpose, extra, binding) {
 function _consumeChallenge(token, purpose, user, binding) {
   const payload = verifyChallengeToken(token, purpose);
   if (!payload || String(payload.sub) !== String(user.id)) return { ok: false };
-  const consumed = challengeStore.consumeChallenge(_getChallengeDb(), {
+  const consumed = challengeStore.consumeChallengeWithBinding(_getChallengeDb(), {
     token,
     purpose,
-    sub: String(user.id)
+    sub: String(user.id),
+    browserBindingHash: binding ? googleAuthCode.hashBrowserBinding(binding) : undefined
   });
   if (!consumed || consumed.consumed !== true) return { ok: false };
-  let extra = payload;
-  if (consumed.extra && typeof consumed.extra === 'object') extra = { ...extra, ...consumed.extra };
-  if (extra.browserBindingHash) {
-    if (!binding || extra.browserBindingHash !== googleAuthCode.hashBrowserBinding(binding)) return { ok: false };
-  }
-  return { ok: true, payload: extra };
+  return { ok: true, payload: { ...payload, ...(consumed.extra || {}) } };
+}
+
+function _withParam(target, name, value) {
+  const path = typeof target === 'string' && target ? target : '/';
+  return path + (path.includes('?') ? '&' : '?') + name + '=' + encodeURIComponent(value);
+}
+
+function _setPendingCookie(res, req, token) {
+  res.cookie(googleAuthCode.PENDING_COOKIE, token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: _requestUsesHttps(req),
+    path: '/',
+    maxAge: config.loginChallengeTtlMs
+  });
+}
+
+function _clearPendingCookie(res, req) {
+  res.clearCookie(googleAuthCode.PENDING_COOKIE, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: _requestUsesHttps(req),
+    path: '/'
+  });
+}
+
+// The pending challenge is delivered ONLY through the httpOnly cookie. A body
+// token is accepted for backwards compatibility with non-browser clients, but
+// is never emitted into a URL by this flow.
+function _pendingToken(req, bodyToken) {
+  if (typeof bodyToken === 'string' && bodyToken) return bodyToken;
+  const cookies = parseCookies(req);
+  return cookies[googleAuthCode.PENDING_COOKIE] || '';
 }
 
 function _issueSession(req, res, user, tenantId) {
@@ -290,10 +319,15 @@ async function callback(req, res) {
       const tempToken = _issueChallenge(
         user,
         CHALLENGE_PURPOSES.GOOGLE_TENANT_SELECTION,
-        { allowedTenantIds: membership, provider: 'google' },
+        {
+          allowedTenantIds: membership,
+          availableTenants: availableTenants.map(c => ({ id: String(c.id), name: String(c.name || c.id) })),
+          provider: 'google'
+        },
         bindingCookie
       );
-      return res.redirect(302, '/?tenant_selection_required=1&tempToken=' + encodeURIComponent(tempToken) + '&userId=' + encodeURIComponent(user.id) + '&availableTenants=' + encodeURIComponent(JSON.stringify(availableTenants.map(c => ({ id: c.id, name: c.name })))));
+      _setPendingCookie(res, req, tempToken);
+      return res.redirect(302, _withParam(returnTo, 'tenant_selection_required', '1'));
     }
 
     const tenantId = resolution.tenantId;
@@ -331,7 +365,8 @@ async function callback(req, res) {
         { ...(tenantId ? { tenantId } : {}), provider: 'google' },
         bindingCookie
       );
-      return res.redirect(302, '/?mfa_required=1&tempToken=' + encodeURIComponent(tempToken) + '&userId=' + encodeURIComponent(user.id));
+      _setPendingCookie(res, req, tempToken);
+      return res.redirect(302, _withParam(returnTo, 'mfa_required', '1'));
     }
 
     _issueSession(req, res, user, tenantId);
@@ -356,7 +391,8 @@ async function callback(req, res) {
 // POST /api/v1/auth/google-login-code/mfa-verify — complete MFA after Google login
 async function mfaVerify(req, res) {
   try {
-    const { tempToken, mfaToken } = req.body || {};
+    const { mfaToken } = req.body || {};
+    const tempToken = _pendingToken(req, req.body && req.body.tempToken);
     if (!tempToken || typeof tempToken !== 'string') {
       return error(res, 'Temporary challenge token is required', 400);
     }
@@ -375,6 +411,7 @@ async function mfaVerify(req, res) {
     const bindingCookie = parseCookies(req)[googleAuthCode.BROWSER_BINDING_COOKIE];
     const challenge = _consumeChallenge(tempToken, CHALLENGE_PURPOSES.GOOGLE_MFA, user, bindingCookie);
     if (!challenge.ok) {
+      _clearPendingCookie(res, req);
       return error(res, 'Invalid or expired challenge', 401);
     }
 
@@ -389,6 +426,7 @@ async function mfaVerify(req, res) {
         ip: req.ip,
         changes: { provider: 'google', mfa: true, reason: 'bad_code' }
       });
+      _clearPendingCookie(res, req);
       return error(res, 'Invalid MFA code', 401);
     }
 
@@ -404,6 +442,7 @@ async function mfaVerify(req, res) {
       }
     }
     const tokens = _issueSession(req, res, user, tenantId);
+    _clearPendingCookie(res, req);
 
     _audit({
       method: 'POST',
@@ -430,7 +469,8 @@ async function mfaVerify(req, res) {
 // POST /api/v1/auth/google-login-code/select-tenant — select tenant after Google login
 async function selectTenant(req, res) {
   try {
-    const { tempToken, tenantId } = req.body || {};
+    const { tenantId } = req.body || {};
+    const tempToken = _pendingToken(req, req.body && req.body.tempToken);
     if (!tempToken || typeof tempToken !== 'string') {
       return error(res, 'Temporary challenge token is required', 400);
     }
@@ -453,6 +493,7 @@ async function selectTenant(req, res) {
     const bindingCookie = parseCookies(req)[googleAuthCode.BROWSER_BINDING_COOKIE];
     const challenge = _consumeChallenge(tempToken, CHALLENGE_PURPOSES.GOOGLE_TENANT_SELECTION, user, bindingCookie);
     if (!challenge.ok) {
+      _clearPendingCookie(res, req);
       return error(res, 'Invalid or expired challenge', 401);
     }
 
@@ -476,10 +517,12 @@ async function selectTenant(req, res) {
         { tenantId: String(tenantId), provider: 'google' },
         bindingCookie
       );
-      return success(res, { mfaRequired: true, tempToken: mfaToken }, 'MFA required');
+      _setPendingCookie(res, req, mfaToken);
+      return success(res, { mfaRequired: true }, 'MFA required');
     }
 
     const tokens = _issueSession(req, res, user, tenantId);
+    _clearPendingCookie(res, req);
 
     _audit({
       method: 'POST',

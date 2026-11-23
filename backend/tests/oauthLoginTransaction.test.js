@@ -8,7 +8,9 @@ const {
   closeDb,
   hashChallenge,
   persistOAuthLoginTransaction,
-  consumeOAuthLoginTransaction
+  consumeOAuthLoginTransaction,
+  persistChallenge,
+  consumeChallengeWithBinding
 } = require('../utils/challengeStore.sqlite');
 const { makeTempDataDir } = require('./helpers/testData');
 const { registerCleanup } = require('./helpers/cleanup');
@@ -86,5 +88,80 @@ describe('OAuth login transaction store', () => {
     const second = initialise(path.join(dirs[dirs.length - 1], 'challenges.sqlite'));
     expect(consumeOAuthLoginTransaction(second.db, { state: 'durable-state', browserBindingHash: 'b' }).consumed).toBe(true);
     closeDb(second.db);
+  });
+});
+
+describe('consumeChallengeWithBinding — atomic validation and consumption', () => {
+  function seedChallenge(db, { token = 'challenge-token', purpose = 'google_mfa', sub = 'user-1', binding = 'bind-correct' } = {}) {
+    persistChallenge(db, {
+      token, sub, purpose,
+      extra: { browserBindingHash: binding, provider: 'google' }
+    });
+    return { token, purpose, sub, binding };
+  }
+
+  test('wrong browser cannot consume; correct browser can afterwards', () => {
+    const { db } = fresh();
+    const c = seedChallenge(db);
+    const wrong = consumeChallengeWithBinding(db, { ...c, browserBindingHash: 'bind-wrong' });
+    expect(wrong.consumed).toBe(false);
+    expect(wrong.reason).toBe('browser_binding_mismatch');
+    const ok = consumeChallengeWithBinding(db, { ...c, browserBindingHash: c.binding });
+    expect(ok.consumed).toBe(true);
+    expect(ok.extra.provider).toBe('google');
+    closeDb(db);
+  });
+
+  test('replayed challenge is rejected', () => {
+    const { db } = fresh();
+    const c = seedChallenge(db);
+    expect(consumeChallengeWithBinding(db, { ...c, browserBindingHash: c.binding }).consumed).toBe(true);
+    const replay = consumeChallengeWithBinding(db, { ...c, browserBindingHash: c.binding });
+    expect(replay.consumed).toBe(false);
+    expect(replay.reason).toBe('not_found');
+    closeDb(db);
+  });
+
+  test('wrong purpose and wrong subject do not consume', () => {
+    const { db } = fresh();
+    const c = seedChallenge(db);
+    expect(consumeChallengeWithBinding(db, { ...c, purpose: 'google_tenant_selection', browserBindingHash: c.binding }).reason).toBe('purpose_mismatch');
+    expect(consumeChallengeWithBinding(db, { ...c, sub: 'someone-else', browserBindingHash: c.binding }).reason).toBe('subject_mismatch');
+    const ok = consumeChallengeWithBinding(db, { ...c, browserBindingHash: c.binding });
+    expect(ok.consumed).toBe(true);
+    closeDb(db);
+  });
+
+  test('missing binding cannot consume a browser-bound challenge', () => {
+    const { db } = fresh();
+    const c = seedChallenge(db);
+    const result = consumeChallengeWithBinding(db, { token: c.token, purpose: c.purpose, sub: c.sub });
+    expect(result.consumed).toBe(false);
+    expect(result.reason).toBe('browser_binding_mismatch');
+    closeDb(db);
+  });
+
+  test('concurrent attempts across connections allow exactly one success', () => {
+    const first = fresh();
+    const c = seedChallenge(first.db);
+    const filePath = path.join(dirs[dirs.length - 1], 'challenges.sqlite');
+    const second = initialise(filePath);
+    const a = consumeChallengeWithBinding(first.db, { ...c, browserBindingHash: c.binding });
+    const b = consumeChallengeWithBinding(second.db, { ...c, browserBindingHash: c.binding });
+    const results = [a, b];
+    expect(results.filter(r => r.consumed).length).toBe(1);
+    expect(results.filter(r => !r.consumed).length).toBe(1);
+    closeDb(first.db);
+    closeDb(second.db);
+  });
+
+  test('existing consumeChallenge callers remain compatible', () => {
+    const { db } = fresh();
+    persistChallenge(db, { token: 'legacy-token', sub: 'user-1', purpose: 'google_mfa' });
+    const legacy = require('../utils/challengeStore.sqlite').consumeChallenge(db, {
+      token: 'legacy-token', purpose: 'google_mfa', sub: 'user-1'
+    });
+    expect(legacy.consumed).toBe(true);
+    closeDb(db);
   });
 });
