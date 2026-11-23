@@ -540,6 +540,18 @@ check('nginx.conf and backend/server.js express the same CSP allowlist (TikTok +
   }
 });
 
+check('nginx /auth/ paths are proxied to Express, never served as static files', () => {
+  const nginx = read('nginx.conf');
+  const block = (nginx.match(/location \/auth\/ \{([\s\S]*?)\n    \}/) || [])[1];
+  assert.ok(block, 'nginx /auth/ proxy block missing');
+  assert.ok(block.includes('proxy_pass http://digitronics_backend;'), '/auth/ must reach the Express upstream');
+  for (const header of ['Host $host', 'X-Real-IP $remote_addr', 'X-Forwarded-For $proxy_add_x_forwarded_for', 'X-Forwarded-Proto $scheme']) {
+    assert.ok(block.includes(header), '/auth/ proxy must forward ' + header);
+  }
+  assert.ok(!block.includes('try_files'), '/auth/ must never fall through to index.html');
+  assert.ok(nginx.indexOf('location /auth/') < nginx.indexOf('location / {'), '/auth/ block must precede the static catch-all');
+});
+
 // The Reels page must build the player from the numeric post id against the
 // exact origin the CSP allows, and must not inject upstream embed HTML.
 check('reels.html player is origin-pinned to the CSP-allowed TikTok host', () => {
@@ -627,12 +639,14 @@ check('backend catalog default advertises the same student route as the UI', () 
  * origin and `frame-src` has to be able to name it.
  *
  * Removing the entry outright would hand the file back to anybody, so the diff
- * itself is policed instead. Every changed line has to belong to the
- * Content-Security-Policy header or to the $omnistore_games_origin map that
- * supplies the extra origin. Comments and blank lines are free — explaining a
- * change is not making one — and any other edit to the file fails here, which
- * is a tighter rule than "never touch" ever was.
- */
+  * itself is policed instead. Every changed line has to belong to the
+  * Content-Security-Policy header, to the $omnistore_games_origin map that
+  * supplies the extra origin, or to the narrow /auth/ reverse-proxy block that
+  * sends OAuth paths to Express instead of the static index.html. Comments and
+  * blank lines are free — explaining a change is not making one — and any
+  * other edit to the file fails here, which is a tighter rule than "never
+  * touch" ever was.
+  */
 function assertNginxDiffIsCspOnly(file) {
   const diff = spawnSync('git', ['diff', 'HEAD', '--', file], { cwd: ROOT, encoding: 'utf8' })
     .stdout.split('\n');
@@ -643,8 +657,8 @@ function assertNginxDiffIsCspOnly(file) {
   assert.ok(changed.length > 0, 'nginx.conf reported modified but no line changed');
   for (const line of changed) {
     assert.ok(
-      /Content-Security-Policy|map \$host \$omnistore_games_origin|default "";|omnistore_games_origin|^[{}]$/.test(line),
-      'nginx.conf changed outside the CSP / games-origin configuration: ' + line,
+      /Content-Security-Policy|map \$host \$omnistore_games_origin|default "";|omnistore_games_origin|location \/auth\/|proxy_pass http:\/\/digitronics_backend|proxy_http_version 1\.1|proxy_set_header (Connection|Host|X-Real-IP|X-Forwarded-For|X-Forwarded-Proto)|proxy_(connect|send|read)_timeout|expires off;|^[{}]$/.test(line),
+      'nginx.conf changed outside the CSP / games-origin /auth proxy configuration: ' + line,
     );
   }
 }
@@ -884,6 +898,8 @@ check('working-tree diff touches only intended platform files', () => {
       'backend/tests/onlineGames.catalog.test.js',
       'backend/routes/auth.routes.js',
       'backend/config/oauth.js',
+      'backend/services/googleAuthCode.service.js',
+      'backend/tests/googleAuthCode.test.js',
       'backend/tests/helpers/testServer.js',
       'backend/package.json',
       'backend/package-lock.json',
@@ -1179,6 +1195,8 @@ check('working-tree diff touches only intended platform files', () => {
       'backend/tests/onlineGames.catalog.test.js',
       'backend/routes/auth.routes.js',
       'backend/config/oauth.js',
+      'backend/services/googleAuthCode.service.js',
+      'backend/tests/googleAuthCode.test.js',
       'backend/tests/helpers/testServer.js',
       'backend/package.json',
       'backend/package-lock.json'
