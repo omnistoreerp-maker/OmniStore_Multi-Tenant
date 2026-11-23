@@ -237,6 +237,23 @@ describe('1-2. Initiation + callback happy path and missing-dependency regressio
   });
 });
 
+describe('successful callback redirect preserves query string and fragment', () => {
+  test.each([
+    ['/', '/?gsignin=1'],
+    ['/dashboard', '/dashboard?gsignin=1'],
+    ['/dashboard?tab=users', '/dashboard?tab=users&gsignin=1'],
+    ['/dashboard#settings', '/dashboard?gsignin=1#settings'],
+    ['/dashboard?tab=users#settings', '/dashboard?tab=users&gsignin=1#settings']
+  ])('returnTo %s redirects to %s', async (returnTo, expected) => {
+    seedUsers([linkedUser()]);
+    const a = await initiate(returnTo);
+    mockVerify();
+    const res = await callback(a.state, a.cookies);
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe(expected);
+  });
+});
+
 describe('3. Invalid, expired, reused, and cross-browser state', () => {
   test('tampered/unknown state is rejected', async () => {
     seedUsers([linkedUser()]);

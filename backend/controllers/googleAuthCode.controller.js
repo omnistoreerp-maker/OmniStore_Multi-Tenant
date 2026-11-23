@@ -60,9 +60,21 @@ function _consumeChallenge(token, purpose, user, binding) {
   return { ok: true, payload: { ...payload, ...(consumed.extra || {}) } };
 }
 
+const REDIRECT_BASE = 'https://omni.invalid';
+
+// Appends a parameter to a validated same-origin relative URL without
+// corrupting its query string or fragment.
 function _withParam(target, name, value) {
   const path = typeof target === 'string' && target ? target : '/';
-  return path + (path.includes('?') ? '&' : '?') + name + '=' + encodeURIComponent(value);
+  let url;
+  try {
+    url = new URL(path, REDIRECT_BASE);
+    if (url.origin !== REDIRECT_BASE) throw new Error('external redirect');
+  } catch (_) {
+    return '/?' + encodeURIComponent(name) + '=' + encodeURIComponent(value);
+  }
+  url.searchParams.set(name, String(value));
+  return url.pathname + url.search + url.hash;
 }
 
 function _setPendingCookie(res, req, token) {
@@ -381,7 +393,7 @@ async function callback(req, res) {
       changes: { provider: 'google' }
     });
 
-    return res.redirect(302, returnTo + '?gsignin=1');
+    return res.redirect(302, _withParam(returnTo, 'gsignin', '1'));
   } catch (err) {
     logger.error('googleAuthCode.callback error:', err.message);
     return res.redirect(302, '/?gerr=server_error');
