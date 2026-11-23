@@ -1,5 +1,6 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/auth.controller');
+const googleAuthCodeCtrl = require('../controllers/googleAuthCode.controller');
 const { requireAuth } = require('../middleware/auth');
 const { loginRateLimiter, googleLoginRateLimiter, googleLoginChallengeRateLimiter, linkRateLimiter } = require('../middleware/security');
 
@@ -350,5 +351,25 @@ router.get('/roles', ctrl.roles);
  *         description: Insufficient permission
  */
 router.get('/permissions', ctrl.permissions);
+
+/**
+ * @openapi
+ * /api/v1/auth/google-login-code:
+ *   get:
+ *     tags: [Authentication]
+ *     summary: Initiate Google Authorization Code flow
+ *     description: Redirect to Google OAuth consent screen with PKCE
+ *     parameters:
+ *       - name: returnTo
+ *         in: query
+ *         schema:
+ *           type: string
+ *     responses:
+ *       302:
+ *         description: Redirect to Google
+ *       501:
+ *         description: Google login not configured
+ */
+router.get('/google-login-code', googleAuthCodeCtrl.initiate);
 
 module.exports = router;

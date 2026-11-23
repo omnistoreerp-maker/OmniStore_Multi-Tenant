@@ -34,7 +34,9 @@ function configurePassport() {
       passReqToCallback: true
     }, async (req, accessToken, refreshToken, profile, done) => {
       try {
-        const result = oauthService.findOrCreateUser(profile, 'google');
+        // Use findByProvider (no auto-creation) to enforce the same policy as
+        // the new Authorization Code flow. Unknown Google subjects are rejected.
+        const result = oauthService.findByProvider('google', oauthService._extractProviderId(profile));
         if (result.error) {
           return done(null, false, { message: result.error });
         }

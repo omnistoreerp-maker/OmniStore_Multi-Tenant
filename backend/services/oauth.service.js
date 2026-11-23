@@ -86,6 +86,24 @@ class OAuthService {
     }) || null;
   }
 
+  // Find existing user by provider identity WITHOUT creating or linking.
+  // Used by Passport strategies to enforce no-auto-creation policy.
+  findByProvider(provider, providerId) {
+    try {
+      const existingByProvider = this._findByProvider(provider, providerId);
+      if (existingByProvider) {
+        if (existingByProvider.status === 'disabled') {
+          return { error: 'User is disabled' };
+        }
+        return { user: existingByProvider, isNew: false };
+      }
+      return { error: 'No account linked to this identity', statusCode: 401 };
+    } catch (err) {
+      logger.error('OAuth findByProvider error:', err.message);
+      return { error: 'OAuth authentication failed' };
+    }
+  }
+
   _extractEmail(profile) {
     if (profile.emails && profile.emails.length > 0) {
       return profile.emails[0].value;
