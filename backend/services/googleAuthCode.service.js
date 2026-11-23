@@ -16,7 +16,7 @@ const REGULAR_SCOPE = 'openid email profile';
 
 function isConfigured() {
   const g = oauthConfig.providers && oauthConfig.providers.google;
-  return !!(oauthConfig.enabled && g && g.enabled && g.clientID && g.clientSecret && oauthConfig.providers.google.callbackURL);
+  return !!(oauthConfig.enabled && g && g.enabled && g.clientID && g.clientSecret && g.authCodeCallbackURL);
 }
 
 function _fail(code, message) {
@@ -82,7 +82,7 @@ function createLoginStart({ returnTo = '/', db, browserBinding } = {}) {
 
   const params = new URLSearchParams({
     client_id: oauthConfig.providers.google.clientID,
-    redirect_uri: oauthConfig.providers.google.callbackURL,
+    redirect_uri: oauthConfig.providers.google.authCodeCallbackURL,
     response_type: 'code',
     scope: REGULAR_SCOPE,
     state,
@@ -129,7 +129,7 @@ async function exchangeCode(code, codeVerifier) {
         code: String(code),
         client_id: g.clientID,
         client_secret: g.clientSecret,
-        redirect_uri: oauthConfig.providers.google.callbackURL,
+        redirect_uri: oauthConfig.providers.google.authCodeCallbackURL,
         grant_type: 'authorization_code',
         code_verifier: codeVerifier ? String(codeVerifier) : ''
       }).toString()

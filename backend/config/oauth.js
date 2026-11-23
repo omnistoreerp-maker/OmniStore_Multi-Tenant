@@ -26,6 +26,10 @@ const oauth = {
       clientID: process.env.GOOGLE_CLIENT_ID || '',
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
       callbackURL: process.env.GOOGLE_CALLBACK_URL || `${baseUrl}/auth/google/callback`,
+      // Normal-user Authorization Code + PKCE flow. Kept separate from the
+      // legacy Passport callback so configuring the new flow never changes
+      // the callback URL used by existing Passport users.
+      authCodeCallbackURL: process.env.GOOGLE_AUTHCODE_CALLBACK_URL || `${baseUrl}/auth/google-login-code/callback`,
       scope: ['profile', 'email']
     },
     github: {

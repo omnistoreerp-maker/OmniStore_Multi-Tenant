@@ -14,7 +14,8 @@ const INSTANCE_ENV_KEYS = [
   // suite passes them explicitly, so an OAuth-enabled suite can never leak
   // its environment into the next one sharing this worker.
   'OAUTH_ENABLED', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET',
-  'GOOGLE_CALLBACK_URL', 'GOOGLE_MASTER_CALLBACK_URL', 'OAUTH_MASTER_EMAIL',
+  'GOOGLE_CALLBACK_URL', 'GOOGLE_AUTHCODE_CALLBACK_URL',
+  'GOOGLE_MASTER_CALLBACK_URL', 'BASE_URL', 'OAUTH_MASTER_EMAIL',
   // OAuth linking configuration (Google/GitHub). ADDITIVE to main: every key
   // main resets is still reset here, so no main-side isolation is weakened.
   'OAUTH_DEFAULT_ROLE', 'OAUTH_LINK_EXISTING', 'SESSION_SECRET',
