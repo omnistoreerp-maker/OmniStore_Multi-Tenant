@@ -192,6 +192,45 @@ async function initiate(req, res) {
   }
 }
 
+// GET /api/v1/auth/google-login-code/challenge — read-only pending challenge
+// metadata for the browser. Returns only the purpose and the server-owned
+// tenant choices; no token, verifier or identity claim is exposed, and the
+// challenge is never consumed here. The browser must also present the binding
+// cookie from the original initiation.
+async function challengeStatus(req, res) {
+  try {
+    const cookies = parseCookies(req);
+    const tempToken = cookies[googleAuthCode.PENDING_COOKIE];
+    const binding = cookies[googleAuthCode.BROWSER_BINDING_COOKIE];
+    if (!tempToken || !binding) return error(res, 'No pending Google challenge', 401);
+
+    const payload = verifyChallengeToken(tempToken, CHALLENGE_PURPOSES.GOOGLE_MFA)
+      || verifyChallengeToken(tempToken, CHALLENGE_PURPOSES.GOOGLE_TENANT_SELECTION);
+    if (!payload || payload.provider !== 'google') {
+      return error(res, 'Invalid or expired challenge', 401);
+    }
+
+    const peeked = challengeStore.peekChallenge(_getChallengeDb(), {
+      token: tempToken,
+      purpose: payload.purpose,
+      sub: payload.sub,
+      browserBindingHash: googleAuthCode.hashBrowserBinding(binding)
+    });
+    if (!peeked.ok) return error(res, 'Invalid or expired challenge', 401);
+
+    const data = { purpose: payload.purpose };
+    if (payload.purpose === CHALLENGE_PURPOSES.GOOGLE_TENANT_SELECTION) {
+      data.allowedTenantIds = Array.isArray(payload.allowedTenantIds)
+        ? payload.allowedTenantIds.map(String) : [];
+      data.availableTenants = Array.isArray(payload.availableTenants) ? payload.availableTenants : [];
+    }
+    return success(res, data, 'Challenge is valid');
+  } catch (err) {
+    logger.error('googleAuthCode.challengeStatus error:', err.message);
+    return error(res, 'Failed to read challenge', 500);
+  }
+}
+
 // GET /api/v1/auth/google-login-code/callback — handle Authorization Code callback
 async function callback(req, res) {
   try {
@@ -560,6 +599,7 @@ async function selectTenant(req, res) {
 
 module.exports = {
   initiate,
+  challengeStatus,
   callback,
   mfaVerify,
   selectTenant

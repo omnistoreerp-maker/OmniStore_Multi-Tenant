@@ -442,6 +442,48 @@ function consumeChallengeWithBinding(db, { token, purpose, sub, browserBindingHa
   }
 }
 
+/**
+ * Read a challenge's non-sensitive context WITHOUT consuming it. Validates the
+ * same conditions as consumeChallengeWithBinding (purpose, subject, expiry,
+ * browser binding) but never deletes or mutates the row. Used only by the
+ * read-only challenge-status endpoint so the browser can render the MFA /
+ * tenant-selection UI. No token, verifier or secret is returned.
+ */
+function peekChallenge(db, { token, purpose, sub, browserBindingHash } = {}) {
+  _requireString(token, "token");
+  _requireString(purpose, "purpose");
+
+  const row = db
+    .prepare("SELECT sub, purpose, extra, expiresAt FROM challenges WHERE hash = ?")
+    .get(hashChallenge(token));
+  if (!row) return { ok: false, reason: "not_found" };
+  if (Number(row.expiresAt) <= nowMs()) return { ok: false, reason: "expired" };
+  if (row.purpose !== String(purpose)) return { ok: false, reason: "purpose_mismatch" };
+  if (sub && row.sub !== String(sub)) return { ok: false, reason: "subject_mismatch" };
+
+  let extra = {};
+  if (row.extra) {
+    try {
+      extra = JSON.parse(row.extra) || {};
+    } catch (_) {
+      return { ok: false, reason: "malformed_context" };
+    }
+  }
+  if (extra.browserBindingHash) {
+    if (!browserBindingHash || typeof browserBindingHash !== "string") {
+      return { ok: false, reason: "browser_binding_mismatch" };
+    }
+    const a = Buffer.from(String(extra.browserBindingHash));
+    const b = Buffer.from(browserBindingHash);
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      return { ok: false, reason: "browser_binding_mismatch" };
+    }
+  }
+  return { ok: true, purpose: row.purpose, extra };
+}
+
+function nowMs() { return Date.now(); }
+
 function persistOAuthLoginTransaction(db, { state, browserBindingHash, payload, ttlMs } = {}) {
   _requireString(state, "state");
   _requireString(browserBindingHash, "browser binding hash");
@@ -629,6 +671,7 @@ module.exports = {
   persistChallenge,
   consumeChallenge,
   consumeChallengeWithBinding,
+  peekChallenge,
   persistOAuthLoginTransaction,
   consumeOAuthLoginTransaction,
   purgeExpired,

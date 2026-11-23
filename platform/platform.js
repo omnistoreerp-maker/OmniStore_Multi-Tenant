@@ -53,6 +53,7 @@
       auth_error_denied: 'Your account cannot access this company.',
       auth_error_network: 'Network error. Please try again.',
       auth_google_or: 'or sign in with a linked Google account',
+      auth_google_normal_signin: '🔵 Sign in with Google (linked account)',
       auth_google_mfa_label: 'Two-factor code',
       auth_google_mfa_submit: 'Verify and continue',
       auth_google_tenant_hint: 'Choose the company you want to enter:',
@@ -154,6 +155,7 @@
       auth_error_denied: 'لا يملك حسابك صلاحية الوصول.',
       auth_error_network: 'تعذر الاتصال. حاول مجددًا.',
       auth_google_or: 'أو سجّل الدخول بحساب Google مرتبط',
+      auth_google_normal_signin: '🔵 الدخول عبر Google (حساب مرتبط)',
       auth_google_mfa_label: 'رمز التحقق الثنائي',
       auth_google_mfa_submit: 'تأكيد واستكمال الدخول',
       auth_google_tenant_hint: 'اختر الشركة التي تريد الدخول إليها:',
@@ -664,6 +666,7 @@
   }
 
   async function init() {
+    try { if (window.OmniGoogleAuthCode) window.OmniGoogleAuthCode.boot(); } catch (_) {}
     try { handlePlatformGoogleSigninResult(); } catch (_) {}
     try {
       const lang = getLang();
@@ -913,7 +916,19 @@
         sub_taken: 'حساب Google هذا مرتبط بمستخدم آخر',
         link_policy_unconfigured: 'سياسة ربط Google غير مكوّنة على الخادم',
         link_failed: 'تعذّر إتمام الربط',
-        session_invalid: 'الجلسة غير صالحة — أعد المحاولة'
+        session_invalid: 'الجلسة غير صالحة — أعد المحاولة',
+        state_missing: 'انتهت جلسة الدخول — أعد المحاولة',
+        browser_binding_mismatch: 'جلسة الدخول مرتبطة بمتصفح آخر — ابدأ من نفس المتصفح',
+        code_missing: 'لم يتم استلام رمز Google — أعد المحاولة',
+        exchange_failed: 'تعذّر إتمام الدخول عبر Google — أعد المحاولة',
+        unlinked_identity: 'حساب Google غير مرتبط بأي مستخدم — سجّل الدخول بكلمة المرور ثم اربط Google',
+        master_account_isolation: 'حساب الماستر له مسار دخول منفصل',
+        tenant_membership_required: 'لا توجد عضوية مستأجر لهذا الحساب — راجع المسؤول',
+        unauthorized_tenant: 'اختيار مستأجر غير مصرح به',
+        company_suspended: 'الشركة موقوفة',
+        nonce_mismatch: 'جلسة دخول غير صالحة — أعد المحاولة',
+        invalid_idtoken: 'تعذّر التحقق من هوية Google',
+        server_error: 'تعذّر استكمال تسجيل الدخول — أعد المحاولة'
       };
       openAuthDrawer();
       authError(messages[raw] || 'تعذّر تسجيل الدخول عبر Google');
@@ -1367,6 +1382,12 @@
     if (logoutBtn) logoutBtn.addEventListener('click', logoutPlatform);
     const googleBtn = document.getElementById('platformAuthGoogle');
     if (googleBtn) googleBtn.addEventListener('click', startGoogleSignIn);
+    const normalGoogleBtn = document.getElementById('platformNormalGoogleSignIn');
+    if (normalGoogleBtn && window.OmniGoogleAuthCode) {
+      normalGoogleBtn.addEventListener('click', function () {
+        window.OmniGoogleAuthCode.start('/platform.html');
+      });
+    }
     const googleLinkBtn = document.getElementById('platformAuthGoogleLink');
     if (googleLinkBtn) googleLinkBtn.addEventListener('click', openGoogleLinkStepUp);
     const googleLinkSubmit = document.getElementById('platformAuthLinkSubmit');

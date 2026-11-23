@@ -371,6 +371,7 @@ router.get('/permissions', ctrl.permissions);
  *         description: Google login not configured
  */
 router.get('/google-login-code', googleLoginRateLimiter(), googleAuthCodeCtrl.initiate);
+router.get('/google-login-code/challenge', googleLoginChallengeRateLimiter(), googleAuthCodeCtrl.challengeStatus);
 router.post('/google-login-code/mfa-verify', googleLoginChallengeRateLimiter(), googleAuthCodeCtrl.mfaVerify);
 router.post('/google-login-code/select-tenant', googleLoginChallengeRateLimiter(), googleAuthCodeCtrl.selectTenant);
 

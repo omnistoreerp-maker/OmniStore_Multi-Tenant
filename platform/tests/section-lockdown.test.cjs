@@ -668,6 +668,16 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/server.js',
     'backend/tests/monetag.boundary.test.js',
     'platform/tests/section-lockdown.test.cjs',
+    // Normal-user Google Authorization Code integration: shared browser
+    // module, both login surfaces, its focused suite and the read-only
+    // challenge-metadata endpoint plus its backend tests.
+    'platform/google-authcode.js',
+    'platform/tests/google-authcode.test.cjs',
+    'backend/controllers/googleAuthCode.controller.js',
+    'backend/utils/challengeStore.sqlite.js',
+    'backend/routes/googleAuthCode.routes.js',
+    'backend/tests/googleAuthCode.test.js',
+    'backend/tests/oauthLoginTransaction.test.js',
     // Homepage Master entry cycle: the drawer's post-login contract (Master
     // stays for the Google link flow) and its e2e smoke updated with it.
     'platform/tests/compact-login.test.cjs',
@@ -915,6 +925,9 @@ check('working-tree diff touches only intended platform files', () => {
     'platform/google-login.js',
     'platform/tests/universal-google-login.test.cjs',
     'backend/tests/googleLoginConfig.test.js',
+    // Normal-user Google Authorization Code integration.
+    'platform/google-authcode.js',
+    'platform/tests/google-authcode.test.cjs',
     // Online Games discoverability follow-up: catalog, lockdown policy and
     // license attribution are asserted from the shipped bytes.
     'backend/tests/onlineGames.catalog.test.js',
@@ -1092,6 +1105,14 @@ check('working-tree diff touches only intended platform files', () => {
     'backend/services/platformControlCenter.service.js',
     'backend/tests/controlCenterSecurity.test.js',
     'backend/tests/controlCenterSecurityFixes.test.js',
+    // Normal-user Google Authorization Code integration: read-only challenge
+    // metadata endpoint, durable store helper and their focused backend tests.
+    'backend/controllers/googleAuthCode.controller.js',
+    'backend/utils/challengeStore.sqlite.js',
+    'backend/routes/googleAuthCode.routes.js',
+    'backend/routes/auth.routes.js',
+    'backend/tests/googleAuthCode.test.js',
+    'backend/tests/oauthLoginTransaction.test.js',
     'backend/tests/loyalty.phase2c.test.js',
     'backend/tests/platformAdminSeed.test.js',
     'backend/tests/frontendServiceNavigation.test.js',
