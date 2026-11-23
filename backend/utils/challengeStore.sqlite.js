@@ -383,10 +383,11 @@ function consumeChallenge(db, { token, purpose, sub } = {}) {
  * Atomically validate every binding condition and consume a challenge.
  *
  * Unlike consumeChallenge(), all checks (hash, purpose, subject, expiry,
- * browser binding) happen INSIDE a single IMMEDIATE transaction. The row is
- * deleted only after every validation passes. A wrong-browser request can
- * therefore never burn a valid challenge, and concurrent attempts can never
- * both succeed. Database errors fail closed by throwing.
+ * browser binding) happen INSIDE a single IMMEDIATE transaction, executed via
+ * tx.immediate() (better-sqlite3 ignores a second argument to db.transaction()).
+ * The row is deleted only after every validation passes. A wrong-browser
+ * request can therefore never burn a valid challenge, and concurrent attempts
+ * can never both succeed. Database errors fail closed by throwing.
  *
  * Existing consumeChallenge() callers are unchanged and remain compatible.
  *
@@ -432,10 +433,10 @@ function consumeChallengeWithBinding(db, { token, purpose, sub, browserBindingHa
     const deleted = db.prepare("DELETE FROM challenges WHERE hash = ?").run(hash);
     if (deleted.changes !== 1) return { consumed: false, reason: "already_consumed" };
     return { consumed: true, reason: "success", sub: row.sub, purpose: row.purpose, extra };
-  }, "IMMEDIATE");
+  });
 
   try {
-    return tx();
+    return tx.immediate();
   } catch (err) {
     throw new ChallengeStoreError(`Could not consume challenge: ${err.message}`, err);
   }
@@ -492,10 +493,10 @@ function consumeOAuthLoginTransaction(db, { state, browserBindingHash } = {}) {
       return { consumed: false, reason: "malformed_payload" };
     }
     return { consumed: true, reason: "success", payload };
-  }, "IMMEDIATE");
+  });
 
   try {
-    return tx();
+    return tx.immediate();
   } catch (err) {
     throw new ChallengeStoreError(`Could not consume OAuth login transaction: ${err.message}`, err);
   }

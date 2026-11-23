@@ -3,6 +3,7 @@
 // Durable OAuth login transaction store: browser binding, atomic one-time
 // consumption, expiry, cross-connection replay, and bounded cleanup.
 const path = require('path');
+const { spawn } = require('child_process');
 const {
   initialise,
   closeDb,
@@ -164,4 +165,73 @@ describe('consumeChallengeWithBinding — atomic validation and consumption', ()
     expect(legacy.consumed).toBe(true);
     closeDb(db);
   });
+
+  test('both consumption paths execute via better-sqlite3 .immediate()', () => {
+    const { db } = fresh();
+    let immediateCalls = 0;
+    const wrapped = {
+      prepare: (...args) => db.prepare(...args),
+      transaction: (fn) => {
+        const real = db.transaction(fn);
+        return { immediate: () => { immediateCalls += 1; return real.immediate(); } };
+      }
+    };
+
+    persistChallenge(wrapped, {
+      token: 'immediate-check', sub: 'user-1', purpose: 'google_mfa',
+      extra: { browserBindingHash: 'bind' }
+    });
+    expect(consumeChallengeWithBinding(wrapped, {
+      token: 'immediate-check', purpose: 'google_mfa', sub: 'user-1', browserBindingHash: 'bind'
+    }).consumed).toBe(true);
+
+    persistOAuthLoginTransaction(wrapped, {
+      state: 'immediate-state', browserBindingHash: 'bind2', payload: PAYLOAD, ttlMs: 60000
+    });
+    expect(consumeOAuthLoginTransaction(wrapped, {
+      state: 'immediate-state', browserBindingHash: 'bind2'
+    }).consumed).toBe(true);
+
+    expect(immediateCalls).toBe(2);
+    closeDb(db);
+  });
+});
+
+describe('cross-process concurrent consumption uses IMMEDIATE locking', () => {
+  function consumeInSeparateProcess(dbPath, token) {
+    const storePath = JSON.stringify(require.resolve('../utils/challengeStore.sqlite'));
+    const code = [
+      'const s = require(' + storePath + ');',
+      'const db = s.initialise(' + JSON.stringify(dbPath) + ').db;',
+      'let out;',
+      'try { out = s.consumeChallengeWithBinding(db, { token: ' + JSON.stringify(token) + ', purpose: "google_mfa", sub: "user-1", browserBindingHash: "bind" }); }',
+      'catch (e) { out = { error: e.message }; }',
+      'finally { s.closeDb(db); }',
+      'process.stdout.write(JSON.stringify(out));'
+    ].join('\n');
+    return new Promise((resolve) => {
+      const child = spawn(process.execPath, ['-e', code], { stdio: ['ignore', 'pipe', 'pipe'] });
+      let out = '';
+      child.stdout.on('data', (chunk) => { out += chunk; });
+      child.on('close', () => { try { resolve(JSON.parse(out)); } catch (_) { resolve({ error: 'no-json:' + out }); } });
+    });
+  }
+
+  test('exactly one of two concurrent processes consumes the same challenge', async () => {
+    const { db } = fresh();
+    persistChallenge(db, {
+      token: 'cross-process-race', sub: 'user-1', purpose: 'google_mfa',
+      extra: { browserBindingHash: 'bind' }
+    });
+    const dbPath = path.join(dirs[dirs.length - 1], 'challenges.sqlite');
+    closeDb(db);
+
+    const results = await Promise.all([
+      consumeInSeparateProcess(dbPath, 'cross-process-race'),
+      consumeInSeparateProcess(dbPath, 'cross-process-race')
+    ]);
+    const successes = results.filter(r => r.consumed === true);
+    expect(successes).toHaveLength(1);
+    expect(results.filter(r => r.consumed === false || r.error)).toHaveLength(1);
+  }, 30000);
 });
