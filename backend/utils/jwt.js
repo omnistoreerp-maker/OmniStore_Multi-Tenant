@@ -90,6 +90,15 @@ function signChallengeToken(user, purpose, extra) {
     if (extra.tenantId !== undefined && extra.tenantId !== null && String(extra.tenantId) !== '') {
       claims.tenantId = String(extra.tenantId);
     }
+    if (typeof extra.provider === 'string' && extra.provider) claims.provider = extra.provider;
+    if (Array.isArray(extra.allowedTenantIds)) {
+      claims.allowedTenantIds = extra.allowedTenantIds.map(String);
+    }
+    if (Array.isArray(extra.availableTenants)) {
+      claims.availableTenants = extra.availableTenants
+        .filter(t => t && t.id !== undefined && t.id !== null)
+        .map(t => ({ id: String(t.id), name: String(t.name || t.id) }));
+    }
   }
   return jwt.sign(claims, CHALLENGE_SECRET, {
     expiresIn: CHALLENGE_TTL,
