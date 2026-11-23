@@ -412,6 +412,8 @@ if (oauthConfig.enabled) {
   // verified ID tokens, sub-based linking). Mounted under the same gate so
   // a disabled OAuth config leaves the whole surface unreachable (404).
   app.use('/auth', oauthMasterRoutes);
+  // Regular Google Authorization Code + PKCE flow for existing linked users.
+  app.use('/auth', require('./routes/googleAuthCode.routes'));
 }
 
 // Swagger API documentation (auth-gated when AUTH_REQUIRED=true)
