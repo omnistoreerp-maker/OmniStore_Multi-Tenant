@@ -60,9 +60,18 @@ const SCHEMA = `
     sub       TEXT NOT NULL,
     purpose   TEXT NOT NULL,
     createdAt INTEGER NOT NULL,
-    expiresAt INTEGER NOT NULL
+    expiresAt INTEGER NOT NULL,
+    extra     TEXT
   );
   CREATE INDEX IF NOT EXISTS idx_challenges_expiresAt ON challenges (expiresAt);
+  CREATE TABLE IF NOT EXISTS oauth_login_transactions (
+    stateHash TEXT PRIMARY KEY,
+    browserBindingHash TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    expiresAt INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_oauth_login_transactions_expiresAt ON oauth_login_transactions (expiresAt);
 `;
 
 class ChallengeStoreError extends Error {
@@ -183,6 +192,7 @@ function _configure(db) {
   // which is negligible at this volume and worth the strict guarantee.
   db.pragma("synchronous = FULL");
   db.exec(SCHEMA);
+  _ensureChallengeExtraColumn(db);
   return db;
 }
 
@@ -248,7 +258,7 @@ function _requireString(value, name) {
  * @param {{token: string, sub: string, purpose: string, ttlMs?: number}} params
  * @returns {{hash: string, sub: string, purpose: string, createdAt: number, expiresAt: number}}
  */
-function persistChallenge(db, { token, sub, purpose, ttlMs } = {}) {
+function persistChallenge(db, { token, sub, purpose, ttlMs, extra } = {}) {
   _requireString(token, "token");
   _requireString(sub, "subject");
   _requireString(purpose, "purpose");
@@ -257,11 +267,12 @@ function persistChallenge(db, { token, sub, purpose, ttlMs } = {}) {
   const hash = hashChallenge(token);
   const createdAt = Date.now();
   const expiresAt = createdAt + ttl;
+  const encodedExtra = extra === undefined ? null : JSON.stringify(extra);
 
   try {
     db.prepare(
-      "INSERT INTO challenges (hash, sub, purpose, createdAt, expiresAt) VALUES (?, ?, ?, ?, ?)"
-    ).run(hash, String(sub), String(purpose), createdAt, expiresAt);
+      "INSERT INTO challenges (hash, sub, purpose, createdAt, expiresAt, extra) VALUES (?, ?, ?, ?, ?, ?)"
+    ).run(hash, String(sub), String(purpose), createdAt, expiresAt, encodedExtra);
   } catch (err) {
     throw new ChallengeStoreError(
       `Could not persist challenge: ${err.message}`,
@@ -272,8 +283,15 @@ function persistChallenge(db, { token, sub, purpose, ttlMs } = {}) {
   return { hash, sub: String(sub), purpose: String(purpose), createdAt, expiresAt };
 }
 
+function _ensureChallengeExtraColumn(db) {
+  const columns = db.prepare("PRAGMA table_info(challenges)").all();
+  if (!columns.some((column) => column.name === 'extra')) {
+    db.exec('ALTER TABLE challenges ADD COLUMN extra TEXT');
+  }
+}
+
 /**
- * Atomically consume a challenge.
+ * Atomically consume a challenge and return its stored context only on success.
  *
  * The whole decision is one conditional DELETE, so there is no read-then-write
  * race: SQLite applies it atomically and the winner is whoever's DELETE removed
@@ -289,6 +307,15 @@ function consumeChallenge(db, { token, purpose, sub } = {}) {
 
   const hash = hashChallenge(token);
   const now = Date.now();
+
+  // Read the stored context BEFORE the conditional delete; after deletion the
+  // row is gone and the extra data would be lost.
+  let stored;
+  try {
+    stored = db.prepare("SELECT sub, purpose, extra FROM challenges WHERE hash = ?").get(hash);
+  } catch (err) {
+    throw new ChallengeStoreError(`Could not read challenge: ${err.message}`, err);
+  }
 
   let info;
   try {
@@ -311,7 +338,15 @@ function consumeChallenge(db, { token, purpose, sub } = {}) {
     );
   }
 
-  if (info.changes === 1) return { consumed: true, reason: "success" };
+  if (info.changes === 1) {
+    return {
+      consumed: true,
+      reason: "success",
+      sub: stored && stored.sub,
+      purpose: stored && stored.purpose,
+      extra: stored && stored.extra ? JSON.parse(stored.extra) : undefined
+    };
+  }
 
   // Nothing was deleted. Diagnose without weakening the single-use guarantee.
   let row;
@@ -342,6 +377,66 @@ function consumeChallenge(db, { token, purpose, sub } = {}) {
   }
 
   return { consumed: false, reason: "already_consumed" };
+}
+
+function persistOAuthLoginTransaction(db, { state, browserBindingHash, payload, ttlMs } = {}) {
+  _requireString(state, "state");
+  _requireString(browserBindingHash, "browser binding hash");
+  if (!payload || typeof payload !== "object") {
+    throw new ChallengeStoreError("challenge payload is required");
+  }
+
+  const ttl = Number.isFinite(ttlMs) && ttlMs > 0 ? ttlMs : DEFAULT_TTL_MS;
+  const createdAt = Date.now();
+  const expiresAt = createdAt + ttl;
+  try {
+    db.prepare(
+      "INSERT INTO oauth_login_transactions (stateHash, browserBindingHash, payload, createdAt, expiresAt) VALUES (?, ?, ?, ?, ?)"
+    ).run(hashChallenge(state), String(browserBindingHash), JSON.stringify(payload), createdAt, expiresAt);
+  } catch (err) {
+    throw new ChallengeStoreError(`Could not persist OAuth login transaction: ${err.message}`, err);
+  }
+  return { createdAt, expiresAt };
+}
+
+function consumeOAuthLoginTransaction(db, { state, browserBindingHash } = {}) {
+  _requireString(state, "state");
+  _requireString(browserBindingHash, "browser binding hash");
+
+  const stateHash = hashChallenge(state);
+  const now = Date.now();
+  const tx = db.transaction(() => {
+    const row = db
+      .prepare("SELECT browserBindingHash, payload, expiresAt FROM oauth_login_transactions WHERE stateHash = ?")
+      .get(stateHash);
+    if (!row) return { consumed: false, reason: "not_found" };
+    if (Number(row.expiresAt) <= now) {
+      db.prepare("DELETE FROM oauth_login_transactions WHERE stateHash = ? AND expiresAt <= ?").run(stateHash, now);
+      return { consumed: false, reason: "expired" };
+    }
+    const a = Buffer.from(String(row.browserBindingHash));
+    const b = Buffer.from(String(browserBindingHash));
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      return { consumed: false, reason: "browser_binding_mismatch" };
+    }
+    const deleted = db
+      .prepare("DELETE FROM oauth_login_transactions WHERE stateHash = ?")
+      .run(stateHash);
+    if (deleted.changes !== 1) return { consumed: false, reason: "already_consumed" };
+    let payload;
+    try {
+      payload = JSON.parse(row.payload);
+    } catch (_) {
+      return { consumed: false, reason: "malformed_payload" };
+    }
+    return { consumed: true, reason: "success", payload };
+  }, "IMMEDIATE");
+
+  try {
+    return tx();
+  } catch (err) {
+    throw new ChallengeStoreError(`Could not consume OAuth login transaction: ${err.message}`, err);
+  }
 }
 
 /**
@@ -470,6 +565,8 @@ module.exports = {
   restoreDatabase,
   persistChallenge,
   consumeChallenge,
+  persistOAuthLoginTransaction,
+  consumeOAuthLoginTransaction,
   purgeExpired,
   purgeExpiredIfDue,
   closeDb,

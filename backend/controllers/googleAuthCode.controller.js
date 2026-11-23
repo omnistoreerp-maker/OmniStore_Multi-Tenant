@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const googleAuthCode = require('../services/googleAuthCode.service');
+const { verifyChallengeToken } = require('../utils/jwt');
 const usersService = require('../services/users.service');
 const mfaService = require('../services/mfa.service');
 const config = require('../config');
@@ -22,10 +23,68 @@ const { parseCookies } = require('../middleware/auth');
 
 const IS_PROD = (process.env.NODE_ENV || 'development') === 'production';
 
-function _setAuthCookies(res, accessToken, refreshToken) {
-  const base = { httpOnly: true, sameSite: 'lax', secure: IS_PROD, path: '/' };
+function _requestUsesHttps(req) {
+  return !!req.secure || String(req.headers['x-forwarded-proto'] || '').toLowerCase().split(',')[0].trim() === 'https'
+    || IS_PROD || (process.env.NODE_ENV || '') === 'staging';
+}
+
+function _setAuthCookies(res, accessToken, refreshToken, req) {
+  const base = { httpOnly: true, sameSite: 'lax', secure: _requestUsesHttps(req), path: '/' };
   res.cookie('access_token', accessToken, { ...base, maxAge: 15 * 60 * 1000 });
   res.cookie('refresh_token', refreshToken, { ...base, maxAge: 7 * 24 * 60 * 60 * 1000 });
+}
+
+function _issueChallenge(user, purpose, extra, binding) {
+  const token = signChallengeToken(user, purpose, extra);
+  const db = _getChallengeDb();
+  challengeStore.purgeExpiredIfDue(db);
+  challengeStore.persistChallenge(db, {
+    token,
+    sub: String(user.id),
+    purpose,
+    extra: { ...(extra || {}), ...(binding ? { browserBindingHash: googleAuthCode.hashBrowserBinding(binding) } : {}) }
+  });
+  return token;
+}
+
+function _consumeChallenge(token, purpose, user, binding) {
+  const payload = verifyChallengeToken(token, purpose);
+  if (!payload || String(payload.sub) !== String(user.id)) return { ok: false };
+  const consumed = challengeStore.consumeChallenge(_getChallengeDb(), {
+    token,
+    purpose,
+    sub: String(user.id)
+  });
+  if (!consumed || consumed.consumed !== true) return { ok: false };
+  let extra = payload;
+  if (consumed.extra && typeof consumed.extra === 'object') extra = { ...extra, ...consumed.extra };
+  if (extra.browserBindingHash) {
+    if (!binding || extra.browserBindingHash !== googleAuthCode.hashBrowserBinding(binding)) return { ok: false };
+  }
+  return { ok: true, payload: extra };
+}
+
+function _issueSession(req, res, user, tenantId) {
+  const tokenIdentity = tenantId ? { ...user, tenantId } : user;
+  const { familyId } = tokenStore.createSessionFamily(user.id, tenantId);
+  const issuedAt = Date.now();
+  const expiresAt = issuedAt + config.jwtRefreshTtlMs || (issuedAt + 7 * 24 * 60 * 60 * 1000);
+  const jti = crypto.randomUUID();
+
+  tokenStore.issueRefreshToken(jti, {
+    jti,
+    familyId,
+    sub: user.id,
+    ver: user.tokenVersion || 0,
+    tenantId,
+    issuedAt,
+    expiresAt
+  });
+
+  const accessToken = signAccessToken({ ...tokenIdentity, familyId });
+  const refreshToken = signRefreshToken({ ...tokenIdentity, familyId, jti });
+  _setAuthCookies(res, accessToken, refreshToken, req);
+  return { accessToken, refreshToken };
 }
 
 let _challengeDb = null;
@@ -34,14 +93,6 @@ function _getChallengeDb() {
   if (_challengeDb && _challengeDb.open) return _challengeDb;
   _challengeDb = challengeStore.initialise(challengeStore.resolveDefaultPath()).db;
   return _challengeDb;
-}
-
-function _issueChallenge(user, purpose, extra) {
-  const token = signChallengeToken(user, purpose, extra);
-  const db = _getChallengeDb();
-  challengeStore.purgeExpiredIfDue(db);
-  challengeStore.persistChallenge(db, { token, sub: String(user.id), purpose });
-  return token;
 }
 
 function _audit(entry) {
@@ -71,7 +122,20 @@ async function initiate(req, res) {
       return error(res, 'Google login is not configured', 501);
     }
     const returnTo = req.query.returnTo || '/';
-    const { url } = googleAuthCode.createLoginStart({ returnTo });
+    const browserBinding = parseCookies(req)[googleAuthCode.BROWSER_BINDING_COOKIE]
+      || crypto.randomBytes(32).toString('base64url');
+    const { url } = googleAuthCode.createLoginStart({
+      returnTo,
+      db: _getChallengeDb(),
+      browserBinding
+    });
+    res.cookie(googleAuthCode.BROWSER_BINDING_COOKIE, browserBinding, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: _requestUsesHttps(req),
+      path: googleAuthCode.BROWSER_BINDING_PATH,
+      maxAge: require('../utils/oauthState').STATE_TTL_MS
+    });
     _audit({
       method: 'GET',
       path: '/api/v1/auth/google-login-code',
@@ -108,26 +172,25 @@ async function callback(req, res) {
       return res.redirect(302, '/?gerr=state_missing');
     }
 
-    // Verify and consume state (single-use)
-    const statePayload = oauthState.consume(state);
-    if (!statePayload) {
+    const bindingCookie = parseCookies(req)[googleAuthCode.BROWSER_BINDING_COOKIE];
+    let statePayload;
+    try {
+      statePayload = googleAuthCode.consumeLoginTransaction(_getChallengeDb(), state, bindingCookie);
+    } catch (err) {
       _audit({
         path: '/api/v1/auth/google-login-code/callback',
         statusCode: 302,
         action: 'GOOGLE_LOGIN_CODE_FAILED',
         ip: req.ip,
-        changes: { provider: 'google', reason: 'state_invalid_or_replayed' }
+        changes: { provider: 'google', reason: err.code || 'state_invalid' }
       });
-      return res.redirect(302, '/?gerr=state_invalid');
-    }
-
-    if (statePayload.mode !== 'login') {
-      return res.redirect(302, '/?gerr=state_invalid');
+      const gerr = err.code === 'browser_binding_mismatch' ? 'browser_binding_mismatch' : 'state_invalid';
+      return res.redirect(302, '/?gerr=' + gerr);
     }
 
     const returnTo = statePayload.returnTo || '/';
     const nonce = statePayload.nonce;
-    const codeVerifier = statePayload.cv;
+    const codeVerifier = statePayload.verifier;
 
     if (!code || typeof code !== 'string') {
       _audit({
@@ -224,7 +287,12 @@ async function callback(req, res) {
         return res.redirect(302, '/?gerr=tenant_membership_required');
       }
       const availableTenants = activeCompanies.filter(c => membership.includes(String(c.id)));
-      const tempToken = _issueChallenge(user, CHALLENGE_PURPOSES.GOOGLE_TENANT_SELECTION);
+      const tempToken = _issueChallenge(
+        user,
+        CHALLENGE_PURPOSES.GOOGLE_TENANT_SELECTION,
+        { allowedTenantIds: membership, provider: 'google' },
+        bindingCookie
+      );
       return res.redirect(302, '/?tenant_selection_required=1&tempToken=' + encodeURIComponent(tempToken) + '&userId=' + encodeURIComponent(user.id) + '&availableTenants=' + encodeURIComponent(JSON.stringify(availableTenants.map(c => ({ id: c.id, name: c.name })))));
     }
 
@@ -260,31 +328,13 @@ async function callback(req, res) {
       const tempToken = _issueChallenge(
         user,
         CHALLENGE_PURPOSES.GOOGLE_MFA,
-        tenantId ? { tenantId } : undefined
+        { ...(tenantId ? { tenantId } : {}), provider: 'google' },
+        bindingCookie
       );
       return res.redirect(302, '/?mfa_required=1&tempToken=' + encodeURIComponent(tempToken) + '&userId=' + encodeURIComponent(user.id));
     }
 
-    // Issue tokens
-    const tokenIdentity = tenantId ? { ...user, tenantId } : user;
-    const { familyId } = tokenStore.createSessionFamily(user.id, tenantId);
-    const issuedAt = Date.now();
-    const expiresAt = issuedAt + config.jwtRefreshTtlMs || (issuedAt + 7 * 24 * 60 * 60 * 1000);
-    const jti = crypto.randomUUID();
-
-    tokenStore.issueRefreshToken(jti, {
-      jti,
-      familyId,
-      sub: user.id,
-      ver: user.tokenVersion || 0,
-      tenantId,
-      issuedAt,
-      expiresAt
-    });
-
-    const accessToken = signAccessToken({ ...tokenIdentity, familyId });
-    const refreshToken = signRefreshToken({ ...tokenIdentity, familyId, jti });
-    _setAuthCookies(res, accessToken, refreshToken);
+    _issueSession(req, res, user, tenantId);
 
     _audit({
       path: '/api/v1/auth/google-login-code/callback',
@@ -314,14 +364,17 @@ async function mfaVerify(req, res) {
       return error(res, 'MFA code is required', 400);
     }
 
-    const db = _getChallengeDb();
-    const challenge = challengeStore.consumeChallenge(db, tempToken);
-    if (!challenge || challenge.purpose !== CHALLENGE_PURPOSES.GOOGLE_MFA) {
+    const payload = verifyChallengeToken(tempToken, CHALLENGE_PURPOSES.GOOGLE_MFA);
+    if (!payload || payload.provider !== 'google') {
       return error(res, 'Invalid or expired challenge', 401);
     }
-
-    const user = usersService.getById(challenge.sub);
+    const user = usersService.getById(payload.sub);
     if (!user || user.status === 'disabled' || !user.mfaEnabled) {
+      return error(res, 'Invalid or expired challenge', 401);
+    }
+    const bindingCookie = parseCookies(req)[googleAuthCode.BROWSER_BINDING_COOKIE];
+    const challenge = _consumeChallenge(tempToken, CHALLENGE_PURPOSES.GOOGLE_MFA, user, bindingCookie);
+    if (!challenge.ok) {
       return error(res, 'Invalid or expired challenge', 401);
     }
 
@@ -339,26 +392,18 @@ async function mfaVerify(req, res) {
       return error(res, 'Invalid MFA code', 401);
     }
 
-    const tenantId = challenge.extra?.tenantId;
-    const tokenIdentity = tenantId ? { ...user, tenantId } : user;
-    const { familyId } = tokenStore.createSessionFamily(user.id, tenantId);
-    const issuedAt = Date.now();
-    const expiresAt = issuedAt + config.jwtRefreshTtlMs || (issuedAt + 7 * 24 * 60 * 60 * 1000);
-    const jti = crypto.randomUUID();
-
-    tokenStore.issueRefreshToken(jti, {
-      jti,
-      familyId,
-      sub: user.id,
-      ver: user.tokenVersion || 0,
-      tenantId,
-      issuedAt,
-      expiresAt
-    });
-
-    const accessToken = signAccessToken({ ...tokenIdentity, familyId });
-    const refreshToken = signRefreshToken({ ...tokenIdentity, familyId, jti });
-    _setAuthCookies(res, accessToken, refreshToken);
+    const tenantId = challenge.payload.tenantId;
+    if (tenantId) {
+      const membership = tenantMembership.idsFor(user);
+      if (membership.length === 0 || !membership.includes(String(tenantId))) {
+        return error(res, 'Unauthorized tenant selection', 403);
+      }
+      const company = CompanyService.getCompany(tenantId);
+      if (!company || company.active === false || String(company.status || '').toUpperCase() === 'SUSPENDED') {
+        return error(res, 'Company is suspended', 403);
+      }
+    }
+    const tokens = _issueSession(req, res, user, tenantId);
 
     _audit({
       method: 'POST',
@@ -371,7 +416,7 @@ async function mfaVerify(req, res) {
       changes: { provider: 'google', mfa: true }
     });
 
-    const resultData = { user: usersService.sanitizeUser(user), accessToken, refreshToken };
+    const resultData = { user: usersService.sanitizeUser(user), ...tokens };
     if (config.tenantRolesEnabled && tenantId) {
       resultData.effectiveRole = tenantRole.resolveEffectiveRole(user, tenantId);
     }
@@ -393,23 +438,29 @@ async function selectTenant(req, res) {
       return error(res, 'tenantId is required', 400);
     }
 
-    const db = _getChallengeDb();
-    const challenge = challengeStore.consumeChallenge(db, tempToken);
-    if (!challenge || challenge.purpose !== CHALLENGE_PURPOSES.GOOGLE_TENANT_SELECTION) {
+    const payload = verifyChallengeToken(tempToken, CHALLENGE_PURPOSES.GOOGLE_TENANT_SELECTION);
+    if (!payload || payload.provider !== 'google') {
       return error(res, 'Invalid or expired challenge', 401);
     }
-
-    const user = usersService.getById(challenge.sub);
+    const user = usersService.getById(payload.sub);
     if (!user || user.status === 'disabled') {
       return error(res, 'Invalid or expired challenge', 401);
     }
+    const allowedTenantIds = Array.isArray(payload.allowedTenantIds) ? payload.allowedTenantIds.map(String) : [];
+    if (allowedTenantIds.length === 0 || !allowedTenantIds.includes(String(tenantId))) {
+      return error(res, 'Unauthorized tenant selection', 403);
+    }
+    const bindingCookie = parseCookies(req)[googleAuthCode.BROWSER_BINDING_COOKIE];
+    const challenge = _consumeChallenge(tempToken, CHALLENGE_PURPOSES.GOOGLE_TENANT_SELECTION, user, bindingCookie);
+    if (!challenge.ok) {
+      return error(res, 'Invalid or expired challenge', 401);
+    }
 
-    // Validate tenant membership
+    // Validate CURRENT tenant membership (may change after the challenge was issued).
     const membership = tenantMembership.idsFor(user);
     if (membership.length === 0 || !membership.includes(String(tenantId))) {
       return error(res, 'User is not a member of the selected company', 403);
     }
-
     const company = CompanyService.getCompany(tenantId);
     if (!company || company.active === false || String(company.status || '').toUpperCase() === 'SUSPENDED') {
       return error(res, 'Company is suspended', 403);
@@ -418,25 +469,17 @@ async function selectTenant(req, res) {
       return error(res, 'User is not a member of the selected company', 403);
     }
 
-    const tokenIdentity = { ...user, tenantId };
-    const { familyId } = tokenStore.createSessionFamily(user.id, tenantId);
-    const issuedAt = Date.now();
-    const expiresAt = issuedAt + config.jwtRefreshTtlMs || (issuedAt + 7 * 24 * 60 * 60 * 1000);
-    const jti = crypto.randomUUID();
+    if (user.mfaEnabled) {
+      const mfaToken = _issueChallenge(
+        user,
+        CHALLENGE_PURPOSES.GOOGLE_MFA,
+        { tenantId: String(tenantId), provider: 'google' },
+        bindingCookie
+      );
+      return success(res, { mfaRequired: true, tempToken: mfaToken }, 'MFA required');
+    }
 
-    tokenStore.issueRefreshToken(jti, {
-      jti,
-      familyId,
-      sub: user.id,
-      ver: user.tokenVersion || 0,
-      tenantId,
-      issuedAt,
-      expiresAt
-    });
-
-    const accessToken = signAccessToken({ ...tokenIdentity, familyId });
-    const refreshToken = signRefreshToken({ ...tokenIdentity, familyId, jti });
-    _setAuthCookies(res, accessToken, refreshToken);
+    const tokens = _issueSession(req, res, user, tenantId);
 
     _audit({
       method: 'POST',
@@ -449,7 +492,7 @@ async function selectTenant(req, res) {
       changes: { provider: 'google', tenant_selection: true }
     });
 
-    const resultData = { user: usersService.sanitizeUser(user), accessToken, refreshToken };
+    const resultData = { user: usersService.sanitizeUser(user), ...tokens };
     if (config.tenantRolesEnabled && tenantId) {
       resultData.effectiveRole = tenantRole.resolveEffectiveRole(user, tenantId);
     }

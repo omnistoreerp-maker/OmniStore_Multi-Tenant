@@ -2,7 +2,6 @@ const crypto = require('crypto');
 const { OAuth2Client } = require('google-auth-library');
 const oauthConfig = require('../config/oauth');
 const usersService = require('./users.service');
-const oauthState = require('../utils/oauthState');
 const logger = require('../utils/logger');
 
 // Server-side OpenID Connect for the Regular User Google sign-in path.
@@ -30,19 +29,41 @@ function _sha256b64url(value) {
   return crypto.createHash('sha256').update(value).digest('base64url');
 }
 
-// Builds the Google authorization URL for a fresh login attempt:
-// single-use signed state, a nonce bound into that state (echoed in the ID token),
-// and PKCE (S256) so a stolen code is useless without the verifier.
-function createLoginStart({ returnTo = '/' } = {}) {
+function _sha256hex(value) {
+  return crypto.createHash('sha256').update(value).digest('hex');
+}
+
+const BROWSER_BINDING_COOKIE = 'glogin_bs';
+const BROWSER_BINDING_PATH = '/';
+
+function _safeReturnTo(value) {
+  const text = typeof value === 'string' ? value : '';
+  if (!text.startsWith('/') || text.startsWith('//') || /[\\\u0000-\u001f]/.test(text) || text.startsWith(BROWSER_BINDING_PATH)) return '/';
+  return text;
+}
+
+// Builds the Google authorization URL. The state is a high-entropy opaque
+// value; the nonce, PKCE verifier, returnTo and expiry are stored SERVER-SIDE
+// in an atomic SQLite transaction alongside a hash of the initiating browser's
+// random binding secret. Only the hash is bound into the signed state so the
+// browser cookie and server row must both be present at callback.
+function createLoginStart({ returnTo = '/', db, browserBinding } = {}) {
   if (!isConfigured()) throw _fail('not_configured', 'Google sign-in is not configured');
+  if (!db || typeof db.prepare !== 'function') throw _fail('storage_unavailable', 'Login transaction store unavailable');
+  if (typeof browserBinding !== 'string' || !browserBinding) throw _fail('browser_binding_required', 'Browser binding is required');
+
+  const state = crypto.randomBytes(32).toString('base64url');
   const nonce = crypto.randomBytes(18).toString('base64url');
   const verifier = crypto.randomBytes(32).toString('base64url');
-  const state = oauthState.issue({
-    mode: 'login',
-    returnTo: String(returnTo || '/'),
-    nonce,
-    cv: verifier
+  const safeReturnTo = _safeReturnTo(returnTo);
+  const transaction = require('../utils/challengeStore.sqlite');
+  transaction.persistOAuthLoginTransaction(db, {
+    state,
+    browserBindingHash: _sha256hex(browserBinding),
+    payload: { mode: 'login', nonce, verifier, returnTo: safeReturnTo },
+    ttlMs: require('../utils/oauthState').STATE_TTL_MS
   });
+
   const params = new URLSearchParams({
     client_id: oauthConfig.providers.google.clientID,
     redirect_uri: oauthConfig.providers.google.callbackURL,
@@ -54,7 +75,28 @@ function createLoginStart({ returnTo = '/' } = {}) {
     code_challenge_method: 'S256',
     prompt: 'select_account'
   });
-  return { url: AUTH_ENDPOINT + '?' + params.toString() };
+  return {
+    url: AUTH_ENDPOINT + '?' + params.toString(),
+    browserBinding,
+    browserBindingCookie: BROWSER_BINDING_COOKIE,
+    browserBindingPath: BROWSER_BINDING_PATH
+  };
+}
+
+function consumeLoginTransaction(db, state, browserBinding) {
+  const transaction = require('../utils/challengeStore.sqlite');
+  const result = transaction.consumeOAuthLoginTransaction(db, {
+    state,
+    browserBindingHash: _sha256hex(browserBinding || '')
+  });
+  if (!result || !result.consumed) {
+    throw _fail(result && result.reason === 'browser_binding_mismatch' ? 'browser_binding_mismatch' : 'state_invalid', 'OAuth login transaction is invalid, expired, mismatched or already consumed');
+  }
+  const payload = result.payload || {};
+  if (payload.mode !== 'login' || !payload.nonce || !payload.verifier) {
+    throw _fail('state_invalid', 'OAuth login transaction payload is invalid');
+  }
+  return payload;
 }
 
 // Exchanges the authorization code (plus PKCE verifier) directly with
@@ -147,7 +189,11 @@ function findUserByGoogleSub(sub) {
 module.exports = {
   isConfigured,
   createLoginStart,
+  consumeLoginTransaction,
   exchangeCode,
   verifyGoogleIdToken,
-  findUserByGoogleSub
+  findUserByGoogleSub,
+  BROWSER_BINDING_COOKIE,
+  BROWSER_BINDING_PATH,
+  hashBrowserBinding: _sha256hex
 };

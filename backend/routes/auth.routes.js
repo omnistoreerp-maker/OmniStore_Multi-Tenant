@@ -370,6 +370,8 @@ router.get('/permissions', ctrl.permissions);
  *       501:
  *         description: Google login not configured
  */
-router.get('/google-login-code', googleAuthCodeCtrl.initiate);
+router.get('/google-login-code', googleLoginRateLimiter(), googleAuthCodeCtrl.initiate);
+router.post('/google-login-code/mfa-verify', googleLoginChallengeRateLimiter(), googleAuthCodeCtrl.mfaVerify);
+router.post('/google-login-code/select-tenant', googleLoginChallengeRateLimiter(), googleAuthCodeCtrl.selectTenant);
 
 module.exports = router;

@@ -20,7 +20,7 @@ const { googleLoginRateLimiter, googleLoginChallengeRateLimiter } = require('../
  *       501:
  *         description: Google login not configured
  */
-router.get('/google-login-code', ctrl.initiate);
+router.get('/google-login-code', googleLoginRateLimiter(), ctrl.initiate);
 
 /**
  * @openapi
@@ -44,7 +44,7 @@ router.get('/google-login-code', ctrl.initiate);
  *       401:
  *         description: Authentication failed
  */
-router.get('/google-login-code/callback', ctrl.callback);
+router.get('/google-login-code/callback', googleLoginRateLimiter(), ctrl.callback);
 
 /**
  * @openapi
