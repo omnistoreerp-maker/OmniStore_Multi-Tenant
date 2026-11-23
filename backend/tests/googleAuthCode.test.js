@@ -638,6 +638,53 @@ describe('challenge status (read-only tenant picker metadata)', () => {
     const replay = await request(app).get('/api/v1/auth/google-login-code/challenge').set('Cookie', cookies);
     expect(replay.status).toBe(401);
   });
+
+  test('response is minimal: no email, sub, user id, role or token is exposed', async () => {
+    const { cookies } = await reachTenantSelection();
+    const res = await request(app).get('/api/v1/auth/google-login-code/challenge').set('Cookie', cookies);
+    expect(res.status).toBe(200);
+    expect(Object.keys(res.body.data).sort()).toEqual(['allowedTenantIds', 'availableTenants', 'purpose']);
+    const body = JSON.stringify(res.body);
+    expect(body).not.toMatch(/alice@example\.com|google-sub-1|u-multi|"role"|tempToken|accessToken|id_token|code_verifier|client_secret/i);
+  });
+
+  test('status reads never extend the challenge expiry', async () => {
+    const { cookies } = await reachTenantSelection();
+    const pair = cookies.split('; ').find(c => c.startsWith('glogin_pending='));
+    const pending = pair.slice('glogin_pending='.length);
+    const db = challengeStore.initialise(challengeDbPath).db;
+    const hash = challengeStore.hashChallenge(pending);
+    const before = db.prepare('SELECT expiresAt FROM challenges WHERE hash = ?').get(hash);
+    challengeStore.closeDb(db);
+    expect(before).toBeTruthy();
+    await request(app).get('/api/v1/auth/google-login-code/challenge').set('Cookie', cookies);
+    await request(app).get('/api/v1/auth/google-login-code/challenge').set('Cookie', cookies);
+    const db2 = challengeStore.initialise(challengeDbPath).db;
+    const after = db2.prepare('SELECT expiresAt FROM challenges WHERE hash = ?').get(hash);
+    challengeStore.closeDb(db2);
+    expect(after.expiresAt).toBe(before.expiresAt);
+  });
+
+  test('expired pending challenge is rejected by status', async () => {
+    const { cookies } = await reachTenantSelection();
+    const pair = cookies.split('; ').find(c => c.startsWith('glogin_pending='));
+    const pending = pair.slice('glogin_pending='.length);
+    const db = challengeStore.initialise(challengeDbPath).db;
+    db.prepare('UPDATE challenges SET expiresAt = 1 WHERE hash = ?').run(challengeStore.hashChallenge(pending));
+    challengeStore.closeDb(db);
+    const res = await request(app).get('/api/v1/auth/google-login-code/challenge').set('Cookie', cookies);
+    expect(res.status).toBe(401);
+  });
+
+  test('repeated status reads are rate limited', async () => {
+    const { cookies } = await reachTenantSelection();
+    const statuses = [];
+    for (let i = 0; i < 14; i += 1) {
+      const res = await request(app).get('/api/v1/auth/google-login-code/challenge').set('Cookie', cookies);
+      statuses.push(res.status);
+    }
+    expect(statuses).toContain(429);
+  });
 });
 
 describe('role coverage — all existing linked non-Master roles sign in', () => {

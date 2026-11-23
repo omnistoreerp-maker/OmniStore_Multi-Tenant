@@ -673,6 +673,8 @@ check('working-tree diff touches only intended platform files', () => {
     // challenge-metadata endpoint plus its backend tests.
     'platform/google-authcode.js',
     'platform/tests/google-authcode.test.cjs',
+    'scripts/build-release.js',
+    'scripts/build-release.test.cjs',
     'backend/controllers/googleAuthCode.controller.js',
     'backend/utils/challengeStore.sqlite.js',
     'backend/routes/googleAuthCode.routes.js',
@@ -928,6 +930,7 @@ check('working-tree diff touches only intended platform files', () => {
     // Normal-user Google Authorization Code integration.
     'platform/google-authcode.js',
     'platform/tests/google-authcode.test.cjs',
+    'scripts/build-release.test.cjs',
     // Online Games discoverability follow-up: catalog, lockdown policy and
     // license attribution are asserted from the shipped bytes.
     'backend/tests/onlineGames.catalog.test.js',
