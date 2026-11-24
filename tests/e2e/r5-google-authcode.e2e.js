@@ -32,10 +32,39 @@ function assert(cond, message) { if (!cond) throw new Error(message); }
 function listen(server, port) { return new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); }); }
 function close(server) { return new Promise((resolve) => { if (!server || !server.listening) return resolve(); server.close(resolve); }); }
 
+function sleepSync(ms) { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); }
+function removeTempDir(dir) {
+  if (!dir) return;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try { fs.rmSync(dir, { recursive: true, force: true }); return; }
+    catch (err) { if (attempt === 4) console.error('CLEANUP_FAILED', dir, err.message); else sleepSync(200); }
+  }
+}
+
+async function waitForObservedMarker(getSeen, name, timeout) {
+  const deadline = Date.now() + (timeout || 15000);
+  while (Date.now() < deadline) {
+    if (getSeen()) return;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error('redirect marker not observed: ' + name);
+}
+
+async function stopFrontend() {
+  if (!frontend || frontend.exitCode !== null) return;
+  await new Promise((resolve) => {
+    const timer = setTimeout(resolve, 3000);
+    frontend.once('exit', () => { clearTimeout(timer); resolve(); });
+    frontend.kill('SIGTERM');
+  });
+}
+
 function mkdtemp(tag) { return fs.mkdtempSync(path.join(os.tmpdir(), 'r5-' + tag + '-')); }
 function writeStore(dir, name, payload) { fs.writeFileSync(path.join(dir, name + '.json'), JSON.stringify(payload, null, 2), 'utf8'); }
 
 let dataDir;
+let challengeDir;
+let profileDir;
 let challengeDbPath;
 let backend;
 let echoServer;
@@ -44,21 +73,25 @@ let frontend;
 let browser;
 let context;
 let challengeStore;
+let challengeDbHandle;
+const openedChallengeDbs = [];
 
 function setNonceFromState(state) {
   const db = challengeStore.initialise(challengeDbPath).db;
+  challengeDbHandle = db;
   try {
     const row = db.prepare('SELECT payload FROM oauth_login_transactions WHERE stateHash = ?')
       .get(challengeStore.hashChallenge(state));
     global.__nonce = row ? JSON.parse(row.payload).nonce : null;
   } finally {
     challengeStore.closeDb(db);
+    challengeDbHandle = null;
   }
 }
 
 async function main() {
   dataDir = mkdtemp('data');
-  const challengeDir = mkdtemp('challenges');
+  challengeDir = mkdtemp('challenges');
   challengeDbPath = path.join(challengeDir, 'challenges.sqlite');
 
   process.env.NODE_ENV = 'test';
@@ -117,6 +150,12 @@ async function main() {
   };
 
   challengeStore = require(path.join(BACKEND, 'utils', 'challengeStore.sqlite'));
+  const originalInitialise = challengeStore.initialise;
+  challengeStore.initialise = function trackedInitialise(dbPath) {
+    const result = originalInitialise(dbPath);
+    openedChallengeDbs.push(result.db);
+    return result;
+  };
   const app = require(path.join(BACKEND, 'server.js'));
   echoServer = http.createServer((req, res) => {
     const xff = req.headers['x-forwarded-for'] || '';
@@ -158,7 +197,8 @@ async function main() {
   });
   await listen(proxy, PROXY_PORT);
 
-  context = await chromium.launchPersistentContext(mkdtemp('pwprofile'), { channel: 'msedge' });
+  profileDir = mkdtemp('pwprofile');
+  context = await chromium.launchPersistentContext(profileDir, { channel: 'msedge' });
   const page = context.pages()[0] || await context.newPage();
   const apiResponses = [];
   page.on('response', (res) => {
@@ -199,8 +239,8 @@ async function main() {
 
   await page.locator('#platformLoginBtn').click();
   await page.evaluate(() => document.getElementById('platformAuthGoogle').click());
-  await page.waitForURL(/\/ tenant_selection_required=1/, { timeout: 15000 }).catch(() => {});
-  await page.waitForTimeout(1500);
+  await waitForObservedMarker(() => markerSeen, 'tenant_selection_required=1');
+  await page.waitForTimeout(500);
   check('AuthCode start redirected through synthetic Google callback', markerSeen, page.url());
 
   const forbidden = await page.evaluate(async () => {
@@ -308,7 +348,11 @@ async function waitForPort(port) {
     await close(proxy);
     await close(echoServer);
     await close(backend);
-    if (frontend) frontend.kill('SIGTERM');
+    await stopFrontend();
+    for (const db of openedChallengeDbs) { try { challengeStore.closeDb(db); } catch (_) {} }
+    try { if (challengeDbHandle) challengeStore.closeDb(challengeDbHandle); } catch (_) {}
+    try { require(path.join(BACKEND, 'utils', 'tokenStore.sqlite')).closeDb(); } catch (_) {}
+    for (const dir of [profileDir, challengeDir, dataDir]) removeTempDir(dir);
     const failed = results.filter((r) => !r.ok);
     console.log('\nSUMMARY total=' + results.length + ' passed=' + (results.length - failed.length) + ' failed=' + failed.length);
     process.exit(failed.length ? 1 : 0);
