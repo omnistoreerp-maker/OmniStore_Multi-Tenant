@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/auth.controller');
 const googleAuthCodeCtrl = require('../controllers/googleAuthCode.controller');
+const { tenantLoginGate } = require('./googleAuthCode.routes');
 const { requireAuth } = require('../middleware/auth');
 const { loginRateLimiter, googleLoginRateLimiter, googleLoginChallengeRateLimiter, linkRateLimiter } = require('../middleware/security');
 
@@ -370,9 +371,9 @@ router.get('/permissions', ctrl.permissions);
  *       501:
  *         description: Google login not configured
  */
-router.get('/google-login-code', googleLoginRateLimiter(), googleAuthCodeCtrl.initiate);
-router.get('/google-login-code/challenge', googleLoginChallengeRateLimiter(), googleAuthCodeCtrl.challengeStatus);
-router.post('/google-login-code/mfa-verify', googleLoginChallengeRateLimiter(), googleAuthCodeCtrl.mfaVerify);
-router.post('/google-login-code/select-tenant', googleLoginChallengeRateLimiter(), googleAuthCodeCtrl.selectTenant);
+router.get('/google-login-code', tenantLoginGate, googleLoginRateLimiter(), googleAuthCodeCtrl.initiate);
+router.get('/google-login-code/challenge', tenantLoginGate, googleLoginChallengeRateLimiter(), googleAuthCodeCtrl.challengeStatus);
+router.post('/google-login-code/mfa-verify', tenantLoginGate, googleLoginChallengeRateLimiter(), googleAuthCodeCtrl.mfaVerify);
+router.post('/google-login-code/select-tenant', tenantLoginGate, googleLoginChallengeRateLimiter(), googleAuthCodeCtrl.selectTenant);
 
 module.exports = router;

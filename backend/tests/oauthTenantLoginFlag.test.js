@@ -57,11 +57,24 @@ describe('OAUTH_TENANT_LOGIN_ENABLED — server-side gate', () => {
     }
   });
 
-  test('OAUTH_ENABLED=true and flag=false: AuthCode initiation is closed', async () => {
+  test('OAUTH_ENABLED=true and flag=false: both AuthCode route prefixes are closed', async () => {
     const app = boot({ OAUTH_TENANT_LOGIN_ENABLED: 'false' });
-    const res = await request(app).get('/auth/google-login-code');
-    expect(res.status).toBe(403);
-    expect(res.body.success).toBe(false);
+    const prefixes = ['/auth/google-login-code', '/api/v1/auth/google-login-code'];
+    for (const prefix of prefixes) {
+      const checks = [
+        request(app).get(prefix),
+        request(app).get(prefix + '/challenge'),
+        request(app).post(prefix + '/mfa-verify').send({ mfaToken: '123456' }),
+        request(app).post(prefix + '/select-tenant').send({ tenantId: 't1' })
+      ];
+      if (prefix === '/auth/google-login-code') {
+        checks.push(request(app).get(prefix + '/callback?code=x&state=y'));
+      }
+      for (const res of await Promise.all(checks)) {
+        expect(res.status).toBe(403);
+        expect(res.body.success).toBe(false);
+      }
+    }
   });
 
   test('both flags enabled with complete settings: AuthCode flow is available', async () => {

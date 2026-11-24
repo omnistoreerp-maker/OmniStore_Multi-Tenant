@@ -122,3 +122,4 @@ router.post('/google-login-code/mfa-verify', googleLoginChallengeRateLimiter(), 
 router.post('/google-login-code/select-tenant', googleLoginChallengeRateLimiter(), ctrl.selectTenant);
 
 module.exports = router;
+module.exports.tenantLoginGate = tenantLoginGate;
