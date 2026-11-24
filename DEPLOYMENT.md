@@ -52,6 +52,31 @@ on missing/unsafe production settings. There is no separate database —
 persistence is JSON files under the data dir (back them up; see
 DISASTER_RECOVERY.md).
 
+### 0.1.1 `AUTH_REQUIRED` — bootstrap-only `false`
+
+`AUTH_REQUIRED=false` is the legacy **open** mode: the global `requireAuth`
+and `scopedWriteRoleGuard('Owner','Admin','Manager')` are skipped, so every
+`/api/v1` business route is unauthenticated (`backend/server.js:461–463`,
+`backend/middleware/authorize.js:221–225`). It exists only so the first Owner
+can be created; `npm run check` warns about it in production. It is **not** a
+steady-state production setting.
+
+`AUTH_REQUIRED=true` enables the global auth gate. The auth endpoints
+(`/api/v1/auth/*` — password login, Google login, refresh, logout) are mounted
+before that gate and remain reachable, as do `/api/v1/health` and `/health`;
+`/api/v1/health/deep` is gated by design (`backend/server.js:363,374,386,461–463`).
+
+For a same-origin deployment (frontend and backend under one public origin,
+with `/auth/*` and `/api/*` proxied to Express), leave `CORS_ORIGINS` **empty**
+when `AUTH_REQUIRED=true`: an empty allowlist blocks cross-origin browser
+requests instead of opening them (`backend/server.js:124–132`). Do not add a
+localhost or preview-origin allowlist to production.
+
+**Do not flip the setting blindly.** Before setting `AUTH_REQUIRED=true` on an
+existing instance, verify that at least one Owner account exists and can sign
+in; otherwise the instance can be locked out of its own admin routes. This is
+an owner-controlled production change, not a source-code change.
+
 ## 0.2 Render (single service)
 
 `render.yaml` at the repo root is a complete Render blueprint: one Node web
