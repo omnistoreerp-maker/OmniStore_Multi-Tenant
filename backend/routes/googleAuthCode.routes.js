@@ -1,6 +1,20 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/googleAuthCode.controller');
+const oauthConfig = require('../config/oauth');
 const { googleLoginRateLimiter, googleLoginChallengeRateLimiter } = require('../middleware/security');
+
+function tenantLoginGate(req, res, next) {
+  if (!oauthConfig.tenantLoginEnabled) {
+    return res.status(403).json({
+      success: false,
+      message: 'Tenant Google login is disabled',
+      statusCode: 403
+    });
+  }
+  return next();
+}
+
+router.use(tenantLoginGate);
 
 /**
  * @openapi

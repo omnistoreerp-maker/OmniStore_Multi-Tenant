@@ -6,6 +6,9 @@ const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 
 
 const oauth = {
   enabled: process.env.OAUTH_ENABLED === 'true',
+  // Tenant Google Login is opt-in. This flag gates ONLY the regular-user
+  // Authorization Code routes; Master OIDC and password login are unaffected.
+  tenantLoginEnabled: process.env.OAUTH_TENANT_LOGIN_ENABLED === 'true',
 
   session: {
     secret: process.env.SESSION_SECRET || 'session-secret-dev',
