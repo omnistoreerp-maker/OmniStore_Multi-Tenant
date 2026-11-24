@@ -4,6 +4,7 @@ const oauthService = require('../services/oauth.service');
 const googleIdentity = require('../utils/googleIdentity');
 const mfaService = require('../services/mfa.service');
 const config = require('../config');
+const oauthConfig = require('../config/oauth');
 const tenantMembership = require('../services/tenantMembership.service');
 const tenantRole = require('../services/tenantRole.service');
 const authorization = require('../services/authorization.service');
@@ -574,7 +575,8 @@ function permissions(req, res) {
 function googleLoginConfig(req, res) {
   try {
     const clientId = process.env.GOOGLE_CLIENT_ID || '';
-    return success(res, { enabled: Boolean(clientId), clientId }, 'Google login configuration');
+    const enabled = oauthConfig.tenantLoginEnabled === true && Boolean(clientId);
+    return success(res, { enabled, clientId }, 'Google login configuration');
   } catch (err) {
     logger.error('auth.googleLoginConfig error:', err.message);
     return error(res, 'Failed to read Google login configuration', 500);

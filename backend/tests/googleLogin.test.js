@@ -17,6 +17,7 @@ const ORIGINAL_ENV = {
   JWT_SECRET: process.env.JWT_SECRET,
   NODE_ENV: process.env.NODE_ENV,
   OAUTH_ENABLED: process.env.OAUTH_ENABLED,
+  OAUTH_TENANT_LOGIN_ENABLED: process.env.OAUTH_TENANT_LOGIN_ENABLED,
   GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
 };
 const ORIGINAL_FETCH = global.fetch;
@@ -62,6 +63,7 @@ beforeAll(async () => {
   process.env.JWT_SECRET = 'test-jwt-secret-for-google-login-suites';
   process.env.NODE_ENV = 'test';
   process.env.OAUTH_ENABLED = 'false';
+  process.env.OAUTH_TENANT_LOGIN_ENABLED = 'true';
   process.env.GOOGLE_CLIENT_SECRET = 'test-secret';
   global.fetch = fetchMock;
   dataDir = makeTempDataDir('google-login');
@@ -78,6 +80,8 @@ afterAll(() => {
   else process.env.NODE_ENV = ORIGINAL_ENV.NODE_ENV;
   if (ORIGINAL_ENV.OAUTH_ENABLED === undefined) delete process.env.OAUTH_ENABLED;
   else process.env.OAUTH_ENABLED = ORIGINAL_ENV.OAUTH_ENABLED;
+  if (ORIGINAL_ENV.OAUTH_TENANT_LOGIN_ENABLED === undefined) delete process.env.OAUTH_TENANT_LOGIN_ENABLED;
+  else process.env.OAUTH_TENANT_LOGIN_ENABLED = ORIGINAL_ENV.OAUTH_TENANT_LOGIN_ENABLED;
   if (ORIGINAL_ENV.GOOGLE_CLIENT_SECRET === undefined) delete process.env.GOOGLE_CLIENT_SECRET;
   else process.env.GOOGLE_CLIENT_SECRET = ORIGINAL_ENV.GOOGLE_CLIENT_SECRET;
   global.fetch = ORIGINAL_FETCH;
@@ -89,7 +93,7 @@ beforeEach(async () => {
   // 20-request window per IP, and a shared instance would otherwise start
   // returning 429 for unrelated assertions late in the suite. Rate limiting
   // itself is exercised on its own dedicated instance below.
-  server = await startServer(dataDir);
+  server = await startServer(dataDir, { OAUTH_TENANT_LOGIN_ENABLED: 'true' });
   // Apply per-instance configuration AFTER the instance boots, because
   // startServer clears every instance key it was not given explicitly.
   process.env.GOOGLE_CLIENT_ID = CLIENT_ID;
@@ -782,7 +786,7 @@ describe('POST /api/v1/auth/google-login — operational behavior', () => {
         status: 'active'
       }]
     });
-    const rlServer = await startServer(rlDir);
+    const rlServer = await startServer(rlDir, { OAUTH_TENANT_LOGIN_ENABLED: 'true' });
 
     // Make 20 requests (the limit)
     for (let i = 0; i < 20; i++) {

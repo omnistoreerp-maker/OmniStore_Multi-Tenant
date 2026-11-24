@@ -116,7 +116,7 @@ beforeEach(() => {
   // startServer() clears the OAuth instance env keys, so the Google client
   // id is handed to it explicitly; CHALLENGE_DB_PATH is read lazily when the
   // first challenge is persisted, so it is set once the app is booted.
-  server = startServer(dataDir, { GOOGLE_CLIENT_ID: CLIENT_ID });
+  server = startServer(dataDir, { GOOGLE_CLIENT_ID: CLIENT_ID, OAUTH_TENANT_LOGIN_ENABLED: 'true' });
   process.env.CHALLENGE_DB_PATH = challengeDbPath;
 });
 

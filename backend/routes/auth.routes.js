@@ -169,7 +169,7 @@ router.post('/link/google', requireAuth, linkRateLimiter(), ctrl.linkGoogle);
  *       200:
  *         description: Public configuration
  */
-router.get('/google-login/config', ctrl.googleLoginConfig);
+router.get('/google-login/config', tenantLoginGate, ctrl.googleLoginConfig);
 
 /**
  * @openapi
@@ -205,7 +205,7 @@ router.get('/google-login/config', ctrl.googleLoginConfig);
  *       503:
  *         description: Google verification unavailable
  */
-router.post('/google-login', googleLoginRateLimiter(), ctrl.googleLogin);
+router.post('/google-login', tenantLoginGate, googleLoginRateLimiter(), ctrl.googleLogin);
 
 /**
  * @openapi
@@ -236,7 +236,7 @@ router.post('/google-login', googleLoginRateLimiter(), ctrl.googleLogin);
  *       401:
  *         description: Invalid or expired challenge, or invalid MFA code
  */
-router.post('/google-login/mfa-verify', googleLoginChallengeRateLimiter(), ctrl.googleLoginMfaVerify);
+router.post('/google-login/mfa-verify', tenantLoginGate, googleLoginChallengeRateLimiter(), ctrl.googleLoginMfaVerify);
 
 /**
  * @openapi
@@ -270,7 +270,7 @@ router.post('/google-login/mfa-verify', googleLoginChallengeRateLimiter(), ctrl.
  *       403:
  *         description: Unauthorized tenant or suspended company
  */
-router.post('/google-login/select-tenant', googleLoginChallengeRateLimiter(), ctrl.googleLoginSelectTenant);
+router.post('/google-login/select-tenant', tenantLoginGate, googleLoginChallengeRateLimiter(), ctrl.googleLoginSelectTenant);
 
 /**
  * @openapi

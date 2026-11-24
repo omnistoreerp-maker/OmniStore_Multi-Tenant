@@ -26,6 +26,7 @@ registerCleanup(() => [], () => dirs);
 beforeAll(() => {
   dirs.push(makeTempDataDir('google-login-config-enabled'));
   enabled = startServer(dirs[0], {
+    OAUTH_TENANT_LOGIN_ENABLED: 'true',
     GOOGLE_CLIENT_ID: CLIENT_ID,
     GOOGLE_CLIENT_SECRET: SECRET_SENTINEL
   });
@@ -50,7 +51,7 @@ describe('GET /api/v1/auth/google-login/config', () => {
     // Started LAST on purpose: startServer() owns the process env, so the
     // unconfigured instance must not precede the configured assertions.
     dirs.push(makeTempDataDir('google-login-config-disabled'));
-    disabled = startServer(dirs[1], {});
+    disabled = startServer(dirs[1], { OAUTH_TENANT_LOGIN_ENABLED: 'true' });
     const res = await request(disabled.app).get('/api/v1/auth/google-login/config');
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({ enabled: false, clientId: '' });
