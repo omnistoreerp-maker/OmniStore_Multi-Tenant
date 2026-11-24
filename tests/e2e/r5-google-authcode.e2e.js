@@ -35,10 +35,15 @@ function close(server) { return new Promise((resolve) => { if (!server || !serve
 function sleepSync(ms) { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); }
 function removeTempDir(dir) {
   if (!dir) return;
+  let lastError;
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try { fs.rmSync(dir, { recursive: true, force: true }); return; }
-    catch (err) { if (attempt === 4) console.error('CLEANUP_FAILED', dir, err.message); else sleepSync(200); }
+    catch (err) {
+      lastError = err;
+      if (attempt < 4) sleepSync(200);
+    }
   }
+  throw new Error('cleanup failed for ' + dir + ': ' + (lastError && lastError.message));
 }
 
 async function waitForObservedMarker(getSeen, name, timeout) {
@@ -51,12 +56,26 @@ async function waitForObservedMarker(getSeen, name, timeout) {
 }
 
 async function stopFrontend() {
-  if (!frontend || frontend.exitCode !== null) return;
-  await new Promise((resolve) => {
-    const timer = setTimeout(resolve, 3000);
-    frontend.once('exit', () => { clearTimeout(timer); resolve(); });
-    frontend.kill('SIGTERM');
+  if (!frontend || frontend.exitCode !== null || frontend.signalCode !== null) return;
+
+  let didExit = frontend.exitCode !== null || frontend.signalCode !== null;
+  const exited = new Promise((resolve) => {
+    if (didExit) return resolve(true);
+    frontend.once('exit', () => { didExit = true; resolve(true); });
   });
+
+  frontend.kill('SIGTERM');
+  await Promise.race([exited, new Promise((resolve) => setTimeout(() => resolve(false), 3000))]);
+
+  if (!didExit && frontend.exitCode === null && frontend.signalCode === null) {
+    console.error('FRONTEND_SHUTDOWN_TIMEOUT', frontend.pid);
+    frontend.kill('SIGKILL');
+    await Promise.race([exited, new Promise((resolve) => setTimeout(() => resolve(false), 2000))]);
+  }
+
+  if (frontend.exitCode === null && frontend.signalCode === null) {
+    throw new Error('frontend process termination could not be confirmed (pid ' + frontend.pid + ')');
+  }
 }
 
 function mkdtemp(tag) { return fs.mkdtempSync(path.join(os.tmpdir(), 'r5-' + tag + '-')); }
@@ -344,15 +363,31 @@ async function waitForPort(port) {
     console.error('E2E_ERROR', err && err.stack ? err.stack : err);
     check('E2E harness completed without fatal error', false, err && err.message);
   } finally {
-    if (context) await context.close().catch(() => {});
-    await close(proxy);
-    await close(echoServer);
-    await close(backend);
-    await stopFrontend();
-    for (const db of openedChallengeDbs) { try { challengeStore.closeDb(db); } catch (_) {} }
-    try { if (challengeDbHandle) challengeStore.closeDb(challengeDbHandle); } catch (_) {}
-    try { require(path.join(BACKEND, 'utils', 'tokenStore.sqlite')).closeDb(); } catch (_) {}
-    for (const dir of [profileDir, challengeDir, dataDir]) removeTempDir(dir);
+    const cleanupErrors = [];
+    const cleanup = async (name, fn) => {
+      try { await fn(); }
+      catch (err) {
+        const message = name + ': ' + (err && err.message);
+        console.error('CLEANUP_FAILED', message);
+        cleanupErrors.push(message);
+      }
+    };
+
+    await cleanup('browser context', async () => { if (context) await context.close(); });
+    await cleanup('proxy', () => close(proxy));
+    await cleanup('echo server', () => close(echoServer));
+    await cleanup('backend', () => close(backend));
+    await cleanup('frontend process', () => stopFrontend());
+    await cleanup('challenge stores', async () => {
+      for (const db of openedChallengeDbs) { try { challengeStore.closeDb(db); } catch (_) {} }
+      if (challengeDbHandle) challengeStore.closeDb(challengeDbHandle);
+      require(path.join(BACKEND, 'utils', 'tokenStore.sqlite')).closeDb();
+    });
+    for (const dir of [profileDir, challengeDir, dataDir]) {
+      await cleanup('temp directory ' + dir, () => { removeTempDir(dir); });
+    }
+
+    check('cleanup completed without errors', cleanupErrors.length === 0, cleanupErrors.join(' | '));
     const failed = results.filter((r) => !r.ok);
     console.log('\nSUMMARY total=' + results.length + ' passed=' + (results.length - failed.length) + ' failed=' + failed.length);
     process.exit(failed.length ? 1 : 0);
