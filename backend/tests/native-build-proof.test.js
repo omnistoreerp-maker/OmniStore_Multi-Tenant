@@ -267,7 +267,8 @@ describe('Native build proof - application SQLite stores', () => {
       challengeStore.persistChallenge(db, { token: 'token-before-crash', sub: 'user-1', purpose: 'google_mfa' });
       challengeStore.closeDb(db);
 
-      // Fork child that writes data and closes cleanly (proving cross-process persistence)
+      // Fork child that writes data then terminates ABRUPTLY (SIGKILL, no clean close),
+      // leaving WAL frames that the parent must recover on reopen.
       const crashScript = `
         const Database = require('better-sqlite3');
         const db = new Database('${winPath(p)}');
@@ -277,8 +278,7 @@ describe('Native build proof - application SQLite stores', () => {
         const now = Date.now();
         db.prepare('INSERT INTO challenges (hash, sub, purpose, createdAt, expiresAt) VALUES (?, ?, ?, ?, ?)')
           .run(hash, 'user-2', 'google_mfa', now, now + 3600000);
-        db.close();
-        process.exit(0);
+        process.kill(process.pid, 'SIGKILL');
       `;
 
       return new Promise((resolve) => {
@@ -286,10 +286,10 @@ describe('Native build proof - application SQLite stores', () => {
         const child = spawn(process.execPath, ['-e', crashScript], { stdio: ['ignore', 'pipe', 'pipe'] });
         child.stderr.on('data', (d) => { childStderr += d; });
         child.on('close', (code) => {
-          if (code !== 0) {
-            throw new Error(`Child process exited with code ${code}: ${childStderr}`);
-          }
-          // Parent reopens and verifies integrity
+          // Abrupt termination is required: a clean exit (code 0) would have closed the
+          // database and checkpointed the WAL, which would NOT prove crash recovery.
+          expect(code).not.toBe(0);
+          // Parent reopens and verifies integrity (WAL recovery after abrupt termination)
           const { db: db2 } = challengeStore.initialise(p);
           const integrity = db2.pragma('integrity_check');
           const ok = Array.isArray(integrity) ? integrity.every(r => Object.values(r)[0] === 'ok') : integrity === 'ok';
