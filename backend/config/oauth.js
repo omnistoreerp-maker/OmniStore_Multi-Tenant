@@ -44,6 +44,18 @@ const oauth = {
     }
   },
 
+  // Universal Google Identity Configuration (Production-local preserved)
+  // Defined but not consumed by any runtime module in this release; kept
+  // to preserve Production-local configuration behavior. No code path reads
+  // oauth.universalGoogle, so this block is configuration-only and safe.
+  universalGoogle: {
+    enabled: process.env.UNIVERSAL_GOOGLE_ENABLED === 'true',
+    linkingPolicy: process.env.UNIVERSAL_LINKING_POLICY || 'sub_based',
+    requireEmailVerification: process.env.UNIVERSAL_REQUIRE_EMAIL_VERIFICATION === 'true',
+    showLinkUI: process.env.UNIVERSAL_SHOW_LINK_UI !== 'false',
+    defaultRole: process.env.UNIVERSAL_DEFAULT_ROLE || 'Viewer'
+  },
+
   // Platform Master Google sign-in (server-side OIDC path, sub-based
   // linking only). `email` is the approved linking policy: enforced ONLY
   // when a Google account is explicitly linked to the master session —
