@@ -45,3 +45,7 @@ jobs:
       - name: Install dependencies (full, for testing)
         working-directory: ./backend
         run: npm ci
+
+      - name: Run existing backend test suite
+        working-directory: ./backend
+        run: npm test -- --reporter=verbose > ../backend-test-results.txt
