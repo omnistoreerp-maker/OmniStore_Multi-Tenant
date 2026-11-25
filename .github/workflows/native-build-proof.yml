@@ -11,12 +11,12 @@ permissions:
 jobs:
   native-build:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
 
     steps:
-      - name: Checkout target SHA
+      - name: Checkout tested commit
         uses: actions/checkout@v4
         with:
-          ref: 804272157f556fc5ef5d08b34d77b32ef4159818
           fetch-depth: 0
 
       - name: Setup Node.js 20.20.2
@@ -24,23 +24,28 @@ jobs:
         with:
           node-version: 20.20.2
           cache: npm
+          cache-dependency-path: backend/package-lock.json
 
       - name: Record environment fingerprints
         id: fingerprints
         run: |
+          set -euo pipefail
+          TARGET_SHA="$(git rev-parse HEAD)"
           {
-            echo "TARGET_SHA=804272157f556fc5ef5d08b34d77b32ef4159818"
+            echo "TARGET_SHA=$TARGET_SHA"
+            echo "GITHUB_SHA=$GITHUB_SHA"
             echo "=== Node version ===" && node -v
             echo "=== Node ABI ===" && node -e "console.log('ABI:', process.versions.modules)"
             echo "=== Node arch ===" && node -e "console.log('arch:', process.arch)"
             echo "=== npm version ===" && npm -v
             echo "=== OS release ===" && cat /etc/os-release
             echo "=== Architecture ===" && uname -m
-            echo "=== libc ===" && ldd --version 2>/dev/null | head -1 || getconf GNU_LIBC_VERSION
-            echo "=== Compiler ===" && gcc --version 2>/dev/null | head -1 || g++ --version 2>/dev/null | head -1
+            echo "=== libc ===" && (ldd --version 2>/dev/null | head -1 || getconf GNU_LIBC_VERSION)
+            echo "=== Compiler ===" && (gcc --version 2>/dev/null | head -1 || g++ --version 2>/dev/null | head -1)
             echo "=== package-lock SHA-256 ===" && sha256sum backend/package-lock.json
           } > env-fingerprints.txt
           cat env-fingerprints.txt
+          echo "TARGET_SHA=$TARGET_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Install dependencies (full, for testing)
         working-directory: ./backend
@@ -52,31 +57,64 @@ jobs:
 
       - name: Run native build proof tests
         working-directory: ./backend
-        run: npx jest tests/native-build-proof.test.js --verbose --testTimeout=30000 --json --outputFile=../native-test-results.json 2>&1 | tee ../native-test-results.txt
+        run: npx jest tests/native-build-proof.test.js --runInBand --verbose --testTimeout=30000 > ../native-test-results.txt 2>&1
 
       - name: Report native build proof test totals
         run: |
+          set -euo pipefail
           echo "=== Native Build Proof Test Results ==="
-          grep -E '^(Tests:|Test Suites:)' native-test-results.txt || echo "No test totals found"
+          grep -E '^(Tests:|Test Suites:)' native-test-results.txt
 
       - name: Install production dependencies only
         working-directory: ./backend
         run: npm ci --omit=dev
 
-      - name: Verify native module loads in production install
+      - name: Verify native module loads and opens in production install
         working-directory: ./backend
-        run: node -e "require('better-sqlite3'); console.log('NATIVE_MODULE_LOAD: OK')"
+        run: |
+          set -euo pipefail
+          node -e "const path=require('path'); const os=require('os'); const fs=require('fs'); const Database=require('better-sqlite3'); const f=path.join(os.tmpdir(),'native-verify-'+Date.now()+'.sqlite'); const d=new Database(f); d.pragma('journal_mode = WAL'); d.exec('CREATE TABLE t (x INTEGER)'); d.prepare('INSERT INTO t (x) VALUES (?)').run(7); const row=d.prepare('SELECT x FROM t').get(); d.close(); fs.unlinkSync(f); console.log('NATIVE_MODULE_LOAD: OK'); console.log('BETTER_SQLITE3_VERSION:', require('better-sqlite3/package.json').version); console.log('ROUNDTRIP_VALUE:', row.x);" | tee ../native-module-verify.txt
 
       - name: Inspect native binary shared libraries
         id: native-binary
         working-directory: ./backend
         run: |
+          set -euo pipefail
           NATIVE_BIN=$(find node_modules/better-sqlite3 -name '*.node' -type f | head -1)
           echo "Native binary path: $NATIVE_BIN"
           if [ -z "$NATIVE_BIN" ]; then echo "No native binary found"; exit 1; fi
           echo "NATIVE_BIN_PATH=$NATIVE_BIN" >> "$GITHUB_OUTPUT"
           ldd "$NATIVE_BIN" > ../native-binary-ldd.txt
           cat ../native-binary-ldd.txt
+          if grep -qi 'not found' ../native-binary-ldd.txt; then
+            echo "ERROR: missing shared libraries for $NATIVE_BIN"
+            grep -i 'not found' ../native-binary-ldd.txt
+            exit 1
+          fi
+          echo "LDD_OK: all shared libraries resolved"
+
+      - name: Build checksum manifest and release reconciliation
+        run: |
+          set -euo pipefail
+          EXPECTED="env-fingerprints.txt backend-test-results.txt native-test-results.txt native-binary-ldd.txt native-module-verify.txt"
+          : > checksum-manifest.txt
+          for f in $EXPECTED; do
+            if [ -f "$f" ]; then
+              sha256sum "$f" >> checksum-manifest.txt
+            else
+              echo "ERROR: expected release file missing: $f"
+              exit 1
+            fi
+          done
+          {
+            echo "release_file,status,sha256"
+            for f in $EXPECTED; do
+              sum=$(sha256sum "$f" | awk '{print $1}')
+              echo "$f,present,$sum"
+            done
+          } > release-manifest.csv
+          echo "=== checksum-manifest.txt ==="; cat checksum-manifest.txt
+          echo "=== release-manifest.csv ==="; cat release-manifest.csv
 
       - name: Upload artifacts
         if: always()
@@ -88,4 +126,7 @@ jobs:
             backend-test-results.txt
             native-test-results.txt
             native-binary-ldd.txt
+            native-module-verify.txt
+            checksum-manifest.txt
+            release-manifest.csv
           retention-days: 7
