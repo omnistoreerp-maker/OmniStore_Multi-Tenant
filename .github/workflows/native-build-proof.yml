@@ -41,3 +41,51 @@ jobs:
             echo "=== package-lock SHA-256 ===" && sha256sum backend/package-lock.json
           } > env-fingerprints.txt
           cat env-fingerprints.txt
+
+      - name: Install dependencies (full, for testing)
+        working-directory: ./backend
+        run: npm ci
+
+      - name: Run existing backend test suite
+        working-directory: ./backend
+        run: npm test -- --reporter=verbose > ../backend-test-results.txt
+
+      - name: Run native build proof tests
+        working-directory: ./backend
+        run: npx jest tests/native-build-proof.test.js --verbose --testTimeout=30000 > ../native-test-results.txt
+
+      - name: Report native build proof test totals
+        run: |
+          echo "=== Native Build Proof Test Results ==="
+          grep -E '^(Tests:|Test Suites:)' native-test-results.txt || echo "No test totals found"
+
+      - name: Install production dependencies only
+        working-directory: ./backend
+        run: npm ci --omit=dev
+
+      - name: Verify native module loads in production install
+        working-directory: ./backend
+        run: node -e "require('better-sqlite3'); console.log('NATIVE_MODULE_LOAD: OK')"
+
+      - name: Inspect native binary shared libraries
+        id: native-binary
+        working-directory: ./backend
+        run: |
+          NATIVE_BIN=$(find node_modules/better-sqlite3 -name '*.node' -type f | head -1)
+          echo "Native binary path: $NATIVE_BIN"
+          if [ -z "$NATIVE_BIN" ]; then echo "No native binary found"; exit 1; fi
+          echo "NATIVE_BIN_PATH=$NATIVE_BIN" >> "$GITHUB_OUTPUT"
+          ldd "$NATIVE_BIN" > ../native-binary-ldd.txt
+          cat ../native-binary-ldd.txt
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-build-proof-artifacts
+          path: |
+            env-fingerprints.txt
+            backend-test-results.txt
+            native-test-results.txt
+            native-binary-ldd.txt
+          retention-days: 7
