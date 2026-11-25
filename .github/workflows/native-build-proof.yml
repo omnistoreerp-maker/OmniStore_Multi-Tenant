@@ -13,4 +13,8 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - run: echo hello
+      - name: Checkout target SHA
+        uses: actions/checkout@v4
+        with:
+          ref: 804272157f556fc5ef5d08b34d77b32ef4159818
+          fetch-depth: 0
