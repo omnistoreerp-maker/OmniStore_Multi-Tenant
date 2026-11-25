@@ -13,4 +13,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - run: echo hello
+      - name: Checkout target SHA
+        uses: actions/checkout@v4
+        with:
+          ref: 804272157f556fc5ef5d08b34d77b32ef4159818
+          fetch-depth: 0
+
+      - name: Setup Node.js 20.20.2
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.20.2
+          cache: npm
