@@ -1,7 +1,7 @@
 name: Native Build Proof
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: {}
 
 permissions:
   contents: read
