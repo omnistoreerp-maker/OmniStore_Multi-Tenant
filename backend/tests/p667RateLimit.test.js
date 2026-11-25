@@ -71,7 +71,7 @@ afterAll(() => {
 
 beforeEach(() => {
   // A fresh app instance per test gives each case its own limiter state.
-  server = startServer(dataDir);
+  server = startServer(dataDir, { OAUTH_TENANT_LOGIN_ENABLED: 'true' });
   process.env.GOOGLE_CLIENT_ID = CLIENT_ID;
 });
 

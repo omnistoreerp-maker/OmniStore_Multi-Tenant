@@ -100,7 +100,7 @@ afterAll(() => {
 
 beforeEach(() => {
   fetchMock.mockReset();
-  server = startServer(dataDir);
+  server = startServer(dataDir, { OAUTH_TENANT_LOGIN_ENABLED: 'true' });
   process.env.GOOGLE_CLIENT_ID = CLIENT_ID;
   delete process.env.GOOGLE_TOKENINFO_URL;
   seed(dataDir, 'companies', COMPANIES);

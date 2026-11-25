@@ -170,12 +170,13 @@ beforeAll(() => {
   process.env.JWT_SECRET = 'test-jwt-secret-for-google-challenge-suites';
   process.env.NODE_ENV = 'test';
   process.env.OAUTH_ENABLED = 'false';
+  process.env.OAUTH_TENANT_LOGIN_ENABLED = 'true';
   global.fetch = fetchMock;
 });
 
 beforeEach(async () => {
   fetchMock.mockReset();
-  server = await startServer(dataDir);
+  server = await startServer(dataDir, { OAUTH_TENANT_LOGIN_ENABLED: 'true' });
   process.env.GOOGLE_CLIENT_ID = CLIENT_ID;
   delete process.env.GOOGLE_TOKENINFO_URL;
   // The data directory is shared by this suite, so clear the company catalog:
@@ -195,6 +196,7 @@ beforeEach(async () => {
 });
 
 afterAll(() => {
+  delete process.env.OAUTH_TENANT_LOGIN_ENABLED;
   delete process.env.CHALLENGE_DB_PATH;
   for (const file of challengeDbs) {
     for (const suffix of ['', '-wal', '-shm']) {

@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/auth.controller');
 const googleAuthCodeCtrl = require('../controllers/googleAuthCode.controller');
+const { tenantLoginGate } = require('./googleAuthCode.routes');
 const { requireAuth } = require('../middleware/auth');
 const { loginRateLimiter, googleLoginRateLimiter, googleLoginChallengeRateLimiter, linkRateLimiter } = require('../middleware/security');
 
@@ -168,7 +169,7 @@ router.post('/link/google', requireAuth, linkRateLimiter(), ctrl.linkGoogle);
  *       200:
  *         description: Public configuration
  */
-router.get('/google-login/config', ctrl.googleLoginConfig);
+router.get('/google-login/config', tenantLoginGate, ctrl.googleLoginConfig);
 
 /**
  * @openapi
@@ -204,7 +205,7 @@ router.get('/google-login/config', ctrl.googleLoginConfig);
  *       503:
  *         description: Google verification unavailable
  */
-router.post('/google-login', googleLoginRateLimiter(), ctrl.googleLogin);
+router.post('/google-login', tenantLoginGate, googleLoginRateLimiter(), ctrl.googleLogin);
 
 /**
  * @openapi
@@ -235,7 +236,7 @@ router.post('/google-login', googleLoginRateLimiter(), ctrl.googleLogin);
  *       401:
  *         description: Invalid or expired challenge, or invalid MFA code
  */
-router.post('/google-login/mfa-verify', googleLoginChallengeRateLimiter(), ctrl.googleLoginMfaVerify);
+router.post('/google-login/mfa-verify', tenantLoginGate, googleLoginChallengeRateLimiter(), ctrl.googleLoginMfaVerify);
 
 /**
  * @openapi
@@ -269,7 +270,7 @@ router.post('/google-login/mfa-verify', googleLoginChallengeRateLimiter(), ctrl.
  *       403:
  *         description: Unauthorized tenant or suspended company
  */
-router.post('/google-login/select-tenant', googleLoginChallengeRateLimiter(), ctrl.googleLoginSelectTenant);
+router.post('/google-login/select-tenant', tenantLoginGate, googleLoginChallengeRateLimiter(), ctrl.googleLoginSelectTenant);
 
 /**
  * @openapi
@@ -370,9 +371,9 @@ router.get('/permissions', ctrl.permissions);
  *       501:
  *         description: Google login not configured
  */
-router.get('/google-login-code', googleLoginRateLimiter(), googleAuthCodeCtrl.initiate);
-router.get('/google-login-code/challenge', googleLoginChallengeRateLimiter(), googleAuthCodeCtrl.challengeStatus);
-router.post('/google-login-code/mfa-verify', googleLoginChallengeRateLimiter(), googleAuthCodeCtrl.mfaVerify);
-router.post('/google-login-code/select-tenant', googleLoginChallengeRateLimiter(), googleAuthCodeCtrl.selectTenant);
+router.get('/google-login-code', tenantLoginGate, googleLoginRateLimiter(), googleAuthCodeCtrl.initiate);
+router.get('/google-login-code/challenge', tenantLoginGate, googleLoginChallengeRateLimiter(), googleAuthCodeCtrl.challengeStatus);
+router.post('/google-login-code/mfa-verify', tenantLoginGate, googleLoginChallengeRateLimiter(), googleAuthCodeCtrl.mfaVerify);
+router.post('/google-login-code/select-tenant', tenantLoginGate, googleLoginChallengeRateLimiter(), googleAuthCodeCtrl.selectTenant);
 
 module.exports = router;

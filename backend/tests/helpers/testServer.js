@@ -13,7 +13,8 @@ const INSTANCE_ENV_KEYS = [
   // OAuth / Master Google sign-in instance configuration: cleared unless a
   // suite passes them explicitly, so an OAuth-enabled suite can never leak
   // its environment into the next one sharing this worker.
-  'OAUTH_ENABLED', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET',
+  'OAUTH_ENABLED', 'OAUTH_TENANT_LOGIN_ENABLED',
+  'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET',
   'GOOGLE_CALLBACK_URL', 'GOOGLE_AUTHCODE_CALLBACK_URL',
   'GOOGLE_MASTER_CALLBACK_URL', 'BASE_URL', 'OAUTH_MASTER_EMAIL',
   // OAuth linking configuration (Google/GitHub). ADDITIVE to main: every key
