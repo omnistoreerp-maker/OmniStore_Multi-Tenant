@@ -73,7 +73,7 @@ jobs:
         working-directory: ./backend
         run: |
           set -euo pipefail
-          node -e "const path=require('path'); const os=require('os'); const fs=require('fs'); const Database=require('better-sqlite3'); const f=path.join(os.tmpdir(),'native-verify-'+Date.now()+'.sqlite'); const d=new Database(f); d.pragma('journal_mode = WAL'); d.exec('CREATE TABLE t (x INTEGER)'); d.prepare('INSERT INTO t (x) VALUES (?)').run(7); const row=d.prepare('SELECT x FROM t').get(); d.close(); fs.unlinkSync(f); console.log('NATIVE_MODULE_LOAD: OK'); console.log('BETTER_SQLITE3_VERSION:', require('better-sqlite3/package.json').version); console.log('ROUNDTRIP_VALUE:', row.x);"
+          node -e "const path=require('path'); const os=require('os'); const fs=require('fs'); const Database=require('better-sqlite3'); const f=path.join(os.tmpdir(),'native-verify-'+Date.now()+'.sqlite'); const d=new Database(f); d.pragma('journal_mode = WAL'); d.exec('CREATE TABLE t (x INTEGER)'); d.prepare('INSERT INTO t (x) VALUES (?)').run(7); const row=d.prepare('SELECT x FROM t').get(); d.close(); fs.unlinkSync(f); console.log('NATIVE_MODULE_LOAD: OK'); console.log('BETTER_SQLITE3_VERSION:', require('better-sqlite3/package.json').version); console.log('ROUNDTRIP_VALUE:', row.x);" | tee ../native-module-verify.txt
 
       - name: Inspect native binary shared libraries
         id: native-binary
@@ -96,7 +96,7 @@ jobs:
       - name: Build checksum manifest and release reconciliation
         run: |
           set -euo pipefail
-          EXPECTED="env-fingerprints.txt backend-test-results.txt native-test-results.txt native-binary-ldd.txt"
+          EXPECTED="env-fingerprints.txt backend-test-results.txt native-test-results.txt native-binary-ldd.txt native-module-verify.txt"
           : > checksum-manifest.txt
           for f in $EXPECTED; do
             if [ -f "$f" ]; then
@@ -126,6 +126,7 @@ jobs:
             backend-test-results.txt
             native-test-results.txt
             native-binary-ldd.txt
+            native-module-verify.txt
             checksum-manifest.txt
             release-manifest.csv
           retention-days: 7
