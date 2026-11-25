@@ -48,11 +48,11 @@ jobs:
 
       - name: Run existing backend test suite
         working-directory: ./backend
-        run: npm test -- --reporter=verbose > ../backend-test-results.txt
+        run: npm test -- --reporter=verbose > ../backend-test-results.txt 2>&1
 
       - name: Run native build proof tests
         working-directory: ./backend
-        run: npx jest tests/native-build-proof.test.js --verbose --testTimeout=30000 > ../native-test-results.txt
+        run: npx jest tests/native-build-proof.test.js --verbose --testTimeout=30000 --json --outputFile=../native-test-results.json 2>&1 | tee ../native-test-results.txt
 
       - name: Report native build proof test totals
         run: |
