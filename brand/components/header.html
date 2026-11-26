@@ -11,11 +11,11 @@
 
     <!-- Navigation -->
     <nav class="os-nav" style="display:flex; align-items:center; gap:var(--os-space-lg); flex:1; justify-content:center;">
-      <a href="#" class="os-nav-link font-medium text-sm text-secondary" style="text-decoration:none; padding:var(--os-space-sm); border-radius:var(--os-radius-md);">الرئيسية</a>
-      <a href="#" class="os-nav-link font-medium text-sm text-secondary" style="text-decoration:none; padding:var(--os-space-sm); border-radius:var(--os-radius-md);">السوق</a>
-      <a href="#" class="os-nav-link font-medium text-sm text-secondary" style="text-decoration:none; padding:var(--os-space-sm); border-radius:var(--os-radius-md);">الألعاب</a>
-      <a href="#" class="os-nav-link font-medium text-sm text-secondary" style="text-decoration:none; padding:var(--os-space-sm); border-radius:var(--os-radius-md);">أعمال</a>
-      <a href="#" class="os-nav-link font-medium text-sm text-secondary" style="text-decoration:none; padding:var(--os-space-sm); border-radius:var(--os-radius-md);">الموظفين</a>
+      <a href="#home" class="os-nav-link font-medium text-sm text-secondary" style="text-decoration:none; padding:var(--os-space-sm); border-radius:var(--os-radius-md);">الرئيسية</a>
+      <a href="#marketplace" class="os-nav-link font-medium text-sm text-secondary" style="text-decoration:none; padding:var(--os-space-sm); border-radius:var(--os-radius-md);">السوق</a>
+      <a href="#games" class="os-nav-link font-medium text-sm text-secondary" style="text-decoration:none; padding:var(--os-space-sm); border-radius:var(--os-radius-md);">الألعاب</a>
+      <a href="#business" class="os-nav-link font-medium text-sm text-secondary" style="text-decoration:none; padding:var(--os-space-sm); border-radius:var(--os-radius-md);">أعمال</a>
+      <a href="#employees" class="os-nav-link font-medium text-sm text-secondary" style="text-decoration:none; padding:var(--os-space-sm); border-radius:var(--os-radius-md);">الموظفين</a>
     </nav>
 
     <!-- Actions -->
@@ -30,8 +30,72 @@
     </div>
 
     <!-- Mobile menu toggle -->
-    <button class="btn btn-ghost btn-sm os-mobile-menu" style="display:none;">
+    <button class="btn btn-ghost btn-sm os-mobile-menu" aria-expanded="false" aria-label="قائمة الهاتف">
       <svg class="os-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
     </button>
   </div>
 </header>
+
+<script>
+(function() {
+  // Theme toggle
+  var themeBtn = document.getElementById('os-theme-toggle');
+  var html = document.documentElement;
+  if (themeBtn) {
+    themeBtn.addEventListener('click', function() {
+      var isDark = html.getAttribute('data-theme') === 'dark';
+      if (isDark) {
+        html.removeAttribute('data-theme');
+        localStorage.setItem('os-theme', 'light');
+      } else {
+        html.setAttribute('data-theme', 'dark');
+        localStorage.setItem('os-theme', 'dark');
+      }
+    });
+    var saved = localStorage.getItem('os-theme');
+    if (saved) html.setAttribute('data-theme', saved);
+  }
+
+  // Language / direction toggle
+  var langBtn = document.getElementById('os-language-toggle');
+  if (langBtn) {
+    langBtn.addEventListener('click', function() {
+      var dir = html.getAttribute('dir');
+      if (dir === 'rtl') {
+        html.setAttribute('dir', 'ltr');
+        html.setAttribute('lang', 'en');
+        localStorage.setItem('os-dir', 'ltr');
+        localStorage.setItem('os-lang', 'en');
+      } else {
+        html.setAttribute('dir', 'rtl');
+        html.setAttribute('lang', 'ar');
+        localStorage.setItem('os-dir', 'rtl');
+        localStorage.setItem('os-lang', 'ar');
+      }
+    });
+    var savedDir = localStorage.getItem('os-dir');
+    var savedLang = localStorage.getItem('os-lang');
+    if (savedDir) html.setAttribute('dir', savedDir);
+    if (savedLang) html.setAttribute('lang', savedLang);
+  }
+
+  // Mobile menu toggle
+  var mobileBtn = document.querySelector('.os-mobile-menu');
+  var nav = document.querySelector('.os-nav');
+  if (mobileBtn && nav) {
+    mobileBtn.addEventListener('click', function() {
+      var expanded = mobileBtn.getAttribute('aria-expanded') === 'true';
+      mobileBtn.setAttribute('aria-expanded', String(!expanded));
+      nav.style.display = expanded ? 'none' : 'flex';
+      nav.style.flexDirection = 'column';
+      nav.style.position = 'absolute';
+      nav.style.top = '100%';
+      nav.style.right = 0;
+      nav.style.left = 0;
+      nav.style.background = 'var(--os-surface)';
+      nav.style.padding = 'var(--os-space-md)';
+      nav.style.borderTop = '1px solid var(--os-border)';
+    });
+  }
+})();
+</script>

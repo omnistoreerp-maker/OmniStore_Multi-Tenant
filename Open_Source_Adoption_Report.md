@@ -8,39 +8,50 @@
 
 ## أ. القوالب المعتمدة فعلياً
 
-### 1. Marketplace — ShopSage (الجزائر)
+### 1. Marketplace — SoukHub (مصر) — CONFIRMED MIT
 
 | الخاصية | القيمة |
 |---|---|
-| GitHub URL | https://github.com/Yacineooak/ShopSage-AI-Powered-E-commerce-Platform-for-Algeria |
+| GitHub URL | https://github.com/alinaqi/soukhub.git |
+| Commit SHA | `e2d6a7418cb575c06bb585f13572f27e93e6464a` |
 | الترخيص | MIT License |
-| النشاط | نشط (أنشئ 2025-08-16، تحديثات 2025-2026) |
-| التقنية | React 18 + TypeScript + Tailwind CSS + Vite + Zustand + i18next |
-| RTL | ✅ عربي كامل (RTL) |
+| التقنية | React + TypeScript + Tailwind CSS |
+| RTL | ❌ غير مذكور (يحتاج إضافة) |
 | Responsive | ✅ نعم |
-| جودة التصميم | جيد (AI recommendations، Wilayas، الدفع عند الاستلام) |
 | سهولة الدمج | متوسط (يحتاج واجهة API خاصة بالمنصة) |
-| الاعتماديات | React, Tailwind, Vite, Zustand, i18next |
-| الوقت 예상 | متوسط |
 
 **سبب الاختيار:**
-- ترخيص MIT يسمح بالاستخدام والتعديل والتوزيع التجاري
-- دعم RTL عربي كامل (مطابق لاحتياجات منصة أومنيستور)
-- تقنية خفيفة (React + Vite + Tailwind) يمكن دمجها تدريجياً دون استبدال Backend Express الحالي
-- دعم الدفع عند الاستلام (Cash on Delivery) — مناسب للسوق المستهدف
+- ترخيص MIT مؤكد يسمح بالاستخدام والتعديل والتوزيع التجاري
+- تقنية خفيفة (React + Tailwind) يمكن دمجها تدريجياً دون استبدال Backend Express الحالي
+- تصميم سوق إلكتروني متكامل يمكن تكييفه لمنصة أومنيستور
 
 **كيفية الدمج:**
-- استخدام مكونات المتجر (ProductCard، ProductGrid، Cart) من ShopSage كمرجع للتنفيذ
+- استخدام مكونات المتجر (ProductCard، ProductGrid، Cart) من SoukHub كمرجع للتنفيذ
 - ربط الواجهة بـ `/api/v1/market` routes الموجودة في Backend أومنيستور
+- إضافة دعم RTL للعربية
 - لا استبدال للBackend أو Framework الحالي
 
 ---
 
-### 2. Games — Okay Arcade
+### Marketplace — ShopSage (الجزائر) — REFERENCE ONLY (لا ترخيص)
+
+| الخاصية | القيمة |
+|---|---|
+| GitHub URL | https://github.com/Yacineooak/ShopSage-AI-Powered-E-commerce-Platform-for-Algeria |
+| الترخيص | ❌ غير موجود (404 على LICENSE و GitHub API) |
+| التقنية | React 18 + TypeScript + Tailwind CSS + Vite + Zustand + i18next |
+| RTL | ✅ عربي كامل (RTL) |
+
+**ملاحظة:** ShopSage لا يحتوي على ملف LICENSE (تم التحقق من LICENSE، LICENSE.md، وGitHub API — كلها 404). لذلك لا يُدمج في الكود源، ويُستخدم كمرجع تصميمي فقط (reference-only) دون نسخ أي كود منه.
+
+---
+
+### 2. Games — Okay Arcade — CONFIRMED MIT
 
 | الخاصية | القيمة |
 |---|---|
 | GitHub URL | https://github.com/andreas-agouridis/okay-arcade |
+| Commit SHA | `9c82e49fc9d4925370fa425990f125eb680559ff` |
 | الترخيص | MIT License |
 | النشاط | نشط (أنشئ 2026-03-24، 20 نجمة، 20 مراقب) |
 | التقنية | HTML5 + CSS3 + JavaScript (ملف واحد، لا أطر) |
@@ -52,7 +63,7 @@
 | الوقت 예상 | قصير جداً |
 
 **سبب الاختيار:**
-- ترخيص MIT يسمح بالاستخدام والتعديل
+- ترخيص MIT مؤكد يسمح بالاستخدام والتعديل
 - لا dependencias ضخمة — سهل الدمج في أي صفحة HTML موجودة
 - تصميم زجاجي (glassmorphism) يتوافق مع هوية أومنيستور
 - دعم الأوffline عبر Service Worker
@@ -66,11 +77,12 @@
 
 ---
 
-### 3. Business Portal — OrbynAdmin
+### 3. Business Portal — OrbynAdmin — CONFIRMED MIT
 
 | الخاصية | القيمة |
 |---|---|
 | GitHub URL | https://github.com/masondevx/orbynadmin |
+| Commit SHA | `6c2796f7baf7330ca9f4e8260a92af59cb97070d` |
 | الترخيص | MIT License |
 | النشاط | نشط (أنشئ 2026-07-16، 20 نجمة) |
 | التقنية | Next.js 16 (App Router, Turbopack) + TypeScript + Tailwind CSS v4 + shadcn/ui + Radix UI |
@@ -82,7 +94,7 @@
 | الوقت 예상 | متوسط |
 
 **سبب الاختيار:**
-- ترخيص MIT — كل شيء مفتوح بدون Pro tier أو مكونات مقفلة
+- ترخيص MIT مؤكد — كل شيء مفتوح بدون Pro tier أو مكونات مقفلة
 - 70+ صفحة جاهزة (dashboards، e-commerce، CRM، إلخ)
 - Theme Customizer لتعديل الألوان والنص والخطوط بسهولة
 - shadcn/ui + Radix UI — مكونات UI احترافية وقابلة للتخصيص
@@ -123,12 +135,13 @@
 
 ## ب. таблица ملخص الاعتمادات
 
-| البوابة | القالب المعتمد | الترخيص | الغرض من الاستخدام | التعديلات المطلوبة |
-|---|---|---|---|---|
-| Marketplace | ShopSage | MIT | مكونات المتجر، سلة التسوق، صفحات المنتجات | ربط بـ `/api/v1/market`، إضافة RTL |
-| Games | Okay Arcade | MIT | بوابة ألعاب مستقلة، واجهة تشغيل | إضافة RTL، دمج الألعاب الموجودة |
-| Business Portal | OrbynAdmin | MIT | بوابة أعمال موحدة، لوحات تحكم | إضافة RTL، تطبيق ألوان أومنيستور |
-| Design System | أومنيستور Tokens + shadcn/ui | داخلي + MIT | هوية بصرية موحدة، مكونات مشتركة | لا تعديل (مصمم للمنصة) |
+| البوابة | القالب المعتمد | الترخيص | Commit SHA | الغرض من الاستخدام | التعديلات المطلوبة |
+|---|---|---|---|---|---|
+| Marketplace | SoukHub | MIT | `e2d6a7418cb575c06bb585f13572f27e93e6464a` | مكونات المتجر، سلة التسوق، صفحات المنتجات | ربط بـ `/api/v1/market`، إضافة RTL |
+| Marketplace (مرجع فقط) | ShopSage | ❌ لا ترخيص (404) | — | مرجع تصميمي فقط، لا يُنسخ أي كود | — |
+| Games | Okay Arcade | MIT | `9c82e49fc9d4925370fa425990f125eb680559ff` | بوابة ألعاب مستقلة، واجهة تشغيل | إضافة RTL، دمج الألعاب الموجودة |
+| Business Portal | OrbynAdmin | MIT | `6c2796f7baf7330ca9f4e8260a92af59cb97070d` | بوابة أعمال موحدة، لوحات تحكم | إضافة RTL، تطبيق ألوان أومنيستور |
+| Design System | أومنيستور Tokens + shadcn/ui | داخلي + MIT | — | هوية بصرية موحدة، مكونات مشتركة | لا تعديل (مصمم للمنصة) |
 
 ---
 
