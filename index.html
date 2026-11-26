@@ -4463,6 +4463,9 @@ document.addEventListener('DOMContentLoaded', function() {
           <button class="btn btn-accent btn-sm" onclick="createInventoryItem()">➕ إضافة صنف</button>
           <button class="btn btn-outline btn-sm" onclick="renderInventoryAnalysisPage()">🔄 تحديث</button>
         </div>
+        <div id="inventoryDemoBanner" style="display:none;margin:8px 0;padding:8px;background:var(--yellow, #fde047);color:#713f12;border-radius:6px;font-size:0.85rem;text-align:center">
+          ⚠️ وضع تجريبي — البيانات المعروضة تجريبية وليست من الخادم الحقيقي. فعّل الربط بالخادم من شاشة Backend Sync للبيانات الحية.
+        </div>
       </div>
       <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
         <div class="stat-card blue" style="padding:14px">
@@ -31172,7 +31175,7 @@ async function renderInventoryAnalysisPage() {
     tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--red)">⚠️ ${escapeHtml(message)}</td></tr>`;
   }
 
-  function renderRows(products) {
+  function renderRows(products, demoMode) {
     const rows = products.map(p => {
       const stock = typeof p.stockQty === 'number' ? p.stockQty : (typeof getProductStock === 'function' ? getProductStock(p.id) : (p.stock || 0));
       const minStock = p.minStock || 0;
@@ -31195,10 +31198,10 @@ async function renderInventoryAnalysisPage() {
     const lowCount = rows.filter(r => r.low).length;
     const stockValue = rows.reduce((s, r) => s + (r.value || 0), 0);
 
-    if (elItems) elItems.textContent = products.length;
-    if (elStock) elStock.textContent = totalStock;
-    if (elLow) elLow.textContent = lowCount;
-    if (elValue) elValue.textContent = formatMoney(stockValue);
+    if (elItems) elItems.textContent = products.length + (demoMode ? ' (تجريبي)' : '');
+    if (elStock) elStock.textContent = totalStock + (demoMode ? ' (تجريبي)' : '');
+    if (elLow) elLow.textContent = lowCount + (demoMode ? ' (تجريبي)' : '');
+    if (elValue) elValue.textContent = formatMoney(stockValue) + (demoMode ? ' (تجريبي)' : '');
 
     if (rows.length === 0) {
       tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">لا توجد أصناف</td></tr>';
@@ -31225,10 +31228,14 @@ async function renderInventoryAnalysisPage() {
 
   let products = [];
   let error = null;
+  let demoMode = false;
   const searchInput = document.getElementById('invSearchInput');
   const searchTerm = searchInput ? searchInput.value.trim() : '';
+  const demoBanner = document.getElementById('inventoryDemoBanner');
 
-  if (typeof USE_BACKEND !== 'undefined' && USE_BACKEND && typeof backendApi !== 'undefined' && backendApi.inventory) {
+  const useBackend = typeof USE_BACKEND !== 'undefined' && USE_BACKEND && typeof backendApi !== 'undefined' && backendApi.inventory;
+
+  if (useBackend) {
     try {
       const path = searchTerm ? `/inventory?search=${encodeURIComponent(searchTerm)}` : '/inventory';
       const res = await backendApi._fetch('GET', path);
@@ -31241,6 +31248,8 @@ async function renderInventoryAnalysisPage() {
       error = err && err.message ? err.message : 'خطأ في الاتصال بالخادم';
     }
   } else {
+    // Backend disabled — show demo data WITH a clear banner, never silent
+    demoMode = true;
     products = (DB && DB.products) || [];
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
@@ -31248,12 +31257,16 @@ async function renderInventoryAnalysisPage() {
     }
   }
 
+  if (demoBanner) {
+    demoBanner.style.display = demoMode ? 'block' : 'none';
+  }
+
   if (error) {
     setError(error);
     return;
   }
 
-  renderRows(products);
+  renderRows(products, demoMode);
 }
 
 window.editInventoryItem = async function (id) {
