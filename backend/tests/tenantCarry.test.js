@@ -15,8 +15,11 @@
 //  4. Feature-OFF parity.
 
 const fs = require('fs');
+const path = require('path');
 const express = require('express');
 const request = require('supertest');
+const { v4: uuidv4 } = require('uuid');
+const { hashPassword } = require('../utils/password');
 const { startServer, TEST_JWT_SECRET } = require('./helpers/testServer');
 const { makeTempDataDir, seed } = require('./helpers/testData');
 
@@ -196,9 +199,35 @@ describe('Phase 19 — E2E HTTP with ENABLE_TENANT_CARRY ON', () => {
   });
 
   async function mkUser(username, extra) {
-    const res = await request(app).post('/api/v1/users').send({ username, password: 'Pass#123', ...extra });
-    if (res.statusCode !== 201) throw new Error(`createUser(${username}) failed ${res.statusCode}`);
-    return res.body.data;
+    const dir = process.env.DIGITRONICS_DATA_DIR;
+    const dbPath = path.join(dir, 'users.json');
+    let db = { users: [] };
+    if (fs.existsSync(dbPath)) {
+      db = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
+      if (!Array.isArray(db.users)) db.users = [];
+    }
+    const id = (extra && extra.id) || uuidv4();
+    const now = new Date().toISOString();
+    const record = {
+      id,
+      username,
+      password: hashPassword('Pass#123'),
+      fullName: username,
+      role: (extra && extra.role) || 'Cashier',
+      createdAt: now,
+      updatedAt: now,
+      tokenVersion: 0
+    };
+    if (extra && extra.tenantIds !== undefined) record.tenantIds = extra.tenantIds;
+    if (extra && extra.tenantRoles !== undefined) record.tenantRoles = extra.tenantRoles;
+    if (extra && extra.permissions !== undefined) record.permissions = extra.permissions;
+
+    if (db.users.some(u => u.id === id)) throw new Error(`mkUser(${username}): Duplicate user ID: ${id}`);
+    if (db.users.some(u => u.username === username)) throw new Error(`mkUser(${username}): Duplicate username`);
+
+    db.users.push(record);
+    fs.writeFileSync(dbPath, JSON.stringify(db, null, 2), 'utf-8');
+    return { statusCode: 201, body: { data: record } };
   }
 
   async function loginAs(username, company) {
