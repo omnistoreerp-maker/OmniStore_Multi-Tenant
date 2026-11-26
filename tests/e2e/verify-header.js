@@ -88,7 +88,7 @@ const server = http.createServer((req, res) => {
     await page.waitForTimeout(300);
     const after2Dir = await page.evaluate(() => document.documentElement.getAttribute('dir'));
     const after2Lang = await page.evaluate(() => document.documentElement.getAttribute('lang'));
-    check('RTL/LTR toggle reverts on second click', after2Dir === beforeDir && after2Lang === beforeLang);
+    check('RTL/LTR toggle reverts to ltr/en on second click', after2Dir === 'ltr' && after2Lang === 'en', 'dir=' + after2Dir + ' lang=' + after2Lang);
 
     await page.close();
   }
@@ -201,9 +201,16 @@ const server = http.createServer((req, res) => {
     await page.goto('http://127.0.0.1:' + PORT + '/' + PAGE, { waitUntil: 'load' });
     await page.waitForTimeout(1000);
 
-    // Focus theme toggle via Tab
-    await page.keyboard.press('Tab');
+    // Ensure focus is in the document
+    await page.click('body');
     await page.waitForTimeout(200);
+
+    // There are 5 <a> nav links before #os-theme-toggle in tab order
+    // Press Tab 6 times to reach #os-theme-toggle
+    for (let i = 0; i < 6; i++) {
+      await page.keyboard.press('Tab');
+      await page.waitForTimeout(100);
+    }
     const focusedTheme = await page.evaluate(() => document.activeElement && document.activeElement.id === 'os-theme-toggle' ? document.activeElement.id : 'not-focused');
     check('theme toggle reachable via Tab', focusedTheme === 'os-theme-toggle', 'focused=' + focusedTheme);
 
@@ -213,11 +220,23 @@ const server = http.createServer((req, res) => {
     const themeAfterEnter = await page.evaluate(() => document.documentElement.getAttribute('data-theme'));
     check('theme toggle activatable via Enter', themeAfterEnter === 'dark', 'data-theme=' + themeAfterEnter);
 
-    // Tab to language toggle
+    // Press Space to also activate theme toggle (toggle back)
+    await page.keyboard.press('Space');
+    await page.waitForTimeout(300);
+    const themeAfterSpace = await page.evaluate(() => document.documentElement.getAttribute('data-theme'));
+    check('theme toggle activatable via Space', themeAfterSpace === null || themeAfterSpace === '', 'data-theme=' + themeAfterSpace);
+
+    // Tab once to reach #os-language-toggle (next focusable after theme toggle)
     await page.keyboard.press('Tab');
-    await page.waitForTimeout(200);
+    await page.waitForTimeout(100);
     const focusedLang = await page.evaluate(() => document.activeElement && document.activeElement.id === 'os-language-toggle' ? document.activeElement.id : 'not-focused');
     check('language toggle reachable via Tab', focusedLang === 'os-language-toggle', 'focused=' + focusedLang);
+
+    // Press Enter to activate language toggle
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(300);
+    const langAfterEnter = await page.evaluate(() => document.documentElement.getAttribute('dir'));
+    check('language toggle activatable via Enter', langAfterEnter === 'rtl', 'dir=' + langAfterEnter);
 
     // Press Escape - should not crash
     await page.keyboard.press('Escape');

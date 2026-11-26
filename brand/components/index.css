@@ -440,6 +440,13 @@ body {
   flex: 1;
   padding: var(--os-space-lg);
 }
+.os-nav {
+  display: flex;
+}
+
+.os-mobile-menu {
+  display: none;
+}
 
 /* ===== Responsive ===== */
 @media (max-width: 768px) {
