@@ -5,26 +5,31 @@ const request = require('supertest');
 const { startServer } = require('./helpers/testServer');
 const { makeTempDataDir, readStore } = require('./helpers/testData');
 const { registerCleanup } = require('./helpers/cleanup');
+const { createUser, login, authHeader } = require('./helpers/authHelper');
 
 let server;
 let dataDir;
+let accessToken;
 
 registerCleanup(() => [server], () => [dataDir]);
 
 beforeAll(async () => {
   dataDir = makeTempDataDir('filestore');
   server = await startServer(dataDir);
+  await createUser(server.app, { username: 'fsadmin', password: 'FsAdmin#1', fullName: 'FS Admin', role: 'Admin' });
+  const fsLogin = await login(server.app, 'fsadmin', 'FsAdmin#1');
+  accessToken = fsLogin.accessToken;
 });
 
 describe('read behavior', () => {
   test('reads of a missing store do NOT create a file (reads are read-only)', async () => {
-    const res = await request(server.app).get('/api/v1/partners');
+    const res = await request(server.app).get('/api/v1/partners').set(authHeader(accessToken));
     expect(res.statusCode).toBe(200);
     expect(fs.existsSync(path.join(dataDir, 'partners.json'))).toBe(false);
   });
 
   test('the first real write creates the store file', async () => {
-    await request(server.app).post('/api/v1/partners').send({ id: 'fs-p1', name: 'First' });
+    await request(server.app).post('/api/v1/partners').set(authHeader(accessToken)).send({ id: 'fs-p1', name: 'First' });
     expect(fs.existsSync(path.join(dataDir, 'partners.json'))).toBe(true);
     expect(readStore(dataDir, 'partners').partners).toHaveLength(1);
   });
@@ -33,7 +38,7 @@ describe('read behavior', () => {
     const store = readStore(dataDir, 'partners');
     store.partners.push({ id: 'fs-p2', name: 'External', createdAt: new Date().toISOString() });
     fs.writeFileSync(path.join(dataDir, 'partners.json'), JSON.stringify(store, null, 2), 'utf-8');
-    const res = await request(server.app).get('/api/v1/partners/fs-p2');
+    const res = await request(server.app).get('/api/v1/partners/fs-p2').set(authHeader(accessToken));
     expect(res.statusCode).toBe(200);
     expect(res.body.data.name).toBe('External');
   });
@@ -44,7 +49,7 @@ describe('concurrent write safety', () => {
     const N = 25;
     const results = await Promise.all(
       Array.from({ length: N }, (_, i) =>
-        request(server.app).post('/api/v1/suppliers').send({ id: `conc-${i}`, name: `Concurrent ${i}` })
+        request(server.app).post('/api/v1/suppliers').set(authHeader(accessToken)).send({ id: `conc-${i}`, name: `Concurrent ${i}` })
       )
     );
     expect(results.every(r => r.statusCode === 201)).toBe(true);
@@ -56,15 +61,15 @@ describe('concurrent write safety', () => {
     for (let i = 0; i < N; i++) expect(ids).toContain(`conc-${i}`);
 
     // and the API agrees
-    const list = await request(server.app).get('/api/v1/suppliers?limit=100');
+    const list = await request(server.app).get('/api/v1/suppliers?limit=100').set(authHeader(accessToken));
     expect(list.body.data.total).toBe(N);
   });
 
   test('parallel PUTs to one record leave valid JSON and a consistent final state', async () => {
-    await request(server.app).post('/api/v1/treasury').send({ id: 'conc-t', type: 'in', amount: 1 });
+    await request(server.app).post('/api/v1/treasury').set(authHeader(accessToken)).send({ id: 'conc-t', type: 'in', amount: 1 });
     const results = await Promise.all(
       Array.from({ length: 10 }, (_, i) =>
-        request(server.app).put('/api/v1/treasury/conc-t').send({ desc: 'update ' + i })
+        request(server.app).put('/api/v1/treasury/conc-t').set(authHeader(accessToken)).send({ desc: 'update ' + i })
       )
     );
     expect(results.every(r => r.statusCode === 200)).toBe(true);

@@ -8,15 +8,20 @@ const request = require('supertest');
 const { startServer } = require('./helpers/testServer');
 const { makeTempDataDir } = require('./helpers/testData');
 const { registerCleanup } = require('./helpers/cleanup');
+const { createUser, login, authHeader } = require('./helpers/authHelper');
 
 let server;
 let dataDir;
+let accessToken;
 
 registerCleanup(() => [server], () => [dataDir]);
 
 beforeAll(async () => {
   dataDir = makeTempDataDir('middleware');
   server = await startServer(dataDir);
+  await createUser(server.app, { username: 'mwadmin', password: 'MwAdmin#1', fullName: 'MW Admin', role: 'Admin' });
+  const mwLogin = await login(server.app, 'mwadmin', 'MwAdmin#1');
+  accessToken = mwLogin.accessToken;
 });
 
 // Builds a small real Express app wiring the actual middleware under test.
@@ -113,7 +118,8 @@ describe('malformed cookie handling', () => {
   test('a malformed percent-encoded cookie must not crash the request', async () => {
     const res = await request(server.app)
       .get('/api/v1/customers')
-      .set('Cookie', 'access_token=%');
+      .set('Cookie', 'access_token=%')
+      .set(authHeader(accessToken));
     expect(res.statusCode).not.toBe(500);
     expect(res.statusCode).toBe(200);
   });
@@ -162,7 +168,7 @@ describe('logger utility', () => {
 describe('fileStore corruption recovery', () => {
   test('a corrupted store file is reset and served as an empty list', async () => {
     fs.writeFileSync(path.join(dataDir, 'customers.json'), '{corrupted!!!', 'utf-8');
-    const res = await request(server.app).get('/api/v1/customers');
+    const res = await request(server.app).get('/api/v1/customers').set(authHeader(accessToken));
     expect(res.statusCode).toBe(200);
     expect(res.body.data.customers).toEqual([]);
     const repaired = JSON.parse(fs.readFileSync(path.join(dataDir, 'customers.json'), 'utf-8'));
