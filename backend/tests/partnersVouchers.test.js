@@ -17,8 +17,8 @@ registerCleanup(() => [server], () => [dataDir]);
 beforeAll(async () => {
   dataDir = makeTempDataDir('partners-vouchers');
   server = await startServer(dataDir);
-  await createUser(server.app, { username: 'pv-tester', password: 'PV#1234', role: 'Owner' });
-  const session = await login(server.app, 'pv-tester', 'PV#1234');
+  await createUser(server.app, { username: 'pv-tester', password: 'PV#12345', role: 'Owner' });
+  const session = await login(server.app, 'pv-tester', 'PV#12345');
   token = session.accessToken;
   await request(server.app).post(PARTNERS).set(authHeader(token)).send({ id: 'ptn-1', name: 'Hassan Partner', phone: '0101', capital: 10000, percent: 40 });
   await request(server.app).post(VOUCHERS).set(authHeader(token)).send({ id: 'vch-1', type: 'receipt', partyName: 'Ahmed Ali', partyType: 'customer', method: 'cash', amount: 500, date: '2026-07-01' });
