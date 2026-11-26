@@ -16,11 +16,9 @@
 
 const request = require('supertest');
 const fs = require('fs');
-const path = require('path');
-const { v4: uuidv4 } = require('uuid');
-const { hashPassword } = require('../utils/password');
 const { startServer } = require('./helpers/testServer');
 const { makeTempDataDir, seed } = require('./helpers/testData');
+const { createUser: fixtureCreateUser } = require('./helpers/userFixture');
 
 // Snapshot original env so the file can restore it once, at the end, to avoid
 // leaking flags into other suites that may run in the same jest worker.
@@ -30,35 +28,7 @@ const ORIGINAL_ENV = {
 };
 
 async function createViaApi(app, body) {
-  const dir = process.env.DIGITRONICS_DATA_DIR;
-  const dbPath = path.join(dir, 'users.json');
-  let db = { users: [] };
-  if (fs.existsSync(dbPath)) {
-    db = JSON.parse(fs.readFileSync(dbPath, 'utf-8'));
-    if (!Array.isArray(db.users)) db.users = [];
-  }
-  const id = body.id || uuidv4();
-  const now = new Date().toISOString();
-  const record = {
-    id,
-    username: body.username,
-    password: hashPassword(body.password),
-    fullName: body.fullName || body.username,
-    role: body.role || 'Cashier',
-    createdAt: body.createdAt || now,
-    updatedAt: now,
-    tokenVersion: 0,
-    ...(body.extra || {})
-  };
-  if (body.tenantIds !== undefined) record.tenantIds = body.tenantIds;
-  if (body.permissions !== undefined) record.permissions = body.permissions;
-
-  if (db.users.some(u => u.id === id)) throw new Error(`createViaApi(${body.username}): Duplicate user ID: ${id}`);
-  if (db.users.some(u => u.username === body.username)) throw new Error(`createViaApi(${body.username}): Duplicate username`);
-
-  db.users.push(record);
-  fs.writeFileSync(dbPath, JSON.stringify(db, null, 2), 'utf-8');
-  return { statusCode: 201, body: { data: record } };
+  return fixtureCreateUser(app, body);
 }
 
 async function loginWith(app, body) {
