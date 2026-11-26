@@ -1,0 +1,37 @@
+<!-- OmniStore Shared Forms Component -->
+<!-- Design System: brand/design-system/tokens.json + brand/components/index.css -->
+
+<form class="p-md">
+  <div class="form-group">
+    <label class="form-label" for="os-name">الاسم الكامل</label>
+    <input type="text" class="form-input" id="os-name" placeholder="أدخل اسمك الكامل" />
+  </div>
+
+  <div class="form-group">
+    <label class="form-label" for="os-email">البريد الإلكتروني</label>
+    <input type="email" class="form-input" id="os-email" placeholder="example@omnistore.com" />
+  </div>
+
+  <div class="form-group">
+    <label class="form-label" for="os-role">الدور</label>
+    <select class="form-select" id="os-role">
+      <option value="owner">مالك شركة</label>
+      <option value="center">مالك سنتر</label>
+      <option value="teacher">معلم</label>
+      <option value="student">طالب</label>
+      <option value="employee">موظف</label>
+    </select>
+  </div>
+
+  <div class="form-group">
+    <label class="form-label" for="os-message">رسالة</label>
+    <textarea class="form-textarea" id="os-message" placeholder="اكتب رسالتك هنا..."></textarea>
+  </div>
+
+  <div class="form-group" style="display:flex; align-items:center; gap:var(--os-space-sm);">
+    <input type="checkbox" class="form-checkbox" id="os-terms" />
+    <label class="form-label text-sm" for="os-terms" style="margin-bottom:0;">أوافق على الشروط والأحكام</label>
+  </div>
+
+  <button type="submit" class="btn btn-primary btn-full">إرسال</button>
+</form>

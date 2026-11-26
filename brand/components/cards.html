@@ -1,0 +1,46 @@
+<!-- OmniStore Shared Cards Component -->
+<!-- Design System: brand/design-system/tokens.json + brand/components/index.css -->
+
+<!-- Basic Card -->
+<div class="card">
+  <div class="card-body">
+    <h3 class="card-title">بطاقة أساسية</h3>
+    <p class="card-subtitle">محتوى البطاقة الأساسي</p>
+  </div>
+</div>
+
+<!-- Card with Header -->
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">بطاقة برأسية</h3>
+    <button class="btn btn-ghost btn-sm">إجراءات</button>
+  </div>
+  <div class="card-body">
+    <p class="card-subtitle">محتوى البطاقة مع رأسية وإجراءات</p>
+  </div>
+  <div class="card-footer">
+    <span class="text-xs text-muted">تحديث: اليوم</span>
+  </div>
+</div>
+
+<!-- Card Grid (3 columns) -->
+<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:var(--os-space-lg);">
+  <div class="card">
+    <div class="card-body">
+      <h4 class="card-title">السوق</h4>
+      <p class="card-subtitle">تصفح المنتجات والمتاجر</p>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-body">
+      <h4 class="card-title">الألعاب</h4>
+      <p class="card-subtitle">بوابة الألعاب التفاعلية</p>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-body">
+      <h4 class="card-title">أعمال</h4>
+      <p class="card-subtitle">بوابة الأعمال الموحدة</p>
+    </div>
+  </div>
+</div>
