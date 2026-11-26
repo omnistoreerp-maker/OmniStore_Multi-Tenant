@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/reports.controller');
 const reportsService = require('../services/reports.service');
-const { requirePermission, requirePermissionIfAuth } = require('../middleware/authorize');
+const { requirePermission } = require('../middleware/authorize');
 const config = require('../config');
 
 // Phase D — Financial reports are protected by an explicit, separate permission
@@ -83,7 +83,7 @@ function reportByIdAuth(req, res, next) {
  *         description: Authentication required
  */
 router.get('/', reportListGuard, ctrl.list);
-router.post('/', requirePermissionIfAuth('reports.view'), ctrl.create);
+router.post('/', requirePermission('reports.view'), ctrl.create);
 
 /**
  * @openapi
@@ -100,7 +100,7 @@ router.post('/', requirePermissionIfAuth('reports.view'), ctrl.create);
  *       401:
  *         description: Authentication required
  */
-router.get('/stats', requirePermissionIfAuth('reports.view'), ctrl.getStats);
+router.get('/stats', requirePermission('reports.view'), ctrl.getStats);
 
 /**
  * @openapi

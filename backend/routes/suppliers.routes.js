@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/suppliers.controller');
-const { requirePermissionIfAuth } = require('../middleware/authorize');
+const { requirePermission } = require('../middleware/authorize');
 
 /**
  * @openapi
@@ -49,8 +49,8 @@ const { requirePermissionIfAuth } = require('../middleware/authorize');
  *       401:
  *         description: Authentication required
  */
-router.get('/', requirePermissionIfAuth('suppliers.view'), ctrl.list);
-router.post('/', requirePermissionIfAuth('suppliers.create'), ctrl.create);
+router.get('/', requirePermission('suppliers.view'), ctrl.list);
+router.post('/', requirePermission('suppliers.create'), ctrl.create);
 
 /**
  * @openapi
@@ -67,7 +67,7 @@ router.post('/', requirePermissionIfAuth('suppliers.create'), ctrl.create);
  *       401:
  *         description: Authentication required
  */
-router.get('/stats', requirePermissionIfAuth('suppliers.view'), ctrl.getStats);
+router.get('/stats', requirePermission('suppliers.view'), ctrl.getStats);
 
 /**
  * @openapi
@@ -130,8 +130,8 @@ router.get('/stats', requirePermissionIfAuth('suppliers.view'), ctrl.getStats);
  *       404:
  *         description: Supplier not found
  */
-router.get('/:id', requirePermissionIfAuth('suppliers.view'), ctrl.getById);
-router.put('/:id', requirePermissionIfAuth('suppliers.edit'), ctrl.update);
-router.delete('/:id', requirePermissionIfAuth('suppliers.delete'), ctrl.remove);
+router.get('/:id', requirePermission('suppliers.view'), ctrl.getById);
+router.put('/:id', requirePermission('suppliers.edit'), ctrl.update);
+router.delete('/:id', requirePermission('suppliers.delete'), ctrl.remove);
 
 module.exports = router;

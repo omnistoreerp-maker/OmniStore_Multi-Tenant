@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/purchase.controller');
 const asyncHandler = require('../utils/asyncHandler');
-const { requirePermissionIfAuth } = require('../middleware/authorize');
+const { requirePermission } = require('../middleware/authorize');
 
 /**
  * @openapi
@@ -18,7 +18,7 @@ const { requirePermissionIfAuth } = require('../middleware/authorize');
  *       401:
  *         description: Authentication required
  */
-router.get('/stats', requirePermissionIfAuth('purchases.view'), asyncHandler(ctrl.getStats));
+router.get('/stats', requirePermission('purchases.view'), asyncHandler(ctrl.getStats));
 
 /**
  * @openapi
@@ -75,8 +75,8 @@ router.get('/stats', requirePermissionIfAuth('purchases.view'), asyncHandler(ctr
  *       401:
  *         description: Authentication required
  */
-router.get('/', requirePermissionIfAuth('purchases.view'), asyncHandler(ctrl.list));
-router.post('/', requirePermissionIfAuth('purchases.create'), asyncHandler(ctrl.create));
+router.get('/', requirePermission('purchases.view'), asyncHandler(ctrl.list));
+router.post('/', requirePermission('purchases.create'), asyncHandler(ctrl.create));
 
 /**
  * @openapi
@@ -139,8 +139,8 @@ router.post('/', requirePermissionIfAuth('purchases.create'), asyncHandler(ctrl.
  *       404:
  *         description: Purchase not found
  */
-router.get('/:id', requirePermissionIfAuth('purchases.view'), asyncHandler(ctrl.getById));
-router.put('/:id', requirePermissionIfAuth('purchases.edit'), asyncHandler(ctrl.update));
-router.delete('/:id', requirePermissionIfAuth('purchases.delete'), asyncHandler(ctrl.remove));
+router.get('/:id', requirePermission('purchases.view'), asyncHandler(ctrl.getById));
+router.put('/:id', requirePermission('purchases.edit'), asyncHandler(ctrl.update));
+router.delete('/:id', requirePermission('purchases.delete'), asyncHandler(ctrl.remove));
 
 module.exports = router;
