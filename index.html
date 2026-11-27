@@ -17161,6 +17161,20 @@ function doLogin() {
       window.__cairoActiveCompanyName = authCompany ? authCompany.name : (d.user && d.user.fullName ? '' : '');
       if (!window.__cairoActiveCompanyName && d.effectiveCompanyName) window.__cairoActiveCompanyName = d.effectiveCompanyName;
       launchApp(d.user);
+      // Phase 3A — server-authoritative post-login routing based on effective role.
+      // Owner → Tenant Owner Home, Admin → Tenant Admin Home,
+      // Platform Master → existing Master Control Center (unchanged),
+      // other roles → existing index.html behavior.
+      // Uses the shared production helper (platform/js/route-by-role.js) so both
+      // index.html and landing.html route identically. Client-supplied or
+      // locally cached roles never trigger Owner/Admin navigation.
+      const postLoginRole = (d.effectiveRole !== undefined ? d.effectiveRole : d.user.role);
+      const redirectUrl = routeByRole(postLoginRole, d.user.role);
+      if (redirectUrl) {
+        window.location.href = redirectUrl;
+        if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = '🔐 تسجيل الدخول'; }
+        return;
+      }
       // Phase F — the login envelope carries only user + effectiveRole; fetch
       // /auth/me to bind the backend-computed effectivePermissions too, then
       // re-apply the permission-driven UI (backend remains authoritative).
@@ -17184,6 +17198,11 @@ function doLogin() {
   }
 
   const proceed = () => {
+    // Legacy local fallback path: no role-specific routing from locally
+    // cached or client-only role values. Owner/Admin routing is applied
+    // only after successful server authentication with a server-authoritative
+    // effective role resolved for the trusted tenant (see backend login path
+    // above). Preserve the existing index.html shell for all local logins.
     if (loginBtn) { loginBtn.disabled = true; loginBtn.textContent = '⏳ ...'; }
     const syncMsg = document.getElementById('loginSyncMsg');
     if (ghToken() && ghGistId()) {
@@ -46149,6 +46168,7 @@ function populateCenterDropdown(selectId) {
   window.state = state;
 })();
 </script>
+<script src="platform/js/route-by-role.js"></script>
 </body>
 </html>
 

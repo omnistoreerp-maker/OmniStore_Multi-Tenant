@@ -140,6 +140,10 @@ jobs:
         working-directory: backend
         run: npm ci
 
+      - name: Playwright — OmniStore tenant home (fail on failure)
+        working-directory: .
+        run: node tests/e2e/tenant-home-browser.cjs
+
       - name: Playwright — index.html (fail on failure)
         run: node verify.js index.html 18940
 

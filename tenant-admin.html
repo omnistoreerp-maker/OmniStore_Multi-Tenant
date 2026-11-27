@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>مسؤول العمليات — متجر omni</title>
+<link rel="stylesheet" href="platform/tenant-admin.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="mark">⚙</span>
+    <span class="name">إدارة العمليات — متجر omni</span>
+  </div>
+  <div class="tenant-context" id="tenantContext">
+    <span class="label">الشركة:</span>
+    <span class="value" id="tenantName">—</span>
+  </div>
+  <div class="user-area">
+    <span class="welcome" id="userWelcome">مرحباً، مسؤول العمليات</span>
+    <button class="btn-logout" id="logoutBtn">تسجيل خروج</button>
+  </div>
+</header>
+
+<main class="container">
+  <div class="context-bar" id="contextBar" style="display:none">
+    <span class="ctx-item"><strong>الدور:</strong> <span id="ctxRole">—</span></span>
+    <span class="ctx-item"><strong>الصلاحية:</strong> <span id="ctxPerms">—</span></span>
+    <span class="ctx-item"><strong>الحالة:</strong> <span id="ctxStatus">موثقة من الخادم</span></span>
+  </div>
+
+  <div id="pageStatus" class="page-status hidden"></div>
+
+  <!-- Tenant status -->
+  <section class="hero-section">
+    <h1 class="section-title">حالة العمليات المتبعة</h1>
+    <div class="kpi-grid" id="kpiGrid"></div>
+  </section>
+
+  <!-- Business activity -->
+  <section class="card-section">
+    <div class="section-header">
+      <h2>النشاط التجاري المرتبط</h2>
+    </div>
+    <div class="activity-list" id="activityList">
+      <!-- injected by JS -->
+    </div>
+  </section>
+</main>
+<script src="platform/tenant-admin.js"></script>
+</body>
+</html>
