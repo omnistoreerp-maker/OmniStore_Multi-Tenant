@@ -321,7 +321,8 @@ describe('Phase 19 — ENABLE_TENANT_CARRY OFF (legacy, no carry)', () => {
     dir = s.dataDir;
     seed(dir, 'companies', companies);
     jwt = jwtFor();
-    await request(app).post('/api/v1/users').send({ username: 'arr', password: 'Pass#123', role: 'Admin', tenantIds: ['digitronics'] });
+    const { createUser: fixtureCreateUser } = require('./helpers/userFixture');
+    await fixtureCreateUser(app, { username: 'arr', password: 'Pass#123', role: 'Admin', tenantIds: ['digitronics'] });
   });
 
   afterAll(() => {

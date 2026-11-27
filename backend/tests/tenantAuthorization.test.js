@@ -10,6 +10,7 @@ const request = require('supertest');
 const { startServer, TEST_JWT_SECRET } = require('./helpers/testServer');
 const { makeTempDataDir, seed } = require('./helpers/testData');
 const { authHeader } = require('./helpers/authHelper');
+const { createUser: fixtureCreateUser } = require('./helpers/userFixture');
 const { registerCleanup } = require('./helpers/cleanup');
 
 const ORIGINAL_ENV = {
@@ -53,9 +54,7 @@ afterAll(() => {
 });
 
 async function mkUser(username, extra) {
-  const res = await request(server.app).post('/api/v1/users').send({ username, password: 'Pass#123', ...extra });
-  if (res.statusCode !== 201) throw new Error(`createUser(${username}) failed ${res.statusCode} ${JSON.stringify(res.body)}`);
-  return res.body.data;
+  return fixtureCreateUser(server.app, { username, password: 'Pass#123', ...extra });
 }
 
 async function loginAs(username, company) {

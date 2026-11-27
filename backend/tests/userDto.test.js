@@ -118,8 +118,19 @@ describe('Phase D — HTTP: user endpoints never leak stored secrets', () => {
   });
 
   test('secrets mirrored onto a record are persisted but hidden from every response', async () => {
+    const owner = await createUser(server, {
+      username: 'dto-owner',
+      password: 'DtoOwner#1234',
+      fullName: 'DTO Owner',
+      role: 'Owner',
+      extra: { tenantIds: ['t1'], tenantRoles: { t1: 'Owner' } }
+    });
+    const session = await login(server, 'dto-owner', 'DtoOwner#1234', 't1');
+    const token = session.accessToken;
+
     const res = await request(server)
       .post('/api/v1/users')
+      .set(authHeader(token))
       .send({
         username: 'dto1',
         password: 'DtoPass#1',
@@ -142,7 +153,7 @@ describe('Phase D — HTTP: user endpoints never leak stored secrets', () => {
     expect(stored.someInternalField).toBe('internal-stuff');
 
     // ...but the DTO allowlist hides it everywhere.
-    const got = await request(server).get(`/api/v1/users/${id}`);
+    const got = await request(server).get(`/api/v1/users/${id}`).set(authHeader(token));
     expect(got.statusCode).toBe(200);
     expect(got.body.data.mfaSecret).toBeUndefined();
     expect(got.body.data.apiKey).toBeUndefined();
@@ -152,7 +163,7 @@ describe('Phase D — HTTP: user endpoints never leak stored secrets', () => {
     expect(got.body.data.status).toBe('active');
     expect(got.body.data.username).toBe('dto1');
 
-    const list = await request(server).get('/api/v1/users');
+    const list = await request(server).get('/api/v1/users').set(authHeader(token));
     expect(list.statusCode).toBe(200);
     const listed = list.body.data.users.find((u) => u.id === id);
     expect(listed.mfaSecret).toBeUndefined();
