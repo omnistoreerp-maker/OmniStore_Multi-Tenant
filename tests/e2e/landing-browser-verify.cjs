@@ -95,6 +95,113 @@ const path = require('path');
     await page.close();
   }
 
+  // Service cards DOM survival + language switching (AR -> EN -> AR)
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    await page.goto(`http://localhost:${PORT}/landing.html`, { waitUntil: 'networkidle' });
+
+    const cardCount = await page.locator('.section-card').count();
+    check('service cards count: ' + cardCount, cardCount === 7);
+
+    async function assertCardStructure(page, label) {
+      for (let i = 0; i < cardCount; i++) {
+        const card = page.locator('.section-card').nth(i);
+        check(label + ' card ' + (i + 1) + ' has icon', await card.locator('.section-icon svg').count() > 0);
+        check(label + ' card ' + (i + 1) + ' has heading', await card.locator('.section-card-title').count() > 0);
+        check(label + ' card ' + (i + 1) + ' has description', await card.locator('.section-desc').count() > 0);
+        check(label + ' card ' + (i + 1) + ' has badge', await card.locator('.section-badge').count() > 0);
+        check(label + ' card ' + (i + 1) + ' has action link', await card.locator('.section-link, .section-link-disabled').count() > 0);
+        const href = await card.getAttribute('href');
+        if (href) {
+          check(label + ' card ' + (i + 1) + ' has valid href', href.length > 0);
+        }
+        check(label + ' card ' + (i + 1) + ' is not text-only', (await card.innerHTML()).length > 100);
+      }
+    }
+
+    await assertCardStructure(page, 'AR initial');
+
+    // Switch to English
+    await page.locator('.lang-btn').filter({ hasText: /English/ }).first().click();
+    await page.waitForTimeout(300);
+    check('lang=en after switch', await page.locator('html').getAttribute('lang') === 'en');
+    await assertCardStructure(page, 'EN');
+
+    // Switch back to Arabic
+    await page.locator('.lang-btn').filter({ hasText: /العربية/ }).first().click();
+    await page.waitForTimeout(300);
+    check('lang=ar after AR-EN-AR', await page.locator('html').getAttribute('lang') === 'ar');
+    await assertCardStructure(page, 'AR-EN-AR');
+
+    await page.close();
+  }
+
+  // Registration modal controls survive language switching
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    await page.goto(`http://localhost:${PORT}/landing.html`, { waitUntil: 'networkidle' });
+
+    // Open auth drawer, then registration
+    await page.locator('#landingLoginBtn').click();
+    await page.waitForTimeout(300);
+    check('drawer visible', await page.locator('#landingAuthDrawer').isVisible());
+    await page.locator('#landingAuthRegister').click();
+    await page.waitForTimeout(300);
+    check('registration overlay visible', await page.locator('#landingRegOverlay').isVisible());
+    check('landingRegToLogin attached', await page.locator('#landingRegToLogin').count() > 0);
+    check('five required-field markers visible', await page.locator('label span[style*="omni-danger"]').count() === 5);
+
+    // Click landingRegToLogin returns to login drawer
+    await page.locator('#landingRegToLogin').click();
+    await page.waitForTimeout(300);
+    check('back to login drawer', await page.locator('#landingAuthDrawer').isVisible());
+    check('registration overlay hidden', !await page.locator('#landingRegOverlay').isVisible());
+
+    // Close drawer before switching language (drawer overlays block pointer events)
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    check('drawer closed before language switch', !await page.locator('#landingAuthDrawer').isVisible());
+
+    // Switch language and verify registration controls survive
+    await page.locator('.lang-btn').filter({ hasText: /English/ }).first().click();
+    await page.waitForTimeout(300);
+    check('landingRegToLogin still attached after EN', await page.locator('#landingRegToLogin').count() > 0);
+    check('required markers still visible after EN', await page.locator('label span[style*="omni-danger"]').count() === 5);
+    check('lang=en after switch', await page.locator('html').getAttribute('lang') === 'en');
+
+    await page.close();
+  }
+
+  // Keyboard Enter submit in login form
+  {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    await page.goto(`http://localhost:${PORT}/landing.html`, { waitUntil: 'networkidle' });
+
+    await page.locator('#landingLoginBtn').click();
+    await page.waitForTimeout(300);
+    check('drawer visible', await page.locator('#landingAuthDrawer').isVisible());
+
+    // Fill credentials
+    await page.locator('#landingAuthUser').fill('testuser');
+    await page.locator('#landingAuthPass').fill('testpass');
+
+    // Press Enter in the password field
+    await page.locator('#landingAuthPass').press('Enter');
+    await page.waitForTimeout(500);
+
+    // URL should not contain credentials
+    const url = page.url();
+    check('credentials not in URL', !url.includes('testuser') && !url.includes('testpass'));
+    check('URL is still landing page', url.includes('/landing.html'));
+
+    // Error should be network error (no backend), not fake login success
+    const errorEl = page.locator('#landingAuthError');
+    check('error shown after Enter submit', await errorEl.isVisible());
+    check('drawer still open = no fake login success', await page.locator('#landingAuthDrawer').isVisible());
+
+    await page.close();
+  }
+
   await browser.close();
   await new Promise((resolve) => server.close(resolve));
 

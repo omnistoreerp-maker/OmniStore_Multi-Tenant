@@ -244,7 +244,7 @@ check('translation tables have lang and dir values', () => {
 check('all service links point to real files', () => {
   const links = [];
   let m;
-  const re = /<a[^>]+href="([^"]+)"[^>]*data-i18n="svc_/g;
+  const re = /<a[^>]+class="[^"]*section-card[^"]*"[^>]+href="([^"]+)"/g;
   while ((m = re.exec(LANDING_HTML)) !== null) links.push(m[1]);
   assert(links.length >= 5, 'expected at least 5 service links, found ' + links.length);
   const fs = require('fs');

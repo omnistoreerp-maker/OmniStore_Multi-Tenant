@@ -287,7 +287,11 @@
   function applyText(t) {
     document.querySelectorAll('[data-i18n]').forEach(function (node) {
       var key = node.getAttribute('data-i18n');
-      if (t[key] !== undefined) node.textContent = t[key];
+      if (t[key] === undefined) return;
+      // Never overwrite a container that holds meaningful child elements
+      // (icons, badges, buttons, required-field markers, nested links).
+      if (node.children.length > 0) return;
+      node.textContent = t[key];
     });
     var titleEl = document.querySelector('title');
     if (titleEl && t.platform_name) titleEl.textContent = t.platform_name;
@@ -409,7 +413,7 @@
   if (drawerClose) drawerClose.addEventListener('click', hideDrawer);
   if (overlay) overlay.addEventListener('click', hideDrawer);
 
-  if (drawerSubmit) drawerSubmit.addEventListener('click', function (e) {
+  function handleLoginSubmit(e) {
     e.preventDefault();
     setError(drawerError, '');
     authSetLoading(drawerSubmit, true);
@@ -451,7 +455,10 @@
         setError(drawerError, htmlEl.getAttribute('lang') === 'en' ? T.en.auth_error_network : T.ar.auth_error_network);
         authSetLoading(drawerSubmit, false);
       });
-  });
+  }
+
+  if (drawerSubmit) drawerSubmit.addEventListener('click', handleLoginSubmit);
+  if (drawerForm) drawerForm.addEventListener('submit', handleLoginSubmit);
 
   if (drawerLogout) drawerLogout.addEventListener('click', function () {
     fetch(AUTH_API + '/logout', {
