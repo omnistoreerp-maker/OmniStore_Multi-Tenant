@@ -5,6 +5,7 @@
 //   const postLoginRole = (d.effectiveRole !== undefined ? d.effectiveRole : d.user.role);
 //   if (postLoginRole === 'Owner') -> /tenant-owner.html
 //   if (postLoginRole === 'Admin')  -> /tenant-admin.html
+//   if (postLoginRole === 'Cashier' || postLoginRole === 'Technician') -> /employee-workspace.html
 //   otherwise                      -> null (existing index.html behavior)
 //
 // Client-supplied role values cannot override server identity.
@@ -36,8 +37,8 @@
 
   // 3. Platform Master and other roles retain existing index.html behavior (null)
   check('Manager returns null (existing index.html behavior)', routeByRole(undefined, 'Manager') === null);
-  check('Cashier returns null (existing index.html behavior)', routeByRole(undefined, 'Cashier') === null);
-  check('Technician returns null (existing index.html behavior)', routeByRole(undefined, 'Technician') === null);
+  check('Cashier routes to employee-workspace.html', routeByRole(undefined, 'Cashier') === '/employee-workspace.html');
+  check('Technician routes to employee-workspace.html', routeByRole(undefined, 'Technician') === '/employee-workspace.html');
   check('WarehouseSales returns null (existing index.html behavior)', routeByRole(undefined, 'WarehouseSales') === null);
   check('Viewer returns null (existing index.html behavior)', routeByRole(undefined, 'Viewer') === null);
 
@@ -49,7 +50,7 @@
   // 5. Client-supplied role cannot override server identity (effectiveRole wins)
   check('effectiveRole Owner overrides user Cashier', routeByRole('Owner', 'Cashier') === '/tenant-owner.html');
   check('effectiveRole Admin overrides user Cashier', routeByRole('Admin', 'Cashier') === '/tenant-admin.html');
-  check('effectiveRole Cashier does not become Owner', routeByRole('Cashier', 'Owner') === null);
+  check('effectiveRole Cashier routes to employee-workspace.html', routeByRole('Cashier', 'Owner') === '/employee-workspace.html');
   check('effectiveRole Admin does not become Owner', routeByRole('Admin', 'Owner') === '/tenant-admin.html');
 
   // 6. Login failures do not navigate to authenticated workspaces

@@ -47,6 +47,39 @@ function check(name, ok, detail) {
   return !!ok;
 }
 
+// Exact known Supabase startup self-check diagnostic warning patterns.
+// These are benign connection-config diagnostics logged by the platform's
+// Supabase client during page initialization. They are NOT pageerrors and
+// NOT unexpected console errors. Only these exact prefixes are allowlisted;
+// every other unexpected console error or pageerror fails the test.
+const KNOWN_DIAGNOSTIC_PATTERNS = [
+  'startup.self_check Error: Supabase Config',
+  'startup.self_check Error: Supabase Connection',
+  'startup.self_check Error: Supabase Config, Supabase Connection',
+  'Supabase client initialized with missing/placeholder config'
+];
+
+function isKnownDiagnostic(errorText) {
+  // Exact known diagnostic prefixes only — never a broad "Supabase" match.
+  return KNOWN_DIAGNOSTIC_PATTERNS.some(function (p) {
+    return errorText.indexOf(p) !== -1;
+  });
+}
+
+// Returns only unexpected errors (pageerrors + non-diagnostic console errors).
+function unexpectedErrors(errors) {
+  return errors.filter(function (e) {
+    // pageerror exceptions are never allowlisted.
+    if (e.startsWith('PAGEERROR: ')) { return true; }
+    // Console errors: only exact known diagnostic patterns are allowlisted.
+    if (e.startsWith('CONSOLE: ')) {
+      var text = e.slice('CONSOLE: '.length);
+      return !isKnownDiagnostic(text);
+    }
+    return true;
+  });
+}
+
 // Pre-hash passwords so users can be seeded directly into users.json.
 function hashPassword(pw) {
   return bcrypt.hashSync(pw, 10);
@@ -67,6 +100,7 @@ const USERS = {
     { id: 'u-owner', username: 'e2eOwner', password: hashPassword(PW), role: 'Owner', fullName: 'E2E Owner', tenantIds: ['digitronics'], tenantRoles: { digitronics: 'Owner' }, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), tokenVersion: 0 },
     { id: 'u-admin', username: 'e2eAdmin', password: hashPassword(PW), role: 'Admin', fullName: 'E2E Admin', tenantIds: ['digitronics'], tenantRoles: { digitronics: 'Admin' }, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), tokenVersion: 0 },
     { id: 'u-viewer', username: 'e2eViewer', password: hashPassword(PW), role: 'Viewer', fullName: 'E2E Viewer', tenantIds: ['digitronics'], tenantRoles: { digitronics: 'Viewer' }, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), tokenVersion: 0 },
+    { id: 'u-cashier', username: 'e2eCashier', password: hashPassword(PW), role: 'Cashier', fullName: 'E2E Cashier', tenantIds: ['digitronics'], tenantRoles: { digitronics: 'Cashier' }, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), tokenVersion: 0 },
     { id: 'u-master', username: 'e2eMaster', password: hashPassword(PW), role: 'Manager', fullName: 'E2E Master', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), tokenVersion: 0 },
     { id: 'u-manager', username: 'e2eManager', password: hashPassword(PW), role: 'Manager', fullName: 'E2E Manager', tenantIds: ['digitronics'], tenantRoles: { digitronics: 'Manager' }, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), tokenVersion: 0 }
   ]
@@ -181,8 +215,8 @@ async function loginViaUi(page, username) {
   const page = await context.newPage();
 
   const errors = [];
-  page.on('pageerror', e => errors.push(e.message));
-  page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+  page.on('pageerror', e => errors.push('PAGEERROR: ' + e.message));
+  page.on('console', m => { if (m.type() === 'error') errors.push('CONSOLE: ' + m.text()); });
 
   // ── Test 1: Owner signs in via UI and reaches tenant-owner.html (desktop, Arabic RTL) ──
   {
@@ -197,7 +231,7 @@ async function loginViaUi(page, username) {
     check('Owner home has business overview section', await page.locator('.hero-section').isVisible());
     check('Owner home has KPI cards', await page.locator('.kpi-card').count() > 0);
     check('Owner home has logout button', await page.locator('#logoutBtn').isVisible());
-    check('No console errors on Owner home', errors.filter(e => !e.includes('Supabase')).length === 0, errors.join('; '));
+    check('No console errors on Owner home', unexpectedErrors(errors).length === 0, unexpectedErrors(errors).join('; '));
     errors.length = 0;
   }
 
@@ -205,8 +239,8 @@ async function loginViaUi(page, username) {
   {
     const page2 = await context.newPage();
     const errors2 = [];
-    page2.on('pageerror', e => errors2.push(e.message));
-    page2.on('console', m => { if (m.type() === 'error') errors2.push(m.text()); });
+    page2.on('pageerror', e => errors2.push('PAGEERROR: ' + e.message));
+    page2.on('console', m => { if (m.type() === 'error') errors2.push('CONSOLE: ' + m.text()); });
     await context.clearCookies();
     await preparePage(page2, 'digitronics');
     await page2.goto('http://127.0.0.1:' + STATIC_PORT + '/index.html', { waitUntil: 'networkidle' });
@@ -219,7 +253,7 @@ async function loginViaUi(page, username) {
     await page2.waitForSelector('.kpi-card', { state: 'attached', timeout: 5000 }).catch(() => {});
     check('Admin home has KPI cards', await page2.locator('.kpi-card').count() > 0, await page2.locator('.kpi-card').count());
     check('Admin home has logout button', await page2.locator('#logoutBtn').isVisible());
-    check('No console errors on Admin home', errors2.filter(e => !e.includes('Supabase')).length === 0, errors2.join('; '));
+    check('No console errors on Admin home', unexpectedErrors(errors2).length === 0, unexpectedErrors(errors2).join('; '));
     await page2.close();
   }
 
@@ -227,8 +261,8 @@ async function loginViaUi(page, username) {
   {
     const page4 = await context.newPage();
     const errors4 = [];
-    page4.on('pageerror', e => errors4.push(e.message));
-    page4.on('console', m => { if (m.type() === 'error') errors4.push(m.text()); });
+    page4.on('pageerror', e => errors4.push('PAGEERROR: ' + e.message));
+    page4.on('console', m => { if (m.type() === 'error') errors4.push('CONSOLE: ' + m.text()); });
     await context.clearCookies();
     await preparePage(page4, undefined);
     await page4.goto('http://127.0.0.1:' + STATIC_PORT + '/index.html', { waitUntil: 'networkidle' });
@@ -246,8 +280,8 @@ async function loginViaUi(page, username) {
   {
     const page7 = await context.newPage();
     const errors7 = [];
-    page7.on('pageerror', e => errors7.push(e.message));
-    page7.on('console', m => { if (m.type() === 'error') errors7.push(m.text()); });
+    page7.on('pageerror', e => errors7.push('PAGEERROR: ' + e.message));
+    page7.on('console', m => { if (m.type() === 'error') errors7.push('CONSOLE: ' + m.text()); });
     await context.clearCookies();
     await preparePage(page7, 'digitronics');
     await page7.goto('http://127.0.0.1:' + STATIC_PORT + '/index.html', { waitUntil: 'networkidle' });
@@ -257,12 +291,29 @@ async function loginViaUi(page, username) {
     await page7.close();
   }
 
+  // ── Test 3c: Cashier reaches Employee Workspace via UI login ──
+  {
+    const page8 = await context.newPage();
+    const errors8 = [];
+    page8.on('pageerror', e => errors8.push('PAGEERROR: ' + e.message));
+    page8.on('console', m => { if (m.type() === 'error') errors8.push('CONSOLE: ' + m.text()); });
+    await context.clearCookies();
+    await preparePage(page8, 'digitronics');
+    await page8.goto('http://127.0.0.1:' + STATIC_PORT + '/index.html', { waitUntil: 'networkidle' });
+    await loginViaUi(page8, 'e2eCashier');
+    await page8.waitForTimeout(1000);
+    check('Cashier navigates to employee-workspace.html after login', page8.url().includes('/employee-workspace.html'));
+    check('Cashier not redirected to tenant-owner.html', !page8.url().includes('/tenant-owner.html'));
+    check('Cashier not redirected to tenant-admin.html', !page8.url().includes('/tenant-admin.html'));
+    await page8.close();
+  }
+
   // ── Test 4: Viewer cannot access tenant home ──
   {
     const page5 = await context.newPage();
     const errors5 = [];
-    page5.on('pageerror', e => errors5.push(e.message));
-    page5.on('console', m => { if (m.type() === 'error') errors5.push(m.text()); });
+    page5.on('pageerror', e => errors5.push('PAGEERROR: ' + e.message));
+    page5.on('console', m => { if (m.type() === 'error') errors5.push('CONSOLE: ' + m.text()); });
     await context.clearCookies();
     await preparePage(page5, 'digitronics');
     await page5.goto('http://127.0.0.1:' + STATIC_PORT + '/index.html', { waitUntil: 'networkidle' });
@@ -279,8 +330,8 @@ async function loginViaUi(page, username) {
   {
     const page6 = await context.newPage();
     const errors6 = [];
-    page6.on('pageerror', e => errors6.push(e.message));
-    page6.on('console', m => { if (m.type() === 'error') errors6.push(m.text()); });
+    page6.on('pageerror', e => errors6.push('PAGEERROR: ' + e.message));
+    page6.on('console', m => { if (m.type() === 'error') errors6.push('CONSOLE: ' + m.text()); });
     await context.clearCookies();
     await preparePage(page6, 'digitronics');
     await page6.goto('http://127.0.0.1:' + STATIC_PORT + '/index.html', { waitUntil: 'networkidle' });
