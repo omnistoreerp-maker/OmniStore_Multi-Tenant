@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+title>مسؤول الم公司 — متجر omni</title>
+<link rel="stylesheet" href="platform/tenant-admin.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="mark">⚙</span>
+    <span class="name">إدارة العمليات — متجر omni</span>
+  </div>
+  <div class="tenant-context" id="tenantContext">
+    <span class="label">الشركة:</span>
+    <span class="value" id="tenantName">—</span>
+  </div>
+  <div class="user-area">
+    <span class="welcome" id="userWelcome">مرحباً، مسؤول العمليات</span>
+    <button class="btn-logout" id="logoutBtn">تسجيل خروج</button>
+  </div>
+</header>
+
+<main class="container">
+  <div class="context-bar" id="contextBar" style="display:none">
+    <span class="ctx-item"><strong>الدور:</strong> <span id="ctxRole">—</span></span>
+    <span class="ctx-item"><strong>الصلاحية:</strong> <span id="ctxPerms">—</span></span>
+    <span class="ctx-item"><strong>الحالة:</strong> <span id="ctxStatus">موثقة من الخادم</span></span>
+  </div>
+
+  <div id="pageStatus" class="page-status hidden"></div>
+
+  <!-- Tenant status -->
+  <section class="hero-section">
+    <h1 class="section-title">حالة العمليات المتبعة</h1>
+    <div class="kpi-grid" id="kpiGrid"></div>
+  </section>
+
+  <!-- User administration -->
+  <section class="card-section">
+    <div class="section-header">
+      <h2>إدارة المستخدمين والموظفين</h2>
+    </div>
+    <div class="list-compact" id="userList">
+      <!-- injected by JS -->
+    </div>
+  </section>
+
+  <!-- Role and permissions -->
+  <section class="card-section">
+    <div class="section-header">
+      <h2>إدارة الأدوار والصلاحيات</h2>
+    </div>
+    <div class="list-compact" id="roleList">
+      <!-- injected by JS -->
+    </div>
+  </section>
+
+  <!-- Module access -->
+  <section class="card-section">
+    <div class="section-header">
+      <h2>الوصول إلى الوحدات والخدمات</h2>
+    </div>
+    <div class="module-grid" id="moduleGrid">
+      <!-- injected by JS -->
+    </div>
+  </section>
+
+  <!-- Operational issues -->
+  <section class="card-section">
+    <div class="section-header">
+      <h2>المشاكل والمهام المعلقة</h2>
+    </div>
+    <div class="alert-list" id="issueList">
+      <!-- injected by JS -->
+    </div>
+  </section>
+
+  <!-- Business activity -->
+  <section class="card-section">
+    <div class="section-header">
+      <h2>النشاط التجاري المرتبط</h2>
+    </div>
+    <div class="activity-list" id="activityList">
+      <!-- injected by JS -->
+    </div>
+  </section>
+
+  <!-- Quick access -->
+  <section class="card-section">
+    <div class="section-header">
+      <h2>اختصارات الإدارة الآمنة</h2>
+    </div>
+    <div class="quick-grid" id="quickGrid">
+      <!-- injected by JS -->
+    </div>
+  </section>
+</main>
+
+<script src="platform/tenant-admin.js"></script>
+</body>
+</html>

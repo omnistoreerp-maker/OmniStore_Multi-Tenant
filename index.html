@@ -17161,6 +17161,21 @@ function doLogin() {
       window.__cairoActiveCompanyName = authCompany ? authCompany.name : (d.user && d.user.fullName ? '' : '');
       if (!window.__cairoActiveCompanyName && d.effectiveCompanyName) window.__cairoActiveCompanyName = d.effectiveCompanyName;
       launchApp(d.user);
+      // Phase 3A — server-authoritative post-login routing based on effective role.
+      // Owner → Tenant Owner Home, Admin → Tenant Admin Home,
+      // Platform Master → existing Master Control Center (unchanged),
+      // other roles → existing index.html behavior.
+      const postLoginRole = (d.effectiveRole !== undefined ? d.effectiveRole : d.user.role);
+      if (postLoginRole === 'Owner') {
+        window.location.href = '/tenant-owner.html';
+        if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = '🔐 تسجيل الدخول'; }
+        return;
+      }
+      if (postLoginRole === 'Admin') {
+        window.location.href = '/tenant-admin.html';
+        if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = '🔐 تسجيل الدخول'; }
+        return;
+      }
       // Phase F — the login envelope carries only user + effectiveRole; fetch
       // /auth/me to bind the backend-computed effectivePermissions too, then
       // re-apply the permission-driven UI (backend remains authoritative).
@@ -17184,6 +17199,19 @@ function doLogin() {
   }
 
   const proceed = () => {
+    // Phase 3A — server-authoritative post-login routing based on role
+    // (legacy local fallback path). Owner → Tenant Owner Home, Admin →
+    // Tenant Admin Home, other roles → existing index.html behavior.
+    if (user.role === 'Owner') {
+      window.location.href = '/tenant-owner.html';
+      if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = '🔐 تسجيل الدخول'; }
+      return;
+    }
+    if (user.role === 'Admin') {
+      window.location.href = '/tenant-admin.html';
+      if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = '🔐 تسجيل الدخول'; }
+      return;
+    }
     if (loginBtn) { loginBtn.disabled = true; loginBtn.textContent = '⏳ ...'; }
     const syncMsg = document.getElementById('loginSyncMsg');
     if (ghToken() && ghGistId()) {

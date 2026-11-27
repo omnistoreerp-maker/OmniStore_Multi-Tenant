@@ -58,6 +58,25 @@ router.get('/stats', requirePermission('dashboard.view'), ctrl.getStats);
 
 /**
  * @openapi
+ * /api/v1/dashboard/tenant-home:
+ *   get:
+ *     tags: [Dashboard]
+ *     summary: Get tenant home dashboard data
+ *     description: Returns aggregated real data for tenant Owner/Admin home pages. All data is tenant-scoped through the authenticated session's tenant context.
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Tenant home dashboard data retrieved
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Insufficient permission
+ */
+router.get('/tenant-home', requirePermission('dashboard.view'), ctrl.getTenantHome);
+
+/**
+ * @openapi
  * /api/v1/dashboard/{id}:
  *   get:
  *     tags: [Dashboard]
