@@ -4459,7 +4459,12 @@ document.addEventListener('DOMContentLoaded', function() {
       <div class="page-header">
         <div class="page-title">🎯 تحليل المخزون</div>
         <div class="table-actions">
+          <input type="text" id="invSearchInput" class="search-input" placeholder="بحث باسم الصنف أو الرمز…" style="width:200px;margin-right:8px" onkeypress="if(event.key==='Enter')renderInventoryAnalysisPage()">
+          <button class="btn btn-accent btn-sm" onclick="createInventoryItem()">➕ إضافة صنف</button>
           <button class="btn btn-outline btn-sm" onclick="renderInventoryAnalysisPage()">🔄 تحديث</button>
+        </div>
+        <div id="inventoryDemoBanner" style="display:none;margin:8px 0;padding:8px;background:var(--yellow, #fde047);color:#713f12;border-radius:6px;font-size:0.85rem;text-align:center">
+          ⚠️ وضع تجريبي — البيانات المعروضة تجريبية وليست من الخادم الحقيقي. فعّل الربط بالخادم من شاشة Backend Sync للبيانات الحية.
         </div>
       </div>
       <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
@@ -31146,42 +31151,188 @@ function renderTopProductsPage() {
   </tr>`).join('') || '<tr><td colspan="5" style="text-align:center">لا توجد بيانات مبيعات</td></tr>';
 }
 
-function renderInventoryAnalysisPage() {
-  const products = DB.products || [];
-  const rows = products.map(p => {
-    const stock = typeof getProductStock === 'function' ? getProductStock(p.id) : (p.stock || 0);
-    const minStock = p.minStock || 0;
-    const value = (p.buyPrice || 0) * stock;
-    return { name: p.name, stock, minStock, value, low: stock <= minStock };
-  });
-
-  const totalStock = rows.reduce((s, r) => s + (r.stock || 0), 0);
-  const lowCount = rows.filter(r => r.low).length;
-  const stockValue = rows.reduce((s, r) => s + (r.value || 0), 0);
-
+async function renderInventoryAnalysisPage() {
+  const tbody = document.getElementById('inventoryAnalysisTbody');
   const elItems = document.getElementById('inv-total-items');
   const elStock = document.getElementById('inv-total-stock');
   const elLow = document.getElementById('inv-low-count');
   const elValue = document.getElementById('inv-stock-value');
-  if (elItems) elItems.textContent = rows.length;
-  if (elStock) elStock.textContent = totalStock;
-  if (elLow) elLow.textContent = lowCount;
-  if (elValue) elValue.textContent = formatMoney(stockValue);
-
-  const tbody = document.getElementById('inventoryAnalysisTbody');
   if (!tbody) return;
-  tbody.innerHTML = rows
-    .sort((a, b) => a.stock - b.stock)
-    .map(r => `<tr>
-      <td>${escapeHtml(r.name)}</td>
-      <td>${r.stock}</td>
-      <td>${r.minStock}</td>
-      <td>${r.low ? '<span class="badge badge-red">⚠️ منخفض</span>' : '<span class="badge badge-green">✅ جيد</span>'}</td>
-      <td>${formatMoney(r.value)}</td>
-    </tr>`).join('') || '<tr><td colspan="5" style="text-align:center">لا توجد أصناف</td></tr>';
+
+  function setLoading() {
+    if (elItems) elItems.textContent = '—';
+    if (elStock) elStock.textContent = '—';
+    if (elLow) elLow.textContent = '—';
+    if (elValue) elValue.textContent = '—';
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text2)">جاري التحميل من الخادم…</td></tr>';
+  }
+
+  function setError(message) {
+    if (elItems) elItems.textContent = '—';
+    if (elStock) elStock.textContent = '—';
+    if (elLow) elLow.textContent = '—';
+    if (elValue) elValue.textContent = '—';
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--red)">⚠️ ${escapeHtml(message)}</td></tr>`;
+  }
+
+  function renderRows(products, demoMode) {
+    const rows = products.map(p => {
+      const stock = typeof p.stockQty === 'number' ? p.stockQty : (typeof getProductStock === 'function' ? getProductStock(p.id) : (p.stock || 0));
+      const minStock = p.minStock || 0;
+      const value = (typeof p.buyPrice === 'number' ? p.buyPrice : 0) * stock;
+      return {
+        id: p.id,
+        name: p.name || '-',
+        stock,
+        minStock,
+        value,
+        low: stock <= minStock,
+        sku: p.sku || '-',
+        categoryId: p.categoryId || '-',
+        buyPrice: typeof p.buyPrice === 'number' ? p.buyPrice : 0,
+        sellPrice: typeof p.sellPrice === 'number' ? p.sellPrice : 0
+      };
+    });
+
+    const totalStock = rows.reduce((s, r) => s + (r.stock || 0), 0);
+    const lowCount = rows.filter(r => r.low).length;
+    const stockValue = rows.reduce((s, r) => s + (r.value || 0), 0);
+
+    if (elItems) elItems.textContent = products.length + (demoMode ? ' (تجريبي)' : '');
+    if (elStock) elStock.textContent = totalStock + (demoMode ? ' (تجريبي)' : '');
+    if (elLow) elLow.textContent = lowCount + (demoMode ? ' (تجريبي)' : '');
+    if (elValue) elValue.textContent = formatMoney(stockValue) + (demoMode ? ' (تجريبي)' : '');
+
+    if (rows.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">لا توجد أصناف</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = rows
+      .sort((a, b) => a.stock - b.stock)
+      .map(r => `<tr>
+        <td>${escapeHtml(r.name)}</td>
+        <td>${escapeHtml(r.sku)}</td>
+        <td>${r.stock}</td>
+        <td>${r.minStock}</td>
+        <td>${r.low ? '<span class="badge badge-red">⚠️ منخفض</span>' : '<span class="badge badge-green">✅ جيد</span>'}</td>
+        <td>${formatMoney(r.value)}</td>
+        <td>
+          <button class="btn btn-outline btn-sm" onclick="editInventoryItem('${escapeHtml(String(r.id))}')">تعديل</button>
+          <button class="btn btn-outline btn-sm" style="color:var(--red)" onclick="deleteInventoryItem('${escapeHtml(String(r.id))}')">حذف</button>
+        </td>
+      </tr>`).join('');
+  }
+
+  setLoading();
+
+  let products = [];
+  let error = null;
+  let demoMode = false;
+  const searchInput = document.getElementById('invSearchInput');
+  const searchTerm = searchInput ? searchInput.value.trim() : '';
+  const demoBanner = document.getElementById('inventoryDemoBanner');
+
+  const useBackend = typeof USE_BACKEND !== 'undefined' && USE_BACKEND && typeof backendApi !== 'undefined' && backendApi.inventory;
+
+  if (useBackend) {
+    try {
+      const path = searchTerm ? `/inventory?search=${encodeURIComponent(searchTerm)}` : '/inventory';
+      const res = await backendApi._fetch('GET', path);
+      if (res && res.success && res.data) {
+        products = Array.isArray(res.data.products) ? res.data.products : [];
+      } else {
+        error = res && res.message ? res.message : 'فشل تحميل بيانات المخزون من الخادم';
+      }
+    } catch (err) {
+      error = err && err.message ? err.message : 'خطأ في الاتصال بالخادم';
+    }
+  } else {
+    // Backend disabled — show demo data WITH a clear banner, never silent
+    demoMode = true;
+    products = (DB && DB.products) || [];
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      products = products.filter(p => String(p.name || '').toLowerCase().includes(q) || String(p.sku || '').toLowerCase().includes(q));
+    }
+  }
+
+  if (demoBanner) {
+    demoBanner.style.display = demoMode ? 'block' : 'none';
+  }
+
+  if (error) {
+    setError(error);
+    return;
+  }
+
+  renderRows(products, demoMode);
 }
 
-function renderForecastPage() {
+window.editInventoryItem = async function (id) {
+  const name = prompt('أدخل اسم الصنف الجديد:');
+  if (!name) return;
+  if (typeof USE_BACKEND !== 'undefined' && USE_BACKEND && typeof backendApi !== 'undefined' && backendApi.inventory) {
+    try {
+      const res = await backendApi.inventory.update(id, { name });
+      if (res && res.success) {
+        await renderInventoryAnalysisPage();
+      } else {
+        alert(res && res.message ? res.message : 'فشل تعديل الصنف');
+      }
+    } catch (err) {
+      alert(err && err.message ? err.message : 'خطأ في الاتصال بالخادم');
+    }
+  } else {
+    alert('الربط بالخادم غير مفعل');
+  }
+};
+
+window.deleteInventoryItem = async function (id) {
+  if (!confirm('هل أنت متأكد من حذف هذا الصنف؟')) return;
+  if (typeof USE_BACKEND !== 'undefined' && USE_BACKEND && typeof backendApi !== 'undefined' && backendApi.inventory) {
+    try {
+      const res = await backendApi.inventory.delete(id);
+      if (res && res.success) {
+        await renderInventoryAnalysisPage();
+      } else {
+        alert(res && res.message ? res.message : 'فشل حذف الصنف');
+      }
+    } catch (err) {
+      alert(err && err.message ? err.message : 'خطأ في الاتصال بالخادم');
+    }
+  } else {
+    alert('الربط بالخادم غير مفعل');
+  }
+};
+
+window.createInventoryItem = async function () {
+    const name = prompt('أدخل اسم الصنف الجديد:');
+    if (!name) return;
+    const sku = prompt('أدخل رمز الصنف (SKU) (اختياري):');
+    const buyPrice = parseFloat(prompt('أدخل سعر الشراء:'));
+    const sellPrice = parseFloat(prompt('أدخل سعر البيع:'));
+    const stockQty = parseInt(prompt('أدخل الكمية المتوفرة:'), 10);
+    if (isNaN(buyPrice) || isNaN(sellPrice) || isNaN(stockQty)) {
+      alert('الأسعار والكمية يجب أن تكون أرقاماً صحيحة');
+      return;
+    }
+    if (typeof USE_BACKEND !== 'undefined' && USE_BACKEND && typeof backendApi !== 'undefined' && backendApi.inventory) {
+      try {
+        const res = await backendApi.inventory.create({ name, sku: sku || undefined, buyPrice, sellPrice, stockQty });
+        if (res && res.success) {
+          await renderInventoryAnalysisPage();
+        } else {
+          alert(res && res.message ? res.message : 'فشل إضافة الصنف');
+        }
+      } catch (err) {
+        alert(err && err.message ? err.message : 'خطأ في الاتصال بالخادم');
+      }
+    } else {
+      alert('الربط بالخادم غير مفعل');
+    }
+  };
+
   const rows = (DB.products || []).map(p => {
     const stock = getProductStock(p.id);
     const sold90 = (DB.saleInvoices || []).reduce((sum, inv) => {

@@ -1,0 +1,102 @@
+<!-- OmniStore Shared Header / Navigation Component -->
+<!-- Design System: brand/design-system/tokens.json + brand/components/index.css -->
+
+<header class="layout-header" id="os-header">
+  <link rel="stylesheet" href="index.css" />
+  <div class="layout-container" style="display:flex; align-items:center; justify-content:space-between; height:100%; gap:var(--os-space-md);">
+    <!-- Brand -->
+    <div class="os-brand" style="display:flex; align-items:center; gap:var(--os-space-sm); cursor:pointer; text-decoration:none;">
+      <img src="../logo/omnistore-logo-connected-o.svg" alt="OmniStore" style="width:32px; height:32px;" />
+      <span class="font-semibold text-lg" style="font-family:var(--os-font-arabic);">OmniStore ERP</span>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="os-nav" style="align-items:center; gap:var(--os-space-lg); flex:1; justify-content:center;">
+      <a href="#home" class="os-nav-link font-medium text-sm text-secondary" style="text-decoration:none; padding:var(--os-space-sm); border-radius:var(--os-radius-md);">الرئيسية</a>
+      <a href="#marketplace" class="os-nav-link font-medium text-sm text-secondary" style="text-decoration:none; padding:var(--os-space-sm); border-radius:var(--os-radius-md);">السوق</a>
+      <a href="#games" class="os-nav-link font-medium text-sm text-secondary" style="text-decoration:none; padding:var(--os-space-sm); border-radius:var(--os-radius-md);">الألعاب</a>
+      <a href="#business" class="os-nav-link font-medium text-sm text-secondary" style="text-decoration:none; padding:var(--os-space-sm); border-radius:var(--os-radius-md);">أعمال</a>
+      <a href="#employees" class="os-nav-link font-medium text-sm text-secondary" style="text-decoration:none; padding:var(--os-space-sm); border-radius:var(--os-radius-md);">الموظفين</a>
+    </nav>
+
+    <!-- Actions -->
+    <div class="os-actions" style="display:flex; align-items:center; gap:var(--os-space-sm);">
+      <button class="btn btn-ghost btn-sm" id="os-theme-toggle" title="تغيير السمة">
+        <svg class="os-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+      </button>
+      <button class="btn btn-ghost btn-sm" id="os-language-toggle" title="تغيير اللغة">
+        <svg class="os-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.4-1.756 2.826 0L15.75 4.812c.416.398.416 1.042 0 1.44l-2.6 2.488c-.416.398-.416 1.042 0 1.44l2.6 2.488c.416.398.416 1.042 0 1.44l-2.6 2.488c-.426.398-.76 1.194-.76 2.086 0 .892.334 1.688.76 2.086l2.6 2.488c.416.398.416 1.042 0 1.44l-2.6 2.488c-.416.398-.416 1.042 0 1.44l2.6 2.488c.416.398.416 1.042 0 1.44l-5.425-5.012c-.426-1.756-.426-3.608 0-5.368z"/></svg>
+      </button>
+      <button class="btn btn-primary btn-sm" id="os-login-btn">تسجيل الدخول</button>
+    </div>
+
+    <!-- Mobile menu toggle -->
+    <button class="btn btn-ghost btn-sm os-mobile-menu" aria-expanded="false" aria-label="قائمة الهاتف">
+      <svg class="os-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+  </div>
+</header>
+
+<script>
+(function() {
+  // Theme toggle
+  var themeBtn = document.getElementById('os-theme-toggle');
+  var html = document.documentElement;
+  if (themeBtn) {
+    themeBtn.addEventListener('click', function() {
+      var isDark = html.getAttribute('data-theme') === 'dark';
+      if (isDark) {
+        html.removeAttribute('data-theme');
+        localStorage.setItem('os-theme', 'light');
+      } else {
+        html.setAttribute('data-theme', 'dark');
+        localStorage.setItem('os-theme', 'dark');
+      }
+    });
+    var saved = localStorage.getItem('os-theme');
+    if (saved) html.setAttribute('data-theme', saved);
+  }
+
+  // Language / direction toggle
+  var langBtn = document.getElementById('os-language-toggle');
+  if (langBtn) {
+    langBtn.addEventListener('click', function() {
+      var dir = html.getAttribute('dir');
+      if (dir === 'rtl') {
+        html.setAttribute('dir', 'ltr');
+        html.setAttribute('lang', 'en');
+        localStorage.setItem('os-dir', 'ltr');
+        localStorage.setItem('os-lang', 'en');
+      } else {
+        html.setAttribute('dir', 'rtl');
+        html.setAttribute('lang', 'ar');
+        localStorage.setItem('os-dir', 'rtl');
+        localStorage.setItem('os-lang', 'ar');
+      }
+    });
+    var savedDir = localStorage.getItem('os-dir');
+    var savedLang = localStorage.getItem('os-lang');
+    if (savedDir) html.setAttribute('dir', savedDir);
+    if (savedLang) html.setAttribute('lang', savedLang);
+  }
+
+  // Mobile menu toggle
+  var mobileBtn = document.querySelector('.os-mobile-menu');
+  var nav = document.querySelector('.os-nav');
+  if (mobileBtn && nav) {
+    mobileBtn.addEventListener('click', function() {
+      var expanded = mobileBtn.getAttribute('aria-expanded') === 'true';
+      mobileBtn.setAttribute('aria-expanded', String(!expanded));
+      nav.style.display = expanded ? 'none' : 'flex';
+      nav.style.flexDirection = 'column';
+      nav.style.position = 'absolute';
+      nav.style.top = '100%';
+      nav.style.right = 0;
+      nav.style.left = 0;
+      nav.style.background = 'var(--os-surface)';
+      nav.style.padding = 'var(--os-space-md)';
+      nav.style.borderTop = '1px solid var(--os-border)';
+    });
+  }
+})();
+</script>
