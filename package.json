@@ -19,10 +19,8 @@
     "test:e2e:nav": "node tests/e2e/verify-platform-nav.js",
     "test:edu": "node platform/education/education.test.cjs"
   },
-  "dependencies": {
-    "playwright": "^1.63.0"
-  },
   "devDependencies": {
+    "playwright": "^1.65.1",
     "supertest": "^7.2.2"
   }
 }
