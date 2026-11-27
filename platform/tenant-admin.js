@@ -50,7 +50,6 @@
         suppliers_total: 'إجمالي الموردين',
         treasury_total: 'إجمالي الحركات المالية',
         unavailable: 'غير متاح',
-        zero: 'صفر',
         recent_activity: 'آخر النشاط التجاري',
         ctx_role: 'الدور',
         ctx_perms: 'الصلاحية',
@@ -77,7 +76,6 @@
         suppliers_total: 'Total Suppliers',
         treasury_total: 'Total Treasury Transactions',
         unavailable: 'Unavailable',
-        zero: 'Zero',
         recent_activity: 'Recent Business Activity',
         ctx_role: 'Role',
         ctx_perms: 'Permissions',
@@ -125,7 +123,6 @@
     var card = document.createElement('div');
     card.className = 'kpi-card';
     var disp = available ? String(value) : t('unavailable');
-    if (!available && value === 0) disp = t('zero');
     card.innerHTML =
       '<div class="kpi-value">' + esc(disp) + '</div>' +
       '<div class="kpi-label">' + esc(label) + '</div>' +
@@ -170,7 +167,8 @@
     renderKpi(t('sales_total'), fmtMoney(sales.totalSales || 0), sales.available, '');
     renderKpi(t('customers_total'), String(cust.count || 0), cust.available, '');
     renderKpi(t('suppliers_total'), String(supp.count || 0), supp.available, '');
-    renderKpi(t('treasury_total'), String(treas.recentTransactions ? treas.recentTransactions.length : 0), treas.available, '');
+    // Treasury: only recent transactions are available, no complete total count.
+    renderKpi(t('treasury_total'), t('unavailable'), false, '');
 
     // Recent activity (combine sales + customers + suppliers + treasury)
     activityList.innerHTML = '';

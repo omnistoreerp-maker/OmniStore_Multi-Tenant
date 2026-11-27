@@ -1,27 +1,22 @@
 // Tenant role-based post-login routing unit tests.
-// Mirrors the production routing logic in index.html doLogin():
+// Uses the shared production routing helper (platform/js/route-by-role.js)
+// that mirrors the production routing logic in index.html doLogin().
+//
 //   const postLoginRole = (d.effectiveRole !== undefined ? d.effectiveRole : d.user.role);
 //   if (postLoginRole === 'Owner') -> /tenant-owner.html
 //   if (postLoginRole === 'Admin')  -> /tenant-admin.html
 //   otherwise                      -> null (existing index.html behavior)
+//
 // Client-supplied role values cannot override server identity.
-// Nothing is imported from index.html (browser-only HTML); the routing
-// decision is reproduced here exactly as it appears in production.
+// Owner/Admin routing is applied only after successful server authentication
+// with a server-authoritative effective role resolved for the trusted tenant.
+// Locally cached or client-only role values never grant role-specific routing.
 
 (function () {
   'use strict';
 
+  const { routeByRole } = require('../js/route-by-role');
   const assert = require('assert');
-
-  // Reproduction of the post-login routing decision from index.html doLogin().
-  // backend path:  const postLoginRole = (d.effectiveRole !== undefined ? d.effectiveRole : d.user.role);
-  // legacy path:   if (user.role === 'Owner') ... else if (user.role === 'Admin') ...
-  function routeByRole(effectiveRole, userRole) {
-    const role = effectiveRole !== undefined ? effectiveRole : userRole;
-    if (role === 'Owner') return '/tenant-owner.html';
-    if (role === 'Admin') return '/tenant-admin.html';
-    return null; // existing index.html behavior for other roles / Master
-  }
 
   let passed = 0;
   let failed = 0;

@@ -17199,19 +17199,11 @@ function doLogin() {
   }
 
   const proceed = () => {
-    // Phase 3A — server-authoritative post-login routing based on role
-    // (legacy local fallback path). Owner → Tenant Owner Home, Admin →
-    // Tenant Admin Home, other roles → existing index.html behavior.
-    if (user.role === 'Owner') {
-      window.location.href = '/tenant-owner.html';
-      if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = '🔐 تسجيل الدخول'; }
-      return;
-    }
-    if (user.role === 'Admin') {
-      window.location.href = '/tenant-admin.html';
-      if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = '🔐 تسجيل الدخول'; }
-      return;
-    }
+    // Legacy local fallback path: no role-specific routing from locally
+    // cached or client-only role values. Owner/Admin routing is applied
+    // only after successful server authentication with a server-authoritative
+    // effective role resolved for the trusted tenant (see backend login path
+    // above). Preserve the existing index.html shell for all local logins.
     if (loginBtn) { loginBtn.disabled = true; loginBtn.textContent = '⏳ ...'; }
     const syncMsg = document.getElementById('loginSyncMsg');
     if (ghToken() && ghGistId()) {

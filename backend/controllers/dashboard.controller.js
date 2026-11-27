@@ -15,8 +15,8 @@ function hasPerm(user, perm) {
 }
 
 function filterByTenant(records, tenantId) {
-  if (!Array.isArray(records) || !tenantId) return records;
-  return records.filter(r => r && r.tenantId === undefined ? true : String(r.tenantId) === String(tenantId));
+  if (!Array.isArray(records) || !tenantId) return [];
+  return records.filter(r => r && String(r.tenantId) === String(tenantId));
 }
 
 async function list(req, res) {
@@ -50,6 +50,21 @@ function getStats(req, res) {
   }
 }
 
+async function fetchAllItems(listFn, itemKey, query = {}) {
+  const all = [];
+  let page = 1;
+  let totalPages = 1;
+  while (page <= totalPages) {
+    const result = await Promise.resolve(listFn({ ...query, page, limit: 100 }));
+    const items = Array.isArray(result[itemKey]) ? result[itemKey] : [];
+    all.push(...items);
+    totalPages = result.totalPages || 1;
+    if (totalPages <= 1) break;
+    page++;
+  }
+  return all;
+}
+
 async function getTenantHome(req, res) {
   try {
     // Tenant identity is mandatory — fail closed without a trusted tenant.
@@ -73,15 +88,14 @@ async function getTenantHome(req, res) {
     const canViewSuppliers = hasPerm(user, 'suppliers.view');
     const canViewTreasury = hasPerm(user, 'treasury.view');
 
-    // Sales overview — real sales data, tenant-scoped.
-    // NOTE: salesService.stats() only filters by tenant when
-    // ENABLE_TENANT_SALES_ISOLATION is on; since we do not change feature
-    // flags, we fetch the invoice list and filter by tenantId here.
+    // Sales overview — complete tenant-scoped totals. Paginate through ALL
+    // invoices, then filter by trusted tenantId. Never treat a capped sample
+    // as a complete lifetime total.
     let sales = { count: 0, totalSales: 0, cashSales: 0, creditSales: 0, profit: 0, available: false };
     if (canViewSales) {
       try {
-        const listed = await salesService.list({ limit: 1000 });
-        const invoices = filterByTenant(Array.isArray(listed.invoices) ? listed.invoices : [], tenantId);
+        const allInvoices = await fetchAllItems(salesService.list.bind(salesService), 'invoices');
+        const invoices = filterByTenant(allInvoices, tenantId);
         let totalSales = 0, cashSales = 0, creditSales = 0, totalProfit = 0;
         invoices.forEach(inv => {
           const t = Number(inv.total) || 0;
@@ -119,15 +133,18 @@ async function getTenantHome(req, res) {
       }
     }
 
-    // Customers — tenant-scoped records only.
+    // Customers — complete tenant-scoped count. Paginate through ALL customers,
+    // filter by trusted tenantId, then count. Never derive total from a
+    // list capped at five records.
     let customers = { count: 0, recentCustomers: [], available: false };
     if (canViewCustomers) {
       try {
-        const c = await customersService.list({ limit: 5 });
-        const list = filterByTenant(Array.isArray(c.customers) ? c.customers : [], tenantId);
+        const allCustomers = await fetchAllItems(customersService.list.bind(customersService), 'customers');
+        const list = filterByTenant(allCustomers, tenantId);
+        const recent = list.slice(0, 5);
         customers = {
           count: list.length,
-          recentCustomers: list.slice(0, 5).map(cust => ({
+          recentCustomers: recent.map(cust => ({
             id: cust.id,
             name: cust.fullName || cust.name || 'Unnamed Customer',
             phone: cust.phone || '',
@@ -141,15 +158,18 @@ async function getTenantHome(req, res) {
       }
     }
 
-    // Suppliers — tenant-scoped records only.
+    // Suppliers — complete tenant-scoped count. Paginate through ALL suppliers,
+    // filter by trusted tenantId, then count. Never derive total from a
+    // list capped at five records.
     let suppliers = { count: 0, recentSuppliers: [], available: false };
     if (canViewSuppliers) {
       try {
-        const s = await suppliersService.list({ limit: 5 });
-        const list = filterByTenant(Array.isArray(s.suppliers) ? s.suppliers : [], tenantId);
+        const allSuppliers = await fetchAllItems(suppliersService.list.bind(suppliersService), 'suppliers');
+        const list = filterByTenant(allSuppliers, tenantId);
+        const recent = list.slice(0, 5);
         suppliers = {
           count: list.length,
-          recentSuppliers: list.slice(0, 5).map(supp => ({
+          recentSuppliers: recent.map(supp => ({
             id: supp.id,
             name: supp.fullName || supp.name || 'Unnamed Supplier',
             phone: supp.phone || '',
@@ -163,14 +183,17 @@ async function getTenantHome(req, res) {
       }
     }
 
-    // Treasury — tenant-scoped transactions only.
+    // Treasury — complete tenant-scoped transactions. Paginate through ALL
+    // entries, filter by trusted tenantId, then report recent transactions.
+    // Never label a capped sample as the total number of treasury transactions.
     let treasury = { recentTransactions: [], available: false };
     if (canViewTreasury) {
       try {
-        const t = await treasuryService.list({ limit: 8 });
-        const list = filterByTenant(Array.isArray(t.entries) ? t.entries : [], tenantId);
+        const allEntries = await fetchAllItems(treasuryService.list.bind(treasuryService), 'entries');
+        const list = filterByTenant(allEntries, tenantId);
+        const recent = list.slice(0, 8);
         treasury = {
-          recentTransactions: list.map(tx => ({
+          recentTransactions: recent.map(tx => ({
             id: tx.id,
             type: tx.type || 'deposit',
             amount: Number(tx.amount || 0),

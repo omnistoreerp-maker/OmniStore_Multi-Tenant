@@ -80,7 +80,8 @@
         quick_customers: 'العملاء',
         quick_suppliers: 'الموردين',
         quick_reports: 'التقارير',
-        quick_treasury: 'الخزينة'
+        quick_treasury: 'الخزينة',
+        unavailable: 'غير متاح'
       },
       en: {
         app_title: 'Tenant Owner Home — OmniStore',
@@ -122,7 +123,8 @@
         quick_customers: 'Customers',
         quick_suppliers: 'Suppliers',
         quick_reports: 'Reports',
-        quick_treasury: 'Treasury'
+        quick_treasury: 'Treasury',
+        unavailable: 'Unavailable'
       }
     };
     return (T[lang] || T.ar)[key] || key;
@@ -189,13 +191,18 @@
     var inv = data.inventory || {};
     var cust = data.customers || {};
 
+    function kpiVal(available, fallback) {
+      if (!available) return t('unavailable');
+      return fallback;
+    }
+
     var kpis = [
-      { label: t('total_sales'), value: fmtMoney(sales.totalSales || 0), trend: 'neutral', sub: t('sales_overview') },
-      { label: t('total_profit'), value: fmtMoney(sales.profit || 0), trend: 'neutral', sub: t('sales_overview') },
-      { label: t('total_invoices'), value: String(sales.count || 0), trend: 'neutral', sub: t('sales_overview') },
-      { label: t('total_items'), value: String(inv.totalItems || 0), trend: inv.lowStockCount > 0 ? 'down' : 'neutral', sub: t('inventory_position') },
-      { label: t('low_stock_alert'), value: String(inv.lowStockCount || 0), trend: inv.lowStockCount > 0 ? 'down' : 'neutral', sub: t('low_stock') },
-      { label: t('recent_customers'), value: String(cust.count || 0), trend: 'neutral', sub: t('recent_customers') }
+      { label: t('total_sales'), value: kpiVal(sales.available, fmtMoney(sales.totalSales || 0)), trend: 'neutral', sub: t('sales_overview') },
+      { label: t('total_profit'), value: kpiVal(sales.available, fmtMoney(sales.profit || 0)), trend: 'neutral', sub: t('sales_overview') },
+      { label: t('total_invoices'), value: kpiVal(sales.available, String(sales.count || 0)), trend: 'neutral', sub: t('sales_overview') },
+      { label: t('total_items'), value: kpiVal(inv.available, String(inv.totalItems || 0)), trend: inv.lowStockCount > 0 ? 'down' : 'neutral', sub: t('inventory_position') },
+      { label: t('low_stock_alert'), value: kpiVal(inv.available, String(inv.lowStockCount || 0)), trend: inv.lowStockCount > 0 ? 'down' : 'neutral', sub: t('low_stock') },
+      { label: t('recent_customers'), value: kpiVal(cust.available, String(cust.count || 0)), trend: 'neutral', sub: t('recent_customers') }
     ];
 
     kpis.forEach(function (k) {
@@ -210,29 +217,36 @@
 
     // Low stock alerts
     lowStockList.innerHTML = '';
-    var lowItems = (inv.recentItems || []).filter(function (it) { return it.stockQty > 0 && it.stockQty <= 10; });
-    if (lowItems.length === 0) {
+    if (!inv.available) {
       lowStockList.innerHTML =
-        '<div class="empty-state"><div class="empty-icon">✅</div>' +
-        '<div style="font-size:0.85rem">' + (isRTL ? 'لا توجد تنبيهات مخزون منخفض' : 'No low-stock alerts') + '</div></div>';
+        '<div class="empty-state"><div class="empty-icon">⚠️</div>' +
+        '<div style="font-size:0.85rem">' + t('unavailable') + '</div></div>';
       lowStockViewAll.style.display = 'none';
     } else {
-      lowItems.slice(0, 5).forEach(function (it) {
-        var item = document.createElement('div');
-        item.className = 'alert-item danger';
-        item.innerHTML =
-          '<div class="item-main">' +
-          '<div style="font-weight:700">' + esc(it.name) + '</div>' +
-          '<div class="item-sub">' + (isRTL ? 'المخزون المتبقي: ' : 'Remaining stock: ') + esc(it.stockQty) + ' · ' + esc(it.sku || '—') + '</div>' +
-          '</div>' +
-          '<div class="item-badge stock-low">' + t('low_stock_alert') + '</div>';
-        lowStockList.appendChild(item);
-      });
-      lowStockViewAll.style.display = 'inline-block';
-      lowStockViewAll.onclick = function (e) {
-        e.preventDefault();
-        window.location.href = '/index.html#inventory';
-      };
+      var lowItems = (inv.recentItems || []).filter(function (it) { return it.stockQty > 0 && it.stockQty <= 10; });
+      if (lowItems.length === 0) {
+        lowStockList.innerHTML =
+          '<div class="empty-state"><div class="empty-icon">✅</div>' +
+          '<div style="font-size:0.85rem">' + (isRTL ? 'لا توجد تنبيهات مخزون منخفض' : 'No low-stock alerts') + '</div></div>';
+        lowStockViewAll.style.display = 'none';
+      } else {
+        lowItems.slice(0, 5).forEach(function (it) {
+          var item = document.createElement('div');
+          item.className = 'alert-item danger';
+          item.innerHTML =
+            '<div class="item-main">' +
+            '<div style="font-weight:700">' + esc(it.name) + '</div>' +
+            '<div class="item-sub">' + (isRTL ? 'المخزون المتبقي: ' : 'Remaining stock: ') + esc(it.stockQty) + ' · ' + esc(it.sku || '—') + '</div>' +
+            '</div>' +
+            '<div class="item-badge stock-low">' + t('low_stock_alert') + '</div>';
+          lowStockList.appendChild(item);
+        });
+        lowStockViewAll.style.display = 'inline-block';
+        lowStockViewAll.onclick = function (e) {
+          e.preventDefault();
+          window.location.href = '/index.html#inventory';
+        };
+      }
     }
 
     // Recent activity (combine sales + customers + suppliers + treasury)
@@ -276,7 +290,11 @@
 
     // Customers
     customerList.innerHTML = '';
-    if (custList.length === 0) {
+    if (!cust.available) {
+      customerList.innerHTML =
+        '<div class="empty-state" style="padding:16px"><div class="empty-icon">⚠️</div>' +
+        '<div style="font-size:0.8rem">' + t('unavailable') + '</div></div>';
+    } else if (custList.length === 0) {
       customerList.innerHTML =
         '<div class="empty-state" style="padding:16px"><div class="empty-icon">👥</div>' +
         '<div style="font-size:0.8rem">' + (isRTL ? 'لا توجد عملاء' : 'No customers') + '</div></div>';
@@ -296,7 +314,11 @@
 
     // Suppliers
     supplierList.innerHTML = '';
-    if (suppList.length === 0) {
+    if (!supp.available) {
+      supplierList.innerHTML =
+        '<div class="empty-state" style="padding:16px"><div class="empty-icon">⚠️</div>' +
+        '<div style="font-size:0.8rem">' + t('unavailable') + '</div></div>';
+    } else if (suppList.length === 0) {
       supplierList.innerHTML =
         '<div class="empty-state" style="padding:16px"><div class="empty-icon">🚚</div>' +
         '<div style="font-size:0.8rem">' + (isRTL ? 'لا توجد موردين' : 'No suppliers') + '</div></div>';
@@ -316,7 +338,11 @@
 
     // Treasury
     treasuryList.innerHTML = '';
-    if (treasList.length === 0) {
+    if (!treas.available) {
+      treasuryList.innerHTML =
+        '<div class="empty-state" style="padding:16px"><div class="empty-icon">⚠️</div>' +
+        '<div style="font-size:0.8rem">' + t('unavailable') + '</div></div>';
+    } else if (treasList.length === 0) {
       treasuryList.innerHTML =
         '<div class="empty-state" style="padding:16px"><div class="empty-icon">💰</div>' +
         '<div style="font-size:0.8rem">' + (isRTL ? 'لا توجد حركات مالية' : 'No treasury transactions') + '</div></div>';

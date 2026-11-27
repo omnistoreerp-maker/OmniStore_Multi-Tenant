@@ -20,28 +20,52 @@ const SALES = {
   invoices: [
     { id: 'INV-A-001', total: 500, profit: 100, payment: 'cash', tenantId: 'digitronics', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
     { id: 'INV-A-002', total: 300, profit: 60, payment: 'credit', tenantId: 'digitronics', createdAt: '2026-01-02T00:00:00Z', updatedAt: '2026-01-02T00:00:00Z' },
-    { id: 'INV-B-001', total: 9999, profit: 999, payment: 'cash', tenantId: 'nile', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' }
+    { id: 'INV-B-001', total: 9999, profit: 999, payment: 'cash', tenantId: 'nile', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
+    // Legacy records without tenantId — must never leak into any tenant's view.
+    { id: 'INV-LEGACY-001', total: 55555, profit: 5555, payment: 'cash', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
+    // Record with null tenantId — must never leak.
+    { id: 'INV-NULL-001', total: 66666, profit: 6666, payment: 'cash', tenantId: null, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
+    // Record with empty tenantId — must never leak.
+    { id: 'INV-EMPTY-001', total: 77777, profit: 7777, payment: 'cash', tenantId: '', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' }
   ]
 };
 
 const CUSTOMERS = {
   customers: [
     { id: 'cust-a-1', fullName: 'Customer A1', phone: '111', email: 'a1@example.com', tenantId: 'digitronics', createdAt: '2026-01-01T00:00:00Z' },
-    { id: 'cust-b-1', fullName: 'Customer B1', phone: '222', email: 'b1@example.com', tenantId: 'nile', createdAt: '2026-01-01T00:00:00Z' }
+    { id: 'cust-b-1', fullName: 'Customer B1', phone: '222', email: 'b1@example.com', tenantId: 'nile', createdAt: '2026-01-01T00:00:00Z' },
+    // Legacy customer without tenantId — must never leak.
+    { id: 'cust-legacy-1', fullName: 'Customer Legacy', phone: '999', email: 'legacy@example.com', createdAt: '2026-01-01T00:00:00Z' },
+    // Customer with null tenantId — must never leak.
+    { id: 'cust-null-1', fullName: 'Customer Null', phone: '888', email: 'null@example.com', tenantId: null, createdAt: '2026-01-01T00:00:00Z' },
+    // Customer with empty tenantId — must never leak.
+    { id: 'cust-empty-1', fullName: 'Customer Empty', phone: '777', email: 'empty@example.com', tenantId: '', createdAt: '2026-01-01T00:00:00Z' }
   ]
 };
 
 const SUPPLIERS = {
   suppliers: [
     { id: 'supp-a-1', fullName: 'Supplier A1', phone: '333', email: 'a1supp@example.com', tenantId: 'digitronics', createdAt: '2026-01-01T00:00:00Z' },
-    { id: 'supp-b-1', fullName: 'Supplier B1', phone: '444', email: 'b1supp@example.com', tenantId: 'nile', createdAt: '2026-01-01T00:00:00Z' }
+    { id: 'supp-b-1', fullName: 'Supplier B1', phone: '444', email: 'b1supp@example.com', tenantId: 'nile', createdAt: '2026-01-01T00:00:00Z' },
+    // Legacy supplier without tenantId — must never leak.
+    { id: 'supp-legacy-1', fullName: 'Supplier Legacy', phone: '999', email: 'legacy@example.com', createdAt: '2026-01-01T00:00:00Z' },
+    // Supplier with null tenantId — must never leak.
+    { id: 'supp-null-1', fullName: 'Supplier Null', phone: '888', email: 'null@example.com', tenantId: null, createdAt: '2026-01-01T00:00:00Z' },
+    // Supplier with empty tenantId — must never leak.
+    { id: 'supp-empty-1', fullName: 'Supplier Empty', phone: '777', email: 'empty@example.com', tenantId: '', createdAt: '2026-01-01T00:00:00Z' }
   ]
 };
 
 const TREASURY = {
   entries: [
     { id: 'tx-a-1', type: 'in', amount: 1000, description: 'Treasury A1', tenantId: 'digitronics', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
-    { id: 'tx-b-1', type: 'out', amount: 500, description: 'Treasury B1', tenantId: 'nile', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' }
+    { id: 'tx-b-1', type: 'out', amount: 500, description: 'Treasury B1', tenantId: 'nile', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
+    // Legacy treasury entry without tenantId — must never leak.
+    { id: 'tx-legacy-1', type: 'in', amount: 999999, description: 'Treasury Legacy', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
+    // Treasury entry with null tenantId — must never leak.
+    { id: 'tx-null-1', type: 'out', amount: 888888, description: 'Treasury Null', tenantId: null, createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' },
+    // Treasury entry with empty tenantId — must never leak.
+    { id: 'tx-empty-1', type: 'in', amount: 777777, description: 'Treasury Empty', tenantId: '', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z' }
   ]
 };
 
@@ -205,5 +229,106 @@ describe('GET /api/v1/dashboard/tenant-home', () => {
     expect(res2.statusCode).toBe(200);
     expect(Object.keys(res1.body.data)).toEqual(Object.keys(res2.body.data));
     expect(res1.body.data.tenant).toEqual(res2.body.data.tenant);
+  });
+
+  test('Tenant A excludes legacy/null/empty tenantId records (no cross-tenant leak)', async () => {
+    const session = await login(server.app, 'owner1', 'Owner#123', 'digitronics');
+    const res = await request(server.app)
+      .get('/api/v1/dashboard/tenant-home')
+      .set(authHeader(session.accessToken));
+    expect(res.statusCode).toBe(200);
+    expect(res.body.data.tenant.id).toBe('digitronics');
+    // Legacy invoice must not appear in sales totals
+    expect(res.body.data.sales.totalSales).toBe(800);
+    expect(res.body.data.sales.count).toBe(2);
+    expect(res.body.data.sales.totalSales).not.toBe(800 + 55555 + 66666 + 77777);
+    // Legacy customer must not appear
+    expect(res.body.data.customers.count).toBe(1);
+    expect(res.body.data.customers.count).not.toBe(1 + 3);
+    expect(res.body.data.customers.recentCustomers.find(c => c.name === 'Customer Legacy')).toBeUndefined();
+    expect(res.body.data.customers.recentCustomers.find(c => c.name === 'Customer Null')).toBeUndefined();
+    expect(res.body.data.customers.recentCustomers.find(c => c.name === 'Customer Empty')).toBeUndefined();
+    // Legacy supplier must not appear
+    expect(res.body.data.suppliers.count).toBe(1);
+    expect(res.body.data.suppliers.recentSuppliers.find(s => s.name === 'Supplier Legacy')).toBeUndefined();
+    expect(res.body.data.suppliers.recentSuppliers.find(s => s.name === 'Supplier Null')).toBeUndefined();
+    expect(res.body.data.suppliers.recentSuppliers.find(s => s.name === 'Supplier Empty')).toBeUndefined();
+    // Legacy treasury entry must not appear
+    expect(res.body.data.treasury.recentTransactions.find(t => t.description === 'Treasury Legacy')).toBeUndefined();
+    expect(res.body.data.treasury.recentTransactions.find(t => t.description === 'Treasury Null')).toBeUndefined();
+    expect(res.body.data.treasury.recentTransactions.find(t => t.description === 'Treasury Empty')).toBeUndefined();
+  });
+
+  test('Tenant B excludes legacy/null/empty tenantId records (no cross-tenant leak)', async () => {
+    const session = await login(server.app, 'ownerB', 'OwnerB#123', 'nile');
+    const res = await request(server.app)
+      .get('/api/v1/dashboard/tenant-home')
+      .set(authHeader(session.accessToken));
+    expect(res.statusCode).toBe(200);
+    expect(res.body.data.tenant.id).toBe('nile');
+    // Legacy invoice must not appear in sales totals
+    expect(res.body.data.sales.totalSales).toBe(9999);
+    expect(res.body.data.sales.count).toBe(1);
+    expect(res.body.data.sales.totalSales).not.toBe(9999 + 55555 + 66666 + 77777);
+    // Legacy customer must not appear
+    expect(res.body.data.customers.count).toBe(1);
+    expect(res.body.data.customers.count).not.toBe(1 + 3);
+    expect(res.body.data.customers.recentCustomers.find(c => c.name === 'Customer Legacy')).toBeUndefined();
+    expect(res.body.data.customers.recentCustomers.find(c => c.name === 'Customer Null')).toBeUndefined();
+    expect(res.body.data.customers.recentCustomers.find(c => c.name === 'Customer Empty')).toBeUndefined();
+    // Legacy supplier must not appear
+    expect(res.body.data.suppliers.count).toBe(1);
+    expect(res.body.data.suppliers.recentSuppliers.find(s => s.name === 'Supplier Legacy')).toBeUndefined();
+    expect(res.body.data.suppliers.recentSuppliers.find(s => s.name === 'Supplier Null')).toBeUndefined();
+    expect(res.body.data.suppliers.recentSuppliers.find(s => s.name === 'Supplier Empty')).toBeUndefined();
+    // Legacy treasury entry must not appear
+    expect(res.body.data.treasury.recentTransactions.find(t => t.description === 'Treasury Legacy')).toBeUndefined();
+    expect(res.body.data.treasury.recentTransactions.find(t => t.description === 'Treasury Null')).toBeUndefined();
+    expect(res.body.data.treasury.recentTransactions.find(t => t.description === 'Treasury Empty')).toBeUndefined();
+  });
+
+  test('Forged tenant query parameter does not override trusted tenant (Tenant A session)', async () => {
+    const session = await login(server.app, 'owner1', 'Owner#123', 'digitronics');
+    // Attempt to forge tenantId=nile via query parameter
+    const res = await request(server.app)
+      .get('/api/v1/dashboard/tenant-home?tenantId=nile')
+      .set(authHeader(session.accessToken));
+    expect(res.statusCode).toBe(200);
+    // Trusted tenant must remain digitronics (Tenant A)
+    expect(res.body.data.tenant.id).toBe('digitronics');
+    // Tenant A data only
+    expect(res.body.data.sales.totalSales).toBe(800);
+    expect(res.body.data.customers.count).toBe(1);
+    expect(res.body.data.customers.recentCustomers.find(c => c.name === 'Customer B1')).toBeUndefined();
+  });
+
+  test('Forged tenant header does not override trusted tenant (Tenant A session)', async () => {
+    const session = await login(server.app, 'owner1', 'Owner#123', 'digitronics');
+    // Attempt to forge tenant via header
+    const res = await request(server.app)
+      .get('/api/v1/dashboard/tenant-home')
+      .set(authHeader(session.accessToken))
+      .set('X-Tenant-Id', 'nile');
+    expect(res.statusCode).toBe(200);
+    // Trusted tenant must remain digitronics (Tenant A)
+    expect(res.body.data.tenant.id).toBe('digitronics');
+    // Tenant A data only
+    expect(res.body.data.sales.totalSales).toBe(800);
+    expect(res.body.data.customers.count).toBe(1);
+    expect(res.body.data.customers.recentCustomers.find(c => c.name === 'Customer B1')).toBeUndefined();
+  });
+
+  test('Forged tenant in request body does not override trusted tenant (Tenant A session)', async () => {
+    const session = await login(server.app, 'owner1', 'Owner#123', 'digitronics');
+    // Attempt to forge tenant via request body (GET with body is unusual but tests defense-in-depth)
+    const res = await request(server.app)
+      .get('/api/v1/dashboard/tenant-home')
+      .set(authHeader(session.accessToken))
+      .send({ tenantId: 'nile' });
+    expect(res.statusCode).toBe(200);
+    // Trusted tenant must remain digitronics (Tenant A)
+    expect(res.body.data.tenant.id).toBe('digitronics');
+    // Tenant A data only
+    expect(res.body.data.sales.totalSales).toBe(800);
   });
 });
