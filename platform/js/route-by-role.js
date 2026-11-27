@@ -18,4 +18,10 @@ function routeByRole(effectiveRole, userRole) {
   return null;
 }
 
-module.exports = { routeByRole };
+// Dual export: CommonJS for Node tests, global for browser production pages.
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { routeByRole };
+}
+if (typeof window !== 'undefined' && typeof window.routeByRole === 'undefined') {
+  window.routeByRole = routeByRole;
+}

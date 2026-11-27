@@ -252,7 +252,6 @@
     // Recent activity (combine sales + customers + suppliers + treasury)
     activityList.innerHTML = '';
     var activities = [];
-    (data.sales || []).forEach(function () { /* placeholder - real data from sales list if available */ });
     var recent = [];
     var invItems = (inv.recentItems || []);
     invItems.slice(0, 3).forEach(function (it) {

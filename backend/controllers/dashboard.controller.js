@@ -6,13 +6,7 @@ const suppliersService = require('../services/suppliers.service');
 const treasuryService = require('../services/treasury.service');
 const { success, error } = require('../utils/apiResponse');
 const logger = require('../utils/logger');
-const { isPrivilegedRole } = require('../services/authorization.service');
-
-function hasPerm(user, perm) {
-  if (!user || typeof user !== 'object') return false;
-  if (isPrivilegedRole(user.role)) return true;
-  return Array.isArray(user.permissions) && user.permissions.includes(perm);
-}
+const { isPrivilegedRole, hasPermission } = require('../services/authorization.service');
 
 function filterByTenant(records, tenantId) {
   if (!Array.isArray(records) || !tenantId) return [];
@@ -82,11 +76,13 @@ async function getTenantHome(req, res) {
 
     // Field-level permissions (Owner/Admin bypass via isPrivilegedRole, but
     // checked explicitly for defense-in-depth and future role changes).
-    const canViewSales = hasPerm(user, 'sales.view');
-    const canViewInventory = hasPerm(user, 'inventory.view');
-    const canViewCustomers = hasPerm(user, 'customers.view');
-    const canViewSuppliers = hasPerm(user, 'suppliers.view');
-    const canViewTreasury = hasPerm(user, 'treasury.view');
+    // Uses the tenant-aware authorization resolver so effective tenant role
+    // (not just the global role) governs per-dataset visibility.
+    const canViewSales = hasPermission(user, 'sales.view', tenantId);
+    const canViewInventory = hasPermission(user, 'inventory.view', tenantId);
+    const canViewCustomers = hasPermission(user, 'customers.view', tenantId);
+    const canViewSuppliers = hasPermission(user, 'suppliers.view', tenantId);
+    const canViewTreasury = hasPermission(user, 'treasury.view', tenantId);
 
     // Sales overview — complete tenant-scoped totals. Paginate through ALL
     // invoices, then filter by trusted tenantId. Never treat a capped sample

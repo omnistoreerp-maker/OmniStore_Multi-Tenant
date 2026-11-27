@@ -449,22 +449,24 @@
         checkSession().then(function () {
           hideDrawer();
           authSetLoading(drawerSubmit, false);
-          // Phase 3A — server-authoritative post-login routing based on role.
-          fetch(AUTH_API + '/me', {
-            method: 'GET',
-            headers: { Accept: 'application/json' },
-            credentials: 'same-origin'
-          })
-            .then(function (res) { return res.ok ? res.json() : null; })
-            .then(function (data) {
-              var role = null;
-              if (data && data.data) {
-                role = data.data.effectiveRole || data.data.user && data.data.user.role;
-              }
-              if (role === 'Owner') { window.location.href = '/tenant-owner.html'; return; }
-              if (role === 'Admin') { window.location.href = '/tenant-admin.html'; return; }
-              // Other roles stay on the landing page (existing behavior).
-            }).catch(function () { /* stay on landing page */ });
+              // Phase 3A — server-authoritative post-login routing based on role.
+              // Uses the shared production helper (platform/js/route-by-role.js)
+              // so both index.html and landing.html route identically.
+              fetch(AUTH_API + '/me', {
+                method: 'GET',
+                headers: { Accept: 'application/json' },
+                credentials: 'same-origin'
+              })
+                .then(function (res) { return res.ok ? res.json() : null; })
+                .then(function (data) {
+                  var role = null;
+                  if (data && data.data) {
+                    role = data.data.effectiveRole || data.data.user && data.data.user.role;
+                  }
+                  var redirectUrl = routeByRole(role, role);
+                  if (redirectUrl) { window.location.href = redirectUrl; return; }
+                  // Other roles stay on the landing page (existing behavior).
+                }).catch(function () { /* stay on landing page */ });
         });
       })
       .catch(function () {

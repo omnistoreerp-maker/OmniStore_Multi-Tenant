@@ -67,7 +67,17 @@ const USERS = {
     { id: 'u-owner', username: 'e2eOwner', password: hashPassword(PW), role: 'Owner', fullName: 'E2E Owner', tenantIds: ['digitronics'], tenantRoles: { digitronics: 'Owner' }, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), tokenVersion: 0 },
     { id: 'u-admin', username: 'e2eAdmin', password: hashPassword(PW), role: 'Admin', fullName: 'E2E Admin', tenantIds: ['digitronics'], tenantRoles: { digitronics: 'Admin' }, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), tokenVersion: 0 },
     { id: 'u-viewer', username: 'e2eViewer', password: hashPassword(PW), role: 'Viewer', fullName: 'E2E Viewer', tenantIds: ['digitronics'], tenantRoles: { digitronics: 'Viewer' }, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), tokenVersion: 0 },
-    { id: 'u-master', username: 'e2eMaster', password: hashPassword(PW), role: 'Manager', fullName: 'E2E Master', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), tokenVersion: 0 }
+    { id: 'u-master', username: 'e2eMaster', password: hashPassword(PW), role: 'Manager', fullName: 'E2E Master', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), tokenVersion: 0 },
+    { id: 'u-manager', username: 'e2eManager', password: hashPassword(PW), role: 'Manager', fullName: 'E2E Manager', tenantIds: ['digitronics'], tenantRoles: { digitronics: 'Manager' }, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), tokenVersion: 0 }
+  ]
+};
+
+// Platform (Master) identity — server-side store, separate from tenant scope.
+// MASTER_OWNER membership here makes e2eMaster a real platform Master, not
+// just a tenant Manager. Read by platformAdmin.platformRoleFor() at login.
+const PLATFORM_ADMINS_DATA = {
+  admins: [
+    { username: 'e2eMaster', platformRole: 'MASTER_OWNER', status: 'active', displayName: 'E2E Platform Master', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
   ]
 };
 
@@ -161,6 +171,7 @@ async function loginViaUi(page, username) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.writeFileSync(path.join(DATA_DIR, 'companies.json'), JSON.stringify(COMPANIES, null, 2));
   fs.writeFileSync(path.join(DATA_DIR, 'users.json'), JSON.stringify(USERS, null, 2));
+  fs.writeFileSync(path.join(DATA_DIR, 'platformAdmins.json'), JSON.stringify(PLATFORM_ADMINS_DATA, null, 2));
 
   await startBackend();
   await startStatic();
@@ -212,7 +223,7 @@ async function loginViaUi(page, username) {
     await page2.close();
   }
 
-  // ── Test 3: Platform Master stays on index.html ──
+  // ── Test 3: Platform Master (MASTER_OWNER) stays on index.html ──
   {
     const page4 = await context.newPage();
     const errors4 = [];
@@ -223,8 +234,27 @@ async function loginViaUi(page, username) {
     await page4.goto('http://127.0.0.1:' + STATIC_PORT + '/index.html', { waitUntil: 'networkidle' });
     await loginViaUi(page4, 'e2eMaster');
     await page4.waitForTimeout(1000);
-    check('Master stays on index.html (no tenant nav)', page4.url().includes('/index.html'));
+    // Master identity is server-side (platformAdmins.json), NOT a tenant role.
+    // Master must NOT be redirected to tenant-owner.html or tenant-admin.html.
+    check('Master stays on index.html (Master Control Center, not tenant home)', page4.url().includes('/index.html'));
+    check('Master not redirected to tenant-owner.html', !page4.url().includes('/tenant-owner.html'));
+    check('Master not redirected to tenant-admin.html', !page4.url().includes('/tenant-admin.html'));
     await page4.close();
+  }
+
+  // ── Test 3b: Ordinary Manager stays on index.html ──
+  {
+    const page7 = await context.newPage();
+    const errors7 = [];
+    page7.on('pageerror', e => errors7.push(e.message));
+    page7.on('console', m => { if (m.type() === 'error') errors7.push(m.text()); });
+    await context.clearCookies();
+    await preparePage(page7, 'digitronics');
+    await page7.goto('http://127.0.0.1:' + STATIC_PORT + '/index.html', { waitUntil: 'networkidle' });
+    await loginViaUi(page7, 'e2eManager');
+    await page7.waitForTimeout(1000);
+    check('Manager stays on index.html (existing behavior)', page7.url().includes('/index.html'));
+    await page7.close();
   }
 
   // ── Test 4: Viewer cannot access tenant home ──

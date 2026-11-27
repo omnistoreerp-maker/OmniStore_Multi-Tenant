@@ -17165,14 +17165,13 @@ function doLogin() {
       // Owner → Tenant Owner Home, Admin → Tenant Admin Home,
       // Platform Master → existing Master Control Center (unchanged),
       // other roles → existing index.html behavior.
+      // Uses the shared production helper (platform/js/route-by-role.js) so both
+      // index.html and landing.html route identically. Client-supplied or
+      // locally cached roles never trigger Owner/Admin navigation.
       const postLoginRole = (d.effectiveRole !== undefined ? d.effectiveRole : d.user.role);
-      if (postLoginRole === 'Owner') {
-        window.location.href = '/tenant-owner.html';
-        if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = '🔐 تسجيل الدخول'; }
-        return;
-      }
-      if (postLoginRole === 'Admin') {
-        window.location.href = '/tenant-admin.html';
+      const redirectUrl = routeByRole(postLoginRole, d.user.role);
+      if (redirectUrl) {
+        window.location.href = redirectUrl;
         if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = '🔐 تسجيل الدخول'; }
         return;
       }
@@ -46169,6 +46168,7 @@ function populateCenterDropdown(selectId) {
   window.state = state;
 })();
 </script>
+<script src="platform/js/route-by-role.js"></script>
 </body>
 </html>
 

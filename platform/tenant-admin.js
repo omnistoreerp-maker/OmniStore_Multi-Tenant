@@ -202,22 +202,6 @@
         '<div class="empty-state" style="padding:20px"><div class="empty-icon" style="font-size:2rem">📭</div>' +
         '<div style="font-size:0.85rem">' + (isRTL ? 'لا توجد أنشطة حديثة' : 'No recent activity') + '</div></div>';
     }
-
-    // Quick access — real dashboard sections only
-    quickGrid.innerHTML = '';
-    var quicks = [
-      { label: t('quick_sales'), icon: '🧾' },
-      { label: t('quick_inventory'), icon: '📦' },
-      { label: t('quick_customers'), icon: '👥' },
-      { label: t('quick_suppliers'), icon: '🚚' },
-      { label: t('quick_treasury'), icon: '💰' }
-    ];
-    quicks.forEach(function (q) {
-      var item = document.createElement('div');
-      item.className = 'quick-item';
-      item.innerHTML = '<div class="quick-icon">' + q.icon + '</div><div>' + esc(q.label) + '</div>';
-      quickGrid.appendChild(item);
-    });
   }
 
   // ---------- Fetch ----------
