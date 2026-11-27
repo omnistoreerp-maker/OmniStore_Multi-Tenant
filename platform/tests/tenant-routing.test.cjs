@@ -1,14 +1,21 @@
 // Tenant role-based post-login routing unit tests.
-// Verifies server-authoritative routing: Owner → tenant-owner.html, Admin → tenant-admin.html,
-// Platform Master → unchanged, other roles → existing behavior, unknown → safe fallback.
+// Mirrors the production routing logic in index.html doLogin():
+//   const postLoginRole = (d.effectiveRole !== undefined ? d.effectiveRole : d.user.role);
+//   if (postLoginRole === 'Owner') -> /tenant-owner.html
+//   if (postLoginRole === 'Admin')  -> /tenant-admin.html
+//   otherwise                      -> null (existing index.html behavior)
 // Client-supplied role values cannot override server identity.
+// Nothing is imported from index.html (browser-only HTML); the routing
+// decision is reproduced here exactly as it appears in production.
 
 (function () {
   'use strict';
 
   const assert = require('assert');
 
-  // Simulated role-based routing decision (mirrors index.html post-login logic)
+  // Reproduction of the post-login routing decision from index.html doLogin().
+  // backend path:  const postLoginRole = (d.effectiveRole !== undefined ? d.effectiveRole : d.user.role);
+  // legacy path:   if (user.role === 'Owner') ... else if (user.role === 'Admin') ...
   function routeByRole(effectiveRole, userRole) {
     const role = effectiveRole !== undefined ? effectiveRole : userRole;
     if (role === 'Owner') return '/tenant-owner.html';
@@ -32,29 +39,25 @@
   check('Admin effective role routes to tenant-admin.html', routeByRole('Admin', 'Cashier') === '/tenant-admin.html');
   check('Admin user role routes to tenant-admin.html (fallback)', routeByRole(undefined, 'Admin') === '/tenant-admin.html');
 
-  // 3. Platform Master still reaches existing Master Control Center (unchanged)
-  check('Platform Master returns null (existing index.html behavior)', routeByRole(undefined, 'Owner') !== null || true);
-  check('Master role is not Owner/Admin → null (existing behavior preserved)', routeByRole(undefined, 'Manager') === null);
-
-  // 4. Other existing roles retain previous safe behavior
+  // 3. Platform Master and other roles retain existing index.html behavior (null)
   check('Manager returns null (existing index.html behavior)', routeByRole(undefined, 'Manager') === null);
   check('Cashier returns null (existing index.html behavior)', routeByRole(undefined, 'Cashier') === null);
   check('Technician returns null (existing index.html behavior)', routeByRole(undefined, 'Technician') === null);
   check('WarehouseSales returns null (existing index.html behavior)', routeByRole(undefined, 'WarehouseSales') === null);
   check('Viewer returns null (existing index.html behavior)', routeByRole(undefined, 'Viewer') === null);
 
-  // 5. Unknown or unresolved roles never gain Owner/Admin destinations
+  // 4. Unknown or unresolved roles never gain Owner/Admin destinations
   check('Unknown role returns null', routeByRole(undefined, 'UnknownRole') === null);
   check('Empty role returns null', routeByRole(undefined, '') === null);
   check('undefined role returns null', routeByRole(undefined, undefined) === null);
 
-  // 6. Client-supplied role cannot override server identity (effectiveRole wins)
+  // 5. Client-supplied role cannot override server identity (effectiveRole wins)
   check('effectiveRole Owner overrides user Cashier', routeByRole('Owner', 'Cashier') === '/tenant-owner.html');
   check('effectiveRole Admin overrides user Cashier', routeByRole('Admin', 'Cashier') === '/tenant-admin.html');
   check('effectiveRole Cashier does not become Owner', routeByRole('Cashier', 'Owner') === null);
+  check('effectiveRole Admin does not become Owner', routeByRole('Admin', 'Owner') === '/tenant-admin.html');
 
-  // 7. Login failures do not navigate to authenticated workspaces
-  // (simulated: no valid session → no role → null → stays on login page)
+  // 6. Login failures do not navigate to authenticated workspaces
   check('No session → null (stays on login)', routeByRole(undefined, undefined) === null);
 
   console.log('\nRouting tests: ' + passed + ' passed, ' + failed + ' failed');

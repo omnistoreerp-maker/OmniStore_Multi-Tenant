@@ -24,10 +24,6 @@
   const contextBar = document.getElementById('contextBar');
   const pageStatus = document.getElementById('pageStatus');
   const kpiGrid = document.getElementById('kpiGrid');
-  const userList = document.getElementById('userList');
-  const roleList = document.getElementById('roleList');
-  const moduleGrid = document.getElementById('moduleGrid');
-  const issueList = document.getElementById('issueList');
   const activityList = document.getElementById('activityList');
   const quickGrid = document.getElementById('quickGrid');
 
@@ -49,32 +45,22 @@
         empty_title: 'لا توجد بيانات',
         empty_sub: 'لا توجد بيانات عمليات متاحة للشركة المختارة.',
         tenant_status: 'حالة العمليات المتبعة',
-        user_admin: 'إدارة المستخدمين والموظفين',
-        role_perm: 'إدارة الأدوار والصلاحيات',
-        module_access: 'الوصول إلى الوحدات والخدمات',
-        operational_issues: 'المشاكل والمهام المعلقة',
-        business_activity: 'النشاط التجاري المرتبط',
-        quick_access: 'اختصارات الإدارة الآمنة',
-        total_users: 'إجمالي المستخدمين',
-        total_roles: 'إجمالي الأدوار',
-        active_modules: 'الوحدات النشطة',
-        pending_issues: 'المشاكل المعلقة',
-        total_employees: 'إجمالي الموظفين',
-        user_list_title: 'قائمة المستخدمين',
-        role_list_title: 'قائمة الأدوار',
-        module_list_title: 'الوحدات المتاحة',
-        issue_list_title: 'المشاكل المفتوحة',
-        activity_title: 'آخر الأنشطة',
+        sales_total: 'إجمالي المبيعات',
+        customers_total: 'إجمالي العملاء',
+        suppliers_total: 'إجمالي الموردين',
+        treasury_total: 'إجمالي الحركات المالية',
+        unavailable: 'غير متاح',
+        zero: 'صفر',
+        recent_activity: 'آخر النشاط التجاري',
         ctx_role: 'الدور',
         ctx_perms: 'الصلاحية',
         ctx_status: 'الحالة',
         server_verified: 'موثقة من الخادم',
-        quick_users: 'المستخدمون',
-        quick_roles: 'الأدوار',
-        quick_modules: 'الوحدات',
-        quick_reports: 'التقارير',
-        quick_settings: 'الإعدادات',
-        quick_audit: 'سجل التدقيق'
+        quick_sales: 'المبيعات',
+        quick_inventory: 'المخزون',
+        quick_customers: 'العملاء',
+        quick_suppliers: 'الموردين',
+        quick_treasury: 'الخزينة'
       },
       en: {
         app_title: 'Tenant Admin Home — OmniStore',
@@ -86,32 +72,22 @@
         empty_title: 'No data',
         empty_sub: 'No operational data available for the selected company.',
         tenant_status: 'Tenant Operational Status',
-        user_admin: 'User and Employee Administration',
-        role_perm: 'Role and Permission Management',
-        module_access: 'Module and Service Access',
-        operational_issues: 'Operational Issues and Pending Tasks',
-        business_activity: 'Related Business Activity',
-        quick_access: 'Safe Administration Shortcuts',
-        total_users: 'Total Users',
-        total_roles: 'Total Roles',
-        active_modules: 'Active Modules',
-        pending_issues: 'Pending Issues',
-        total_employees: 'Total Employees',
-        user_list_title: 'User List',
-        role_list_title: 'Role List',
-        module_list_title: 'Available Modules',
-        issue_list_title: 'Open Issues',
-        activity_title: 'Recent Activity',
+        sales_total: 'Total Sales',
+        customers_total: 'Total Customers',
+        suppliers_total: 'Total Suppliers',
+        treasury_total: 'Total Treasury Transactions',
+        unavailable: 'Unavailable',
+        zero: 'Zero',
+        recent_activity: 'Recent Business Activity',
         ctx_role: 'Role',
         ctx_perms: 'Permissions',
         ctx_status: 'Status',
         server_verified: 'Server-verified',
-        quick_users: 'Users',
-        quick_roles: 'Roles',
-        quick_modules: 'Modules',
-        quick_reports: 'Reports',
-        quick_settings: 'Settings',
-        quick_audit: 'Audit'
+        quick_sales: 'Sales',
+        quick_inventory: 'Inventory',
+        quick_customers: 'Customers',
+        quick_suppliers: 'Suppliers',
+        quick_treasury: 'Treasury'
       }
     };
     return (T[lang] || T.ar)[key] || key;
@@ -144,6 +120,19 @@
     try { return new Date(str).toLocaleDateString(lang); } catch (e) { return str; }
   }
 
+  // Render a single KPI card. Shows real value or explicit unavailable state.
+  function renderKpi(label, value, available, sub) {
+    var card = document.createElement('div');
+    card.className = 'kpi-card';
+    var disp = available ? String(value) : t('unavailable');
+    if (!available && value === 0) disp = t('zero');
+    card.innerHTML =
+      '<div class="kpi-value">' + esc(disp) + '</div>' +
+      '<div class="kpi-label">' + esc(label) + '</div>' +
+      '<div class="kpi-trend neutral">' + esc(sub || '') + '</div>';
+    kpiGrid.appendChild(card);
+  }
+
   // ---------- Render ----------
   function render() {
     hideStatus();
@@ -167,124 +156,36 @@
       ctxStatusEl.textContent = t('server_verified');
     }
     ctxRoleEl.textContent = t('ctx_role') + ': ' + (data.role || '—');
-    ctxPermsEl.textContent = t('ctx_perms') + ': ' + (data.perms || '—');
+    ctxPermsEl.textContent = t('ctx_perms') + ': ' + (data.perms && data.perms.length ? data.perms.join(', ') : '—');
 
     if (userWelcomeEl) userWelcomeEl.textContent = t('welcome');
 
-    // KPI cards
+    // KPI cards — real data only, no hardcoded values
     kpiGrid.innerHTML = '';
     var sales = data.sales || {};
-    var inv = data.inventory || {};
     var cust = data.customers || {};
+    var supp = data.suppliers || {};
+    var treas = data.treasury || {};
 
-    var kpis = [
-      { label: t('total_users'), value: String(cust.count || 0), trend: 'neutral', sub: t('user_list_title') },
-      { label: t('total_roles'), value: '5', trend: 'neutral', sub: t('role_list_title') },
-      { label: t('active_modules'), value: '6', trend: 'neutral', sub: t('module_list_title') },
-      { label: t('pending_issues'), value: String(inv.lowStockCount || 0), trend: inv.lowStockCount > 0 ? 'down' : 'neutral', sub: t('operational_issues') },
-      { label: t('total_employees'), value: String(cust.count || 0), trend: 'neutral', sub: t('user_list_title') },
-      { label: t('total_sales'), value: fmtMoney(sales.totalSales || 0), trend: 'neutral', sub: t('sales_overview_alt') }
-    ];
+    renderKpi(t('sales_total'), fmtMoney(sales.totalSales || 0), sales.available, '');
+    renderKpi(t('customers_total'), String(cust.count || 0), cust.available, '');
+    renderKpi(t('suppliers_total'), String(supp.count || 0), supp.available, '');
+    renderKpi(t('treasury_total'), String(treas.recentTransactions ? treas.recentTransactions.length : 0), treas.available, '');
 
-    kpis.forEach(function (k) {
-      var card = document.createElement('div');
-      card.className = 'kpi-card';
-      card.innerHTML =
-        '<div class="kpi-value">' + esc(k.value) + '</div>' +
-        '<div class="kpi-label">' + esc(k.label) + '</div>' +
-        '<div class="kpi-trend ' + k.trend + '">' + esc(k.sub) + '</div>';
-      kpiGrid.appendChild(card);
-    });
-
-    // User administration
-    userList.innerHTML = '';
-    var custList = (data.customers || {}).recentCustomers || [];
-    if (custList.length === 0) {
-      userList.innerHTML =
-        '<div class="empty-state" style="padding:16px"><div class="empty-icon">👥</div>' +
-        '<div style="font-size:0.8rem">' + (isRTL ? 'لا توجد مستخدمين' : 'No users') + '</div></div>';
-    } else {
-      custList.forEach(function (u) {
-        var item = document.createElement('div');
-        item.className = 'list-item';
-        item.innerHTML =
-          '<div class="item-main">' +
-          '<div style="font-weight:700">' + esc(u.name) + '</div>' +
-          '<div class="item-sub">' + esc(u.phone || u.email || '—') + '</div>' +
-          '</div>' +
-          '<div class="item-badge">User</div>';
-        userList.appendChild(item);
-      });
-    }
-
-    // Role and permissions
-    roleList.innerHTML = '';
-    var roles = ['Owner', 'Admin', 'Manager', 'Cashier', 'Technician'];
-    roles.forEach(function (r) {
-      var item = document.createElement('div');
-      item.className = 'list-item';
-      item.innerHTML =
-        '<div class="item-main">' +
-        '<div style="font-weight:700">' + esc(r) + '</div>' +
-        '<div class="item-sub">' + (isRTL ? 'دور نظامي' : 'System role') + '</div>' +
-        '</div>' +
-        '<div class="item-badge">Role</div>';
-      roleList.appendChild(item);
-    });
-
-    // Module access
-    moduleGrid.innerHTML = '';
-    var modules = [
-      { label: t('quick_users'), icon: '👥', href: '/index.html#users' },
-      { label: t('quick_roles'), icon: '🔐', href: '/index.html#roles' },
-      { label: t('quick_modules'), icon: '🧩', href: '/index.html#modules' },
-      { label: t('quick_reports'), icon: '📊', href: '/index.html#reports' },
-      { label: t('quick_settings'), icon: '⚙', href: '/index.html#settings' },
-      { label: t('quick_audit'), icon: '📋', href: '/index.html#audit' }
-    ];
-    modules.forEach(function (m) {
-      var item = document.createElement('a');
-      item.className = 'module-item';
-      item.href = m.href;
-      item.innerHTML = '<div class="module-icon">' + m.icon + '</div><div>' + m.label + '</div>';
-      moduleGrid.appendChild(item);
-    });
-
-    // Operational issues (low stock items as operational issues)
-    issueList.innerHTML = '';
-    var invItems = (data.inventory || {}).recentItems || [];
-    var lowItems = invItems.filter(function (it) { return it.stockQty > 0 && it.stockQty <= 10; });
-    if (lowItems.length === 0) {
-      issueList.innerHTML =
-        '<div class="empty-state" style="padding:20px"><div class="empty-icon">✅</div>' +
-        '<div style="font-size:0.85rem">' + (isRTL ? 'لا توجد مشاكل معلقة' : 'No pending issues') + '</div></div>';
-    } else {
-      lowItems.slice(0, 5).forEach(function (it) {
-        var item = document.createElement('div');
-        item.className = 'alert-item warn';
-        item.innerHTML =
-          '<div class="item-main">' +
-          '<div style="font-weight:700">' + esc(it.name) + '</div>' +
-          '<div class="item-sub">' + (isRTL ? 'مستوى المخزون منخفض' : 'Low stock level') + '</div>' +
-          '</div>' +
-          '<div class="item-badge stock-low">' + esc(it.stockQty) + '</div>';
-        issueList.appendChild(item);
-      });
-    }
-
-    // Business activity
+    // Recent activity (combine sales + customers + suppliers + treasury)
     activityList.innerHTML = '';
     var recent = [];
-    invItems.slice(0, 3).forEach(function (it) {
-      recent.push({ label: 'مخزون محدث', sub: it.name + ' — ' + fmtMoney(it.sellPrice), time: fmtDate(it.updatedAt) });
+    (data.inventory && data.inventory.recentItems || []).slice(0, 3).forEach(function (it) {
+      recent.push({ label: t('recent_activity'), sub: (it.name || '—') + ' — ' + fmtMoney(it.sellPrice || 0), time: fmtDate(it.updatedAt) });
     });
-    var suppList = (data.suppliers || {}).recentSuppliers || [];
-    suppList.slice(0, 2).forEach(function (s) {
-      recent.push({ label: 'مورد جديد', sub: s.name, time: fmtDate(s.createdAt) });
+    (cust.recentCustomers || []).slice(0, 2).forEach(function (c) {
+      recent.push({ label: 'New Customer', sub: c.name, time: fmtDate(c.createdAt) });
     });
-    var treasList = (data.treasury || {}).recentTransactions || [];
-    treasList.slice(0, 2).forEach(function (t2) {
-      recent.push({ label: 'حركة مالية', sub: t2.description || '—', time: fmtDate(t2.createdAt) });
+    (supp.recentSuppliers || []).slice(0, 2).forEach(function (s) {
+      recent.push({ label: 'New Supplier', sub: s.name, time: fmtDate(s.createdAt) });
+    });
+    (treas.recentTransactions || []).slice(0, 2).forEach(function (tx) {
+      recent.push({ label: 'Treasury Transaction', sub: tx.description || '—', time: fmtDate(tx.createdAt) });
     });
     recent.sort(function (a, b) { return (b.time || '').localeCompare(a.time || ''); });
     recent.slice(0, 6).forEach(function (act) {
@@ -304,21 +205,19 @@
         '<div style="font-size:0.85rem">' + (isRTL ? 'لا توجد أنشطة حديثة' : 'No recent activity') + '</div></div>';
     }
 
-    // Quick access
+    // Quick access — real dashboard sections only
     quickGrid.innerHTML = '';
     var quicks = [
-      { label: t('quick_users'), icon: '👥', href: '/index.html#users' },
-      { label: t('quick_roles'), icon: '🔐', href: '/index.html#roles' },
-      { label: t('quick_modules'), icon: '🧩', href: '/index.html#modules' },
-      { label: t('quick_reports'), icon: '📊', href: '/index.html#reports' },
-      { label: t('quick_settings'), icon: '⚙', href: '/index.html#settings' },
-      { label: t('quick_audit'), icon: '📋', href: '/index.html#audit' }
+      { label: t('quick_sales'), icon: '🧾' },
+      { label: t('quick_inventory'), icon: '📦' },
+      { label: t('quick_customers'), icon: '👥' },
+      { label: t('quick_suppliers'), icon: '🚚' },
+      { label: t('quick_treasury'), icon: '💰' }
     ];
     quicks.forEach(function (q) {
-      var item = document.createElement('a');
+      var item = document.createElement('div');
       item.className = 'quick-item';
-      item.href = q.href;
-      item.innerHTML = '<div class="quick-icon">' + q.icon + '</div><div>' + q.label + '</div>';
+      item.innerHTML = '<div class="quick-icon">' + q.icon + '</div><div>' + esc(q.label) + '</div>';
       quickGrid.appendChild(item);
     });
   }

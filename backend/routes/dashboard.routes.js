@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/dashboard.controller');
-const { requirePermission } = require('../middleware/authorize');
+const { requireRole, requirePermission } = require('../middleware/authorize');
 
 /**
  * @openapi
@@ -73,7 +73,7 @@ router.get('/stats', requirePermission('dashboard.view'), ctrl.getStats);
  *       403:
  *         description: Insufficient permission
  */
-router.get('/tenant-home', requirePermission('dashboard.view'), ctrl.getTenantHome);
+router.get('/tenant-home', requireRole('Owner', 'Admin'), ctrl.getTenantHome);
 
 /**
  * @openapi

@@ -6,8 +6,20 @@ const suppliersService = require('../services/suppliers.service');
 const treasuryService = require('../services/treasury.service');
 const { success, error } = require('../utils/apiResponse');
 const logger = require('../utils/logger');
+const { isPrivilegedRole } = require('../services/authorization.service');
 
-function list(req, res) {
+function hasPerm(user, perm) {
+  if (!user || typeof user !== 'object') return false;
+  if (isPrivilegedRole(user.role)) return true;
+  return Array.isArray(user.permissions) && user.permissions.includes(perm);
+}
+
+function filterByTenant(records, tenantId) {
+  if (!Array.isArray(records) || !tenantId) return records;
+  return records.filter(r => r && r.tenantId === undefined ? true : String(r.tenantId) === String(tenantId));
+}
+
+async function list(req, res) {
   try {
     const result = dashboardService.list(req.query);
     success(res, result, 'Dashboard entries retrieved');
@@ -40,103 +52,142 @@ function getStats(req, res) {
 
 async function getTenantHome(req, res) {
   try {
+    // Tenant identity is mandatory — fail closed without a trusted tenant.
     const tenantContext = req.tenantContext || {};
     const tenantId = tenantContext.tenantId != null ? String(tenantContext.tenantId) : null;
+    if (!tenantId) {
+      return error(res, 'Tenant context required', 403, { code: 'TENANT_CONTEXT_REQUIRED' });
+    }
 
-    // Sales overview — real sales data, tenant-scoped by the service
+    const user = req.user || {};
+    const role = user.effectiveRole || user.role;
+    if (!isPrivilegedRole(role)) {
+      return error(res, 'Insufficient role', 403, { code: 'INSUFFICIENT_ROLE' });
+    }
+
+    // Field-level permissions (Owner/Admin bypass via isPrivilegedRole, but
+    // checked explicitly for defense-in-depth and future role changes).
+    const canViewSales = hasPerm(user, 'sales.view');
+    const canViewInventory = hasPerm(user, 'inventory.view');
+    const canViewCustomers = hasPerm(user, 'customers.view');
+    const canViewSuppliers = hasPerm(user, 'suppliers.view');
+    const canViewTreasury = hasPerm(user, 'treasury.view');
+
+    // Sales overview — real sales data, tenant-scoped.
+    // NOTE: salesService.stats() only filters by tenant when
+    // ENABLE_TENANT_SALES_ISOLATION is on; since we do not change feature
+    // flags, we fetch the invoice list and filter by tenantId here.
     let sales = { count: 0, totalSales: 0, cashSales: 0, creditSales: 0, profit: 0, available: false };
-    try {
-      const s = await salesService.stats(tenantContext);
-      sales = { ...sales, ...s, available: true };
-    } catch (err) {
-      logger.warn('tenant-home sales stats unavailable:', err.message);
-    }
-
-    // Inventory position — real inventory items, tenant-filtered at repository level
-    let inventory = { totalItems: 0, lowStockCount: 0, recentItems: [], available: false };
-    try {
-      const inv = await inventoryService.list({ limit: 8, sortBy: 'updatedAt', sortOrder: 'desc' });
-      const products = Array.isArray(inv.products) ? inv.products : [];
-      let lowStock = 0;
-      const recentItems = products.map(p => {
-        const stockQty = Number(p.stockQty || 0);
-        if (stockQty > 0 && stockQty <= 10) lowStock++;
-        return {
-          id: p.id,
-          name: p.name || 'Unnamed Item',
-          sku: p.sku || '',
-          stockQty,
-          buyPrice: Number(p.buyPrice || 0),
-          sellPrice: Number(p.sellPrice || 0),
-          updatedAt: p.updatedAt || p.createdAt
+    if (canViewSales) {
+      try {
+        const listed = await salesService.list({ limit: 1000 });
+        const invoices = filterByTenant(Array.isArray(listed.invoices) ? listed.invoices : [], tenantId);
+        let totalSales = 0, cashSales = 0, creditSales = 0, totalProfit = 0;
+        invoices.forEach(inv => {
+          const t = Number(inv.total) || 0;
+          totalSales += t;
+          totalProfit += Number(inv.profit) || 0;
+          const pay = String(inv.payment || inv.paymentType || inv.invoiceType || 'cash').toLowerCase();
+          if (pay === 'cash') cashSales += t;
+          else creditSales += t;
+        });
+        sales = {
+          count: invoices.length,
+          totalSales: Math.round(totalSales * 100) / 100,
+          cashSales: Math.round(cashSales * 100) / 100,
+          creditSales: Math.round(creditSales * 100) / 100,
+          profit: Math.round(totalProfit * 100) / 100,
+          available: true
         };
-      });
-      inventory = { totalItems: inv.total || products.length, lowStockCount: lowStock, recentItems, available: true };
-    } catch (err) {
-      logger.warn('tenant-home inventory unavailable:', err.message);
+      } catch (err) {
+        logger.warn('tenant-home sales stats unavailable:', err.message);
+      }
     }
 
-    // Customers — real customer data
+    // Inventory position — products are platform-GLOBAL (GLOBAL_STORES),
+    // never tenant-scoped. Do not present global products as tenant inventory.
+    let inventory = { totalItems: 0, lowStockCount: 0, recentItems: [], available: false };
+    if (canViewInventory) {
+      try {
+        const inv = await inventoryService.list({ limit: 8, sortBy: 'updatedAt', sortOrder: 'desc' });
+        const products = Array.isArray(inv.products) ? inv.products : [];
+        // Products carry no tenantId — they are platform-global catalog items,
+        // not tenant-owned stock. Report honest unavailable state.
+        inventory = { totalItems: 0, lowStockCount: 0, recentItems: [], available: false };
+      } catch (err) {
+        logger.warn('tenant-home inventory unavailable:', err.message);
+      }
+    }
+
+    // Customers — tenant-scoped records only.
     let customers = { count: 0, recentCustomers: [], available: false };
-    try {
-      const c = await customersService.list({ limit: 5 });
-      const list = Array.isArray(c.customers) ? c.customers : [];
-      customers = {
-        count: c.total || list.length,
-        recentCustomers: list.map(cust => ({
-          id: cust.id,
-          name: cust.fullName || cust.name || 'Unnamed Customer',
-          phone: cust.phone || '',
-          email: cust.email || '',
-          createdAt: cust.createdAt || cust.updatedAt
-        })),
-        available: true
-      };
-    } catch (err) {
-      logger.warn('tenant-home customers unavailable:', err.message);
+    if (canViewCustomers) {
+      try {
+        const c = await customersService.list({ limit: 5 });
+        const list = filterByTenant(Array.isArray(c.customers) ? c.customers : [], tenantId);
+        customers = {
+          count: list.length,
+          recentCustomers: list.slice(0, 5).map(cust => ({
+            id: cust.id,
+            name: cust.fullName || cust.name || 'Unnamed Customer',
+            phone: cust.phone || '',
+            email: cust.email || '',
+            createdAt: cust.createdAt || cust.updatedAt
+          })),
+          available: true
+        };
+      } catch (err) {
+        logger.warn('tenant-home customers unavailable:', err.message);
+      }
     }
 
-    // Suppliers — real supplier data
+    // Suppliers — tenant-scoped records only.
     let suppliers = { count: 0, recentSuppliers: [], available: false };
-    try {
-      const s = await suppliersService.list({ limit: 5 });
-      const list = Array.isArray(s.suppliers) ? s.suppliers : [];
-      suppliers = {
-        count: s.total || list.length,
-        recentSuppliers: list.map(supp => ({
-          id: supp.id,
-          name: supp.fullName || supp.name || 'Unnamed Supplier',
-          phone: supp.phone || '',
-          email: supp.email || '',
-          createdAt: supp.createdAt || supp.updatedAt
-        })),
-        available: true
-      };
-    } catch (err) {
-      logger.warn('tenant-home suppliers unavailable:', err.message);
+    if (canViewSuppliers) {
+      try {
+        const s = await suppliersService.list({ limit: 5 });
+        const list = filterByTenant(Array.isArray(s.suppliers) ? s.suppliers : [], tenantId);
+        suppliers = {
+          count: list.length,
+          recentSuppliers: list.slice(0, 5).map(supp => ({
+            id: supp.id,
+            name: supp.fullName || supp.name || 'Unnamed Supplier',
+            phone: supp.phone || '',
+            email: supp.email || '',
+            createdAt: supp.createdAt || supp.updatedAt
+          })),
+          available: true
+        };
+      } catch (err) {
+        logger.warn('tenant-home suppliers unavailable:', err.message);
+      }
     }
 
-    // Treasury — recent transactions
+    // Treasury — tenant-scoped transactions only.
     let treasury = { recentTransactions: [], available: false };
-    try {
-      const t = await treasuryService.list({ limit: 8 });
-      const list = Array.isArray(t.transactions) ? t.transactions : [];
-      treasury = {
-        recentTransactions: list.map(tx => ({
-          id: tx.id,
-          type: tx.type || 'deposit',
-          amount: Number(tx.amount || 0),
-          description: tx.description || '',
-          createdAt: tx.createdAt || tx.updatedAt
-        })),
-        available: true
-      };
-    } catch (err) {
-      logger.warn('tenant-home treasury unavailable:', err.message);
+    if (canViewTreasury) {
+      try {
+        const t = await treasuryService.list({ limit: 8 });
+        const list = filterByTenant(Array.isArray(t.entries) ? t.entries : [], tenantId);
+        treasury = {
+          recentTransactions: list.map(tx => ({
+            id: tx.id,
+            type: tx.type || 'deposit',
+            amount: Number(tx.amount || 0),
+            description: tx.description || '',
+            createdAt: tx.createdAt || tx.updatedAt
+          })),
+          available: true
+        };
+      } catch (err) {
+        logger.warn('tenant-home treasury unavailable:', err.message);
+      }
     }
 
     success(res, {
-      tenant: { id: tenantId, available: tenantId != null },
+      tenant: { id: tenantId, available: true },
+      role,
+      perms: [canViewSales && 'sales.view', canViewInventory && 'inventory.view', canViewCustomers && 'customers.view', canViewSuppliers && 'suppliers.view', canViewTreasury && 'treasury.view'].filter(Boolean),
       sales,
       inventory,
       customers,
