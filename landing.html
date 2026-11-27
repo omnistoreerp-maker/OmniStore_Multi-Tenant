@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-omni-section="landing">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+  <meta name="description" content="OmniStore — منصة واحدة موحدة للخدمات الرقمية والتجارية والترفيهية. سوق، حلول أعمال، خدمات طلاب، تعليم، ألعاب، دعم فني.">
+  <meta name="theme-color" content="#070a12">
+  <link rel="icon" href="/icons/digitronics-icon-192.svg" type="image/svg+xml">
+  <title data-i18n="platform_name">OmniStore — منصة الخدمات الموحدة</title>
+  <link rel="stylesheet" href="platform/platform.css">
+  <link rel="stylesheet" href="platform/landing.css">
+</head>
+<body>
+
+  <!-- ============ Header ============ -->
+  <div class="header-wrap">
+    <header class="glass-header" aria-label="الرأس الرئيسي">
+      <a class="brand" href="#home" aria-label="OmniStore">
+        <span class="brand-mark" aria-hidden="true">
+          <img src="brand/logo/omnistore-logo-connected-o.svg" alt="OmniStore Connected O" width="40" height="40">
+        </span>
+        <span class="brand-text">
+          <span class="brand-name">OmniStore<span class="brand-badge">منصة</span></span>
+          <span class="brand-tag" data-i18n="brand_tag">الخدمات الموحدة</span>
+        </span>
+      </a>
+
+      <nav class="glass-nav" aria-label="التنقل الأساسي">
+        <a class="glass-nav-link is-active" href="#home" data-i18n="nav_home">الرئيسية</a>
+        <a class="glass-nav-link" href="/marketplace/" data-i18n="nav_market">السوق</a>
+        <a class="glass-nav-link" href="business.html" data-i18n="nav_business">حلول الأعمال</a>
+        <a class="glass-nav-link" href="student.html" data-i18n="nav_students">خدمات الطلاب</a>
+        <a class="glass-nav-link" href="/education/index.html" data-i18n="nav_education">التعليم</a>
+        <a class="glass-nav-link" href="online-games/index.html" data-i18n="nav_online_games">ألعاب أونلاين</a>
+        <a class="glass-nav-link" href="support.html" data-i18n="nav_support">الدعم الفني</a>
+        <a class="glass-nav-link btn-ghost" href="index.html" data-i18n="nav_app">التطبيق</a>
+      </nav>
+
+      <div class="header-actions">
+        <div id="lang-switch" data-omni-lang-slot></div>
+        <button type="button" id="landingLoginBtn" class="btn-secondary btn-login" data-i18n="nav_login">تسجيل الدخول</button>
+      </div>
+    </header>
+  </div>
+
+  <!-- ============ Hero ============ -->
+  <main class="page">
+    <section class="hero" id="home" aria-label="Platform Hero">
+      <div class="hero-pill">
+        <span class="hero-pill-badge" data-i18n="hero_badge">منظومة موحدة</span>
+        <span data-i18n="hero_pill">حلول رقمية وتجارية متكاملة</span>
+      </div>
+      <h1 id="meta-name" class="hero-title"><span class="gradient-text" data-i18n="hero_title_accent">منصة واحدة</span> <span data-i18n="hero_title_rest">للخدمات الرقمية والتجارية والترفيهية</span></h1>
+      <p id="meta-tagline" class="hero-desc" data-i18n="hero_tagline">OmniStore ERP — Multi-Tenant Enterprise Resource Planning</p>
+      <p class="hero-sub" data-i18n="hero_desc">بيئة عمل متقدمة تجمع بين الأسواق السحابية، وخدمات الاستضافة التخصصية، وحلول الأعمال الرقمية في بنية موحدة صممت للأداء والسرعة.</p>
+      <div class="hero-actions">
+        <a class="btn-primary" href="#services" data-i18n="cta_explore">استكشاف الخدمات</a>
+        <a class="btn-secondary" href="business.html" data-i18n="cta_business">خدمات الأعمال</a>
+        <a class="btn-secondary btn-ghost" href="#register" data-i18n="cta_register">إنشاء حساب</a>
+      </div>
+      <div class="hero-visual" aria-hidden="true">
+        <div class="hero-orbit hero-orbit-1"></div>
+        <div class="hero-orbit hero-orbit-2"></div>
+        <div class="hero-orbit hero-orbit-3"></div>
+        <div class="hero-core">
+          <img src="brand/logo/omnistore-logo-connected-o.svg" alt="OmniStore" width="38" height="38">
+        </div>
+      </div>
+      <div class="hero-trust" aria-label="Platform highlights">
+        <div class="trust-chip">
+          <span class="trust-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"></path></svg>
+          </span>
+          <span class="trust-text">
+            <strong data-i18n="trust_1_title">تعدد المستأجرين</strong>
+            <small data-i18n="trust_1_sub">عزل كامل لكل شركة</small>
+          </span>
+        </div>
+        <div class="trust-chip">
+          <span class="trust-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"></path><path d="m9 12 2 2 4-4"></path></svg>
+          </span>
+          <span class="trust-text">
+            <strong data-i18n="trust_2_title">مزامنة لحظية</strong>
+            <small data-i18n="trust_2_sub">تتحدث البيانات فورياً</small>
+          </span>
+        </div>
+        <div class="trust-chip">
+          <span class="trust-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+          </span>
+          <span class="trust-text">
+            <strong data-i18n="trust_3_title">صلاحيات دقيقة</strong>
+            <small data-i18n="trust_3_sub">وصول حسب الدور</small>
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ Features ============ -->
+    <section id="features" class="section features" aria-label="Core Features">
+      <div class="section-head">
+        <h2 class="section-title" data-i18n="features_title">لماذا OmniStore؟</h2>
+        <span class="section-kicker">Core</span>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><path d="M7 9h14M7 15h14"></path></svg>
+          </div>
+          <h3 class="feature-title" data-i18n="feat_multitenant">عزل الشركات</h3>
+          <p class="feature-body" data-i18n="feat_multitenant_sub">بيئة مستقلة بالكامل لكل شركة مع بيانات ومعالجات معزولة.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
+          </div>
+          <h3 class="feature-title" data-i18n="feat_realtime">مزامنة لحظية</h3>
+          <p class="feature-body" data-i18n="feat_realtime_sub">تحديث البيانات فوراً عبر جميع الشاشات والأجهزة.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path><polyline points="17 21 17 14 7 14 7 21"></polyline><path d="M7 3v4a2 2 0 0 0 2 2h4"></path></svg>
+          </div>
+          <h3 class="feature-title" data-i18n="feat_permissions">صلاحيات دقيقة</h3>
+          <p class="feature-body" data-i18n="feat_permissions_sub">وصول يعتمد على الدور والصلاحية لكل مستخدم.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+          </div>
+          <h3 class="feature-title" data-i18n="feat_rtl">عربي أولاً</h3>
+          <p class="feature-body" data-i18n="feat_rtl_sub">واجهة كاملة لاتجاه RTL مهيأة للغة العربية وللأسواق الإقليمية.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+          </div>
+          <h3 class="feature-title" data-i18n="feat_market">سوق موحد</h3>
+          <p class="feature-body" data-i18n="feat_market_sub">سوق إلكتروني متكامل مع عربة تسوق وتتبع الطلبات.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg>
+          </div>
+          <h3 class="feature-title" data-i18n="feat_students">خدمات الطلاب</h3>
+          <p class="feature-body" data-i18n="feat_students_sub">طباعة الكشوفات، حجز المقاعد، وإدارة المدفوعات الدراسية.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ Services / Sections ============ -->
+    <section id="services" class="section sections-grid" aria-label="Platform Services">
+      <div class="section-head">
+        <h2 class="section-title" data-i18n="services_title">خدمات المنصة</h2>
+        <span class="section-kicker">Explore</span>
+      </div>
+      <div class="section-cards">
+        <a class="section-card" href="/marketplace/">
+          <div class="section-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 7v13c0 1.886 0.943 3.527 2.5 4.655l7.588 4.743a2 2 0 0 0 1 0l7.588-4.743c1.557-1.128 2.5-2.769 2.5-4.655V7l-3-5z"></path><path d="M12 17v4M4.929 9.929l2.828-2.828M19.071 9.929l-2.828-2.828M12 12l-2.828 2.828M12 12l2.828 2.828"></path></svg>
+          </div>
+          <div class="section-header">
+            <h3 class="section-card-title" data-i18n="svc_market_title">السوق</h3>
+            <span class="section-badge section-badge-active" data-i18n="badge_live">مباشر</span>
+          </div>
+          <p class="section-desc" data-i18n="svc_market_desc">متجر إلكتروني مع كتالوج، عربة تسوق، وتتبع الطلبات.</p>
+          <div class="section-link" data-i18n="btn_enter">الدخول</div>
+        </a>
+
+        <a class="section-card" href="business.html">
+          <div class="section-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+          </div>
+          <div class="section-header">
+            <h3 class="section-card-title" data-i18n="svc_business_title">حلول الأعمال</h3>
+            <span class="section-badge section-badge-active" data-i18n="badge_live">مباشر</span>
+          </div>
+          <p class="section-desc" data-i18n="svc_business_desc">إدارة مبيعات، مشتريات، مخزون، خزنة، وتقارير مالية.</p>
+          <div class="section-link" data-i18n="btn_enter">الدخول</div>
+        </a>
+
+        <a class="section-card" href="student.html">
+          <div class="section-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M22 10l-5-5-5 5M22 10l-5 5 5 5"></path><path d="M9 10l-5-5-5 5M9 10l-5 5 5 5"></path></svg>
+          </div>
+          <div class="section-header">
+            <h3 class="section-card-title" data-i18n="svc_students_title">خدمات الطلاب</h3>
+            <span class="section-badge section-badge-active" data-i18n="badge_live">مباشر</span>
+          </div>
+          <p class="section-desc" data-i18n="svc_students_desc">طباعة الكشوفات، حجز المقاعد، وإدارة المدفوعات الدراسية.</p>
+          <div class="section-link" data-i18n="btn_enter">الدخول</div>
+        </a>
+
+        <a class="section-card" href="/education/index.html">
+          <div class="section-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 18v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+          </div>
+          <div class="section-header">
+            <h3 class="section-card-title" data-i18n="svc_education_title">التعليم</h3>
+            <span class="section-badge section-badge-coming-soon" data-i18n="badge_soon">قريباً</span>
+          </div>
+          <p class="section-desc" data-i18n="svc_education_desc">منصة تعليمية وإدارة مؤسسات تعليمية.</p>
+          <div class="section-link-disabled" data-i18n="btn_soon">قريباً</div>
+        </a>
+
+        <a class="section-card" href="online-games/index.html">
+          <div class="section-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="12" y="4" width="7" height="10" rx="1" ry="1"></rect><path d="M7 10L14 13M14 9L7 12M14 13L7 16M14 13L7 10M14 13L14 16M12 14l0 0.01"></path></svg>
+          </div>
+          <div class="section-header">
+            <h3 class="section-card-title" data-i18n="svc_games_title">ألعاب أونلاين</h3>
+            <span class="section-badge section-badge-active" data-i18n="badge_live">مباشر</span>
+          </div>
+          <p class="section-desc" data-i18n="svc_games_desc">استضافة ألعاب وخدمات ترفيهية رقمية.</p>
+          <div class="section-link" data-i18n="btn_enter">الدخول</div>
+        </a>
+
+        <a class="section-card" href="support.html">
+          <div class="section-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+          </div>
+          <div class="section-header">
+            <h3 class="section-card-title" data-i18n="svc_support_title">الدعم الفني</h3>
+            <span class="section-badge section-badge-active" data-i18n="badge_live">مباشر</span>
+          </div>
+          <p class="section-desc" data-i18n="svc_support_desc">طلبات الدعم، متابعة الحالات، وقاعدة معرفة.</p>
+          <div class="section-link" data-i18n="btn_enter">الدخول</div>
+        </a>
+
+        <div class="section-card section-card-locked" aria-disabled="true">
+          <div class="section-icon" aria-hidden="true" style="opacity:0.5">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+          </div>
+          <div class="section-header">
+            <h3 class="section-card-title" data-i18n="svc_games_host_title">استضافة الألعاب</h3>
+            <span class="section-badge section-badge-coming-soon" data-i18n="badge_soon">قريباً</span>
+          </div>
+          <p class="section-desc" data-i18n="svc_games_host_desc">خوادم ألعاب مخصصة وإدارة طلبات الاستضافة.</p>
+          <div class="section-link-disabled" data-i18n="btn_soon">قريباً</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ CTA ============ -->
+    <section id="cta" class="section cta">
+      <h2 class="cta-title" data-i18n="cta_title">جاهز لبدء رحلتك مع OmniStore؟</h2>
+      <p class="cta-sub" data-i18n="cta_sub">افتح السوق أو استعرض حلول الأعمال خلال ثوانٍ.</p>
+      <div class="cta-actions">
+        <a class="btn-primary" href="#register" data-i18n="cta_register">إنشاء حساب</a>
+        <a class="btn-secondary" href="/marketplace/" data-i18n="cta_market">استكشاف السوق</a>
+        <a class="btn-secondary btn-ghost" href="index.html" data-i18n="cta">التطبيق</a>
+      </div>
+    </section>
+
+    <!-- ============ Footer ============ -->
+    <section id="footer" class="section footer">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <span class="brand-mark brand-mark-sm" aria-hidden="true">
+            <img src="brand/logo/omnistore-logo-connected-o.svg" alt="OmniStore" width="28" height="28">
+          </span>
+          <span>© 2026 OmniStore Platform — <span data-i18n="footer_rights">جميع الحقوق محفوظة</span> · v<span id="meta-version">1.0.0</span></span>
+        </div>
+        <div class="footer-links">
+          <a href="/marketplace/" data-i18n="nav_market">السوق</a>
+          <a href="student.html" data-i18n="nav_students_short">الطلاب</a>
+          <a href="/education/index.html" data-i18n="nav_education_short">التعليم</a>
+          <a href="business.html" data-i18n="nav_business_short">الأعمال</a>
+          <a href="online-games/index.html" data-i18n="nav_online_games_short">ألعاب أونلاين</a>
+          <span class="footer-link is-soon" aria-disabled="true"><span data-i18n="nav_game_short">الألعاب</span> <span class="nav-soon" data-i18n="nav_soon">قريباً</span></span>
+          <a href="support.html" data-i18n="nav_support">الدعم الفني</a>
+          <a href="terms-of-service.html" data-i18n="nav_terms">شروط الخدمة</a>
+          <a href="privacy-policy.html" data-i18n="nav_privacy">سياسة الخصوصية</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============ Bottom Nav ============ -->
+  <nav class="bottom-nav" aria-label="شريط الوصول السريع">
+    <a class="bottom-nav-link is-active" href="#home" data-i18n="nav_home">الرئيسية</a>
+    <a class="bottom-nav-link" href="/marketplace/" data-i18n="nav_market_short">الماركت</a>
+    <a class="bottom-nav-link" href="business.html" data-i18n="nav_business_short">الأعمال</a>
+    <a class="bottom-nav-link" href="student.html" data-i18n="nav_students_short">الطلاب</a>
+    <a class="bottom-nav-link" href="/education/index.html" data-i18n="nav_education_short">التعليم</a>
+    <a class="bottom-nav-link" href="online-games/index.html" data-i18n="nav_online_games_short">ألعاب أونلاين</a>
+    <span class="bottom-nav-link is-soon" aria-disabled="true"><span data-i18n="nav_game_short">الألعاب</span><span class="nav-soon" data-i18n="nav_soon">قريباً</span></span>
+    <a class="bottom-nav-link" href="index.html" data-i18n="nav_app_short">التطبيق</a>
+  </nav>
+
+  <!-- ============ Auth Drawer ============ -->
+  <div id="landingAuthOverlay" class="auth-drawer-overlay" hidden></div>
+  <aside id="landingAuthDrawer" class="auth-drawer" role="dialog" aria-modal="true"
+         aria-labelledby="landingAuthTitle" hidden>
+    <div class="auth-drawer-head">
+      <h2 id="landingAuthTitle" data-i18n="auth_title">تسجيل الدخول</h2>
+      <button type="button" id="landingAuthClose" class="auth-drawer-close" aria-label="إغلاق">✕</button>
+    </div>
+    <p class="auth-drawer-sub" data-i18n="auth_sub">أدخل بيانات حسابك للوصول إلى لوحاتك.</p>
+    <form id="landingAuthForm" novalidate>
+      <div class="auth-field">
+        <label for="landingAuthUser" data-i18n="auth_user">اسم المستخدم أو البريد الإلكتروني</label>
+        <input type="text" id="landingAuthUser" name="username" autocomplete="username" required>
+      </div>
+      <div class="auth-field">
+        <label for="landingAuthPass" data-i18n="auth_pass">كلمة المرور</label>
+        <div class="auth-pass-wrap">
+          <input type="password" id="landingAuthPass" name="password" autocomplete="current-password" required>
+          <button type="button" id="landingAuthShowPass" class="auth-pass-toggle" aria-label="إظهار أو إخفاء كلمة المرور">👁</button>
+        </div>
+      </div>
+      <button type="submit" id="landingAuthSubmit" class="btn-primary" data-i18n="auth_submit">دخول</button>
+    </form>
+    <p id="landingAuthError" class="auth-error" role="alert" hidden></p>
+    <button type="button" id="landingAuthRegister" class="btn-secondary" style="width:100%;margin-top:8px" data-i18n="auth_register">إنشاء حساب جديد</button>
+    <button type="button" id="landingAuthLogout" class="btn-secondary" data-i18n="auth_logout" hidden>تسجيل الخروج</button>
+  </aside>
+
+  <!-- ============ Registration Modal — NOT available via this page ============ -->
+  <div id="landingRegOverlay" class="reg-overlay" hidden>
+    <div class="reg-box">
+      <div class="reg-head">
+        <span class="reg-mark" aria-hidden="true">
+          <img src="brand/logo/omnistore-logo-connected-o.svg" alt="OmniStore" width="32" height="32">
+        </span>
+        <h2 class="reg-title" data-i18n="reg_title">إنشاء حساب جديد</h2>
+        <button type="button" id="landingRegClose" class="reg-close" aria-label="إغلاق">✕</button>
+      </div>
+      <p class="reg-sub" data-i18n="reg_sub">إنشاء الحساب غير متاح عبر هذه الصفحة.</p>
+      <div id="landingRegUnavailable" class="reg-msg err" style="margin-bottom:16px; padding:12px; border:1px solid var(--omni-danger); background:rgba(220,38,38,0.08); border-radius:10px;" data-i18n="reg_unavailable_msg">إنشاء حساب جديد لا يتم عبر هذه الصفحة. تواصل مع مدير النظام في مؤسستك لإنشاء حساب.</div>
+      <form id="landingRegForm" novalidate>
+        <div class="reg-field">
+          <label for="regFullName"><span data-i18n="reg_fullname">الاسم الثلاثي</span> <span style="color:var(--omni-danger);">*</span></label>
+          <input type="text" id="regFullName" name="fullName" placeholder="أدخل اسمك الثلاثي" required autocomplete="name" disabled>
+        </div>
+        <div class="reg-field">
+          <label for="regPhone"><span data-i18n="reg_phone">رقم التليفون</span> <span style="color:var(--omni-danger);">*</span></label>
+          <input type="tel" id="regPhone" name="phone" placeholder="01xxxxxxxxx" style="direction:ltr" required autocomplete="tel" disabled>
+        </div>
+        <div class="reg-field">
+          <label for="regEmail"><span data-i18n="reg_email">البريد الإلكتروني</span> <span style="color:var(--omni-danger);">*</span></label>
+          <input type="email" id="regEmail" name="email" placeholder="example@email.com" style="direction:ltr" required autocomplete="email" disabled>
+        </div>
+        <div class="reg-field">
+          <label for="regAddress"><span data-i18n="reg_address">العنوان</span> <span style="color:var(--omni-danger);">*</span></label>
+          <input type="text" id="regAddress" name="address" placeholder="المدينة / المنطقة / الشارع" required disabled>
+        </div>
+        <div class="reg-field">
+          <label for="regJob"><span data-i18n="reg_job">العمل / الوظيفة</span> <span style="color:var(--omni-danger);">*</span></label>
+          <input type="text" id="regJob" name="job" placeholder="مسمى الوظيفة أو نوع النشاط التجاري" required disabled>
+        </div>
+        <div id="landingRegMsg" class="reg-msg" hidden></div>
+        <button type="submit" id="landingRegSubmit" class="btn-primary" data-i18n="reg_save">حفظ البيانات</button>
+      </form>
+      <p class="reg-foot"><span data-i18n="reg_have_account">لديك حساب؟ </span> <button type="button" id="landingRegToLogin" class="reg-link" data-i18n="reg_login">تسجيل الدخول</button></p>
+    </div>
+  </div>
+
+  <script src="platform/landing.js"></script>
+</body>
+</html>
