@@ -177,6 +177,13 @@ const path = require('path');
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
     await page.goto(`http://localhost:${PORT}/landing.html`, { waitUntil: 'networkidle' });
 
+    const loginRequests = [];
+    page.on('request', (request) => {
+      if (request.url().includes('/api/v1/auth/login')) {
+        loginRequests.push(request);
+      }
+    });
+
     await page.locator('#landingLoginBtn').click();
     await page.waitForTimeout(300);
     check('drawer visible', await page.locator('#landingAuthDrawer').isVisible());
@@ -189,10 +196,26 @@ const path = require('path');
     await page.locator('#landingAuthPass').press('Enter');
     await page.waitForTimeout(500);
 
-    // URL should not contain credentials
-    const url = page.url();
-    check('credentials not in URL', !url.includes('testuser') && !url.includes('testpass'));
-    check('URL is still landing page', url.includes('/landing.html'));
+    // Network assertion: exactly one POST /api/v1/auth/login, no query creds, body has field names
+    check('one login request sent on Enter', loginRequests.length === 1);
+    if (loginRequests.length === 1) {
+      const req = loginRequests[0];
+      check('login request method is POST', req.method() === 'POST');
+      const reqUrl = new URL(req.url());
+      check('login request path is /api/v1/auth/login', reqUrl.pathname === '/api/v1/auth/login');
+      check('login request has no query parameters', reqUrl.search === '');
+      let bodyHasFields = false;
+      try {
+        const body = JSON.parse(req.postData() || '{}');
+        bodyHasFields = 'username' in body && 'password' in body;
+      } catch (_) {}
+      check('login request body contains username/password fields', bodyHasFields);
+    }
+
+    // Page URL should not contain credentials
+    const pageUrl = page.url();
+    check('credentials not in page URL', !pageUrl.includes('testuser') && !pageUrl.includes('testpass'));
+    check('URL is still landing page', pageUrl.includes('/landing.html'));
 
     // Error should be network error (no backend), not fake login success
     const errorEl = page.locator('#landingAuthError');
