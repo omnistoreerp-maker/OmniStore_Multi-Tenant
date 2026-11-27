@@ -212,20 +212,29 @@ check('index.html: all six migration states are represented in the UI map', () =
   }
 });
 
-check('index.html: legacy report sends ONLY a boolean presence flag (no token value)', () => {
+check('index.html: legacy report sends a boolean presence flag + non-secret device id only (no token value)', () => {
   const body = extractFunction(INDEX_HTML, 'serverSyncLegacyReport');
   assert(body !== null, 'serverSyncLegacyReport not found');
   // holds must be a strict boolean coercion — the token VALUE must never
   // travel in the payload, only its presence.
   assert(/holds\s*=\s*!!ghToken\(\)/.test(body), 'holds is not a !!ghToken() boolean coercion');
   assert(/holdsLegacyToken:\s*holds/.test(body), 'payload does not carry holdsLegacyToken: holds');
-  // Exactly one body field in the request payload.
+  // FIX A v2 payload: holdsLegacyToken + reportVersion + non-secret deviceId.
+  // Exactly these three fields, holdsLegacyToken first.
   const payloadMatch = body.match(/_fetch\(\s*['"]POST['"]\s*,\s*['"]\/sync\/legacy-report['"]\s*,\s*\{([^}]*)\}/);
   assert(payloadMatch, 'legacy report POST body not found');
   const fields = payloadMatch[1].split(',').map((s) => s.trim()).filter(Boolean);
-  assert(fields.length === 1, 'legacy report body must contain exactly one field, got: ' + payloadMatch[1]);
-  assert(/^holdsLegacyToken:/.test(fields[0]), 'unexpected field in legacy report body');
-  // No localStorage.getItem value may be interpolated into the payload.
+  assert(fields.length === 3, 'legacy report body must contain exactly three fields, got: ' + payloadMatch[1]);
+  assert(/^holdsLegacyToken:\s*holds$/.test(fields[0]), 'unexpected first field in legacy report body');
+  assert(/^reportVersion:\s*2$/.test(fields[1]), 'missing/changed reportVersion field');
+  assert(/^deviceId:\s*deviceId\s*\|\|\s*undefined$/.test(fields[2]), 'missing/changed deviceId field');
+  // The device id must come from the non-secret syncDeviceId() helper —
+  // never from the PAT, never from any gh* credential storage.
+  const devId = extractFunction(INDEX_HTML, 'syncDeviceId');
+  assert(devId !== null, 'syncDeviceId helper missing');
+  assert(/digi_sync_device_id/.test(devId), 'syncDeviceId must persist a stable non-secret id');
+  assert(!/digi_gh_token|GH_TOKEN_KEY|ghToken\(/.test(devId), 'syncDeviceId must never read the PAT');
+  // No localStorage token value may be interpolated into the payload.
   assert(!/holdsLegacyToken:\s*localStorage/.test(body), 'raw localStorage value sent as report');
   assert(!/holdsLegacyToken:\s*ghToken\(\)/.test(body), 'token value (not boolean) sent as report');
 });

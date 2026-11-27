@@ -29,6 +29,11 @@ masterRouter.post('/:tenantId/test', admin, ctrl.test);
 masterRouter.post('/:tenantId/pull', admin, ctrl.masterPull);
 masterRouter.post('/:tenantId/push', admin, ctrl.masterPush);
 masterRouter.get('/:tenantId/audit', admin, ctrl.syncAudit);
+// Trusted device inventory (FIX A): platform-owner attestation only. The
+// expected-device set is server-authoritative; tenant clients never see or
+// write it, so devices cannot invent or shrink their own expected count.
+masterRouter.get('/:tenantId/device-inventory', admin, ctrl.getDeviceInventory);
+masterRouter.put('/:tenantId/device-inventory', admin, ctrl.setDeviceInventory);
 
 const tenantRouter = express.Router();
 tenantRouter.get('/status', requireAuth, ctrl.status);

@@ -13645,6 +13645,28 @@ function ghToken()  { return localStorage.getItem(GH_TOKEN_KEY) || ''; }
 function ghGistId() { return localStorage.getItem(GH_GIST_KEY)  || ''; }
 function ghHeaders(){ return { 'Authorization':'token '+ghToken(), 'Content-Type':'application/json', 'Accept':'application/vnd.github+json' }; }
 
+// ===== FIX B — legacy Gist sync guard =====================================
+// This shell keeps a FIXED global DB namespace (DB_KEY = 'cairo_db_v7') and
+// reads the generic digi_gh_gist_id key with no tenant scoping and no
+// server-authoritative sync path. While ANY authenticated session exists,
+// tenant identity cannot be established here => the session is UNSAFE and
+// legacy Gist pull/push/auto-sync must FAIL CLOSED with a clear, non-secret
+// reason. Only a token-less standalone device (true no-tenant legacy) may
+// still use the local engine. The guard never inspects the PAT and never
+// mutates localStorage.
+function v5LegacySyncBlockedReason() {
+  try {
+    const authed = !!(localStorage.getItem('access_token') || localStorage.getItem('refresh_token'));
+    if (authed) {
+      return 'المزامنة القديمة معطّلة داخل جلسة مستخدمة — تُدار مزامنة الشركات من المنصة فقط';
+    }
+    return '';
+  } catch (e) {
+    return 'تعذّر التحقق من حالة الجلسة — توقفت المزامنة القديمة';
+  }
+}
+function v5LegacySyncAllowed() { return v5LegacySyncBlockedReason() === ''; }
+
 function ghHeadersFromToken(token){
   return {
     'Authorization':'token '+token,
@@ -13745,6 +13767,8 @@ async function ghSaveSetup() {
 }
 
 async function ghPull(silent=false) {
+  const blockedReason = v5LegacySyncBlockedReason();
+  if (blockedReason) { if (!silent) showToast(blockedReason, 'error'); return false; }
   if (!ghToken()||!ghGistId()) return false;
   if (!silent) showPill('📥 جاري الاستعادة من GitHub...');
   try {
@@ -13799,6 +13823,8 @@ async function ghPull(silent=false) {
 }
 
 async function ghPush(silent=false, retries=2) {
+  const blockedReason = v5LegacySyncBlockedReason();
+  if (blockedReason) { if (!silent) showToast(blockedReason, 'error'); return false; }
   if (!ghToken()||!ghGistId()||ghSyncing) return false;
   ghSyncing=true;
   try {
@@ -13850,6 +13876,7 @@ function checkFirstRun() {
 }
 
 async function autoPrepareGithubSync() {
+  if (!v5LegacySyncAllowed()) return; // FIX B: fail closed before any gist list/create/pull
   const token = ghToken();
   if (!token) return;
   try {
@@ -13884,6 +13911,7 @@ let ghLastPullTime = 0;
 let ghAutoSyncActive = false;
 
 setInterval(async () => {
+  if (!v5LegacySyncAllowed()) return; // FIX B: background timer must never bypass the guard
   if (!ghToken() || !ghGistId()) return;
   if (!navigator.onLine) return;
   if (ghSyncing) return;
@@ -39515,12 +39543,16 @@ async function syncPageDisconnect() {
 }
 
 async function syncPagePull() {
+  const blockedReason = v5LegacySyncBlockedReason();
+  if (blockedReason) { showToast(blockedReason, 'error'); return; } // FIX B: fail closed
   if (!ghToken()||!ghGistId()) { showToast('المزامنة غير مفعّلة على هذا الجهاز','error'); return; }
   const ok = await ghPull(false);
   if (ok) { initApp(); renderSyncPage(); }
 }
 
 async function syncPagePush() {
+  const blockedReason = v5LegacySyncBlockedReason();
+  if (blockedReason) { showToast(blockedReason, 'error'); return; } // FIX B: fail closed
   if (!ghToken()||!ghGistId()) { showToast('المزامنة غير مفعّلة على هذا الجهاز','error'); return; }
   await ghPush(false);
   renderSyncPage();

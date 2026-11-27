@@ -131,7 +131,8 @@ async function push(req, res) {
 
 // Device-declared legacy PAT presence (advisory boolean only). The tenant
 // still comes exclusively from trustedTenantId(req); any token material in
-// the body is ignored — only holdsLegacyToken (strict boolean) is read.
+// the body is ignored — only holdsLegacyToken (strict boolean), an optional
+// reportVersion and an optional non-secret deviceId are read.
 function legacyReport(req, res) {
   try {
     const tenantId = trustedTenantId(req);
@@ -143,4 +144,25 @@ function legacyReport(req, res) {
   }
 }
 
-module.exports = { listConfigs, configure, disconnect, test, masterPull, masterPush, syncAudit, status, pull, push, legacyReport };
+// Trusted device inventory (FIX A) — master surface only (requirePlatformAdmin
+// already ran on the router). Tenant clients can never read or write it.
+function getDeviceInventory(req, res) {
+  try {
+    const result = sync.getDeviceInventory(req.platformAdmin || null, req.params.tenantId);
+    return _send(res, result, 'Device inventory retrieved');
+  } catch (err) {
+    return error(res, 'Failed to retrieve device inventory', 500);
+  }
+}
+
+function setDeviceInventory(req, res) {
+  try {
+    const actor = req.platformAdmin || null;
+    const result = sync.setDeviceInventory(actor, req.params.tenantId, req.body || {});
+    return _send(res, result, 'Device inventory attested');
+  } catch (err) {
+    return error(res, 'Failed to attest device inventory', 500);
+  }
+}
+
+module.exports = { listConfigs, configure, disconnect, test, masterPull, masterPush, syncAudit, status, pull, push, legacyReport, getDeviceInventory, setDeviceInventory };
