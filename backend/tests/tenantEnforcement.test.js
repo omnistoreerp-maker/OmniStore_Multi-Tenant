@@ -18,6 +18,7 @@ const request = require('supertest');
 const fs = require('fs');
 const { startServer } = require('./helpers/testServer');
 const { makeTempDataDir, seed } = require('./helpers/testData');
+const { createUser: fixtureCreateUser } = require('./helpers/userFixture');
 
 // Snapshot original env so the file can restore it once, at the end, to avoid
 // leaking flags into other suites that may run in the same jest worker.
@@ -27,7 +28,7 @@ const ORIGINAL_ENV = {
 };
 
 async function createViaApi(app, body) {
-  return request(app).post('/api/v1/users').send(body);
+  return fixtureCreateUser(app, body);
 }
 
 async function loginWith(app, body) {

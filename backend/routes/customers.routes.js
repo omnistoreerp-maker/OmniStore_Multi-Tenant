@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/customers.controller');
 const asyncHandler = require('../utils/asyncHandler');
-const { requirePermissionIfAuth } = require('../middleware/authorize');
+const { requirePermission } = require('../middleware/authorize');
 
 /**
  * @openapi
@@ -50,8 +50,8 @@ const { requirePermissionIfAuth } = require('../middleware/authorize');
  *       401:
  *         description: Authentication required
  */
-router.get('/', requirePermissionIfAuth('customers.view'), asyncHandler(ctrl.list));
-router.post('/', requirePermissionIfAuth('customers.create'), asyncHandler(ctrl.create));
+router.get('/', requirePermission('customers.view'), asyncHandler(ctrl.list));
+router.post('/', requirePermission('customers.create'), asyncHandler(ctrl.create));
 
 /**
  * @openapi
@@ -68,7 +68,7 @@ router.post('/', requirePermissionIfAuth('customers.create'), asyncHandler(ctrl.
  *       401:
  *         description: Authentication required
  */
-router.get('/stats', requirePermissionIfAuth('customers.view'), asyncHandler(ctrl.getStats));
+router.get('/stats', requirePermission('customers.view'), asyncHandler(ctrl.getStats));
 
 /**
  * @openapi
@@ -131,8 +131,8 @@ router.get('/stats', requirePermissionIfAuth('customers.view'), asyncHandler(ctr
  *       404:
  *         description: Customer not found
  */
-router.get('/:id', requirePermissionIfAuth('customers.view'), asyncHandler(ctrl.getById));
-router.put('/:id', requirePermissionIfAuth('customers.edit'), asyncHandler(ctrl.update));
-router.delete('/:id', requirePermissionIfAuth('customers.delete'), asyncHandler(ctrl.remove));
+router.get('/:id', requirePermission('customers.view'), asyncHandler(ctrl.getById));
+router.put('/:id', requirePermission('customers.edit'), asyncHandler(ctrl.update));
+router.delete('/:id', requirePermission('customers.delete'), asyncHandler(ctrl.remove));
 
 module.exports = router;

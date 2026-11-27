@@ -1,20 +1,9 @@
 // Authentication helpers shared by test suites.
 const request = require('supertest');
+const { createUser: fixtureCreateUser } = require('./userFixture');
 
 async function createUser(app, user) {
-  const res = await request(app)
-    .post('/api/v1/users')
-    .send({
-      username: user.username,
-      password: user.password,
-      fullName: user.fullName || user.username,
-      role: user.role || 'Cashier',
-      ...(user.extra || {})
-    });
-  if (res.statusCode !== 201) {
-    throw new Error(`createUser(${user.username}) failed: ${res.statusCode} ${JSON.stringify(res.body)}`);
-  }
-  return res.body.data;
+  return fixtureCreateUser(app, user);
 }
 
 async function login(app, username, password, company) {

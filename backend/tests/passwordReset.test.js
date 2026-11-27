@@ -170,8 +170,7 @@ describe('Phase D — reset-password cross-tenant isolation (features ON)', () =
       { id: 'bt', name: 'B Corp', active: true }
     ]);
     const mkUser = async (payload) => {
-      const res = await request(server).post('/api/v1/users').send(payload);
-      if (res.statusCode !== 201) throw new Error(`mk ${payload.username}: ${res.statusCode} ${JSON.stringify(res.body)}`);
+      await createUser(server, payload);
     };
     await mkUser({ id: 'u-adm', username: 'adm', password: 'Adm#12345', fullName: 'Admin', role: 'Admin', tenantIds: ['at', 'bt'], tenantRoles: { at: 'Admin', bt: 'Admin' } });
     await mkUser({ id: 'u-a', username: 'tA', password: 'Ten#12345', fullName: 'Tenant A', role: 'Cashier', tenantIds: ['at'], tenantRoles: { at: 'Cashier' } });

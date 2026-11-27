@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/partners.controller');
-const { requirePermissionIfAuth } = require('../middleware/authorize');
+const { requirePermission } = require('../middleware/authorize');
 
 /**
  * @openapi
@@ -49,8 +49,8 @@ const { requirePermissionIfAuth } = require('../middleware/authorize');
  *       401:
  *         description: Authentication required
  */
-router.get('/', requirePermissionIfAuth('partners.view'), ctrl.list);
-router.post('/', requirePermissionIfAuth('partners.create'), ctrl.create);
+router.get('/', requirePermission('partners.view'), ctrl.list);
+router.post('/', requirePermission('partners.create'), ctrl.create);
 
 /**
  * @openapi
@@ -67,7 +67,7 @@ router.post('/', requirePermissionIfAuth('partners.create'), ctrl.create);
  *       401:
  *         description: Authentication required
  */
-router.get('/stats', requirePermissionIfAuth('partners.view'), ctrl.getStats);
+router.get('/stats', requirePermission('partners.view'), ctrl.getStats);
 
 /**
  * @openapi
@@ -130,8 +130,8 @@ router.get('/stats', requirePermissionIfAuth('partners.view'), ctrl.getStats);
  *       404:
  *         description: Partner not found
  */
-router.get('/:id', requirePermissionIfAuth('partners.view'), ctrl.getById);
-router.put('/:id', requirePermissionIfAuth('partners.edit'), ctrl.update);
-router.delete('/:id', requirePermissionIfAuth('partners.delete'), ctrl.remove);
+router.get('/:id', requirePermission('partners.view'), ctrl.getById);
+router.put('/:id', requirePermission('partners.edit'), ctrl.update);
+router.delete('/:id', requirePermission('partners.delete'), ctrl.remove);
 
 module.exports = router;

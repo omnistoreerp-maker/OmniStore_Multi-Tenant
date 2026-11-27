@@ -4,17 +4,22 @@ const request = require('supertest');
 const { startServer } = require('./helpers/testServer');
 const { makeTempDataDir } = require('./helpers/testData');
 const { registerCleanup } = require('./helpers/cleanup');
+const { createUser, login, authHeader } = require('./helpers/authHelper');
 
 const PATH = '/api/v1/sales';
 let server;
 let dataDir;
+let token;
 
 registerCleanup(() => [server], () => [dataDir]);
 
 beforeAll(async () => {
   dataDir = makeTempDataDir('sales');
   server = await startServer(dataDir);
-  await request(server.app).post(PATH).send({
+  await createUser(server.app, { username: 'sales-tester', password: 'Sales#1234', role: 'Owner' });
+  const session = await login(server.app, 'sales-tester', 'Sales#1234');
+  token = session.accessToken;
+  await request(server.app).post(PATH).set(authHeader(token)).send({
     id: 'INV-900001',
     items: [{ productId: 'p1', qty: 2, price: 50 }],
     total: 100,
@@ -23,7 +28,7 @@ beforeAll(async () => {
     profit: 20,
     date: '2026-07-01T10:00:00.000Z'
   });
-  await request(server.app).post(PATH).send({
+  await request(server.app).post(PATH).set(authHeader(token)).send({
     id: 'INV-900002',
     items: [{ productId: 'p2', qty: 1, price: 200 }],
     total: 200,
@@ -36,7 +41,7 @@ beforeAll(async () => {
 
 describe('Sales CRUD', () => {
   test('POST creates an invoice (201) with timestamps', async () => {
-    const res = await request(server.app).post(PATH).send({
+    const res = await request(server.app).post(PATH).set(authHeader(token)).send({
       id: 'INV-900003',
       items: [{ productId: 'p3', qty: 3, price: 10 }],
       total: 30
@@ -48,22 +53,22 @@ describe('Sales CRUD', () => {
   });
 
   test('POST without items returns 400', async () => {
-    const res = await request(server.app).post(PATH).send({ total: 10 });
+    const res = await request(server.app).post(PATH).set(authHeader(token)).send({ total: 10 });
     expect(res.statusCode).toBe(400);
   });
 
   test('POST with empty items returns 400', async () => {
-    const res = await request(server.app).post(PATH).send({ items: [], total: 10 });
+    const res = await request(server.app).post(PATH).set(authHeader(token)).send({ items: [], total: 10 });
     expect(res.statusCode).toBe(400);
   });
 
   test('POST with non-number total returns 400', async () => {
-    const res = await request(server.app).post(PATH).send({ items: [{ qty: 1 }], total: 'x' });
+    const res = await request(server.app).post(PATH).set(authHeader(token)).send({ items: [{ qty: 1 }], total: 'x' });
     expect(res.statusCode).toBe(400);
   });
 
   test('POST with a duplicate id returns 400', async () => {
-    const res = await request(server.app).post(PATH).send({
+    const res = await request(server.app).post(PATH).set(authHeader(token)).send({
       id: 'INV-900001',
       items: [{ qty: 1 }],
       total: 5
@@ -72,7 +77,7 @@ describe('Sales CRUD', () => {
   });
 
   test('GET list returns invoices with pagination metadata', async () => {
-    const res = await request(server.app).get(PATH);
+    const res = await request(server.app).get(PATH).set(authHeader(token));
     expect(res.statusCode).toBe(200);
     expect(Array.isArray(res.body.data.invoices)).toBe(true);
     expect(res.body.data.invoices.length).toBeGreaterThanOrEqual(3);
@@ -80,64 +85,64 @@ describe('Sales CRUD', () => {
   });
 
   test('GET by id returns the invoice', async () => {
-    const res = await request(server.app).get(`${PATH}/INV-900001`);
+    const res = await request(server.app).get(`${PATH}/INV-900001`).set(authHeader(token));
     expect(res.statusCode).toBe(200);
     expect(res.body.data.customer).toBe('Ahmed Ali');
   });
 
   test('GET by unknown id returns 404', async () => {
-    const res = await request(server.app).get(`${PATH}/INV-000000`);
+    const res = await request(server.app).get(`${PATH}/INV-000000`).set(authHeader(token));
     expect(res.statusCode).toBe(404);
   });
 
   test('PUT updates the invoice', async () => {
-    const res = await request(server.app).put(`${PATH}/INV-900003`).send({ customer: 'Updated Customer' });
+    const res = await request(server.app).put(`${PATH}/INV-900003`).set(authHeader(token)).send({ customer: 'Updated Customer' });
     expect(res.statusCode).toBe(200);
     expect(res.body.data.customer).toBe('Updated Customer');
     expect(res.body.data.id).toBe('INV-900003');
   });
 
   test('PUT with unknown id returns 404', async () => {
-    const res = await request(server.app).put(`${PATH}/INV-000000`).send({ customer: 'x' });
+    const res = await request(server.app).put(`${PATH}/INV-000000`).set(authHeader(token)).send({ customer: 'x' });
     expect(res.statusCode).toBe(404);
   });
 
   test('DELETE removes the invoice', async () => {
-    const res = await request(server.app).delete(`${PATH}/INV-900003`);
+    const res = await request(server.app).delete(`${PATH}/INV-900003`).set(authHeader(token));
     expect(res.statusCode).toBe(200);
-    const after = await request(server.app).get(`${PATH}/INV-900003`);
+    const after = await request(server.app).get(`${PATH}/INV-900003`).set(authHeader(token));
     expect(after.statusCode).toBe(404);
   });
 
   test('DELETE with unknown id returns 404', async () => {
-    const res = await request(server.app).delete(`${PATH}/INV-000000`);
+    const res = await request(server.app).delete(`${PATH}/INV-000000`).set(authHeader(token));
     expect(res.statusCode).toBe(404);
   });
 });
 
 describe('Sales search and filters', () => {
   test('filter by customer name', async () => {
-    const res = await request(server.app).get(`${PATH}?customer=ahmed`);
+    const res = await request(server.app).get(`${PATH}?customer=ahmed`).set(authHeader(token));
     expect(res.statusCode).toBe(200);
     expect(res.body.data.invoices).toHaveLength(1);
     expect(res.body.data.invoices[0].id).toBe('INV-900001');
   });
 
   test('filter by payment type', async () => {
-    const res = await request(server.app).get(`${PATH}?payment=credit`);
+    const res = await request(server.app).get(`${PATH}?payment=credit`).set(authHeader(token));
     expect(res.statusCode).toBe(200);
     expect(res.body.data.invoices).toHaveLength(1);
     expect(res.body.data.invoices[0].id).toBe('INV-900002');
   });
 
   test('search by invoice number', async () => {
-    const res = await request(server.app).get(`${PATH}?invoiceNumber=900002`);
+    const res = await request(server.app).get(`${PATH}?invoiceNumber=900002`).set(authHeader(token));
     expect(res.statusCode).toBe(200);
     expect(res.body.data.invoices.some(i => i.id === 'INV-900002')).toBe(true);
   });
 
   test('filter by date range', async () => {
-    const res = await request(server.app).get(`${PATH}?dateFrom=2026-07-02&dateTo=2026-07-31`);
+    const res = await request(server.app).get(`${PATH}?dateFrom=2026-07-02&dateTo=2026-07-31`).set(authHeader(token));
     expect(res.statusCode).toBe(200);
     expect(res.body.data.invoices.every(i => i.id !== 'INV-900001')).toBe(true);
     expect(res.body.data.invoices.some(i => i.id === 'INV-900002')).toBe(true);
@@ -146,7 +151,7 @@ describe('Sales search and filters', () => {
 
 describe('Sales stats', () => {
   test('stats aggregates count, totals and profit', async () => {
-    const res = await request(server.app).get(`${PATH}/stats`);
+    const res = await request(server.app).get(`${PATH}/stats`).set(authHeader(token));
     expect(res.statusCode).toBe(200);
     const s = res.body.data;
     expect(s.count).toBe(2); // INV-900003 was deleted above

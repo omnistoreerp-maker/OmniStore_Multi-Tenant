@@ -3,7 +3,7 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/loyalty.controller');
 const asyncHandler = require('../utils/asyncHandler');
-const { requirePermissionIfAuth } = require('../middleware/authorize');
+const { requirePermission } = require('../middleware/authorize');
 
 /**
  * @openapi
@@ -27,7 +27,7 @@ const { requirePermissionIfAuth } = require('../middleware/authorize');
  *       401:
  *         description: Authentication required
  */
-router.get('/balance/:customerId', requirePermissionIfAuth('loyalty.view'), asyncHandler(ctrl.getBalance));
+router.get('/balance/:customerId', requirePermission('loyalty.view'), asyncHandler(ctrl.getBalance));
 
 /**
  * @openapi
@@ -63,7 +63,7 @@ router.get('/balance/:customerId', requirePermissionIfAuth('loyalty.view'), asyn
  *       401:
  *         description: Authentication required
  */
-router.get('/transactions/:customerId', requirePermissionIfAuth('loyalty.view'), asyncHandler(ctrl.getTransactions));
+router.get('/transactions/:customerId', requirePermission('loyalty.view'), asyncHandler(ctrl.getTransactions));
 
 /**
  * @openapi
@@ -107,7 +107,7 @@ router.get('/transactions/:customerId', requirePermissionIfAuth('loyalty.view'),
  *       401:
  *         description: Authentication required
  */
-router.post('/earn', requirePermissionIfAuth('loyalty.earn'), asyncHandler(ctrl.earn));
+router.post('/earn', requirePermission('loyalty.earn'), asyncHandler(ctrl.earn));
 
 /**
  * @openapi
@@ -151,7 +151,7 @@ router.post('/earn', requirePermissionIfAuth('loyalty.earn'), asyncHandler(ctrl.
  *       401:
  *         description: Authentication required
  */
-router.post('/redeem', requirePermissionIfAuth('loyalty.redeem'), asyncHandler(ctrl.redeem));
+router.post('/redeem', requirePermission('loyalty.redeem'), asyncHandler(ctrl.redeem));
 
 /**
  * @openapi
@@ -193,7 +193,7 @@ router.post('/redeem', requirePermissionIfAuth('loyalty.redeem'), asyncHandler(c
  *       401:
  *         description: Authentication required
  */
-router.post('/reverse', requirePermissionIfAuth('loyalty.reverse'), asyncHandler(ctrl.reverse));
+router.post('/reverse', requirePermission('loyalty.reverse'), asyncHandler(ctrl.reverse));
 
 /**
  * @openapi
@@ -227,8 +227,8 @@ router.post('/reverse', requirePermissionIfAuth('loyalty.reverse'), asyncHandler
  *       401:
  *         description: Authentication required
  */
-router.get('/config', requirePermissionIfAuth('loyalty.view'), asyncHandler(ctrl.getConfig));
-router.put('/config', requirePermissionIfAuth('loyalty.manage'), asyncHandler(ctrl.updateConfig));
+router.get('/config', requirePermission('loyalty.view'), asyncHandler(ctrl.getConfig));
+router.put('/config', requirePermission('loyalty.manage'), asyncHandler(ctrl.updateConfig));
 
 /**
  * @openapi
@@ -244,7 +244,7 @@ router.put('/config', requirePermissionIfAuth('loyalty.manage'), asyncHandler(ct
  *       401:
  *         description: Authentication required
  */
-router.get('/metrics', requirePermissionIfAuth('loyalty.view'), asyncHandler(ctrl.getMetrics));
+router.get('/metrics', requirePermission('loyalty.view'), asyncHandler(ctrl.getMetrics));
 
 /**
  * @openapi
@@ -268,7 +268,7 @@ router.get('/metrics', requirePermissionIfAuth('loyalty.view'), asyncHandler(ctr
  *       401:
  *         description: Authentication required
  */
-router.get('/expiry-info/:customerId', requirePermissionIfAuth('loyalty.view'), asyncHandler(ctrl.getExpiryInfo));
+router.get('/expiry-info/:customerId', requirePermission('loyalty.view'), asyncHandler(ctrl.getExpiryInfo));
 
 /**
  * @openapi
@@ -299,6 +299,6 @@ router.get('/expiry-info/:customerId', requirePermissionIfAuth('loyalty.view'), 
  *       401:
  *         description: Authentication required
  */
-router.post('/birthday-bonus', requirePermissionIfAuth('loyalty.manage'), asyncHandler(ctrl.awardBirthdayBonus));
+router.post('/birthday-bonus', requirePermission('loyalty.manage'), asyncHandler(ctrl.awardBirthdayBonus));
 
 module.exports = router;

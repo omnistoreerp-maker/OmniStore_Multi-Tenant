@@ -15,6 +15,7 @@ const request = require('supertest');
 const fs = require('fs');
 const { startServer } = require('./helpers/testServer');
 const { makeTempDataDir, seed } = require('./helpers/testData');
+const { createUser: fixtureCreateUser } = require('./helpers/userFixture');
 
 const ORIGINAL_ENV = {
   MC: process.env.ENABLE_MULTI_COMPANY_LOGIN,
@@ -43,7 +44,7 @@ const companies = [
 ];
 
 async function createViaApi(app, body) {
-  return request(app).post('/api/v1/users').send(body);
+  return fixtureCreateUser(app, body);
 }
 
 async function loginWith(app, body) {

@@ -19,6 +19,7 @@ const express = require('express');
 const request = require('supertest');
 const { startServer, TEST_JWT_SECRET } = require('./helpers/testServer');
 const { makeTempDataDir, seed } = require('./helpers/testData');
+const { createUser: fixtureCreateUser } = require('./helpers/userFixture');
 
 const ORIGINAL_ENV = {
   CARRY: process.env.ENABLE_TENANT_CARRY,
@@ -196,9 +197,13 @@ describe('Phase 19 — E2E HTTP with ENABLE_TENANT_CARRY ON', () => {
   });
 
   async function mkUser(username, extra) {
-    const res = await request(app).post('/api/v1/users').send({ username, password: 'Pass#123', ...extra });
-    if (res.statusCode !== 201) throw new Error(`createUser(${username}) failed ${res.statusCode}`);
-    return res.body.data;
+    return fixtureCreateUser(app, {
+      username,
+      password: 'Pass#123',
+      fullName: username,
+      role: (extra && extra.role) || 'Cashier',
+      ...(extra || {})
+    });
   }
 
   async function loginAs(username, company) {
@@ -316,7 +321,8 @@ describe('Phase 19 — ENABLE_TENANT_CARRY OFF (legacy, no carry)', () => {
     dir = s.dataDir;
     seed(dir, 'companies', companies);
     jwt = jwtFor();
-    await request(app).post('/api/v1/users').send({ username: 'arr', password: 'Pass#123', role: 'Admin', tenantIds: ['digitronics'] });
+    const { createUser: fixtureCreateUser } = require('./helpers/userFixture');
+    await fixtureCreateUser(app, { username: 'arr', password: 'Pass#123', role: 'Admin', tenantIds: ['digitronics'] });
   });
 
   afterAll(() => {

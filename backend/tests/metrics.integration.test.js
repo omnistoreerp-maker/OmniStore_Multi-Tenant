@@ -93,6 +93,7 @@ describe('ETag / Conditional Requests', () => {
 
     await request(server.app)
       .post('/api/v1/sales')
+      .set(authHeader(accessToken))
       .send({ id: 'INV-ETAG-1', items: [{ productId: 'p1', qty: 1, price: 10 }], total: 10, customer: 'X', payment: 'cash' });
 
     const after = await request(server.app)

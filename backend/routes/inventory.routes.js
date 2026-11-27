@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/inventory.controller');
 const asyncHandler = require('../utils/asyncHandler');
-const { requirePermissionIfAuth } = require('../middleware/authorize');
+const { requirePermission } = require('../middleware/authorize');
 
 /**
  * @openapi
@@ -54,8 +54,8 @@ const { requirePermissionIfAuth } = require('../middleware/authorize');
  *       401:
  *         description: Authentication required
  */
-router.get('/', requirePermissionIfAuth('inventory.view'), asyncHandler(ctrl.list));
-router.post('/', requirePermissionIfAuth('inventory.create'), asyncHandler(ctrl.create));
+router.get('/', requirePermission('inventory.view'), asyncHandler(ctrl.list));
+router.post('/', requirePermission('inventory.create'), asyncHandler(ctrl.create));
 
 /**
  * @openapi
@@ -72,7 +72,7 @@ router.post('/', requirePermissionIfAuth('inventory.create'), asyncHandler(ctrl.
  *       401:
  *         description: Authentication required
  */
-router.get('/stats', requirePermissionIfAuth('inventory.view'), asyncHandler(ctrl.getStats));
+router.get('/stats', requirePermission('inventory.view'), asyncHandler(ctrl.getStats));
 
 /**
  * @openapi
@@ -135,8 +135,8 @@ router.get('/stats', requirePermissionIfAuth('inventory.view'), asyncHandler(ctr
  *       404:
  *         description: Item not found
  */
-router.get('/:id', requirePermissionIfAuth('inventory.view'), asyncHandler(ctrl.getById));
-router.put('/:id', requirePermissionIfAuth('inventory.edit'), asyncHandler(ctrl.update));
-router.delete('/:id', requirePermissionIfAuth('inventory.delete'), asyncHandler(ctrl.remove));
+router.get('/:id', requirePermission('inventory.view'), asyncHandler(ctrl.getById));
+router.put('/:id', requirePermission('inventory.edit'), asyncHandler(ctrl.update));
+router.delete('/:id', requirePermission('inventory.delete'), asyncHandler(ctrl.remove));
 
 module.exports = router;

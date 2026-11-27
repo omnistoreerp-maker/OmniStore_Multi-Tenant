@@ -7,25 +7,31 @@ const request = require('supertest');
 const { startServer } = require('./helpers/testServer');
 const { makeTempDataDir, seed } = require('./helpers/testData');
 const { registerCleanup } = require('./helpers/cleanup');
+const { createUser, login, authHeader } = require('./helpers/authHelper');
 
 let server;
 let dataDir;
+let accessToken;
 
 registerCleanup(() => [server], () => [dataDir]);
 
 beforeAll(async () => {
   dataDir = makeTempDataDir('sync');
   server = await startServer(dataDir);
+  await createUser(server.app, { username: 'syncadmin', password: 'SyncAdmin#1', fullName: 'Sync Admin', role: 'Admin' });
+  const syncLogin = await login(server.app, 'syncadmin', 'SyncAdmin#1');
+  accessToken = syncLogin.accessToken;
 });
 
 describe('sync queue push contract', () => {
   test('POST with a client-supplied id stores the record under that id', async () => {
     const res = await request(server.app)
       .post('/api/v1/customers')
+      .set(authHeader(accessToken))
       .send({ id: 'local-abc-123', name: 'Queued Customer', phone: '0111' });
     expect(res.statusCode).toBe(201);
     expect(res.body.data.id).toBe('local-abc-123');
-    const get = await request(server.app).get('/api/v1/customers/local-abc-123');
+    const get = await request(server.app).get('/api/v1/customers/local-abc-123').set(authHeader(accessToken));
     expect(get.statusCode).toBe(200);
     expect(get.body.data.name).toBe('Queued Customer');
   });
@@ -33,6 +39,7 @@ describe('sync queue push contract', () => {
   test('re-pushing the same id (queue retry) is rejected as duplicate', async () => {
     const res = await request(server.app)
       .post('/api/v1/customers')
+      .set(authHeader(accessToken))
       .send({ id: 'local-abc-123', name: 'Queued Customer Again' });
     expect(res.statusCode).toBe(400);
     expect(res.body.success).toBe(false);
@@ -41,15 +48,17 @@ describe('sync queue push contract', () => {
   test('records are resolvable through their _backendId alias', async () => {
     const create = await request(server.app)
       .post('/api/v1/customers')
+      .set(authHeader(accessToken))
       .send({ id: 'local-xyz', _backendId: 'backend-xyz', name: 'Aliased Customer' });
     expect(create.statusCode).toBe(201);
-    const byLocal = await request(server.app).get('/api/v1/customers/local-xyz');
-    const byBackend = await request(server.app).get('/api/v1/customers/backend-xyz');
+    const byLocal = await request(server.app).get('/api/v1/customers/local-xyz').set(authHeader(accessToken));
+    const byBackend = await request(server.app).get('/api/v1/customers/backend-xyz').set(authHeader(accessToken));
     expect(byLocal.statusCode).toBe(200);
     expect(byBackend.statusCode).toBe(200);
     expect(byBackend.body.data.id).toBe('local-xyz');
     const upd = await request(server.app)
       .put('/api/v1/customers/backend-xyz')
+      .set(authHeader(accessToken))
       .send({ phone: '0222' });
     expect(upd.statusCode).toBe(200);
     expect(upd.body.data.id).toBe('local-xyz');
@@ -58,7 +67,7 @@ describe('sync queue push contract', () => {
 
 describe('refresh merge contract', () => {
   test('records added externally to the store appear in subsequent list calls', async () => {
-    const before = await request(server.app).get('/api/v1/suppliers');
+    const before = await request(server.app).get('/api/v1/suppliers').set(authHeader(accessToken));
     const countBefore = before.body.data.total;
     seed(dataDir, 'suppliers', {
       suppliers: [
@@ -66,21 +75,21 @@ describe('refresh merge contract', () => {
         { id: 'external-1', name: 'External Supplier', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
       ]
     });
-    const after = await request(server.app).get('/api/v1/suppliers');
+    const after = await request(server.app).get('/api/v1/suppliers').set(authHeader(accessToken));
     expect(after.body.data.total).toBe(countBefore + 1);
     expect(after.body.data.suppliers.some(s => s.id === 'external-1')).toBe(true);
   });
 
   test('API-created records and externally seeded records coexist (unsynced preserved)', async () => {
-    await request(server.app).post('/api/v1/employees').send({ id: 'api-made', name: 'API Made' });
-    const list = await request(server.app).get('/api/v1/employees');
+    await request(server.app).post('/api/v1/employees').set(authHeader(accessToken)).send({ id: 'api-made', name: 'API Made' });
+    const list = await request(server.app).get('/api/v1/employees').set(authHeader(accessToken));
     seed(dataDir, 'employees', {
       employees: [
         ...list.body.data.employees,
         { id: 'seed-made', name: 'Seed Made', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
       ]
     });
-    const merged = await request(server.app).get('/api/v1/employees');
+    const merged = await request(server.app).get('/api/v1/employees').set(authHeader(accessToken));
     const ids = merged.body.data.employees.map(e => e.id);
     expect(ids).toEqual(expect.arrayContaining(['api-made', 'seed-made']));
   });
@@ -90,11 +99,13 @@ describe('conflict detection basis', () => {
   test('PUT preserves createdAt and advances updatedAt', async () => {
     const create = await request(server.app)
       .post('/api/v1/treasury')
+      .set(authHeader(accessToken))
       .send({ type: 'out', amount: 10, desc: 'conflict basis' });
     const created = create.body.data;
     await new Promise(r => setTimeout(r, 1100)); // ensure a distinct timestamp second
     const upd = await request(server.app)
       .put(`/api/v1/treasury/${created.id}`)
+      .set(authHeader(accessToken))
       .send({ desc: 'conflict basis updated' });
     expect(upd.statusCode).toBe(200);
     expect(upd.body.data.createdAt).toBe(created.createdAt);
@@ -105,18 +116,20 @@ describe('conflict detection basis', () => {
   test('server applies last-write-wins on conflicting updates', async () => {
     const create = await request(server.app)
       .post('/api/v1/customers')
+      .set(authHeader(accessToken))
       .send({ name: 'Conflict Customer', phone: '0333' });
     const id = create.body.data.id;
-    await request(server.app).put(`/api/v1/customers/${id}`).send({ phone: '0444' });
-    const second = await request(server.app).put(`/api/v1/customers/${id}`).send({ phone: '0555' });
+    await request(server.app).put(`/api/v1/customers/${id}`).set(authHeader(accessToken)).send({ phone: '0444' });
+    const second = await request(server.app).put(`/api/v1/customers/${id}`).set(authHeader(accessToken)).send({ phone: '0555' });
     expect(second.statusCode).toBe(200);
-    const final = await request(server.app).get(`/api/v1/customers/${id}`);
+    const final = await request(server.app).get(`/api/v1/customers/${id}`).set(authHeader(accessToken));
     expect(final.body.data.phone).toBe('0555');
   });
 
   test('timestamps are ISO-8601 strings (the conflict comparison currency)', async () => {
     const res = await request(server.app)
       .post('/api/v1/suppliers')
+      .set(authHeader(accessToken))
       .send({ name: 'Timestamp Supplier' });
     expect(res.statusCode).toBe(201);
     expect(Number.isNaN(Date.parse(res.body.data.createdAt))).toBe(false);

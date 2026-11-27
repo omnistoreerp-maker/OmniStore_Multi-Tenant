@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/dashboard.controller');
-const { requirePermissionIfAuth } = require('../middleware/authorize');
+const { requirePermission } = require('../middleware/authorize');
 
 /**
  * @openapi
@@ -36,8 +36,8 @@ const { requirePermissionIfAuth } = require('../middleware/authorize');
  *       401:
  *         description: Authentication required
  */
-router.get('/', requirePermissionIfAuth('dashboard.view'), ctrl.list);
-router.post('/', requirePermissionIfAuth('dashboard.view'), ctrl.create);
+router.get('/', requirePermission('dashboard.view'), ctrl.list);
+router.post('/', requirePermission('dashboard.view'), ctrl.create);
 
 /**
  * @openapi
@@ -54,7 +54,7 @@ router.post('/', requirePermissionIfAuth('dashboard.view'), ctrl.create);
  *       401:
  *         description: Authentication required
  */
-router.get('/stats', requirePermissionIfAuth('dashboard.view'), ctrl.getStats);
+router.get('/stats', requirePermission('dashboard.view'), ctrl.getStats);
 
 /**
  * @openapi
@@ -117,8 +117,8 @@ router.get('/stats', requirePermissionIfAuth('dashboard.view'), ctrl.getStats);
  *       404:
  *         description: Item not found
  */
-router.get('/:id', requirePermissionIfAuth('dashboard.view'), ctrl.getById);
-router.put('/:id', requirePermissionIfAuth('dashboard.view'), ctrl.update);
-router.delete('/:id', requirePermissionIfAuth('dashboard.view'), ctrl.remove);
+router.get('/:id', requirePermission('dashboard.view'), ctrl.getById);
+router.put('/:id', requirePermission('dashboard.view'), ctrl.update);
+router.delete('/:id', requirePermission('dashboard.view'), ctrl.remove);
 
 module.exports = router;

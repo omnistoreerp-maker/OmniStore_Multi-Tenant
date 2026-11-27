@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const ctrl = require('../controllers/voucher.controller');
-const { requirePermissionIfAuth } = require('../middleware/authorize');
+const { requireAuth } = require('../middleware/auth');
+const { requirePermission } = require('../middleware/authorize');
 
 /**
  * @openapi
@@ -53,8 +54,8 @@ const { requirePermissionIfAuth } = require('../middleware/authorize');
  *       401:
  *         description: Authentication required
  */
-router.get('/', requirePermissionIfAuth('vouchers.view'), ctrl.list);
-router.post('/', requirePermissionIfAuth('vouchers.create'), ctrl.create);
+router.get('/', requireAuth, requirePermission('vouchers.view'), ctrl.list);
+router.post('/', requireAuth, requirePermission('vouchers.create'), ctrl.create);
 
 /**
  * @openapi
@@ -71,7 +72,7 @@ router.post('/', requirePermissionIfAuth('vouchers.create'), ctrl.create);
  *       401:
  *         description: Authentication required
  */
-router.get('/stats', requirePermissionIfAuth('vouchers.view'), ctrl.getStats);
+router.get('/stats', requireAuth, requirePermission('vouchers.view'), ctrl.getStats);
 
 /**
  * @openapi
@@ -134,8 +135,8 @@ router.get('/stats', requirePermissionIfAuth('vouchers.view'), ctrl.getStats);
  *       404:
  *         description: Voucher not found
  */
-router.get('/:id', requirePermissionIfAuth('vouchers.view'), ctrl.getById);
-router.put('/:id', requirePermissionIfAuth('vouchers.edit'), ctrl.update);
-router.delete('/:id', requirePermissionIfAuth('vouchers.delete'), ctrl.remove);
+router.get('/:id', requireAuth, requirePermission('vouchers.view'), ctrl.getById);
+router.put('/:id', requireAuth, requirePermission('vouchers.edit'), ctrl.update);
+router.delete('/:id', requireAuth, requirePermission('vouchers.delete'), ctrl.remove);
 
 module.exports = router;

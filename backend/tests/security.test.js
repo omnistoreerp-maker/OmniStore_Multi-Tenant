@@ -13,6 +13,7 @@ let limitedServer;// tiny rate limit to trigger 429
 let dataDir;
 let authDataDir;
 let limitedDataDir;
+let serverToken;
 
 registerCleanup(
   () => [server, authServer, limitedServer],
@@ -23,6 +24,8 @@ beforeAll(async () => {
   dataDir = makeTempDataDir('sec');
   server = await startServer(dataDir);
   await createUser(server.app, { username: 'sec-admin', password: 'Sec#12345', role: 'Admin' });
+  const session = await login(server.app, 'sec-admin', 'Sec#12345');
+  serverToken = session.accessToken;
 
   authDataDir = makeTempDataDir('sec-auth');
   const bcrypt = require('bcryptjs');
@@ -105,7 +108,7 @@ describe('bcrypt password handling', () => {
   });
 
   test('password hashes never appear in any API response', async () => {
-    const list = await request(server.app).get('/api/v1/users');
+    const list = await request(server.app).get('/api/v1/users').set(authHeader(serverToken));
     expect(JSON.stringify(list.body)).not.toContain('$2');
     const session = await login(server.app, 'sec-admin', 'Sec#12345');
     expect(JSON.stringify(session)).not.toContain('$2');
@@ -114,6 +117,7 @@ describe('bcrypt password handling', () => {
   test('legacy plaintext credentials are migrated to bcrypt on login', async () => {
     await request(server.app)
       .post('/api/v1/users')
+      .set(authHeader(serverToken))
       .send({ id: 'legacy-u', username: 'legacy-user', password: 'Plain#123', role: 'Cashier' });
     // simulate a legacy record by overwriting the hash with plaintext in the store
     const store = readStore(dataDir, 'users');
@@ -150,6 +154,7 @@ describe('validation', () => {
   test('wrong field types are rejected with 400', async () => {
     const res = await request(server.app)
       .post('/api/v1/treasury')
+      .set(authHeader(serverToken))
       .send({ type: 'in', amount: 'not-a-number' });
     expect(res.statusCode).toBe(400);
   });
@@ -157,6 +162,7 @@ describe('validation', () => {
   test('non-object JSON bodies are rejected with 400', async () => {
     const res = await request(server.app)
       .post('/api/v1/customers')
+      .set(authHeader(serverToken))
       .send([1, 2, 3]);
     expect(res.statusCode).toBe(400);
   });
@@ -164,6 +170,7 @@ describe('validation', () => {
   test('invalid enum values are rejected with 400', async () => {
     const res = await request(server.app)
       .post('/api/v1/treasury')
+      .set(authHeader(serverToken))
       .send({ type: 'sideways', amount: 5 });
     expect(res.statusCode).toBe(400);
   });
@@ -173,6 +180,7 @@ describe('prototype pollution and injection keys', () => {
   test('dangerous keys are stripped and Object.prototype stays clean', async () => {
     const res = await request(server.app)
       .post('/api/v1/customers')
+      .set(authHeader(serverToken))
       .send({ name: 'Pollution Attempt', '__proto__': { polluted: true }, 'constructor': 'x', '$where': '1' });
     expect(res.statusCode).toBe(201);
     expect({}.polluted).toBeUndefined();
@@ -188,6 +196,7 @@ describe('malformed JSON', () => {
   test('unparseable JSON bodies return the standard 400 envelope', async () => {
     const res = await request(server.app)
       .post('/api/v1/customers')
+      .set(authHeader(serverToken))
       .set('Content-Type', 'application/json')
       .send('{"name": broken');
     expect(res.statusCode).toBe(400);
