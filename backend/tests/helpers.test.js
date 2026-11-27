@@ -5,6 +5,7 @@ const request = require('supertest');
 const { startServer } = require('./helpers/testServer');
 const { makeTempDataDir, readStore } = require('./helpers/testData');
 const { createUser, login } = require('./helpers/authHelper');
+const { createUser: fixtureCreateUser } = require('./helpers/userFixture');
 const { registerCleanup } = require('./helpers/cleanup');
 
 const PROD_DATA_DIR = path.join(__dirname, '..', 'data');
@@ -44,5 +45,96 @@ describe('test helpers', () => {
   test('production data directory is untouched', () => {
     const after = fs.existsSync(PROD_DATA_DIR) ? fs.readdirSync(PROD_DATA_DIR).sort() : [];
     expect(after).toEqual(prodFilesBefore);
+  });
+});
+
+describe('userFixture regression', () => {
+  test('extra fields are flattened onto the created user', async () => {
+    const created = fixtureCreateUser(server.app, {
+      username: 'uf-extra',
+      password: 'Extra#1234',
+      extra: { tenantIds: ['t1'], tenantRoles: { t1: 'Admin' } }
+    });
+    expect(created.tenantIds).toEqual(['t1']);
+    expect(created.tenantRoles).toEqual({ t1: 'Admin' });
+    expect(created.extra).toBeUndefined();
+  });
+
+  test('extra overrides conflicting direct fields (legacy override semantics)', async () => {
+    const created = fixtureCreateUser(server.app, {
+      username: 'uf-override',
+      password: 'Override#1234',
+      role: 'Cashier',
+      extra: { role: 'Manager', tenantIds: ['t1'] }
+    });
+    expect(created.role).toBe('Manager');
+    expect(created.tenantIds).toEqual(['t1']);
+  });
+
+  test('arbitrary direct fixture fields are preserved', async () => {
+    const created = fixtureCreateUser(server.app, {
+      username: 'uf-direct',
+      password: 'Direct#1234',
+      role: 'Admin',
+      phone: '0555123456',
+      email: 'uf-direct@example.com',
+      status: 'active',
+      branchId: 'main'
+    });
+    expect(created.phone).toBe('0555123456');
+    expect(created.email).toBe('uf-direct@example.com');
+    expect(created.status).toBe('active');
+    expect(created.branchId).toBe('main');
+  });
+
+  test('missing fullName defaults to username', async () => {
+    const created = fixtureCreateUser(server.app, {
+      username: 'uf-fullname',
+      password: 'FullName#1234'
+    });
+    expect(created.fullName).toBe('uf-fullname');
+  });
+
+  test('missing role defaults to Cashier', async () => {
+    const created = fixtureCreateUser(server.app, {
+      username: 'uf-role',
+      password: 'Role#1234'
+    });
+    expect(created.role).toBe('Cashier');
+  });
+
+  test('sanitized output excludes password and sensitive fields', async () => {
+    const created = fixtureCreateUser(server.app, {
+      username: 'uf-sanitize',
+      password: 'Sanitize#1234',
+      role: 'Cashier'
+    });
+    expect(created.password).toBeUndefined();
+    expect(created.username).toBe('uf-sanitize');
+    expect(created.createdAt).toBeDefined();
+    expect(created.updatedAt).toBeDefined();
+  });
+
+  test('tenant normalization works through the real service', async () => {
+    const created = fixtureCreateUser(server.app, {
+      username: 'uf-norm',
+      password: 'Norm#1234',
+      role: 'Manager',
+      tenantIds: ['digitronics', 'nile', 'nile']
+    });
+    expect(Array.isArray(created.tenantIds)).toBe(true);
+    expect(created.tenantIds).toEqual(['digitronics', 'nile']);
+  });
+
+  test('authHelper.createUser delegates to userFixture and returns sanitized user', async () => {
+    const created = createUser(server.app, {
+      username: 'uf-delegate',
+      password: 'Delegate#1234',
+      role: 'Admin',
+      extra: { tenantIds: ['t1'] }
+    });
+    expect(created.password).toBeUndefined();
+    expect(created.tenantIds).toEqual(['t1']);
+    expect(created.role).toBe('Admin');
   });
 });
