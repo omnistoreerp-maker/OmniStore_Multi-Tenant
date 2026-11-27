@@ -128,6 +128,10 @@ jobs:
           npm ci
           npx playwright install --with-deps chromium
 
+      - name: Playwright — OmniStore landing page (fail on failure)
+        working-directory: .
+        run: node tests/e2e/landing-browser-verify.cjs
+
       # verify-education-assignments.js boots the real Express app from
       # backend/server.js, so the backend runtime dependencies must exist.
       # The suite seeds a throwaway temp directory and never reads or writes
