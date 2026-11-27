@@ -127,7 +127,7 @@ describe('userFixture regression', () => {
   });
 
   test('authHelper.createUser delegates to userFixture and returns sanitized user', async () => {
-    const created = createUser(server.app, {
+    const created = await createUser(server.app, {
       username: 'uf-delegate',
       password: 'Delegate#1234',
       role: 'Admin',
