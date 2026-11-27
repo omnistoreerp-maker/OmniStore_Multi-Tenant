@@ -19,7 +19,22 @@ registerCleanup(() => [server], () => [dataDir]);
 beforeAll(async () => {
   dataDir = makeTempDataDir('helpers');
   prodFilesBefore = fs.existsSync(PROD_DATA_DIR) ? fs.readdirSync(PROD_DATA_DIR).sort() : [];
-  server = await startServer(dataDir);
+
+  // Enable tenant membership normalization for this isolated test instance so
+  // userFixture.createUser() exercises the same service path as application code
+  // when ENABLE_TENANT_USER_MEMBERSHIP is on. Restore the original value
+  // immediately so the flag does not leak into other suites.
+  const originalMembershipFlag = process.env.ENABLE_TENANT_USER_MEMBERSHIP;
+  process.env.ENABLE_TENANT_USER_MEMBERSHIP = 'true';
+  try {
+    server = await startServer(dataDir);
+  } finally {
+    if (originalMembershipFlag === undefined) {
+      delete process.env.ENABLE_TENANT_USER_MEMBERSHIP;
+    } else {
+      process.env.ENABLE_TENANT_USER_MEMBERSHIP = originalMembershipFlag;
+    }
+  }
 });
 
 describe('test helpers', () => {
