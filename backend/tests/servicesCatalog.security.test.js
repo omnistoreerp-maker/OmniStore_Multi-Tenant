@@ -44,6 +44,7 @@ beforeAll(async () => {
   // authorization flow (resolveTenantRoleForRequest / trustedTenantId).
   // tenantCarryEnabled defaults to true (config: ENABLE_TENANT_CARRY !== 'false').
   process.env.ENABLE_TENANT_ROLES = 'true';
+  process.env.ENABLE_MULTI_COMPANY_LOGIN = 'true';
   process.env.AUTH_REQUIRED = 'true';
 
   dir = makeTempDataDir('svc-catalog-final');
@@ -475,28 +476,58 @@ describe('GET /api/v1/services/catalog — cross-tenant membership boundary', ()
       .set('Authorization', `Bearer ${token}`);
     expect(res.statusCode).toBe(200);
     const ids = svcIds(res.body.data.services);
-    // Effective role is Owner inside tenant-a, but tenant-B context is not a
-    // membership — no tenant-B services despite Owner-level effective role.
+    // Stale tenant-B context: Owner/Admin bypass does not apply outside membership.
     expect(ids).not.toContain('dashboard');
     expect(ids).not.toContain('products');
     // No platform services — not a platform member.
     for (const id of MASTER_IDS) expect(ids).not.toContain(id);
   });
 
-  test('Member of both tenant A and tenant B can access catalog without denial', async () => {
-    const token = await loginToken('memberBoth');
+  test('Tenant-specific Owner in tenant A: explicit login to tenant A reports Owner role', async () => {
+    const token = await staleTokenUser(
+      'staleOwnerInAExplicit', 'Cashier', [TENANT_ID], { [TENANT_ID]: 'Owner' }
+    );
+    // Now explicitly select tenant A — server-side companyContext flow.
+    const result = await login(server.app, 'staleOwnerInAExplicit', PASSWORD, TENANT_ID);
     const res = await request(server.app)
       .get(CATALOG_URL)
-      .set('Authorization', `Bearer ${token}`);
+      .set('Authorization', `Bearer ${result.accessToken}`);
     expect(res.statusCode).toBe(200);
     const ids = svcIds(res.body.data.services);
-    // Multi-tenant member is not blocked from the catalog entirely.
-    expect(ids.length).toBeGreaterThan(0);
+    // Effective role resolved from tenantRoles: Owner inside tenant A.
+    expect(res.body.data.user.role).toBe('Owner');
+    // Owner tenant bypass inside a tenant the actor is bound to.
+    for (const id of TENANT_IDS) expect(ids).toContain(id);
     // No platform services — not a platform member.
     for (const id of MASTER_IDS) expect(ids).not.toContain(id);
-    // With no specific trusted tenant (DERIVED ambiguous), Owner bypass applies
-    // as legacy behavior — all tenant services visible.
-    for (const id of TENANT_IDS) expect(ids).toContain(id);
+    for (const id of INTERNAL_IDS) expect(ids).not.toContain(id);
+  });
+
+  test('Member of both tenant A and tenant B can access catalog for either tenant', async () => {
+    // Login 1: explicit company selection for tenant A.
+    const resultA = await login(server.app, 'memberBoth', PASSWORD, TENANT_ID);
+    const resA = await request(server.app)
+      .get(CATALOG_URL)
+      .set('Authorization', `Bearer ${resultA.accessToken}`);
+    expect(resA.statusCode).toBe(200);
+    const idsA = svcIds(resA.body.data.services);
+    expect(resA.body.data.user.role).toBe('Owner');
+    for (const id of TENANT_IDS) expect(idsA).toContain(id);
+    for (const id of INTERNAL_IDS) expect(idsA).not.toContain(id);
+    for (const id of MASTER_IDS) expect(idsA).not.toContain(id);
+
+    // Login 2: explicit company selection for tenant B.
+    const resultB = await login(server.app, 'memberBoth', PASSWORD, TENANT_B_ID);
+    const resB = await request(server.app)
+      .get(CATALOG_URL)
+      .set('Authorization', `Bearer ${resultB.accessToken}`);
+    expect(resB.statusCode).toBe(200);
+    const idsB = svcIds(resB.body.data.services);
+    expect(resB.body.data.user.role).toBe('Owner');
+    // Owner bound to tenant B — all tenant services visible.
+    for (const id of TENANT_IDS) expect(idsB).toContain(id);
+    for (const id of INTERNAL_IDS) expect(idsB).not.toContain(id);
+    for (const id of MASTER_IDS) expect(idsB).not.toContain(id);
   });
 
   test('Unbound legacy identity retains legacy catalog behavior', async () => {
