@@ -35,12 +35,13 @@
   check('Admin effective role routes to tenant-admin.html', routeByRole('Admin', 'Cashier') === '/tenant-admin.html');
   check('Admin user role routes to tenant-admin.html (fallback)', routeByRole(undefined, 'Admin') === '/tenant-admin.html');
 
-  // 3. Platform Master and other roles retain existing index.html behavior (null)
-  check('Manager returns null (existing index.html behavior)', routeByRole(undefined, 'Manager') === null);
+  // 3. Manager and BranchManager route to their dedicated workspaces
+  check('Manager routes to manager-workspace.html', routeByRole(undefined, 'Manager') === '/manager-workspace.html');
+  check('BranchManager routes to branchmanager-workspace.html', routeByRole(undefined, 'BranchManager') === '/branchmanager-workspace.html');
   check('Cashier routes to employee-workspace.html', routeByRole(undefined, 'Cashier') === '/employee-workspace.html');
   check('Technician routes to employee-workspace.html', routeByRole(undefined, 'Technician') === '/employee-workspace.html');
-  check('WarehouseSales returns null (existing index.html behavior)', routeByRole(undefined, 'WarehouseSales') === null);
-  check('Viewer returns null (existing index.html behavior)', routeByRole(undefined, 'Viewer') === null);
+  check('WarehouseSales stays on index.html (null)', routeByRole(undefined, 'WarehouseSales') === null);
+  check('Viewer stays on index.html (null)', routeByRole(undefined, 'Viewer') === null);
 
   // 4. Unknown or unresolved roles never gain Owner/Admin destinations
   check('Unknown role returns null', routeByRole(undefined, 'UnknownRole') === null);
