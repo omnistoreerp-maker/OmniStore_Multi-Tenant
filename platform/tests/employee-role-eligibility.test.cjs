@@ -15,6 +15,7 @@
   'use strict';
 
   const { routeByRole } = require('../js/route-by-role');
+  const { getRoleBaseline } = require('../../backend/permissions/registry');
   const assert = require('assert');
 
   let passed = 0;
@@ -31,8 +32,12 @@
   check('Technician eligible → employee-workspace.html', routeByRole(undefined, 'Technician') === '/employee-workspace.html');
 
   // Both roles have dashboard.view permission → can access employee workspace
-  check('Cashier has dashboard.view (registry baseline)', true);
-  check('Technician has dashboard.view (registry baseline)', true);
+  const cashierPerms = getRoleBaseline('Cashier');
+  const technicianPerms = getRoleBaseline('Technician');
+  check('Cashier registry has dashboard.view', cashierPerms.includes('dashboard.view'));
+  check('Technician registry has dashboard.view', technicianPerms.includes('dashboard.view'));
+  check('Cashier registry permissions are non-empty', cashierPerms.length > 0);
+  check('Technician registry permissions are non-empty', technicianPerms.length > 0);
 
   // ── Protected destinations unchanged ──
   // Owner routes to Tenant Owner Home (unchanged)

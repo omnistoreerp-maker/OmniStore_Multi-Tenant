@@ -7,20 +7,21 @@
 <link rel="stylesheet" href="platform/ui/omnistore-workspace.css">
 </head>
 <body>
-<div class="app-shell">
+<div class="os-shell">
   <!-- Topbar -->
   <header class="os-topbar">
-    <div class="os-brand" onclick="omniWorkspace.toggleSidebar(document.body)">
+    <div class="os-brand">
       <span class="os-brand-mark">👤</span>
       <span class="os-brand-name" data-i18n="app_name">متجر omni</span>
     </div>
+    <button class="os-mobile-menu-btn" aria-label="قائمة" title="قائمة">☰</button>
     <div style="display:flex;align-items:center;gap:12px">
-      <button class="os-mobile-menu-btn" aria-label="قائمة" title="قائمة">☰</button>
       <div class="os-lang-toggle">
         <button class="os-lang-btn os-active" data-lang="ar" data-i18n="lang_ar">العربية</button>
         <button class="os-lang-btn" data-lang="en" data-i18n="lang_en">English</button>
       </div>
       <button class="os-theme-toggle" aria-label="الوضع الليلي" title="الوضع الليلي">🌙</button>
+      <button class="btn-logout os-btn os-btn-outline os-btn-sm" id="logoutBtn" data-i18n="nav_profile">تسجيل خروج</button>
     </div>
   </header>
 
@@ -34,8 +35,11 @@
       <button class="os-nav-collapse" aria-label="طي القائمة الجانبية" title="طي القائمة الجانبية">◀</button>
     </div>
     <ul class="os-nav-list">
-      <li class="os-nav-item"><a class="os-nav-link is-active" href="#tasks" data-i18n="nav_employee_tasks"><span class="os-nav-icon">✅</span><span class="os-nav-label">مهامي</span></a></li>
-      <li class="os-nav-item"><a class="os-nav-link" href="#quick-actions" data-i18n="nav_employee_quick_actions"><span class="os-nav-icon">⚡</span><span class="os-nav-label">إجراءات سريعة</span></a></li>
+      <li class="os-nav-item"><a class="os-nav-link is-active" href="#overview" data-i18n="nav_overview"><span class="os-nav-icon">📊</span><span class="os-nav-label">نظرة عامة</span></a></li>
+      <li class="os-nav-item" data-role="Cashier"><a class="os-nav-link" href="#sales" data-i18n="nav_sales"><span class="os-nav-icon">🧾</span><span class="os-nav-label">المبيعات</span></a></li>
+      <li class="os-nav-item" data-role="Cashier"><a class="os-nav-link" href="#customers" data-i18n="nav_customers"><span class="os-nav-icon">👥</span><span class="os-nav-label">العملاء</span></a></li>
+      <li class="os-nav-item" data-role="Technician"><a class="os-nav-link" href="#inventory" data-i18n="nav_inventory"><span class="os-nav-icon">📦</span><span class="os-nav-label">المخزون</span></a></li>
+      <li class="os-nav-item" data-role="Technician"><a class="os-nav-link" href="#products" data-i18n="nav_products"><span class="os-nav-icon">🏷️</span><span class="os-nav-label">المنتجات</span></a></li>
       <li class="os-nav-item"><a class="os-nav-link" href="#profile" data-i18n="nav_employee_profile"><span class="os-nav-icon">👤</span><span class="os-nav-label">الملف الشخصي</span></a></li>
     </ul>
   </aside>
@@ -49,58 +53,183 @@
       </div>
     </div>
 
-    <!-- My tasks -->
+    <div id="authStatus" class="os-empty-state" style="display:none">
+      <span class="os-empty-icon">🔒</span>
+      <span class="os-empty-title">غير مصرح لك بالدخول</span>
+      <span class="os-empty-desc">الرجاء تسجيل الدخول لعرض مساحة العمل.</span>
+    </div>
+
+    <!-- Overview -->
     <section class="os-section-card">
       <div class="os-section-header">
-        <span class="os-section-title" data-i18n="employee_my_tasks">مهامي</span>
+        <span class="os-section-title" data-i18n="employee_overview">مساحة العمل</span>
       </div>
       <div class="os-section-body">
-        <div class="os-empty-state">
-          <span class="os-empty-icon">✅</span>
-          <span class="os-empty-title" data-i18n="employee_no_tasks">لا توجد مهام مخصصة</span>
-          <span class="os-empty-desc" data-i18n="employee_no_tasks_desc">لا توجد مهام مخصصة لك حالياً — هذا نموذج أولي بدون بيانات إنتاجية حقيقية.</span>
+        <div class="os-context-bar">
+          <span class="os-ctx-item"><strong data-i18n="ctx_role">الدور:</strong> <span id="ctxRole" data-i18n="ctx_role_value">—</span></span>
+          <span class="os-ctx-item"><strong data-i18n="ctx_status">الحالة:</strong> <span id="ctxStatus" data-i18n="ctx_server_verified">موثقة من الخادم</span></span>
         </div>
+        <p class="os-empty-desc" id="welcomeDesc" data-i18n="employee_welcome_desc">يمكنك استخدام الروابط أدناه للوصول إلى مهامك اليومية.</p>
       </div>
     </section>
 
-    <!-- Quick actions -->
+    <!-- Quick actions (role-filtered) -->
     <section class="os-section-card">
       <div class="os-section-header">
         <span class="os-section-title" data-i18n="employee_quick_actions">إجراءات سريعة</span>
       </div>
       <div class="os-section-body">
-        <div class="os-quick-item" data-role="Cashier Technician">
-          <span class="os-quick-icon">👤</span>
+        <div class="os-quick-item" data-role="Cashier">
+          <span class="os-quick-icon">🧾</span>
           <div>
-            <strong data-i18n="employee_view_profile">عرض الملف الشخصي</strong><br>
-            <span style="font-size:0.8rem;color:var(--omni-text-secondary)" data-i18n="employee_view_profile_desc">عرض معلومات ملفك الشخصي</span>
+            <strong data-i18n="employee_quick_sales">الفواتير</strong><br>
+            <span style="font-size:0.8rem;color:var(--omni-text-secondary)" data-i18n="employee_quick_sales_desc">عرض وإدارة فواتير المبيعات</span>
           </div>
         </div>
-        <div class="os-quick-item" data-role="Cashier Technician">
-          <span class="os-quick-icon">⏱️</span>
+        <div class="os-quick-item" data-role="Cashier">
+          <span class="os-quick-icon">👥</span>
           <div>
-            <strong data-i18n="employee_submit_timesheet">إرسال بطاقة الوقت</strong><br>
-            <span style="font-size:0.8rem;color:var(--omni-text-secondary)" data-i18n="employee_submit_timesheet_desc">تسجيل ساعات العمل الخاصة بك</span>
+            <strong data-i18n="employee_quick_customers">العملاء</strong><br>
+            <span style="font-size:0.8rem;color:var(--omni-text-secondary)" data-i18n="employee_quick_customers_desc">عرض وإدارة بيانات العملاء</span>
           </div>
         </div>
-        <div class="os-quick-item" data-role="Cashier Technician">
-          <span class="os-quick-icon">📅</span>
+        <div class="os-quick-item" data-role="Technician">
+          <span class="os-quick-icon">📦</span>
           <div>
-            <strong data-i18n="employee_request_leave">طلب إجازة</strong><br>
-            <span style="font-size:0.8rem;color:var(--omni-text-secondary)" data-i18n="employee_request_leave_desc">تقديم طلب إجازة جديدة</span>
+            <strong data-i18n="employee_quick_inventory">المخزون</strong><br>
+            <span style="font-size:0.8rem;color:var(--omni-text-secondary)" data-i18n="employee_quick_inventory_desc">عرض وإدارة أصناف المخزون</span>
           </div>
         </div>
-        <p class="os-empty-desc" style="margin-top:16px;color:var(--omni-text-muted)" data-i18n="owner_no_data">هذه أزرار نموذج أولي — لا ترتبط بواجهات حقيقية في هذا النموذج.</p>
+        <div class="os-quick-item" data-role="Technician">
+          <span class="os-quick-icon">🏷️</span>
+          <div>
+            <strong data-i18n="employee_quick_products">المنتجات</strong><br>
+            <span style="font-size:0.8rem;color:var(--omni-text-secondary)" data-i18n="employee_quick_products_desc">عرض وإدارة بيانات المنتجات</span>
+          </div>
+        </div>
+        <div id="noQuickActions" class="os-empty-state" style="display:none">
+          <span class="os-empty-icon">ℹ️</span>
+          <span class="os-empty-title" data-i18n="employee_no_actions_title">لا توجد إجراءات متاحة لدورك</span>
+          <span class="os-empty-desc" data-i18n="employee_no_actions_desc">دورك الحالي لا تشمل إجراءات سريعة مخصصة في هذه المساحة.</span>
+        </div>
       </div>
     </section>
 
-    <footer style="margin-top:40px;padding-top:20px;border-top:1px solid var(--omni-border);color:var(--omni-text-muted);font-size:0.8rem;text-align:center" data-i18n="footer_proto">نموذج أولي — غير مخصص للإنتاج</footer>
+    <!-- Profile -->
+    <section class="os-section-card">
+      <div class="os-section-header">
+        <span class="os-section-title" data-i18n="nav_employee_profile">الملف الشخصي</span>
+      </div>
+      <div class="os-section-body">
+        <div class="os-empty-state">
+          <span class="os-empty-icon">👤</span>
+          <span class="os-empty-title" data-i18n="employee_view_profile">عرض الملف الشخصي</span>
+          <span class="os-empty-desc" data-i18n="employee_view_profile_desc">عرض معلومات ملفك الشخصي.</span>
+        </div>
+      </div>
+    </section>
   </main>
 </div>
 <script src="platform/js/route-by-role.js"></script>
 <script src="platform/ui/omnistore-workspace.js"></script>
 <script>
-  omniWorkspace.setRole('employee');
+  (function () {
+    'use strict';
+
+    const AUTH_ME_API = '/api/v1/auth/me';
+    const LOGIN_URL = '/index.html';
+    const EMPLOYEE_ROLES = ['Cashier', 'Technician'];
+
+    const ctxRoleEl = document.getElementById('ctxRole');
+    const authStatusEl = document.getElementById('authStatus');
+    const welcomeDescEl = document.getElementById('welcomeDesc');
+    const noQuickActionsEl = document.getElementById('noQuickActions');
+    const quickItems = document.querySelectorAll('.os-quick-item');
+    const navItems = document.querySelectorAll('.os-nav-item[data-role]');
+
+    async function loadAuth() {
+      try {
+        const res = await fetch(AUTH_ME_API, {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+          credentials: 'same-origin'
+        });
+        if (res.status === 401 || res.status === 403) {
+          window.location.href = LOGIN_URL;
+          return;
+        }
+        if (!res.ok) {
+          window.location.href = LOGIN_URL;
+          return;
+        }
+        const data = await res.json().catch(function () { return null; });
+        if (!data || !data.success) {
+          window.location.href = LOGIN_URL;
+          return;
+        }
+        const result = data.data || data;
+        const role = (result.effectiveRole !== undefined ? result.effectiveRole : (result.user && result.user.role)) || '';
+
+        if (!EMPLOYEE_ROLES.includes(role)) {
+          // Unsupported role — redirect to its proper destination
+          if (role === 'Owner') { window.location.href = '/tenant-owner.html'; return; }
+          if (role === 'Admin') { window.location.href = '/tenant-admin.html'; return; }
+          window.location.href = LOGIN_URL;
+          return;
+        }
+
+        // Authenticated employee role — apply to workspace
+        ctxRoleEl.textContent = role;
+        omniWorkspace.setRole(role);
+
+        // Show/hide quick items and nav items by role
+        let anyVisible = false;
+        quickItems.forEach(function (item) {
+          const roles = item.getAttribute('data-role').split(' ');
+          const show = roles.includes(role);
+          item.style.display = show ? '' : 'none';
+          if (show) anyVisible = true;
+        });
+        navItems.forEach(function (item) {
+          const roles = item.getAttribute('data-role').split(' ');
+          const show = roles.includes(role) || !item.getAttribute('data-role');
+          item.style.display = show ? '' : 'none';
+          if (show) anyVisible = true;
+        });
+        if (!anyVisible) {
+          noQuickActionsEl.style.display = 'flex';
+        }
+
+        // Welcome message
+        if (welcomeDescEl) {
+          welcomeDescEl.textContent = role === 'Cashier'
+            ? 'مسؤول عن المبيعات والعملاء. استخدم الروابط أدناه لإدارة مهامك اليومية.'
+            : 'مسؤول عن المخزون والمنتجات. استخدم الروابط أدناه لإدارة مهامك اليومية.';
+        }
+      } catch (e) {
+        window.location.href = LOGIN_URL;
+      }
+    }
+
+    // Logout
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        fetch('/api/v1/auth/logout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin'
+        }).then(function () {
+          window.location.href = '/index.html';
+        }).catch(function () {
+          window.location.href = '/index.html';
+        });
+      });
+    }
+
+    loadAuth();
+  })();
 </script>
 </body>
 </html>

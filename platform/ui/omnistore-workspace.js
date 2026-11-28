@@ -103,22 +103,26 @@
       owner_no_recent_activity: 'لا توجد أنشطة تجارية حديثة',
       employee_overview: 'مساحة العمل',
       employee_welcome: 'أهلاً بك في مساحة عملك',
-      employee_my_tasks: 'مهامي',
-      employee_my_tasks_desc: 'عرض وإدارة المهام المخصصة لك',
       employee_quick_actions: 'إجراءات سريعة',
       employee_view_profile: 'عرض الملف الشخصي',
       employee_view_profile_desc: 'عرض معلومات ملفك الشخصي',
-      employee_submit_timesheet: 'إرسال بطاقة الوقت',
-      employee_submit_timesheet_desc: 'تسجيل ساعات العمل الخاصة بك',
-      employee_request_leave: 'طلب إجازة',
-      employee_request_leave_desc: 'تقديم طلب إجازة جديدة',
-      employee_no_tasks: 'لا توجد مهام مخصصة',
-      employee_no_tasks_desc: 'لا توجد مهام مخصصة لك حالياً',
       empty_state: 'حالة فارغة',
-      footer_proto: 'نموذج أولي — غير مخصص للإنتاج',
-      nav_employee_tasks: 'مهامي',
       nav_employee_quick_actions: 'إجراءات سريعة',
-      nav_employee_profile: 'الملف الشخصي'
+      nav_employee_profile: 'الملف الشخصي',
+      ctx_role: 'الدور',
+      ctx_role_value: '—',
+      ctx_server_verified: 'موثقة من الخادم',
+      employee_welcome_desc: 'يمكنك استخدام الروابط أدناه للوصول إلى مهامك اليومية.',
+      employee_quick_sales: 'الفواتير',
+      employee_quick_sales_desc: 'عرض وإدارة فواتير المبيعات',
+      employee_quick_customers: 'العملاء',
+      employee_quick_customers_desc: 'عرض وإدارة بيانات العملاء',
+      employee_quick_inventory: 'المخزون',
+      employee_quick_inventory_desc: 'عرض وإدارة أصناف المخزون',
+      employee_quick_products: 'المنتجات',
+      employee_quick_products_desc: 'عرض وإدارة بيانات المنتجات',
+      employee_no_actions_title: 'لا توجد إجراءات متاحة لدورك',
+      employee_no_actions_desc: 'دورك الحالي لا يشمل إجراءات سريعة مخصصة في هذه المساحة.'
     },
     en: {
       app_name: 'OmniStore',
@@ -170,22 +174,26 @@
       owner_no_recent_activity: 'No recent business activity',
       employee_overview: 'Workspace',
       employee_welcome: 'Welcome to your workspace',
-      employee_my_tasks: 'My tasks',
-      employee_my_tasks_desc: 'View and manage tasks assigned to you',
       employee_quick_actions: 'Quick actions',
       employee_view_profile: 'View profile',
       employee_view_profile_desc: 'View your profile information',
-      employee_submit_timesheet: 'Submit timesheet',
-      employee_submit_timesheet_desc: 'Log your work hours',
-      employee_request_leave: 'Request leave',
-      employee_request_leave_desc: 'Submit a new leave request',
-      employee_no_tasks: 'No tasks assigned',
-      employee_no_tasks_desc: 'No tasks assigned to you currently',
       empty_state: 'Empty state',
-      footer_proto: 'Prototype — not for production',
-      nav_employee_tasks: 'My Tasks',
       nav_employee_quick_actions: 'Quick Actions',
-      nav_employee_profile: 'Profile'
+      nav_employee_profile: 'Profile',
+      ctx_role: 'Role',
+      ctx_role_value: '—',
+      ctx_server_verified: 'Server-verified',
+      employee_welcome_desc: 'Use the links below to manage your daily tasks.',
+      employee_quick_sales: 'Sales',
+      employee_quick_sales_desc: 'View and manage sales invoices',
+      employee_quick_customers: 'Customers',
+      employee_quick_customers_desc: 'View and manage customer data',
+      employee_quick_inventory: 'Inventory',
+      employee_quick_inventory_desc: 'View and manage stock items',
+      employee_quick_products: 'Products',
+      employee_quick_products_desc: 'View and manage product data',
+      employee_no_actions_title: 'No actions available for your role',
+      employee_no_actions_desc: 'Your role does not include quick actions in this workspace.'
     }
   };
 
@@ -228,12 +236,14 @@
 
   function setLang(root, lang) {
     state.lang = lang;
-    const { q, qa } = $scope(root);
-    const html = q('html');
+    const html = document.documentElement;
     if (html) {
       html.lang = lang;
       html.dir = lang === 'ar' ? 'rtl' : 'ltr';
     }
+    root.setAttribute('lang', lang);
+    root.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
+    const { qa } = $scope(root);
     qa('[data-i18n]').forEach(function (el) {
       const key = el.getAttribute('data-i18n');
       if (DICT[lang] && DICT[lang][key]) el.textContent = DICT[lang][key];
@@ -254,8 +264,9 @@
 
   function toggleDark(root) {
     state.dark = !state.dark;
-    const html = root.querySelector('html');
+    const html = document.documentElement;
     if (html) html.classList.toggle('os-dark', state.dark);
+    root.classList.toggle('os-dark', state.dark);
     try { localStorage.setItem('omni_workspace_theme', state.dark ? 'dark' : 'light'); } catch (e) {}
   }
 

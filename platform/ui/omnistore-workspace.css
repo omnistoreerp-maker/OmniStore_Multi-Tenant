@@ -57,6 +57,40 @@
   font-family: var(--omni-font);
 }
 
+/* Dark theme variables — applied via .os-dark on document root and workspace root */
+[data-omni-workspace].os-dark,
+[data-omni-workspace][data-theme="dark"] {
+  --omni-surface: #0f172a;
+  --omni-surface-alt: #1e293b;
+  --omni-bg: #020617;
+  --omni-text-primary: #f8fafc;
+  --omni-text-secondary: #cbd5e1;
+  --omni-text-muted: #64748b;
+  --omni-border: #334155;
+  --omni-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.5), 0 4px 6px -4px rgb(0 0 0 / 0.4);
+  --omni-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+}
+
+[data-omni-workspace].os-dark .os-topbar,
+[data-omni-workspace][data-theme="dark"] .os-topbar {
+  background: var(--omni-surface-alt);
+  border-bottom-color: var(--omni-border);
+}
+[data-omni-workspace].os-dark .os-sidebar,
+[data-omni-workspace][data-theme="dark"] .os-sidebar {
+  background: var(--omni-surface-alt);
+  border-right-color: var(--omni-border);
+}
+[data-omni-workspace].os-dark .os-kpi-card,
+[data-omni-workspace][data-theme="dark"] .os-kpi-card,
+[data-omni-workspace].os-dark .os-section-card,
+[data-omni-workspace][data-theme="dark"] .os-section-card,
+[data-omni-workspace].os-dark .os-quick-item,
+[data-omni-workspace][data-theme="dark"] .os-quick-item {
+  background: var(--omni-surface-alt);
+  border-color: var(--omni-border);
+}
+
 /* RTL direction — logical properties where possible, explicit overrides where needed */
 [data-omni-workspace][dir="rtl"],
 [data-omni-workspace][lang="ar"] {

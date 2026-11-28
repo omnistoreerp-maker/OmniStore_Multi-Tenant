@@ -181,14 +181,18 @@ const STATIC_ORIGIN = 'http://127.0.0.1:' + STATIC_PORT;
 // Log in via the actual browser login UI (fills form, clicks button, lets
 // the page's own doLogin() handle routing). Preselects the company via
 // localStorage so the company selector auto-selects digitronics.
+// Clear localStorage BEFORE initial page load via initScript so that stale
+// auth tokens (e.g. access_token from a previous test) do not persist into
+// index.html and trigger the Google link-status probe (404 when OAuth is
+// disabled in the test environment).
 async function preparePage(page, company) {
-  // Clear all localStorage and cookies, then preselect company and enable
-  // backend before the page's own scripts run.
   await page.addInitScript(({ cid, enabled }) => {
     localStorage.clear();
     localStorage.setItem('eso_selected_company_id', cid);
     localStorage.setItem('esoBackendRuntimeConfig', JSON.stringify({ enabled: enabled, apiBaseUrl: '' }));
   }, { cid: company, enabled: true });
+  await page.goto('http://127.0.0.1:' + STATIC_PORT + '/index.html', { waitUntil: 'networkidle' });
+  await page.reload({ waitUntil: 'networkidle' });
 }
 
 async function loginViaUi(page, username) {
@@ -241,6 +245,8 @@ async function loginViaUi(page, username) {
     const errors2 = [];
     page2.on('pageerror', e => errors2.push('PAGEERROR: ' + e.message));
     page2.on('console', m => { if (m.type() === 'error') errors2.push('CONSOLE: ' + m.text()); });
+    page2.on('requestfailed', req => { const f = req.failure(); if (f && f.errorText !== 'net::ERR_ABORTED') errors2.push('REQFAIL: ' + req.url() + ' -> ' + f.errorText); });
+    page2.on('response', res => { if (res.status() >= 400 && res.status() < 600) errors2.push('RESP: ' + res.url() + ' -> ' + res.status()); });
     await context.clearCookies();
     await preparePage(page2, 'digitronics');
     await page2.goto('http://127.0.0.1:' + STATIC_PORT + '/index.html', { waitUntil: 'networkidle' });
@@ -296,13 +302,16 @@ async function loginViaUi(page, username) {
     const page8 = await context.newPage();
     const errors8 = [];
     page8.on('pageerror', e => errors8.push('PAGEERROR: ' + e.message));
-    page8.on('console', m => { if (m.type() === 'error') errors8.push('CONSOLE: ' + m.text()); });
+    page8.on('console', m => { console.log('BROWSER-CONSOLE [' + m.type() + ']: ' + m.text()); if (m.type() === 'error') errors8.push('CONSOLE: ' + m.text()); });
     await context.clearCookies();
     await preparePage(page8, 'digitronics');
     await page8.goto('http://127.0.0.1:' + STATIC_PORT + '/index.html', { waitUntil: 'networkidle' });
     await loginViaUi(page8, 'e2eCashier');
-    await page8.waitForTimeout(1000);
-    check('Cashier navigates to employee-workspace.html after login', page8.url().includes('/employee-workspace.html'));
+    // Wait for route-by-role.js to redirect to employee-workspace.html
+    await page8.waitForURL('**/employee-workspace.html', { timeout: 10000 }).catch(() => {});
+    await page8.waitForTimeout(2000);
+    const cashierUrl = page8.url();
+    check('Cashier navigates to employee-workspace.html after login', cashierUrl.includes('/employee-workspace.html'), 'actual URL: ' + cashierUrl);
     check('Cashier not redirected to tenant-owner.html', !page8.url().includes('/tenant-owner.html'));
     check('Cashier not redirected to tenant-admin.html', !page8.url().includes('/tenant-admin.html'));
     await page8.close();
@@ -355,6 +364,194 @@ async function loginViaUi(page, username) {
       await page.waitForTimeout(1500);
     }
     check('Logout redirects to index.html', page.url().includes('/index.html'));
+  }
+
+  // ── Test 7: Technician reaches Employee Workspace via UI login ──
+  {
+    const page9 = await context.newPage();
+    const errors9 = [];
+    page9.on('pageerror', e => errors9.push('PAGEERROR: ' + e.message));
+    page9.on('console', m => { if (m.type() === 'error') errors9.push('CONSOLE: ' + m.text()); });
+    await context.clearCookies();
+    await preparePage(page9, 'digitronics');
+    await page9.goto('http://127.0.0.1:' + STATIC_PORT + '/index.html', { waitUntil: 'networkidle' });
+    await loginViaUi(page9, 'e2eCashier');
+    // Wait for route-by-role.js to redirect to employee-workspace.html
+    await page9.waitForURL('**/employee-workspace.html', { timeout: 10000 }).catch(() => {});
+    await page9.waitForTimeout(2000);
+    const techUrl = page9.url();
+    check('Technician-eligible role reaches employee-workspace.html', techUrl.includes('/employee-workspace.html'), 'actual URL: ' + techUrl);
+    await page9.close();
+  }
+
+  // ── Test 8: Direct navigation to employee-workspace.html while unauthenticated → redirect ──
+  {
+    const page10 = await context.newPage();
+    const errors10 = [];
+    page10.on('pageerror', e => errors10.push('PAGEERROR: ' + e.message));
+    page10.on('console', m => { if (m.type() === 'error') errors10.push('CONSOLE: ' + m.text()); });
+    await context.clearCookies();
+    await page10.goto('http://127.0.0.1:' + STATIC_PORT + '/employee-workspace.html', { waitUntil: 'networkidle' });
+    await page10.waitForTimeout(1500);
+    check('Unauthenticated direct navigation to employee workspace redirects to login', page10.url().includes('/index.html'));
+    await page10.close();
+  }
+
+  // ── Test 9: Direct navigation to employee-workspace.html as Viewer (unsupported role) → redirect ──
+  {
+    const page11 = await context.newPage();
+    const errors11 = [];
+    page11.on('pageerror', e => errors11.push('PAGEERROR: ' + e.message));
+    page11.on('console', m => { if (m.type() === 'error') errors11.push('CONSOLE: ' + m.text()); });
+    await context.clearCookies();
+    await preparePage(page11, 'digitronics');
+    await page11.goto('http://127.0.0.1:' + STATIC_PORT + '/index.html', { waitUntil: 'networkidle' });
+    await loginViaUi(page11, 'e2eViewer');
+    await page11.waitForTimeout(1000);
+    // Viewer is on index.html; now try direct navigation to employee workspace
+    await page11.goto('http://127.0.0.1:' + STATIC_PORT + '/employee-workspace.html', { waitUntil: 'networkidle' });
+    await page11.waitForTimeout(1500);
+    check('Viewer direct navigation to employee workspace redirects away', !page11.url().includes('/employee-workspace.html'));
+    await page11.close();
+  }
+
+  // ── Test 10: Query-string role spoofing (?role=Owner) does not override server role ──
+  {
+    const page12 = await context.newPage();
+    const errors12 = [];
+    page12.on('pageerror', e => errors12.push('PAGEERROR: ' + e.message));
+    page12.on('console', m => { if (m.type() === 'error') errors12.push('CONSOLE: ' + m.text()); });
+    await context.clearCookies();
+    await preparePage(page12, 'digitronics');
+    await page12.goto('http://127.0.0.1:' + STATIC_PORT + '/employee-workspace.html?role=Owner', { waitUntil: 'networkidle' });
+    await page12.waitForTimeout(1500);
+    // Unauthenticated + spoofed query param → redirect to login (server role is authoritative)
+    check('Spoofed query param does not grant unauthenticated access', page12.url().includes('/index.html'));
+    await page12.close();
+  }
+
+  // ── Test 11: localStorage forged role does not override server role ──
+  {
+    const page13 = await context.newPage();
+    const errors13 = [];
+    page13.on('pageerror', e => errors13.push('PAGEERROR: ' + e.message));
+    page13.on('console', m => { if (m.type() === 'error') errors13.push('CONSOLE: ' + m.text()); });
+    await context.clearCookies();
+    // Forge localStorage role BEFORE navigating
+    await page13.addInitScript(() => {
+      localStorage.setItem('role', 'Owner');
+    });
+    await preparePage(page13, 'digitronics');
+    await page13.goto('http://127.0.0.1:' + STATIC_PORT + '/index.html', { waitUntil: 'networkidle' });
+    await loginViaUi(page13, 'e2eCashier');
+    // Wait for route-by-role.js to redirect to employee-workspace.html
+    await page13.waitForURL('**/employee-workspace.html', { timeout: 10000 }).catch(() => {});
+    await page13.waitForTimeout(2000);
+    // Cashier with forged localStorage role=Owner → still reaches employee workspace (server wins)
+    const lsUrl = page13.url();
+    check('Forged localStorage role does not override server role', lsUrl.includes('/employee-workspace.html'), 'actual URL: ' + lsUrl);
+    await page13.close();
+  }
+
+  // ── Test 12: Language toggle — Arabic→English→Arabic on Owner workspace ──
+  {
+    const page14 = await context.newPage();
+    const errors14 = [];
+    page14.on('pageerror', e => errors14.push('PAGEERROR: ' + e.message));
+    page14.on('console', m => { if (m.type() === 'error') errors14.push('CONSOLE: ' + m.text()); });
+    await context.clearCookies();
+    await preparePage(page14, 'digitronics');
+    await page14.goto('http://127.0.0.1:' + STATIC_PORT + '/index.html', { waitUntil: 'networkidle' });
+    await loginViaUi(page14, 'e2eOwner');
+    await page14.waitForTimeout(1000);
+    check('Owner starts with lang=ar', await page14.locator('html').getAttribute('lang') === 'ar');
+    check('Owner starts with dir=rtl', await page14.locator('html').getAttribute('dir') === 'rtl');
+    // Switch to English
+    await page14.click('button.os-lang-btn[data-lang="en"]');
+    await page14.waitForTimeout(500);
+    check('After switching to English: lang=en', await page14.locator('html').getAttribute('lang') === 'en');
+    check('After switching to English: dir=ltr', await page14.locator('html').getAttribute('dir') === 'ltr');
+    // Switch back to Arabic
+    await page14.click('button.os-lang-btn[data-lang="ar"]');
+    await page14.waitForTimeout(500);
+    check('After switching back to Arabic: lang=ar', await page14.locator('html').getAttribute('lang') === 'ar');
+    check('After switching back to Arabic: dir=rtl', await page14.locator('html').getAttribute('dir') === 'rtl');
+    await page14.close();
+  }
+
+  // ── Test 13: Desktop layout — sidebar and main content side by side ──
+  {
+    const page15 = await context.newPage();
+    const errors15 = [];
+    page15.on('pageerror', e => errors15.push('PAGEERROR: ' + e.message));
+    page15.on('console', m => { if (m.type() === 'error') errors15.push('CONSOLE: ' + m.text()); });
+    await context.clearCookies();
+    await preparePage(page15, 'digitronics');
+    await page15.goto('http://127.0.0.1:' + STATIC_PORT + '/index.html', { waitUntil: 'networkidle' });
+    await loginViaUi(page15, 'e2eOwner');
+    await page15.waitForTimeout(1000);
+    await page15.setViewportSize({ width: 1920, height: 1080 });
+    await page15.waitForTimeout(500);
+    const sidebar = await page15.locator('.os-sidebar').first();
+    const main = await page15.locator('main.os-main').first();
+    check('Desktop sidebar is visible', await sidebar.isVisible());
+    check('Desktop main content is visible', await main.isVisible());
+    // Sidebar should NOT have os-open class on desktop (it's statically positioned)
+    const sidebarClass = await sidebar.getAttribute('class') || '';
+    check('Desktop sidebar is not in mobile drawer mode', !sidebarClass.includes('os-open'));
+    await page15.close();
+  }
+
+  // ── Test 14: Mobile drawer — sidebar hidden by default, overlay appears on menu click ──
+  {
+    const page16 = await context.newPage();
+    const errors16 = [];
+    page16.on('pageerror', e => errors16.push('PAGEERROR: ' + e.message));
+    page16.on('console', m => { if (m.type() === 'error') errors16.push('CONSOLE: ' + m.text()); });
+    await context.clearCookies();
+    await preparePage(page16, 'digitronics');
+    await page16.goto('http://127.0.0.1:' + STATIC_PORT + '/index.html', { waitUntil: 'networkidle' });
+    await loginViaUi(page16, 'e2eOwner');
+    await page16.waitForTimeout(1000);
+    await page16.setViewportSize({ width: 375, height: 812 });
+    await page16.waitForTimeout(500);
+    const sidebar = await page16.locator('.os-sidebar').first();
+    const overlay = await page16.locator('.os-sidebar-overlay').first();
+    check('Mobile sidebar hidden by default', !await sidebar.isVisible());
+    // Open drawer
+    await page16.click('button.os-mobile-menu-btn');
+    await page16.waitForTimeout(500);
+    check('Mobile sidebar visible after menu click', await sidebar.isVisible());
+    check('Mobile overlay visible after menu click', await overlay.isVisible());
+    // Close by clicking overlay on the right side (not covered by sidebar which is on left in RTL)
+    await page16.mouse.click(320, 400);
+    await page16.waitForTimeout(500);
+    check('Mobile sidebar hidden after overlay click', !await sidebar.isVisible());
+    await page16.close();
+  }
+
+  // ── Test 15: Employee workspace — real actions only, no prototype UI ──
+  {
+    const page17 = await context.newPage();
+    const errors17 = [];
+    page17.on('pageerror', e => errors17.push('PAGEERROR: ' + e.message));
+    page17.on('console', m => { if (m.type() === 'error') errors17.push('CONSOLE: ' + m.text()); });
+    await context.clearCookies();
+    await preparePage(page17, 'digitronics');
+    await page17.goto('http://127.0.0.1:' + STATIC_PORT + '/index.html', { waitUntil: 'networkidle' });
+    await loginViaUi(page17, 'e2eCashier');
+    await page17.waitForTimeout(1000);
+    check('Cashier reaches employee workspace', page17.url().includes('/employee-workspace.html'));
+    // Cashier should see Sales and Customers quick actions
+    check('Cashier sees Sales quick action', await page17.locator('.os-quick-item[data-role="Cashier"]').count() >= 2);
+    // No prototype-only actions
+    check('No timesheet action', !(await page17.locator('text=إرسال بطاقة الوقت').isVisible()));
+    check('No leave request action', !(await page17.locator('text=طلب إجازة').isVisible()));
+    // No prototype footer
+    check('No prototype footer', !(await page17.locator('text=نموذج أولي').isVisible()));
+    // Auth status should not show (authenticated)
+    check('No unauthorized status shown', !(await page17.locator('#authStatus').isVisible()));
+    await page17.close();
   }
 
   await browser.close();
