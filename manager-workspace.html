@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" data-omni-workspace>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>مساحة المدير — متجر omni</title>
+  <link rel="stylesheet" href="platform/ui/omnistore-workspace.css">
+</head>
+<body>
+  <div class="os-shell">
+    <!-- Topbar -->
+    <header class="os-topbar">
+      <div class="os-brand">
+        <span class="os-brand-mark">👔</span>
+        <span class="os-brand-name" data-i18n="app_name">متجر omni</span>
+      </div>
+      <button class="os-mobile-menu-btn" aria-label="قائمة" title="قائمة">☰</button>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="os-lang-toggle">
+          <button class="os-lang-btn os-active" data-lang="ar" data-i18n="lang_ar">العربية</button>
+          <button class="os-lang-btn" data-lang="en" data-i18n="lang_en">English</button>
+        </div>
+        <button class="os-theme-toggle" aria-label="الوضع الليلي" title="الوضع الليلي">🌙</button>
+        <button class="btn-logout os-btn os-btn-outline os-btn-sm" id="logoutBtn" data-i18n="nav_logout">تسجيل خروج</button>
+      </div>
+    </header>
+
+    <div class="os-sidebar-overlay"></div>
+
+    <div class="os-workspace-body">
+      <!-- Sidebar -->
+      <aside class="os-sidebar">
+        <div class="os-sidebar-header">
+          <span class="os-brand-mark">👔</span>
+          <span class="os-brand-name" data-i18n="app_name">متجر omni</span>
+          <button class="os-nav-collapse" aria-label="طي القائمة الجانبية" title="طي القائمة الجانبية">◀</button>
+        </div>
+        <ul class="os-nav-list">
+          <li class="os-nav-item" data-role="Manager BranchManager"><a class="os-nav-link is-active" href="/index.html#overview" data-i18n="nav_overview"><span class="os-nav-icon">📊</span><span class="os-nav-label">نظرة عامة</span></a></li>
+          <li class="os-nav-item" data-role="Manager BranchManager"><a class="os-nav-link" href="/index.html#sales" data-i18n="nav_sales"><span class="os-nav-icon">🧾</span><span class="os-nav-label">المبيعات</span></a></li>
+          <li class="os-nav-item" data-role="Manager BranchManager"><a class="os-nav-link" href="/index.html#customers" data-i18n="nav_customers"><span class="os-nav-icon">👥</span><span class="os-nav-label">العملاء</span></a></li>
+          <li class="os-nav-item" data-role="Manager BranchManager"><a class="os-nav-link" href="/index.html#inventory" data-i18n="nav_inventory"><span class="os-nav-icon">📦</span><span class="os-nav-label">المخزون</span></a></li>
+          <li class="os-nav-item" data-role="Manager BranchManager"><a class="os-nav-link" href="/index.html#products" data-i18n="nav_products"><span class="os-nav-icon">🏷️</span><span class="os-nav-label">المنتجات</span></a></li>
+          <li class="os-nav-item" data-role="Manager"><a class="os-nav-link" href="/services.html" data-i18n="nav_services"><span class="os-nav-icon">📋</span><span class="os-nav-label">الكتالوج الموحد</span></a></li>
+          <li class="os-nav-item" data-role="Manager BranchManager"><a class="os-nav-link" href="/index.html#profile" data-i18n="nav_manager_profile"><span class="os-nav-icon">👤</span><span class="os-nav-label">الملف الشخصي</span></a></li>
+        </ul>
+      </aside>
+
+      <!-- Main content -->
+      <main class="os-main">
+        <div class="os-page-header">
+          <div>
+            <h1 class="os-page-title" data-i18n="manager_overview">مساحة المدير</h1>
+            <p class="os-page-subtitle" data-i18n="manager_welcome">أهلاً بك في مساحة إدارة المتجر</p>
+          </div>
+        </div>
+
+        <div id="authStatus" class="os-empty-state" style="display:none">
+          <span class="os-empty-icon">🔒</span>
+          <span class="os-empty-title">غير مصرح لك بالدخول</span>
+          <span class="os-empty-desc">الرجاء تسجيل الدخول لعرض مساحة العمل.</span>
+        </div>
+
+        <!-- KPI Grid -->
+        <section class="os-section-card">
+          <div class="os-section-header">
+            <span class="os-section-title" data-i18n="manager_kpis">المؤشرات الرئيسية</span>
+          </div>
+          <div class="os-section-body">
+            <div class="os-context-bar">
+              <span class="os-ctx-item"><strong data-i18n="ctx_role">الدور:</strong> <span id="ctxRole" data-i18n="ctx_role_value">—</span></span>
+              <span class="os-ctx-item"><strong data-i18n="ctx_status">الحالة:</strong> <span id="ctxStatus" data-i18n="ctx_server_verified">موثقة من الخادم</span></span>
+            </div>
+            <div class="os-kpi-grid" id="kpiGrid">
+              <!-- KPI cards injected by JS from /api/v1/*/stats -->
+            </div>
+          </div>
+        </section>
+
+        <!-- Quick actions (role-filtered) -->
+        <section class="os-section-card">
+          <div class="os-section-header">
+            <span class="os-section-title" data-i18n="manager_quick_actions">إجراءات سريعة</span>
+          </div>
+          <div class="os-section-body">
+            <a class="os-quick-item" data-role="Manager BranchManager" href="/index.html#sales">
+              <span class="os-quick-icon">🧾</span>
+              <div>
+                <strong data-i18n="manager_quick_sales">المبيعات</strong><br>
+                <span style="font-size:0.8rem;color:var(--omni-text-secondary)" data-i18n="manager_quick_sales_desc">عرض وإدارة فواتير المبيعات</span>
+              </div>
+            </a>
+            <a class="os-quick-item" data-role="Manager BranchManager" href="/index.html#customers">
+              <span class="os-quick-icon">👥</span>
+              <div>
+                <strong data-i18n="manager_quick_customers">العملاء</strong><br>
+                <span style="font-size:0.8rem;color:var(--omni-text-secondary)" data-i18n="manager_quick_customers_desc">عرض وإدارة بيانات العملاء</span>
+              </div>
+            </a>
+            <a class="os-quick-item" data-role="Manager BranchManager" href="/index.html#inventory">
+              <span class="os-quick-icon">📦</span>
+              <div>
+                <strong data-i18n="manager_quick_inventory">المخزون</strong><br>
+                <span style="font-size:0.8rem;color:var(--omni-text-secondary)" data-i18n="manager_quick_inventory_desc">عرض وإدارة أصناف المخزون</span>
+              </div>
+            </a>
+            <a class="os-quick-item" data-role="Manager BranchManager" href="/index.html#products">
+              <span class="os-quick-icon">🏷️</span>
+              <div>
+                <strong data-i18n="manager_quick_products">المنتجات</strong><br>
+                <span style="font-size:0.8rem;color:var(--omni-text-secondary)" data-i18n="manager_quick_products_desc">عرض وإدارة بيانات المنتجات</span>
+              </div>
+            </a>
+            <a class="os-quick-item" data-role="Manager" href="/services.html">
+              <span class="os-quick-icon">📋</span>
+              <div>
+                <strong data-i18n="manager_quick_services">الكتالوج الموحد</strong><br>
+                <span style="font-size:0.8rem;color:var(--omni-text-secondary)" data-i18n="manager_quick_services_desc">استكشاف جميع الخدمات المتاحة</span>
+              </div>
+            </a>
+            <a class="os-quick-item" data-role="Manager" href="/index.html#reports">
+              <span class="os-quick-icon">📈</span>
+              <div>
+                <strong data-i18n="manager_quick_reports">التقارير</strong><br>
+                <span style="font-size:0.8rem;color:var(--omni-text-secondary)" data-i18n="manager_quick_reports_desc">عرض التقارير المالية والتشغيلية</span>
+              </div>
+            </a>
+            <div id="noQuickActions" class="os-empty-state" style="display:none">
+              <span class="os-empty-icon">ℹ️</span>
+              <span class="os-empty-title" data-i18n="manager_no_actions_title">لا توجد إجراءات متاحة لدورك</span>
+              <span class="os-empty-desc" data-i18n="manager_no_actions_desc">دورك الحالي لا يشمل إجراءات سريعة مخصصة في هذه المساحة.</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Profile -->
+        <section class="os-section-card">
+          <div class="os-section-header">
+            <span class="os-section-title" data-i18n="nav_manager_profile">الملف الشخصي</span>
+          </div>
+          <div class="os-section-body">
+            <div class="os-empty-state">
+              <span class="os-empty-icon">👤</span>
+              <span class="os-empty-title" data-i18n="manager_view_profile">عرض الملف الشخصي</span>
+              <span class="os-empty-desc" data-i18n="manager_view_profile_desc">عرض معلومات ملفك الشخصي وصلاحياتك.</span>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+  <script src="platform/js/route-by-role.js"></script>
+  <script src="platform/ui/omnistore-workspace.js"></script>
+  <script>
+    (function () {
+      'use strict';
+
+      const AUTH_ME_API = '/api/v1/auth/me';
+      const LOGIN_URL = '/index.html';
+      const MANAGER_ROLES = ['Manager', 'BranchManager'];
+
+      const ctxRoleEl = document.getElementById('ctxRole');
+      const authStatusEl = document.getElementById('authStatus');
+      const kpiGridEl = document.getElementById('kpiGrid');
+      const quickItems = document.querySelectorAll('.os-quick-item');
+      const navItems = document.querySelectorAll('.os-nav-item[data-role]');
+
+      async function loadAuth() {
+        try {
+          const res = await fetch(AUTH_ME_API, {
+            method: 'GET',
+            headers: { Accept: 'application/json' },
+            credentials: 'same-origin'
+          });
+          if (res.status === 401 || res.status === 403) {
+            window.location.href = LOGIN_URL;
+            return;
+          }
+          if (!res.ok) {
+            window.location.href = LOGIN_URL;
+            return;
+          }
+          const data = await res.json().catch(function () { return null; });
+          if (!data || !data.success) {
+            window.location.href = LOGIN_URL;
+            return;
+          }
+          const result = data.data || data;
+          const role = (result.effectiveRole !== undefined ? result.effectiveRole : (result.user && result.user.role)) || '';
+
+          if (!MANAGER_ROLES.includes(role)) {
+            // Unsupported role — redirect to its proper destination
+            if (role === 'Owner') { window.location.href = '/tenant-owner.html'; return; }
+            if (role === 'Admin') { window.location.href = '/tenant-admin.html'; return; }
+            if (role === 'Cashier' || role === 'Technician') { window.location.href = '/employee-workspace.html'; return; }
+            window.location.href = LOGIN_URL;
+            return;
+          }
+
+          // Authenticated manager role — apply to workspace
+          ctxRoleEl.textContent = role;
+          omniWorkspace.setRole(role);
+
+          // Show/hide quick items and nav items by role
+          let anyVisible = false;
+          quickItems.forEach(function (item) {
+            const roles = item.getAttribute('data-role').split(' ');
+            const show = roles.includes(role);
+            item.style.display = show ? '' : 'none';
+            if (show) anyVisible = true;
+          });
+          navItems.forEach(function (item) {
+            const roles = item.getAttribute('data-role').split(' ');
+            const show = roles.includes(role) || !item.getAttribute('data-role');
+            item.style.display = show ? '' : 'none';
+            if (show) anyVisible = true;
+          });
+          if (!anyVisible) {
+            document.getElementById('noQuickActions').style.display = 'flex';
+          }
+
+          // Welcome message
+          const welcomeDesc = document.querySelector('.os-page-subtitle');
+          if (welcomeDesc) {
+            welcomeDesc.textContent = role === 'BranchManager'
+              ? 'مسؤول عن الفرع. استخدم الروابط أدناه لإدارة عمليات الفرع اليومية.'
+              : 'مدير المتجر. لديك نظرة شاملة على المبيعات والمخزون والعملاء والخزينة.';
+          }
+
+          // Load KPIs from real backend APIs
+          loadKpis();
+        } catch (e) {
+          window.location.href = LOGIN_URL;
+        }
+      }
+
+      async function loadKpis() {
+        const endpoints = [
+          { labelKey: 'manager_kpi_sales', api: '/api/v1/sales/stats', valueKey: 'total', fallback: '—' },
+          { labelKey: 'manager_kpi_customers', api: '/api/v1/customers/stats', valueKey: 'total', fallback: '—' },
+          { labelKey: 'manager_kpi_inventory', api: '/api/v1/inventory/stats', valueKey: 'total', fallback: '—' },
+          { labelKey: 'manager_kpi_treasury', api: '/api/v1/treasury/stats', valueKey: 'balance', fallback: '—' }
+        ];
+
+        for (const ep of endpoints) {
+          try {
+            const res = await fetch(ep.api, {
+              method: 'GET',
+              headers: { Accept: 'application/json' },
+              credentials: 'same-origin'
+            });
+            if (!res.ok) continue;
+            const data = await res.json().catch(function () { return null; });
+            const value = data && data.data ? data.data[ep.valueKey] : null;
+            const displayValue = value !== null && value !== undefined ? value : ep.fallback;
+            addKpiCard(ep.labelKey, displayValue);
+          } catch (e) {
+            addKpiCard(ep.labelKey, ep.fallback);
+          }
+        }
+      }
+
+      function addKpiCard(labelKey, value) {
+        const card = document.createElement('div');
+        card.className = 'os-kpi-card';
+        card.innerHTML =
+          '<div class="os-kpi-value" id="kpi-' + labelKey + '">' + String(value) + '</div>' +
+          '<div class="os-kpi-label">' + omniWorkspace.t(labelKey) + '</div>';
+        kpiGridEl.appendChild(card);
+      }
+
+      // Logout
+      const logoutBtn = document.getElementById('logoutBtn');
+      if (logoutBtn) {
+        logoutBtn.addEventListener('click', function (e) {
+          e.preventDefault();
+          fetch('/api/v1/auth/logout', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin'
+          }).then(function () {
+            window.location.href = LOGIN_URL;
+          }).catch(function () {
+            window.location.href = LOGIN_URL;
+          });
+        });
+      }
+
+      loadAuth();
+    })();
+  </script>
+</body>
+</html>

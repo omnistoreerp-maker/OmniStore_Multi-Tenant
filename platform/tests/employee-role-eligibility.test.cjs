@@ -60,10 +60,10 @@
   check('Client spoofing Admin + effective Technician → employee workspace', routeByRole('Technician', 'Admin') === '/employee-workspace.html');
 
   // ── Non-employee roles retain existing destinations ──
-  check('Manager stays on index.html (null)', routeByRole(undefined, 'Manager') === null);
+  check('Manager routes to manager-workspace.html', routeByRole(undefined, 'Manager') === '/manager-workspace.html');
+  check('BranchManager routes to branchmanager-workspace.html', routeByRole(undefined, 'BranchManager') === '/branchmanager-workspace.html');
   check('WarehouseSales stays on index.html (null)', routeByRole(undefined, 'WarehouseSales') === null);
   check('Viewer stays on index.html (null)', routeByRole(undefined, 'Viewer') === null);
-  check('BranchManager stays on index.html (null)', routeByRole(undefined, 'BranchManager') === null);
 
   // ── routeByRole is a pure function — ignores query-string and localStorage ──
   // routeByRole(effectiveRole, userRole) reads only its two parameters.

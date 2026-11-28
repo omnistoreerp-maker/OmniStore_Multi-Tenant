@@ -16,6 +16,8 @@ function routeByRole(effectiveRole, userRole) {
   const role = effectiveRole !== undefined ? effectiveRole : userRole;
   if (role === 'Owner') return '/tenant-owner.html';
   if (role === 'Admin') return '/tenant-admin.html';
+  if (role === 'Manager') return '/manager-workspace.html';
+  if (role === 'BranchManager') return '/branchmanager-workspace.html';
   if (role === 'Cashier' || role === 'Technician') return '/employee-workspace.html';
   return null;
 }
