@@ -255,6 +255,7 @@ const tenantExtensionsRoutes = require('./routes/tenantExtensions.routes');
 const tenantOnboardingRoutes = require('./routes/tenantOnboarding.routes');
 const tenantPaymentsRoutes = require('./routes/tenantPayments.routes');
 const tenantNotificationsRoutes = require('./routes/tenantNotifications.routes');
+const servicesCatalogRoutes = require('./routes/servicesCatalog.routes');
 const studentServicesPackRoutes = require('./routes/studentServicesPack.routes');
 // Education module (Device 2), STU-1 to STU-10 plus the P2 booking and
 // rating surfaces. Thirteen routers on one additive prefix that no other
@@ -346,6 +347,9 @@ app.use('/api/v1/tenant/notifications', tenantNotificationsRoutes);
 // Tenant Payments — tenant-scoped add-on purchase intents, status and list,
 // plus the gateway webhook which is HMAC-verified (fail-closed without secret).
 app.use('/api/v1/payments', tenantPaymentsRoutes);
+// Unified Services Catalog — read-only, server-authoritative service discovery.
+// Requires authentication; returns only services the caller is authorized to see.
+app.use('/api/v1/services', servicesCatalogRoutes);
 // Phase B — Game Hosting. Self-contained module; does not alter Core ERP routes.
 // Provider integration is BLOCKED; lifecycle state machine and ownership are enforced.
 app.use('/api/v1/game-hosting', gameHostingRoutes);
