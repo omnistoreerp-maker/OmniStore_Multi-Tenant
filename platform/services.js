@@ -28,7 +28,6 @@
   const langBtnEn = document.querySelector('button.omni-lang-btn[data-lang="en"]');
   const logoutBtn = document.getElementById('logoutBtn');
   const ctxRoleEl = document.getElementById('ctxRole');
-  const ctxTenantEl = document.getElementById('ctxTenant');
   const contextBar = document.getElementById('contextBar');
   const pageStatus = document.getElementById('pageStatus');
   const searchInput = document.getElementById('searchInput');
@@ -49,7 +48,6 @@
   const metaScope = document.getElementById('metaScope');
   const metaState = document.getElementById('metaState');
   const metaDestination = document.getElementById('metaDestination');
-  const metaSource = document.getElementById('metaSource');
   const modalLaunch = document.getElementById('modalLaunch');
 
   // ---------- i18n ----------
@@ -312,7 +310,6 @@
     metaState.textContent = esc(stateLabel);
     metaState.className = 'meta-value status-badge ' + svc.status;
     metaDestination.textContent = esc(svc.destination || '—');
-    metaSource.textContent = esc(svc.source || '—');
 
     // Build launch action
     modalLaunch.innerHTML = '';
@@ -385,7 +382,6 @@
       if (data.user) {
         contextBar.style.display = 'flex';
         if (ctxRoleEl) ctxRoleEl.textContent = data.user.role || '—';
-        if (ctxTenantEl) ctxTenantEl.textContent = data.user.tenantId || '—';
       }
 
       state.services = data.services || [];

@@ -3,7 +3,9 @@
 const { success, error } = require('../utils/apiResponse');
 const catalogMetadata = require('../services/catalogMetadata.service');
 const authorization = require('../services/authorization.service');
-const tenantRole = require('../services/tenantRole.service');
+const { assertTenantAccess } = authorization;
+const usersService = require('../services/users.service');
+const { resolveTenantRoleForRequest, trustedTenantId } = require('../middleware/authorize');
 const platformAdmin = require('../services/platformAdmin.service');
 const platformRegistry = require('../permissions/platformRegistry');
 
@@ -13,18 +15,25 @@ const platformRegistry = require('../permissions/platformRegistry');
 // Authorization boundary (strict separation of tenant vs platform scope):
 //
 //   TENANT scope:
-//     - Tenant services are visible only when authorized by the existing
-//       tenant permission engine (authorization.service + tenant permission
-//       registry) for the caller's trusted tenant context.
+//     - The real persisted actor is resolved via usersService.getByUsername()
+//       and passed to authorization.hasPermission() — never the thin req.user
+//       object (which lacks tenantRoles, permissions, tenantPermissions,
+//       tenantIds).
+//     - The effective role is resolved via resolveTenantRoleForRequest(req),
+//       which honors ENABLE_TENANT_ROLES, tenant context, and per-tenant role
+//       overrides, falling back to req.user.role in legacy mode.
+//     - The trusted tenant is resolved via trustedTenantId(req) — never from
+//       query/body/header.
 //     - Owner/Admin tenant bypass applies within tenant scope only — it never
 //       grants platform visibility.
 //     - A tenant Owner/Admin is NOT automatically a platform member.
 //
 //   PLATFORM/MASTER scope:
-//     - Active platform membership is resolved server-side from the platform
-//       admin store (platformAdmin.platformRoleFor / memberFor), using the
-//       authenticated username from the token — never from query params,
-//       headers, localStorage, or req.user.role.
+//     - The authenticated username is revalidated against a real current user
+//       record (usersService.getByUsername) before platform membership is
+//       resolved — mirroring platformAuth._platformActor.
+//     - Active platform membership comes from platformAdmin.platformRoleFor()
+//       and platformAdmin.resolvePermissionsFor() — server-side store only.
 //     - Each master service is gated by its verified platformPermission via
 //       platformRegistry.hasPlatformPermission(role, permission, overrides).
 //     - Services without a verified platformPermission mapping are withheld.
@@ -32,6 +41,11 @@ const platformRegistry = require('../permissions/platformRegistry');
 //
 //   INTERNAL scope:
 //     - Internal services are never exposed to any role.
+//
+//   API response minimization:
+//     - source references are kept server-side only, never returned.
+//     - user id, username, and raw tenantId are not returned.
+//     - Only the effective display role is returned.
 
 function getCatalog(req, res) {
   try {
@@ -39,48 +53,72 @@ function getCatalog(req, res) {
       return error(res, 'Authentication required', 401);
     }
 
-    const user = req.user;
-    const tenantId = user.tenantId || undefined;
+    const username = req.user.username;
+    if (!username) {
+      return error(res, 'Authentication required', 401);
+    }
 
-    // Resolve effective role from server-side tenant state only — never from
-    // client-controlled input.
-    const effectiveRole = tenantRole.resolveEffectiveRole(user, tenantId) || user.role;
+    // Trusted tenant from server-side state only (never query/body/header).
+    const tenantId = trustedTenantId(req);
+
+    // Resolve effective role through the existing tenant authorization flow:
+    // feature-flag gated, tenant-context aware, real-user-record backed.
+    // Falls back to the token's global role when tenant roles are off or no
+    // valid tenant context exists.
+    const effectiveRole = resolveTenantRoleForRequest(req) || req.user.role;
+
+    // Revalidate the real persisted actor. The thin req.user (id/username/role/
+    // tenantId) is insufficient for authorization.hasPermission, which needs
+    // tenantRoles, permissions, tenantPermissions, tenantIds from the store.
+    // Fail closed when no real record exists.
+    const actor = usersService.getByUsername(username);
+    if (!actor) {
+      return error(res, 'Authentication required', 401);
+    }
 
     const isTenantPrivileged = effectiveRole === 'Owner' || effectiveRole === 'Admin';
+
+    // Enforce the cross-tenant membership boundary: a user bound to specific
+    // tenants cannot obtain services for a tenant they are not a member of.
+    // Unbound (legacy) accounts and privileged roles are allowed by
+    // assertTenantAccess. Platform scope is checked separately below.
+    const tenantAccess = assertTenantAccess(actor, tenantId);
 
     // Build the authorized service list.
     const authorized = [];
 
     // --- Tenant services (tenant scope only) ---
-    for (const svc of catalogMetadata.getTenantServices()) {
-      let allowed = false;
-      if (isTenantPrivileged) {
-        // Owner/Admin tenant bypass — tenant scope only.
-        allowed = true;
-      } else if (svc.permission) {
-        allowed = authorization.hasPermission(user, svc.permission, tenantId);
-      }
-      // Services with no permission (null) are withheld from non-privileged roles.
-      if (allowed) {
-        authorized.push({
-          id: svc.id,
-          name: svc.name,
-          description: svc.description,
-          category: svc.category,
-          scope: 'tenant',
-          status: svc.state,
-          destination: svc.destination,
-          source: svc.source
-        });
+    if (tenantAccess.allowed) {
+      for (const svc of catalogMetadata.getTenantServices()) {
+        let allowed = false;
+        if (isTenantPrivileged) {
+          // Owner/Admin tenant bypass — tenant scope only.
+          allowed = true;
+        } else if (svc.permission) {
+          allowed = authorization.hasPermission(actor, svc.permission, tenantId);
+        }
+        // Services with no permission (null) are withheld from non-privileged roles.
+        if (allowed) {
+          authorized.push({
+            id: svc.id,
+            name: svc.name,
+            description: svc.description,
+            category: svc.category,
+            scope: 'tenant',
+            status: svc.state,
+            destination: svc.destination
+          });
+        }
       }
     }
 
     // --- Platform/Master services (platform scope only) ---
-    // Resolve active platform membership server-side only. A disabled, removed,
-    // or unknown platform member resolves to null (fail-closed).
-    const platformRole = platformAdmin.platformRoleFor(user.username);
+    // Revalidate the real user record before resolving platform membership,
+    // mirroring platformAuth._platformActor. A disabled, removed, unknown, or
+    // missing member receives zero platform services.
+    const platformRole = platformAdmin.platformRoleFor(username);
     if (platformRole) {
-      const entry = platformAdmin.memberFor(user.username);
+      const entry = platformAdmin.memberFor(username);
       const overrides = entry && Array.isArray(entry.permissions) ? entry.permissions : [];
       for (const svc of catalogMetadata.getMasterServices()) {
         // Services without a verified platformPermission mapping are withheld.
@@ -93,8 +131,7 @@ function getCatalog(req, res) {
             category: svc.category,
             scope: 'master',
             status: svc.state,
-            destination: svc.destination,
-            source: svc.source
+            destination: svc.destination
           });
         }
       }
@@ -103,19 +140,19 @@ function getCatalog(req, res) {
     // --- Internal-only services: NEVER exposed to any role ---
 
     // Sort by scope (tenant first, then master) then by category.
+    // Nullish-safe scope lookup: tenant (0) must not be replaced by 99.
     authorized.sort((a, b) => {
       const scopeOrder = { tenant: 0, master: 1, internal: 2 };
-      const so = (scopeOrder[a.scope] || 99) - (scopeOrder[b.scope] || 99);
+      const so = (scopeOrder[a.scope] ?? 99) - (scopeOrder[b.scope] ?? 99);
       if (so !== 0) return so;
       return (a.category || '').localeCompare(b.category || '');
     });
 
+    // Minimal production response: only the effective display role. No user id,
+    // username, raw tenantId, or source references are returned to the browser.
     return success(res, {
       user: {
-        id: user.id,
-        username: user.username,
-        role: effectiveRole,
-        tenantId
+        role: effectiveRole
       },
       services: authorized,
       total: authorized.length

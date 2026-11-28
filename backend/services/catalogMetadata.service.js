@@ -10,9 +10,10 @@
 // `permission` (tenant services) is an exact canonical permission string from
 // backend/permissions/registry.js (REAL_PERMISSIONS). Legacy module permission
 // names (e.g. viewProducts, createInvoices) are NOT used directly — they are
-// mapped to their canonical equivalent only when one exists. When no canonical
-// enforceable discovery permission exists, `permission` is null and the
-// service is withheld from non-privtenant roles.
+// mapped to their canonical equivalent only when one exists and is
+// semantically appropriate for discovery. When no canonical enforceable
+// discovery permission exists, `permission` is null and the service is
+// withheld from non-privileged tenant roles.
 //
 // `platformPermission` (master services) is an exact canonical platform
 // permission string from backend/permissions/platformRegistry.js
@@ -24,6 +25,7 @@
 //
 // Status values:
 //   READY         - Verified working frontend destination, may be launched.
+//                   READY requires a non-empty verified destination.
 //   PARTIAL       - Preview/disabled-engine mode; show status, allow navigation
 //                   only if an existing usable destination is verified.
 //   BACKEND_ONLY  - Backend capability with no operational frontend service.
@@ -49,6 +51,8 @@ const SCOPE_INTERNAL = 'internal';
 // Each entry's `permission` is the enforceable permission checked by the
 // server before returning the service to the caller. Permission values are
 // exact canonical strings from backend/permissions/registry.js.
+// A null `permission` means no canonical enforceable discovery permission
+// exists for that service; it is withheld from non-privileged roles.
 const TENANT_SERVICES = [
   {
     id: 'dashboard',
@@ -199,10 +203,10 @@ const TENANT_SERVICES = [
     },
     category: 'finance',
     scope: SCOPE_TENANT,
-    permission: 'audit.view',
+    permission: null,
     destination: 'index.html#accounting-audit',
     state: STATE_PARTIAL,
-    source: 'services/modulePlatform/moduleRegistry.js:139-144'
+    source: 'services/modulePlatform/moduleRegistry.js:139-144 — permission-mapping incomplete (no canonical accounting discovery permission)'
   },
   {
     id: 'accounting_rules',
@@ -213,10 +217,10 @@ const TENANT_SERVICES = [
     },
     category: 'finance',
     scope: SCOPE_TENANT,
-    permission: 'audit.view',
+    permission: null,
     destination: 'index.html#accounting-configuration',
     state: STATE_PARTIAL,
-    source: 'services/modulePlatform/moduleRegistry.js:146-151'
+    source: 'services/modulePlatform/moduleRegistry.js:146-151 — permission-mapping incomplete (no canonical accounting discovery permission)'
   },
   {
     id: 'notifications',
@@ -342,7 +346,7 @@ const TENANT_SERVICES = [
     permission: 'audit.view',
     destination: 'index.html#documents',
     state: STATE_BACKEND_ONLY,
-    source: 'services/modulePlatform/moduleRegistry.js:210-217'
+    source: 'services/modulePlatform/moduleRegistry.js:210-217 — module permission viewAudit maps to canonical audit.view'
   },
   {
     id: 'backup_sync',
@@ -356,7 +360,7 @@ const TENANT_SERVICES = [
     permission: 'settings.view',
     destination: 'index.html#backup',
     state: STATE_BACKEND_ONLY,
-    source: 'services/modulePlatform/moduleRegistry.js:219-227'
+    source: 'services/modulePlatform/moduleRegistry.js:219-227 — module permission manageSettings maps to canonical settings.view for discovery'
   },
   {
     id: 'platform_tools',
@@ -384,7 +388,7 @@ const TENANT_SERVICES = [
     permission: 'settings.view',
     destination: 'index.html#business-marketplace',
     state: STATE_PARTIAL,
-    source: 'services/modulePlatform/moduleRegistry.js:245-249'
+    source: 'services/modulePlatform/moduleRegistry.js:245-249 — module permission manageSettings maps to canonical settings.view for discovery'
   },
   {
     id: 'playstation',
@@ -395,10 +399,10 @@ const TENANT_SERVICES = [
     },
     category: 'entertainment',
     scope: SCOPE_TENANT,
-    permission: 'settings.view',
+    permission: null,
     destination: 'index.html#playstation',
     state: STATE_PARTIAL,
-    source: 'services/modulePlatform/moduleRegistry.js:251-255'
+    source: 'services/modulePlatform/moduleRegistry.js:251-255 — permission-mapping incomplete (entertainment service, no canonical discovery permission)'
   },
   {
     id: 'car_rental',
@@ -409,10 +413,10 @@ const TENANT_SERVICES = [
     },
     category: 'entertainment',
     scope: SCOPE_TENANT,
-    permission: 'settings.view',
+    permission: null,
     destination: 'index.html#car-rental',
     state: STATE_PARTIAL,
-    source: 'services/modulePlatform/moduleRegistry.js:257-261'
+    source: 'services/modulePlatform/moduleRegistry.js:257-261 — permission-mapping incomplete (entertainment service, no canonical discovery permission)'
   },
   {
     id: 'education',
@@ -437,10 +441,10 @@ const TENANT_SERVICES = [
     },
     category: 'education',
     scope: SCOPE_TENANT,
-    permission: 'settings.view',
+    permission: null,
     destination: 'student.html',
     state: STATE_PARTIAL,
-    source: 'services/modulePlatform/moduleRegistry.js:278-283'
+    source: 'services/modulePlatform/moduleRegistry.js:278-283 — permission-mapping incomplete (education service, no canonical discovery permission)'
   },
   {
     id: 'settings',
@@ -459,25 +463,11 @@ const TENANT_SERVICES = [
 ];
 
 // Master/platform services from navigationBuilder.js MASTER_NAV groups.
-// These are platform-scoped and only visible to platform-authorized callers.
-// `platformPermission` is an exact canonical platform permission string from
-// backend/permissions/platformRegistry.js. Services without a verified
-// platformPermission mapping (null) are withheld from the API response.
+// platform_master, platform_dashboard, and platform_overview are aliases for
+// the same platform dashboard surface (platform.html, platform.dashboard.view).
+// They are consolidated into a single canonical catalog service
+// (platform_dashboard). Navigation aliases are NOT counted as separate services.
 const MASTER_SERVICES = [
-  {
-    id: 'platform_master',
-    name: { ar: 'مركز تحكم OmniStore', en: 'OmniStore Control Center' },
-    description: {
-      ar: 'لوحة تحكم المنصة الشاملة للإدارة والتشغيل.',
-      en: 'Comprehensive platform control center for administration and operations.'
-    },
-    category: 'platform',
-    scope: SCOPE_MASTER,
-    platformPermission: 'platform.dashboard.view',
-    destination: 'platform.html',
-    state: STATE_PARTIAL,
-    source: 'services/modulePlatform/navigationBuilder.js:46-126 (MASTER_NAV)'
-  },
   {
     id: 'platform_dashboard',
     name: { ar: 'لوحة تحكم المنصة', en: 'Platform Dashboard' },
@@ -490,7 +480,7 @@ const MASTER_SERVICES = [
     platformPermission: 'platform.dashboard.view',
     destination: 'platform.html',
     state: STATE_PARTIAL,
-    source: 'services/modulePlatform/navigationBuilder.js:47'
+    source: 'services/modulePlatform/navigationBuilder.js (MASTER_NAV dashboard group)'
   },
   {
     id: 'platform_companies',
@@ -587,22 +577,8 @@ const MASTER_SERVICES = [
     scope: SCOPE_MASTER,
     platformPermission: 'platform.audit.view',
     destination: null,
-    state: STATE_READY,
-    source: 'services/modulePlatform/navigationBuilder.js:93-98 (MASTER_NAV)'
-  },
-  {
-    id: 'platform_overview',
-    name: { ar: 'منصة OmniStore', en: 'Platform Overview' },
-    description: {
-      ar: 'لوحة المنصة، النشرات، التحديثات، ومراقبة المنصة.',
-      en: 'Platform dashboard, releases, updates, and platform monitoring.'
-    },
-    category: 'platform',
-    scope: SCOPE_MASTER,
-    platformPermission: 'platform.dashboard.view',
-    destination: 'platform.html',
-    state: STATE_PARTIAL,
-    source: 'services/modulePlatform/navigationBuilder.js:99-126 (MASTER_NAV)'
+    state: STATE_NOT_VERIFIED,
+    source: 'services/modulePlatform/navigationBuilder.js:93-98 (MASTER_NAV) — NOT_VERIFIED: no verified frontend destination'
   }
 ];
 
