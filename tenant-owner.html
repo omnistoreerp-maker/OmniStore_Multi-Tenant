@@ -35,25 +35,26 @@
 
   <div class="os-sidebar-overlay"></div>
 
-  <!-- Sidebar -->
-  <aside class="os-sidebar">
-    <div class="os-sidebar-header">
-      <span class="os-brand-mark">◈</span>
-      <span class="os-brand-name" data-i18n="app_name">متجر omni</span>
-      <button class="os-nav-collapse" aria-label="طي القائمة الجانبية" title="طي القائمة الجانبية">◀</button>
-    </div>
-    <ul class="os-nav-list">
-      <li class="os-nav-item"><a class="os-nav-link is-active" href="#overview" data-i18n="nav_overview"><span class="os-nav-icon">📊</span><span class="os-nav-label">نظرة عامة</span></a></li>
-      <li class="os-nav-item"><a class="os-nav-link" href="#sales" data-i18n="nav_sales"><span class="os-nav-icon">🧾</span><span class="os-nav-label">المبيعات</span></a></li>
-      <li class="os-nav-item"><a class="os-nav-link" href="#inventory" data-i18n="nav_inventory"><span class="os-nav-icon">📦</span><span class="os-nav-label">المخزون</span></a></li>
-      <li class="os-nav-item"><a class="os-nav-link" href="#customers" data-i18n="nav_customers"><span class="os-nav-icon">👥</span><span class="os-nav-label">العملاء</span></a></li>
-      <li class="os-nav-item"><a class="os-nav-link" href="#suppliers" data-i18n="nav_suppliers"><span class="os-nav-icon">🚚</span><span class="os-nav-label">الموردين</span></a></li>
-      <li class="os-nav-item"><a class="os-nav-link" href="#treasury" data-i18n="nav_treasury"><span class="os-nav-icon">💰</span><span class="os-nav-label">الخزينة</span></a></li>
-    </ul>
-  </aside>
+  <div class="os-workspace-body">
+    <!-- Sidebar -->
+    <aside class="os-sidebar">
+      <div class="os-sidebar-header">
+        <span class="os-brand-mark">◈</span>
+        <span class="os-brand-name" data-i18n="app_name">متجر omni</span>
+        <button class="os-nav-collapse" aria-label="طي القائمة الجانبية" title="طي القائمة الجانبية">◀</button>
+      </div>
+      <ul class="os-nav-list">
+        <li class="os-nav-item"><a class="os-nav-link is-active" href="/index.html#overview" data-i18n="nav_overview"><span class="os-nav-icon">📊</span><span class="os-nav-label">نظرة عامة</span></a></li>
+        <li class="os-nav-item"><a class="os-nav-link" href="/index.html#sales" data-i18n="nav_sales"><span class="os-nav-icon">🧾</span><span class="os-nav-label">المبيعات</span></a></li>
+        <li class="os-nav-item"><a class="os-nav-link" href="/index.html#inventory" data-i18n="nav_inventory"><span class="os-nav-icon">📦</span><span class="os-nav-label">المخزون</span></a></li>
+        <li class="os-nav-item"><a class="os-nav-link" href="/index.html#customers" data-i18n="nav_customers"><span class="os-nav-icon">👥</span><span class="os-nav-label">العملاء</span></a></li>
+        <li class="os-nav-item"><a class="os-nav-link" href="/index.html#suppliers" data-i18n="nav_suppliers"><span class="os-nav-icon">🚚</span><span class="os-nav-label">الموردين</span></a></li>
+        <li class="os-nav-item"><a class="os-nav-link" href="/index.html#treasury" data-i18n="nav_treasury"><span class="os-nav-icon">💰</span><span class="os-nav-label">الخزينة</span></a></li>
+      </ul>
+    </aside>
 
-  <!-- Main content -->
-  <main class="container os-main">
+    <!-- Main content -->
+    <main class="container os-main">
     <!-- Business context bar -->
     <div class="context-bar" id="contextBar" style="display:none">
       <span class="ctx-item"><strong>الدور:</strong> <span id="ctxRole">—</span></span>
@@ -133,6 +134,7 @@
       </div>
     </section>
   </main>
+  </div>
 </div>
 <script src="platform/js/route-by-role.js"></script>
 <script src="platform/ui/omnistore-workspace.js"></script>

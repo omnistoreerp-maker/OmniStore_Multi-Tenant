@@ -175,6 +175,7 @@
 /* ==== Layout ==== */
 [data-omni-workspace] .os-shell {
   display: flex;
+  flex-direction: column;
   min-height: 100vh;
 }
 [data-omni-workspace] .os-topbar {
@@ -190,6 +191,15 @@
   z-index: 100;
   width: 100%;
   overflow-x: hidden;
+  flex-shrink: 0;
+}
+
+/* Workspace body: horizontal flex region for sidebar + main */
+[data-omni-workspace] .os-workspace-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 [data-omni-workspace] .os-brand {
   display: flex;
@@ -281,7 +291,6 @@
   padding: 24px;
   overflow-y: auto;
   overflow-x: hidden;
-  width: 100%;
 }
 
 /* ==== Mobile/tablet sidebar ==== */

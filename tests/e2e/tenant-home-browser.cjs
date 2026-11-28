@@ -302,7 +302,7 @@ async function loginViaUi(page, username) {
     const page8 = await context.newPage();
     const errors8 = [];
     page8.on('pageerror', e => errors8.push('PAGEERROR: ' + e.message));
-    page8.on('console', m => { console.log('BROWSER-CONSOLE [' + m.type() + ']: ' + m.text()); if (m.type() === 'error') errors8.push('CONSOLE: ' + m.text()); });
+    page8.on('console', m => { if (m.type() === 'error') errors8.push('CONSOLE: ' + m.text()); });
     await context.clearCookies();
     await preparePage(page8, 'digitronics');
     await page8.goto('http://127.0.0.1:' + STATIC_PORT + '/index.html', { waitUntil: 'networkidle' });
@@ -451,6 +451,29 @@ async function loginViaUi(page, username) {
     const lsUrl = page13.url();
     check('Forged localStorage role does not override server role', lsUrl.includes('/employee-workspace.html'), 'actual URL: ' + lsUrl);
     await page13.close();
+  }
+
+  // ── Test 11b: Combined query-string + localStorage spoofing vs authenticated Cashier ──
+  {
+    const page13b = await context.newPage();
+    const errors13b = [];
+    page13b.on('pageerror', e => errors13b.push('PAGEERROR: ' + e.message));
+    page13b.on('console', m => { if (m.type() === 'error') errors13b.push('CONSOLE: ' + m.text()); });
+    await context.clearCookies();
+    // Forge both query param and localStorage role BEFORE navigating
+    await page13b.addInitScript(() => {
+      localStorage.setItem('role', 'Owner');
+    });
+    await preparePage(page13b, 'digitronics');
+    await page13b.goto('http://127.0.0.1:' + STATIC_PORT + '/index.html?role=Owner', { waitUntil: 'networkidle' });
+    await loginViaUi(page13b, 'e2eCashier');
+    // Wait for route-by-role.js to redirect to employee-workspace.html
+    await page13b.waitForURL('**/employee-workspace.html', { timeout: 10000 }).catch(() => {});
+    await page13b.waitForTimeout(2000);
+    // Authenticated Cashier with forged ?role=Owner and localStorage=Owner → server role wins → employee workspace
+    const spoofUrl = page13b.url();
+    check('Authenticated Cashier + forged query + forged localStorage → server role wins', spoofUrl.includes('/employee-workspace.html'), 'actual URL: ' + spoofUrl);
+    await page13b.close();
   }
 
   // ── Test 12: Language toggle — Arabic→English→Arabic on Owner workspace ──
