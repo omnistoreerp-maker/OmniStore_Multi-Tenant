@@ -13,6 +13,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/digitronics-icon-192.svg">
 <link rel="stylesheet" href="platform/omni-design.css">
+<link rel="stylesheet" href="platform/ui/omnistore-workspace.css">
 <script src="platform/omni-i18n.js"></script>
 <script src="platform/i18n/index.dict.js"></script>
 <script src="platform/google-link.js?v=20261014"></script>
@@ -5485,8 +5486,8 @@ document.addEventListener('DOMContentLoaded', function() {
         #page-platform-master .pm-grid2{grid-template-columns:1fr}
       }
     </style>
-    <div class="page" id="page-platform-master">
-      <div class="page-header">
+    <div class="page" id="page-platform-master" data-omni-workspace data-omni-role="master">
+      <div class="page-header os-page-header">
         <div>
           <div class="page-title">👑 مركز تحكم OmniStore</div>
           <div style="font-size:0.78rem;color:var(--text2);margin-top:2px">صلاحية المالك فقط — تحكم مركزي على مستوى المنصة</div>
@@ -5508,21 +5509,21 @@ document.addEventListener('DOMContentLoaded', function() {
         <button type="button" class="pm-rail-btn" role="tab" aria-selected="false" data-pmsec="monetization" onclick="pmSection('monetization',this)"><i data-lucide="badge-dollar-sign"></i><span>الربح</span></button>
       </nav>
       <div data-pm-panel="dashboard">
-      <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))" aria-live="polite" aria-atomic="true">
-        <div class="stat-card blue"><div class="stat-icon">🏢</div><div class="stat-value" id="pmTotalCompanies">0</div><div class="stat-label">إجمالي الشركات</div></div>
-        <div class="stat-card green"><div class="stat-icon">✅</div><div class="stat-value" id="pmActiveCompanies">0</div><div class="stat-label">الشركات النشطة</div></div>
-        <div class="stat-card red"><div class="stat-icon">⛔</div><div class="stat-value" id="pmSuspendedCompanies">0</div><div class="stat-label">الشركات الموقوفة</div></div>
-        <div class="stat-card purple"><div class="stat-icon">👥</div><div class="stat-value" id="pmTotalUsers">0</div><div class="stat-label">إجمالي المستخدمين</div></div>
-        <div class="stat-card green"><div class="stat-icon">🟢</div><div class="stat-value" id="pmOnlineUsers">0</div><div class="stat-label">المستخدمون المتصلون</div></div>
-        <div class="stat-card yellow"><div class="stat-icon">🎫</div><div class="stat-value" id="pmActiveLicenses">0</div><div class="stat-label">التراخيص النشطة</div></div>
-        <div class="stat-card red"><div class="stat-icon">⏳</div><div class="stat-value" id="pmExpiredLicenses">0</div><div class="stat-label">التراخيص المنتهية</div></div>
-        <div class="stat-card orange"><div class="stat-icon">📅</div><div class="stat-value" id="pmExpiringSoon">0</div><div class="stat-label">تنتهي قريبًا (30 يوم)</div></div>
-        <div class="stat-card blue pm-newcards"><div class="stat-icon"><i data-lucide="shopping-cart"></i></div><div class="stat-value" id="pmOrdersToday">—</div><div class="stat-label">طلبات اليوم</div></div>
-        <div class="stat-card green pm-newcards"><div class="stat-icon"><i data-lucide="banknote"></i></div><div class="stat-value" id="pmSalesToday">—</div><div class="stat-label">قيمة مبيعات اليوم</div></div>
-        <div class="stat-card purple pm-newcards"><div class="stat-icon"><i data-lucide="package"></i></div><div class="stat-value" id="pmProductsTotal">—</div><div class="stat-label">المنتجات</div></div>
-        <div class="stat-card yellow pm-newcards"><div class="stat-icon"><i data-lucide="ticket"></i></div><div class="stat-value" id="pmTicketsOpen">—</div><div class="stat-label">تذاكر مفتوحة</div></div>
-        <div class="stat-card green pm-newcards"><div class="stat-icon"><i data-lucide="eye"></i></div><div class="stat-value" id="pmVisitorsNow">—</div><div class="stat-label">زوار نشطون الآن</div></div>
-        <div class="stat-card red pm-newcards"><div class="stat-icon"><i data-lucide="bell-ring"></i></div><div class="stat-value" id="pmAlertsCount">—</div><div class="stat-label">تنبيهات تحتاج انتباهًا</div></div>
+      <div class="stats-grid os-kpi-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))" aria-live="polite" aria-atomic="true">
+        <div class="stat-card os-kpi-card blue"><div class="stat-icon">🏢</div><div class="stat-value" id="pmTotalCompanies">0</div><div class="stat-label">إجمالي الشركات</div></div>
+        <div class="stat-card os-kpi-card green"><div class="stat-icon">✅</div><div class="stat-value" id="pmActiveCompanies">0</div><div class="stat-label">الشركات النشطة</div></div>
+        <div class="stat-card os-kpi-card red"><div class="stat-icon">⛔</div><div class="stat-value" id="pmSuspendedCompanies">0</div><div class="stat-label">الشركات الموقوفة</div></div>
+        <div class="stat-card os-kpi-card purple"><div class="stat-icon">👥</div><div class="stat-value" id="pmTotalUsers">0</div><div class="stat-label">إجمالي المستخدمين</div></div>
+        <div class="stat-card os-kpi-card green"><div class="stat-icon">🟢</div><div class="stat-value" id="pmOnlineUsers">0</div><div class="stat-label">المستخدمون المتصلون</div></div>
+        <div class="stat-card os-kpi-card yellow"><div class="stat-icon">🎫</div><div class="stat-value" id="pmActiveLicenses">0</div><div class="stat-label">التراخيص النشطة</div></div>
+        <div class="stat-card os-kpi-card red"><div class="stat-icon">⏳</div><div class="stat-value" id="pmExpiredLicenses">0</div><div class="stat-label">التراخيص المنتهية</div></div>
+        <div class="stat-card os-kpi-card orange"><div class="stat-icon">📅</div><div class="stat-value" id="pmExpiringSoon">0</div><div class="stat-label">تنتهي قريبًا (30 يوم)</div></div>
+        <div class="stat-card os-kpi-card blue pm-newcards"><div class="stat-icon"><i data-lucide="shopping-cart"></i></div><div class="stat-value" id="pmOrdersToday">—</div><div class="stat-label">طلبات اليوم</div></div>
+        <div class="stat-card os-kpi-card green pm-newcards"><div class="stat-icon"><i data-lucide="banknote"></i></div><div class="stat-value" id="pmSalesToday">—</div><div class="stat-label">قيمة مبيعات اليوم</div></div>
+        <div class="stat-card os-kpi-card purple pm-newcards"><div class="stat-icon"><i data-lucide="package"></i></div><div class="stat-value" id="pmProductsTotal">—</div><div class="stat-label">المنتجات</div></div>
+        <div class="stat-card os-kpi-card yellow pm-newcards"><div class="stat-icon"><i data-lucide="ticket"></i></div><div class="stat-value" id="pmTicketsOpen">—</div><div class="stat-label">تذاكر مفتوحة</div></div>
+        <div class="stat-card os-kpi-card green pm-newcards"><div class="stat-icon"><i data-lucide="eye"></i></div><div class="stat-value" id="pmVisitorsNow">—</div><div class="stat-label">زوار نشطون الآن</div></div>
+        <div class="stat-card os-kpi-card red pm-newcards"><div class="stat-icon"><i data-lucide="bell-ring"></i></div><div class="stat-value" id="pmAlertsCount">—</div><div class="stat-label">تنبيهات تحتاج انتباهًا</div></div>
       </div>
       <div class="pm-kpi-legend" style="display:flex;gap:14px;flex-wrap:wrap;margin:-4px 0 12px 0;font-size:0.74rem;color:var(--text2)">
         <span>🏢 الشركات · النشط/الموقوف/الإجمالي</span>
@@ -46169,6 +46170,37 @@ function populateCenterDropdown(selectId) {
 })();
 </script>
 <script src="platform/js/route-by-role.js"></script>
+<script src="platform/ui/omnistore-workspace.js"></script>
+<script>
+  // Master Control Center — integrate workspace visual foundation.
+  // Narrowly scoped: only activates when #page-platform-master is visible.
+  (function () {
+    'use strict';
+    const masterPage = document.getElementById('page-platform-master');
+    if (!masterPage) return;
+
+    // Initialize omniWorkspace for the Master page shell.
+    const root = masterPage.querySelector('[data-omni-workspace]');
+    if (root && window.omniWorkspace) {
+      window.omniWorkspace.init(root);
+      // Master identity: role is 'master', not a tenant role.
+      window.omniWorkspace.setRole('master');
+    }
+
+    // Expose workspace helpers for Master page inline handlers.
+    window.omniMasterWorkspace = {
+      setRole: function (role) {
+        if (window.omniWorkspace) window.omniWorkspace.setRole(role);
+      },
+      workspaceForRole: function (role) {
+        return window.omniWorkspace ? window.omniWorkspace.workspaceForRole(role) : null;
+      },
+      isEmployeeRole: function (role) {
+        return window.omniWorkspace ? window.omniWorkspace.isEmployeeRole(role) : false;
+      }
+    };
+  })();
+</script>
 </body>
 </html>
 

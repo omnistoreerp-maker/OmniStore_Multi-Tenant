@@ -5,6 +5,7 @@
 //   const postLoginRole = (d.effectiveRole !== undefined ? d.effectiveRole : d.user.role);
 //   if (postLoginRole === 'Owner') -> /tenant-owner.html
 //   if (postLoginRole === 'Admin')  -> /tenant-admin.html
+//   if (postLoginRole === 'Cashier' || postLoginRole === 'Technician') -> /employee-workspace.html
 //   otherwise                      -> null (existing index.html behavior)
 // Client-supplied role values cannot override server identity.
 // Owner/Admin routing is applied only after successful server authentication
@@ -15,6 +16,7 @@ function routeByRole(effectiveRole, userRole) {
   const role = effectiveRole !== undefined ? effectiveRole : userRole;
   if (role === 'Owner') return '/tenant-owner.html';
   if (role === 'Admin') return '/tenant-admin.html';
+  if (role === 'Cashier' || role === 'Technician') return '/employee-workspace.html';
   return null;
 }
 

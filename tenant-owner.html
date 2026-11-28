@@ -1,108 +1,146 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" data-omni-workspace>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>رئيس المالك — متجر omni</title>
 <link rel="stylesheet" href="platform/tenant-owner.css">
+<link rel="stylesheet" href="platform/ui/omnistore-workspace.css">
 </head>
 <body>
-<header class="topbar">
-  <div class="brand">
-    <span class="mark">◈</span>
-    <span class="name">متجر omni</span>
-  </div>
-  <div class="tenant-context" id="tenantContext">
-    <span class="label">الشركة:</span>
-    <span class="value" id="tenantName">—</span>
-  </div>
-  <div class="user-area">
-    <span class="welcome" id="userWelcome">مرحباً، صاحب العمل</span>
-    <button class="btn-logout" id="logoutBtn">تسجيل خروج</button>
-  </div>
-</header>
-
-<main class="container">
-  <!-- Business context bar -->
-  <div class="context-bar" id="contextBar" style="display:none">
-    <span class="ctx-item"><strong>الدور:</strong> <span id="ctxRole">—</span></span>
-    <span class="ctx-item"><strong>الصلاحيات:</strong> <span id="ctxPerms">—</span></span>
-    <span class="ctx-item"><strong>الحالة:</strong> <span id="ctxStatus">موثقة من الخادم</span></span>
-  </div>
-
-  <!-- Page status: loading / error / empty -->
-  <div id="pageStatus" class="page-status hidden"></div>
-
-  <!-- Hero: business overview -->
-  <section class="hero-section">
-    <h1 class="section-title">نظرة عامة على العمل</h1>
-    <div class="kpi-grid" id="kpiGrid">
-      <!-- KPI cards injected by JS -->
+<div class="os-shell">
+  <!-- Topbar -->
+  <header class="topbar os-topbar">
+    <div class="brand os-brand">
+      <span class="mark os-brand-mark">◈</span>
+      <span class="name os-brand-name" data-i18n="app_name">متجر omni</span>
     </div>
-  </section>
-
-  <!-- Low stock alerts -->
-  <section class="card-section">
-    <div class="section-header">
-      <h2>تنبيهات المخزون المنخفض</h2>
-      <a href="#" class="view-all" id="lowStockViewAll" style="display:none">عرض الكل</a>
+    <button class="os-mobile-menu-btn" aria-label="قائمة" title="قائمة">☰</button>
+    <div class="tenant-context" id="tenantContext">
+      <span class="label">الشركة:</span>
+      <span class="value" id="tenantName">—</span>
     </div>
-    <div class="alert-list" id="lowStockList">
-      <!-- injected by JS -->
+    <div class="user-area">
+      <span class="welcome" id="userWelcome">مرحباً، صاحب العمل</span>
+      <button class="btn-logout os-btn os-btn-outline os-btn-sm" id="logoutBtn">تسجيل خروج</button>
     </div>
-  </section>
-
-  <!-- Recent business activity -->
-  <section class="card-section">
-    <div class="section-header">
-      <h2>آخر النشاط التجاري</h2>
-    </div>
-    <div class="activity-list" id="activityList">
-      <!-- injected by JS -->
-    </div>
-  </section>
-
-  <!-- Customers & suppliers -->
-  <section class="two-grid">
-    <div class="card-section">
-      <div class="section-header">
-        <h2>آخر العملاء</h2>
+    <div class="os-lang-theme">
+      <div class="os-lang-toggle">
+        <button class="os-lang-btn os-active" data-lang="ar" data-i18n="lang_ar">العربية</button>
+        <button class="os-lang-btn" data-lang="en" data-i18n="lang_en">English</button>
       </div>
-      <div class="list-compact" id="customerList">
+      <button class="os-theme-toggle" aria-label="الوضع الليلي" title="الوضع الليلي">🌙</button>
+    </div>
+  </header>
+
+  <div class="os-sidebar-overlay"></div>
+
+  <div class="os-workspace-body">
+    <!-- Sidebar -->
+    <aside class="os-sidebar">
+      <div class="os-sidebar-header">
+        <span class="os-brand-mark">◈</span>
+        <span class="os-brand-name" data-i18n="app_name">متجر omni</span>
+        <button class="os-nav-collapse" aria-label="طي القائمة الجانبية" title="طي القائمة الجانبية">◀</button>
+      </div>
+      <ul class="os-nav-list">
+        <li class="os-nav-item"><a class="os-nav-link is-active" href="/index.html#overview" data-i18n="nav_overview"><span class="os-nav-icon">📊</span><span class="os-nav-label">نظرة عامة</span></a></li>
+        <li class="os-nav-item"><a class="os-nav-link" href="/index.html#sales" data-i18n="nav_sales"><span class="os-nav-icon">🧾</span><span class="os-nav-label">المبيعات</span></a></li>
+        <li class="os-nav-item"><a class="os-nav-link" href="/index.html#inventory" data-i18n="nav_inventory"><span class="os-nav-icon">📦</span><span class="os-nav-label">المخزون</span></a></li>
+        <li class="os-nav-item"><a class="os-nav-link" href="/index.html#customers" data-i18n="nav_customers"><span class="os-nav-icon">👥</span><span class="os-nav-label">العملاء</span></a></li>
+        <li class="os-nav-item"><a class="os-nav-link" href="/index.html#suppliers" data-i18n="nav_suppliers"><span class="os-nav-icon">🚚</span><span class="os-nav-label">الموردين</span></a></li>
+        <li class="os-nav-item"><a class="os-nav-link" href="/index.html#treasury" data-i18n="nav_treasury"><span class="os-nav-icon">💰</span><span class="os-nav-label">الخزينة</span></a></li>
+      </ul>
+    </aside>
+
+    <!-- Main content -->
+    <main class="container os-main">
+    <!-- Business context bar -->
+    <div class="context-bar" id="contextBar" style="display:none">
+      <span class="ctx-item"><strong>الدور:</strong> <span id="ctxRole">—</span></span>
+      <span class="ctx-item"><strong>الصلاحية:</strong> <span id="ctxPerms">—</span></span>
+      <span class="ctx-item"><strong>الحالة:</strong> <span id="ctxStatus">موثقة من الخادم</span></span>
+    </div>
+
+    <!-- Page status: loading / error / empty -->
+    <div id="pageStatus" class="page-status hidden"></div>
+
+    <!-- Hero: business overview -->
+    <section class="hero-section os-section-card">
+      <h1 class="section-title os-page-title" data-i18n="owner_overview">نظرة عامة على العمل</h1>
+      <div class="kpi-grid os-kpi-grid" id="kpiGrid">
+        <!-- KPI cards injected by JS -->
+      </div>
+    </section>
+
+    <!-- Low stock alerts -->
+    <section class="card-section os-section-card">
+      <div class="section-header os-section-header">
+        <h2>تنبيهات المخزون المنخفض</h2>
+        <a href="#" class="view-all" id="lowStockViewAll" style="display:none">عرض الكل</a>
+      </div>
+      <div class="alert-list" id="lowStockList">
         <!-- injected by JS -->
       </div>
-    </div>
-    <div class="card-section">
-      <div class="section-header">
-        <h2>آخر الموردين</h2>
+    </section>
+
+    <!-- Recent business activity -->
+    <section class="card-section os-section-card">
+      <div class="section-header os-section-header">
+        <h2>آخر النشاط التجاري</h2>
       </div>
-      <div class="list-compact" id="supplierList">
+      <div class="activity-list" id="activityList">
         <!-- injected by JS -->
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- Treasury -->
-  <section class="card-section">
-    <div class="section-header">
-      <h2>آخر الحركات المالية</h2>
-    </div>
-    <div class="list-compact" id="treasuryList">
-      <!-- injected by JS -->
-    </div>
-  </section>
+    <!-- Customers & suppliers -->
+    <section class="two-grid os-section-card">
+      <div class="card-section">
+        <div class="section-header os-section-header">
+          <h2>آخر العملاء</h2>
+        </div>
+        <div class="list-compact" id="customerList">
+          <!-- injected by JS -->
+        </div>
+      </div>
+      <div class="card-section">
+        <div class="section-header os-section-header">
+          <h2>آخر الموردين</h2>
+        </div>
+        <div class="list-compact" id="supplierList">
+          <!-- injected by JS -->
+        </div>
+      </div>
+    </section>
 
-  <!-- Quick access -->
-  <section class="card-section">
-    <div class="section-header">
-      <h2>الوصول السريع</h2>
-    </div>
-    <div class="quick-grid" id="quickGrid">
-      <!-- injected by JS -->
-    </div>
-  </section>
-</main>
+    <!-- Treasury -->
+    <section class="card-section os-section-card">
+      <div class="section-header os-section-header">
+        <h2>آخر الحركات المالية</h2>
+      </div>
+      <div class="list-compact" id="treasuryList">
+        <!-- injected by JS -->
+      </div>
+    </section>
 
+    <!-- Quick access -->
+    <section class="card-section os-section-card">
+      <div class="section-header os-section-header">
+        <h2>الوصول السريع</h2>
+      </div>
+      <div class="quick-grid" id="quickGrid">
+        <!-- injected by JS -->
+      </div>
+    </section>
+  </main>
+  </div>
+</div>
+<script src="platform/js/route-by-role.js"></script>
+<script src="platform/ui/omnistore-workspace.js"></script>
 <script src="platform/tenant-owner.js"></script>
+<script>
+  omniWorkspace.setRole('owner');
+</script>
 </body>
 </html>
