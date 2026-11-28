@@ -98,6 +98,26 @@ function _isBoundOutsideTenant(req) {
   return bound.size > 0 && !bound.has(tenantId);
 }
 
+// Whether the persisted actor is bound to (a member of, or has a tenantRoles
+// key for) the given tenant. Legacy/unbound accounts return false. Used by the
+// catalog controller to deny the Owner/Admin tenant bypass across tenant
+// boundaries without modifying assertTenantAccess or any existing business
+// route behavior.
+function actorIsBoundToTenant(actor, tenantId) {
+  if (!actor || typeof actor !== 'object') return false;
+  if (tenantId === undefined || tenantId === null) return false;
+  const bound = _boundTenants(actor);
+  return bound.size > 0 && bound.has(String(tenantId));
+}
+
+// Whether the actor has any tenant binding at all (tenantIds or tenantRoles
+// keys). Used by the catalog controller to distinguish bound from legacy
+// (unbound) actors when there is no trusted tenant context.
+function actorHasTenantBinding(actor) {
+  if (!actor || typeof actor !== 'object') return false;
+  return _boundTenants(actor).size > 0;
+}
+
 // The trusted tenant for the request: the reconstructed tenant context when
 // present, else the tenant claim signed into the token. Never from query/body.
 function trustedTenantId(req) {
@@ -270,4 +290,4 @@ function requireLinkedStudent(req, res, next) {
   next();
 }
 
-module.exports = { requireRole, requirePermission, requirePermissionIfAuth, requirePermissionOrSelf, requireLinkedStudent, writeRoleGuard, scopedWriteRoleGuard, resolveTenantRoleForRequest, trustedTenantId };
+module.exports = { requireRole, requirePermission, requirePermissionIfAuth, requirePermissionOrSelf, requireLinkedStudent, writeRoleGuard, scopedWriteRoleGuard, resolveTenantRoleForRequest, trustedTenantId, actorIsBoundToTenant, actorHasTenantBinding };

@@ -5,7 +5,7 @@ const catalogMetadata = require('../services/catalogMetadata.service');
 const authorization = require('../services/authorization.service');
 const { assertTenantAccess } = authorization;
 const usersService = require('../services/users.service');
-const { resolveTenantRoleForRequest, trustedTenantId } = require('../middleware/authorize');
+const { resolveTenantRoleForRequest, trustedTenantId, actorIsBoundToTenant, actorHasTenantBinding } = require('../middleware/authorize');
 const platformAdmin = require('../services/platformAdmin.service');
 const platformRegistry = require('../permissions/platformRegistry');
 
@@ -78,21 +78,34 @@ function getCatalog(req, res) {
 
     const isTenantPrivileged = effectiveRole === 'Owner' || effectiveRole === 'Admin';
 
-    // Enforce the cross-tenant membership boundary: a user bound to specific
-    // tenants cannot obtain services for a tenant they are not a member of.
-    // Unbound (legacy) accounts and privileged roles are allowed by
-    // assertTenantAccess. Platform scope is checked separately below.
+    // Tenant-bound status of the persisted actor. A bound actor (has tenantIds
+    // or tenantRoles keys) must be a member of the trusted tenant to receive any
+    // tenant-scoped services — the Owner/Admin bypass never crosses a tenant
+    // boundary. assertTenantAccess alone is insufficient: it grants
+    // Owner/Admin before checking membership. When there is no trusted tenant
+    // (undefined), existing behavior is preserved (no tenant invented).
+    const actorHasBinding = actorHasTenantBinding(actor);
+    const actorBoundToTenant = actorIsBoundToTenant(actor, tenantId);
     const tenantAccess = assertTenantAccess(actor, tenantId);
+
+    // Cross-tenant membership boundary: tenant services are gated behind
+    // membership in the trusted tenant when the actor is bound at all.
+    // Unbound (legacy) accounts and platform-only identities keep prior behavior.
+    const tenantServicesAllowed =
+      tenantAccess.allowed &&
+      (tenantId === undefined || !actorHasBinding || actorBoundToTenant);
 
     // Build the authorized service list.
     const authorized = [];
 
     // --- Tenant services (tenant scope only) ---
-    if (tenantAccess.allowed) {
+    if (tenantServicesAllowed) {
       for (const svc of catalogMetadata.getTenantServices()) {
         let allowed = false;
-        if (isTenantPrivileged) {
-          // Owner/Admin tenant bypass — tenant scope only.
+        if (isTenantPrivileged && (actorBoundToTenant || tenantId === undefined)) {
+          // Owner/Admin tenant bypass — applies inside a tenant the actor is
+          // actually a member of, or when there is no trusted tenant context
+          // (legacy behavior preserved: no tenant invented, no tenant inferred).
           allowed = true;
         } else if (svc.permission) {
           allowed = authorization.hasPermission(actor, svc.permission, tenantId);

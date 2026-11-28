@@ -441,10 +441,10 @@ const TENANT_SERVICES = [
     },
     category: 'education',
     scope: SCOPE_TENANT,
-    permission: null,
+    permission: 'settings.view',
     destination: 'student.html',
     state: STATE_PARTIAL,
-    source: 'services/modulePlatform/moduleRegistry.js:278-283 — permission-mapping incomplete (education service, no canonical discovery permission)'
+    source: 'services/modulePlatform/moduleRegistry.js:278-283 — module declares settings.view and settings.edit; settings.view used for discovery'
   },
   {
     id: 'settings',

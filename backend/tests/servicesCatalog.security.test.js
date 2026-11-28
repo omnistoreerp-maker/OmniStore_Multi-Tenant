@@ -28,10 +28,12 @@ const { createUser, login } = require('./helpers/authHelper');
 const catalogMetadata = require('../services/catalogMetadata.service');
 const platformRegistry = require('../permissions/platformRegistry');
 const registry = require('../permissions/registry');
+const usersService = require('../services/users.service');
 
 const PASSWORD = 'Pass#123';
 const CATALOG_URL = '/api/v1/services/catalog';
 const TENANT_ID = 'digi';
+const TENANT_B_ID = 'tenant-b';
 
 let server;
 let dir;
@@ -51,7 +53,8 @@ beforeAll(async () => {
   // loginTenant DERIVED resolution can bind the tenant.
   seed(dir, 'companies', {
     companies: [
-      { id: TENANT_ID, code: 'DIGI', name: 'DigiTronics', active: true, status: 'ACTIVE', branches: [] }
+      { id: TENANT_ID, code: 'DIGI', name: 'DigiTronics', active: true, status: 'ACTIVE', branches: [] },
+      { id: TENANT_B_ID, code: 'TNB', name: 'Tenant B', active: true, status: 'ACTIVE', branches: [] }
     ]
   });
 
@@ -104,6 +107,23 @@ beforeAll(async () => {
   createUser(server.app, { username: 'disabledMember', password: PASSWORD, fullName: 'Disabled Member', role: 'Viewer' });
   platformAdmin.grant('disabledMember', 'MASTER_OWNER');
   platformAdmin.setMemberStatus('disabledMember', 'disabled');
+
+  // ---------- Cross-tenant test users ----------
+  // Bound only to tenant-a ('digi') — used for cross-tenant denial tests.
+  createUser(server.app, { username: 'ownerA', password: PASSWORD, fullName: 'Owner A', role: 'Owner', tenantIds: [TENANT_ID] });
+  createUser(server.app, { username: 'adminA', password: PASSWORD, fullName: 'Admin A', role: 'Admin', tenantIds: [TENANT_ID] });
+  // Tenant-specific Owner in tenant-a only — no membership in tenant-b.
+  createUser(server.app, {
+    username: 'ownerInAOnly', password: PASSWORD, fullName: 'Owner in A only', role: 'Cashier',
+    tenantIds: [TENANT_ID], tenantRoles: { [TENANT_ID]: 'Owner' }
+  });
+  // Member of both tenant-a and tenant-b — legitimate multi-tenant membership.
+  createUser(server.app, {
+    username: 'memberBoth', password: PASSWORD, fullName: 'Member Both', role: 'Owner',
+    tenantIds: [TENANT_ID, TENANT_B_ID]
+  });
+  // Unbound legacy identity — no tenantIds, no tenantRoles.
+  createUser(server.app, { username: 'legacyUnbound', password: PASSWORD, fullName: 'Legacy Unbound', role: 'Cashier' });
 });
 
 async function loginToken(username) {
@@ -229,7 +249,8 @@ describe('GET /api/v1/services/catalog — tenant authorization (real persisted 
     expect(ids).not.toContain('platform_tools');
     expect(ids).not.toContain('playstation');
     expect(ids).not.toContain('car_rental');
-    expect(ids).not.toContain('student_services');
+    // student_services has permission settings.view; Manager baseline includes it.
+    expect(ids).toContain('student_services');
     // No platform services.
     for (const id of MASTER_IDS) expect(ids).not.toContain(id);
   });
@@ -382,6 +403,118 @@ describe('GET /api/v1/services/catalog — tenant role downgrade/upgrade regress
     expect(ids).toContain('treasury');
     expect(ids).not.toContain('reports');
     // No platform services.
+    for (const id of MASTER_IDS) expect(ids).not.toContain(id);
+  });
+});
+
+describe('GET /api/v1/services/catalog — cross-tenant membership boundary', () => {
+  // Helper: create a user initially bound to tenant-b only, log in (token binds
+  // tenant-b via DERIVED resolution), then update their binding to the final
+  // tenant set. Simulates a stale token that still carries tenant-b after the
+  // account's membership has changed.
+  async function staleTokenUser(username, role, finalTenantIds, finalTenantRoles) {
+    createUser(server.app, {
+      username, password: PASSWORD, fullName: username, role,
+      tenantIds: [TENANT_B_ID]
+    });
+    const result = await login(server.app, username, PASSWORD);
+    const token = result.accessToken;
+    // Directly rewrite the users file to change the binding (bypasses any
+    // cross-instance usersService cache; fileStore mtime check invalidates the
+    // server's read cache on the next request).
+    const usersFile = path.join(dir, 'users.json');
+    const usersData = JSON.parse(fs.readFileSync(usersFile, 'utf-8'));
+    const userIdx = usersData.users.findIndex(u => u.username === username);
+    if (userIdx !== -1) {
+      usersData.users[userIdx].tenantIds = finalTenantIds;
+      if (finalTenantRoles) usersData.users[userIdx].tenantRoles = finalTenantRoles;
+      seed(dir, 'users', usersData);
+    }
+    return token;
+  }
+
+  test('Global Owner bound only to tenant A: stale tenant-B context returns no tenant-B services', async () => {
+    const token = await staleTokenUser('staleOwnerA', 'Owner', [TENANT_ID]);
+    const res = await request(server.app)
+      .get(CATALOG_URL)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.statusCode).toBe(200);
+    const ids = svcIds(res.body.data.services);
+    // Cross-tenant denial: Owner/Admin bypass does not apply outside membership.
+    expect(ids).not.toContain('dashboard');
+    expect(ids).not.toContain('products');
+    expect(ids).not.toContain('customers');
+    expect(ids).not.toContain('sales');
+    expect(ids).not.toContain('treasury');
+    expect(ids).not.toContain('reports');
+    // No platform services — not a platform member.
+    for (const id of MASTER_IDS) expect(ids).not.toContain(id);
+  });
+
+  test('Global Admin bound only to tenant A: tenant-B context returns no tenant-B services', async () => {
+    const token = await staleTokenUser('staleAdminA', 'Admin', [TENANT_ID]);
+    const res = await request(server.app)
+      .get(CATALOG_URL)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.statusCode).toBe(200);
+    const ids = svcIds(res.body.data.services);
+    // Cross-tenant denial: Admin bypass does not apply outside membership.
+    expect(ids).not.toContain('dashboard');
+    expect(ids).not.toContain('products');
+    expect(ids).not.toContain('customers');
+    // No platform services — not a platform member.
+    for (const id of MASTER_IDS) expect(ids).not.toContain(id);
+  });
+
+  test('Tenant-specific Owner in tenant A: tenant-B context returns no tenant-B services', async () => {
+    const token = await staleTokenUser(
+      'staleOwnerInA', 'Cashier', [TENANT_ID], { [TENANT_ID]: 'Owner' }
+    );
+    const res = await request(server.app)
+      .get(CATALOG_URL)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.statusCode).toBe(200);
+    const ids = svcIds(res.body.data.services);
+    // Effective role is Owner inside tenant-a, but tenant-B context is not a
+    // membership — no tenant-B services despite Owner-level effective role.
+    expect(ids).not.toContain('dashboard');
+    expect(ids).not.toContain('products');
+    // No platform services — not a platform member.
+    for (const id of MASTER_IDS) expect(ids).not.toContain(id);
+  });
+
+  test('Member of both tenant A and tenant B can access catalog without denial', async () => {
+    const token = await loginToken('memberBoth');
+    const res = await request(server.app)
+      .get(CATALOG_URL)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.statusCode).toBe(200);
+    const ids = svcIds(res.body.data.services);
+    // Multi-tenant member is not blocked from the catalog entirely.
+    expect(ids.length).toBeGreaterThan(0);
+    // No platform services — not a platform member.
+    for (const id of MASTER_IDS) expect(ids).not.toContain(id);
+    // With no specific trusted tenant (DERIVED ambiguous), Owner bypass applies
+    // as legacy behavior — all tenant services visible.
+    for (const id of TENANT_IDS) expect(ids).toContain(id);
+  });
+
+  test('Unbound legacy identity retains legacy catalog behavior', async () => {
+    const token = await loginToken('legacyUnbound');
+    const res = await request(server.app)
+      .get(CATALOG_URL)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.statusCode).toBe(200);
+    const ids = svcIds(res.body.data.services);
+    // Unbound Cashier gets baseline services (no tenant filtering without context).
+    expect(ids).toContain('dashboard');
+    expect(ids).toContain('sales');
+    expect(ids).toContain('treasury');
+    expect(ids).toContain('reports');
+    // Cashier does NOT have products.view, inventory.view, etc.
+    expect(ids).not.toContain('products');
+    expect(ids).not.toContain('inventory');
+    // No platform services — not a platform member.
     for (const id of MASTER_IDS) expect(ids).not.toContain(id);
   });
 });
