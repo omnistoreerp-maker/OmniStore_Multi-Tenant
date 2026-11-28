@@ -4,12 +4,34 @@ const { success, error } = require('../utils/apiResponse');
 const catalogMetadata = require('../services/catalogMetadata.service');
 const authorization = require('../services/authorization.service');
 const tenantRole = require('../services/tenantRole.service');
-const { isPrivilegedRole } = require('../services/authorization.service');
+const platformAdmin = require('../services/platformAdmin.service');
+const platformRegistry = require('../permissions/platformRegistry');
 
 // Read-only, server-authoritative catalog of services the authenticated caller
-// is allowed to discover. Visibility is decided entirely by existing source
-// permissions (authorization.service + OmniModuleRegistry). This endpoint
-// never trusts client-supplied roles, query parameters, or localStorage state.
+// is allowed to discover.
+//
+// Authorization boundary (strict separation of tenant vs platform scope):
+//
+//   TENANT scope:
+//     - Tenant services are visible only when authorized by the existing
+//       tenant permission engine (authorization.service + tenant permission
+//       registry) for the caller's trusted tenant context.
+//     - Owner/Admin tenant bypass applies within tenant scope only — it never
+//       grants platform visibility.
+//     - A tenant Owner/Admin is NOT automatically a platform member.
+//
+//   PLATFORM/MASTER scope:
+//     - Active platform membership is resolved server-side from the platform
+//       admin store (platformAdmin.platformRoleFor / memberFor), using the
+//       authenticated username from the token — never from query params,
+//       headers, localStorage, or req.user.role.
+//     - Each master service is gated by its verified platformPermission via
+//       platformRegistry.hasPlatformPermission(role, permission, overrides).
+//     - Services without a verified platformPermission mapping are withheld.
+//     - Platform membership never grants tenant capabilities.
+//
+//   INTERNAL scope:
+//     - Internal services are never exposed to any role.
 
 function getCatalog(req, res) {
   try {
@@ -20,36 +42,32 @@ function getCatalog(req, res) {
     const user = req.user;
     const tenantId = user.tenantId || undefined;
 
-    // Resolve effective role from server-side state only (per-tenant role or
-    // global role fallback). Never from query/body/header/localStorage.
+    // Resolve effective role from server-side tenant state only — never from
+    // client-controlled input.
     const effectiveRole = tenantRole.resolveEffectiveRole(user, tenantId) || user.role;
 
-    // Determine if caller is platform-authorized (Master scope).
-    // Owner/Admin with platform context can see master services.
-    const isPlatformAuthorized =
-      effectiveRole === 'Owner' || effectiveRole === 'Admin';
+    const isTenantPrivileged = effectiveRole === 'Owner' || effectiveRole === 'Admin';
 
     // Build the authorized service list.
     const authorized = [];
 
-    // --- Tenant services ---
+    // --- Tenant services (tenant scope only) ---
     for (const svc of catalogMetadata.getTenantServices()) {
-      // Permission check: Owner/Admin bypass; others need the module permission.
       let allowed = false;
-      if (effectiveRole === 'Owner' || effectiveRole === 'Admin') {
+      if (isTenantPrivileged) {
+        // Owner/Admin tenant bypass — tenant scope only.
         allowed = true;
       } else if (svc.permission) {
         allowed = authorization.hasPermission(user, svc.permission, tenantId);
       }
-      // Services with no permission requirement are not shown to tenant roles
-      // unless explicitly authorized.
+      // Services with no permission (null) are withheld from non-privileged roles.
       if (allowed) {
         authorized.push({
           id: svc.id,
           name: svc.name,
           description: svc.description,
           category: svc.category,
-          scope: svc.scope,
+          scope: 'tenant',
           status: svc.state,
           destination: svc.destination,
           source: svc.source
@@ -57,27 +75,32 @@ function getCatalog(req, res) {
       }
     }
 
-    // --- Master/platform services (platform-authorized callers only) ---
-    if (isPlatformAuthorized) {
+    // --- Platform/Master services (platform scope only) ---
+    // Resolve active platform membership server-side only. A disabled, removed,
+    // or unknown platform member resolves to null (fail-closed).
+    const platformRole = platformAdmin.platformRoleFor(user.username);
+    if (platformRole) {
+      const entry = platformAdmin.memberFor(user.username);
+      const overrides = entry && Array.isArray(entry.permissions) ? entry.permissions : [];
       for (const svc of catalogMetadata.getMasterServices()) {
-        authorized.push({
-          id: svc.id,
-          name: svc.name,
-          description: svc.description,
-          category: svc.category,
-          scope: svc.scope,
-          status: svc.state,
-          destination: svc.destination,
-          source: svc.source
-        });
+        // Services without a verified platformPermission mapping are withheld.
+        if (!svc.platformPermission) continue;
+        if (platformRegistry.hasPlatformPermission(platformRole, svc.platformPermission, overrides)) {
+          authorized.push({
+            id: svc.id,
+            name: svc.name,
+            description: svc.description,
+            category: svc.category,
+            scope: 'master',
+            status: svc.state,
+            destination: svc.destination,
+            source: svc.source
+          });
+        }
       }
     }
 
-    // --- Internal-only services: NEVER exposed to ordinary users ---
-    // Internal services have roles: [] in the source and are not visible to
-    // any role, including Master, unless a specific existing internal
-    // authorization mechanism explicitly permits access. No such mechanism
-    // exists in the current source, so internal services are excluded.
+    // --- Internal-only services: NEVER exposed to any role ---
 
     // Sort by scope (tenant first, then master) then by category.
     authorized.sort((a, b) => {

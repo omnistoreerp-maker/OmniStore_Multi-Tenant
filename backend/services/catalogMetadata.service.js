@@ -4,7 +4,23 @@
 // This manifest is SEPARATE from authorization decisions: it only provides
 // human-readable display information (name, description, category, status,
 // destination) for services whose visibility is decided by the server using
-// existing source permissions (OmniModuleRegistry + authorization.service).
+// existing source permissions (OmniModuleRegistry + authorization.service for
+// tenant scope; platformAdmin.service + platformRegistry for platform scope).
+//
+// `permission` (tenant services) is an exact canonical permission string from
+// backend/permissions/registry.js (REAL_PERMISSIONS). Legacy module permission
+// names (e.g. viewProducts, createInvoices) are NOT used directly — they are
+// mapped to their canonical equivalent only when one exists. When no canonical
+// enforceable discovery permission exists, `permission` is null and the
+// service is withheld from non-privtenant roles.
+//
+// `platformPermission` (master services) is an exact canonical platform
+// permission string from backend/permissions/platformRegistry.js
+// (ALL_PLATFORM_PERMISSIONS). Master services without a verified platform
+// permission mapping have `platformPermission: null` and are withheld from
+// the API response until properly mapped.
+//
+// Internal services are never exposed to any role.
 //
 // Status values:
 //   READY         - Verified working frontend destination, may be launched.
@@ -31,7 +47,8 @@ const SCOPE_INTERNAL = 'internal';
 
 // Canonical tenant services, mapped from OmniModuleRegistry module ids.
 // Each entry's `permission` is the enforceable permission checked by the
-// server before returning the service to the caller.
+// server before returning the service to the caller. Permission values are
+// exact canonical strings from backend/permissions/registry.js.
 const TENANT_SERVICES = [
   {
     id: 'dashboard',
@@ -56,7 +73,7 @@ const TENANT_SERVICES = [
     },
     category: 'inventory',
     scope: SCOPE_TENANT,
-    permission: 'viewProducts',
+    permission: 'products.view',
     destination: 'index.html#products',
     state: STATE_READY,
     source: 'services/modulePlatform/moduleRegistry.js:32-41'
@@ -70,7 +87,7 @@ const TENANT_SERVICES = [
     },
     category: 'sales',
     scope: SCOPE_TENANT,
-    permission: 'viewCustomers',
+    permission: 'customers.view',
     destination: 'index.html#customers',
     state: STATE_READY,
     source: 'services/modulePlatform/moduleRegistry.js:43-54'
@@ -84,7 +101,7 @@ const TENANT_SERVICES = [
     },
     category: 'inventory',
     scope: SCOPE_TENANT,
-    permission: 'viewSuppliers',
+    permission: 'suppliers.view',
     destination: 'index.html#suppliers',
     state: STATE_PARTIAL,
     source: 'services/modulePlatform/moduleRegistry.js:56-63'
@@ -98,7 +115,7 @@ const TENANT_SERVICES = [
     },
     category: 'inventory',
     scope: SCOPE_TENANT,
-    permission: 'viewInventory',
+    permission: 'inventory.view',
     destination: 'index.html#inventory',
     state: STATE_READY,
     source: 'services/modulePlatform/moduleRegistry.js:65-76'
@@ -112,7 +129,7 @@ const TENANT_SERVICES = [
     },
     category: 'inventory',
     scope: SCOPE_TENANT,
-    permission: 'viewPurchases',
+    permission: 'purchases.view',
     destination: 'index.html#purchases',
     state: STATE_PARTIAL,
     source: 'services/modulePlatform/moduleRegistry.js:77-81'
@@ -126,7 +143,7 @@ const TENANT_SERVICES = [
     },
     category: 'sales',
     scope: SCOPE_TENANT,
-    permission: 'createInvoices',
+    permission: 'sales.view',
     destination: 'index.html#pos',
     state: STATE_READY,
     source: 'services/modulePlatform/moduleRegistry.js:83-96'
@@ -140,10 +157,10 @@ const TENANT_SERVICES = [
     },
     category: 'maintenance',
     scope: SCOPE_TENANT,
-    permission: 'viewMaintenance',
+    permission: null,
     destination: 'index.html#maintenance',
-    state: STATE_PARTIAL,
-    source: 'services/modulePlatform/moduleRegistry.js:98-108'
+    state: STATE_NOT_VERIFIED,
+    source: 'services/modulePlatform/moduleRegistry.js:98-108 — permission-mapping incomplete (no canonical maintenance permission)'
   },
   {
     id: 'treasury',
@@ -154,7 +171,7 @@ const TENANT_SERVICES = [
     },
     category: 'finance',
     scope: SCOPE_TENANT,
-    permission: 'viewFinancial',
+    permission: 'treasury.view',
     destination: 'index.html#treasury',
     state: STATE_READY,
     source: 'services/modulePlatform/moduleRegistry.js:110-120'
@@ -168,7 +185,7 @@ const TENANT_SERVICES = [
     },
     category: 'reports',
     scope: SCOPE_TENANT,
-    permission: 'viewReports',
+    permission: 'reports.view',
     destination: 'index.html#reports',
     state: STATE_PARTIAL,
     source: 'services/modulePlatform/moduleRegistry.js:122-137'
@@ -182,7 +199,7 @@ const TENANT_SERVICES = [
     },
     category: 'finance',
     scope: SCOPE_TENANT,
-    permission: 'viewFinancial',
+    permission: 'audit.view',
     destination: 'index.html#accounting-audit',
     state: STATE_PARTIAL,
     source: 'services/modulePlatform/moduleRegistry.js:139-144'
@@ -196,7 +213,7 @@ const TENANT_SERVICES = [
     },
     category: 'finance',
     scope: SCOPE_TENANT,
-    permission: 'viewFinancial',
+    permission: 'audit.view',
     destination: 'index.html#accounting-configuration',
     state: STATE_PARTIAL,
     source: 'services/modulePlatform/moduleRegistry.js:146-151'
@@ -210,10 +227,10 @@ const TENANT_SERVICES = [
     },
     category: 'admin',
     scope: SCOPE_TENANT,
-    permission: 'viewAlerts',
+    permission: null,
     destination: 'index.html#alerts-center',
     state: STATE_BACKEND_ONLY,
-    source: 'services/modulePlatform/moduleRegistry.js:153-157'
+    source: 'services/modulePlatform/moduleRegistry.js:153-157 — permission-mapping incomplete (no canonical alerts permission)'
   },
   {
     id: 'tools',
@@ -224,10 +241,10 @@ const TENANT_SERVICES = [
     },
     category: 'admin',
     scope: SCOPE_TENANT,
-    permission: 'viewSerials',
+    permission: null,
     destination: 'index.html#cathnumber',
     state: STATE_BACKEND_ONLY,
-    source: 'services/modulePlatform/moduleRegistry.js:159-163'
+    source: 'services/modulePlatform/moduleRegistry.js:159-163 — permission-mapping incomplete (no canonical serials permission)'
   },
   {
     id: 'hr',
@@ -238,7 +255,7 @@ const TENANT_SERVICES = [
     },
     category: 'hr',
     scope: SCOPE_TENANT,
-    permission: 'manageEmployees',
+    permission: 'employees.view',
     destination: 'index.html#hr',
     state: STATE_PARTIAL,
     source: 'services/modulePlatform/moduleRegistry.js:165-174'
@@ -252,7 +269,7 @@ const TENANT_SERVICES = [
     },
     category: 'admin',
     scope: SCOPE_TENANT,
-    permission: 'manageUsers',
+    permission: 'users.view',
     destination: 'index.html#users',
     state: STATE_READY,
     source: 'services/modulePlatform/moduleRegistry.js:176-180'
@@ -266,7 +283,7 @@ const TENANT_SERVICES = [
     },
     category: 'admin',
     scope: SCOPE_TENANT,
-    permission: 'viewAudit',
+    permission: 'audit.view',
     destination: 'index.html#audit',
     state: STATE_READY,
     source: 'services/modulePlatform/moduleRegistry.js:182-190'
@@ -280,10 +297,10 @@ const TENANT_SERVICES = [
     },
     category: 'integrations',
     scope: SCOPE_TENANT,
-    permission: 'viewAutomationCenter',
+    permission: null,
     destination: 'index.html#automation',
     state: STATE_BACKEND_ONLY,
-    source: 'services/modulePlatform/moduleRegistry.js:192-196'
+    source: 'services/modulePlatform/moduleRegistry.js:192-196 — permission-mapping incomplete (no canonical automation permission)'
   },
   {
     id: 'branches',
@@ -294,10 +311,10 @@ const TENANT_SERVICES = [
     },
     category: 'admin',
     scope: SCOPE_TENANT,
-    permission: 'viewBranches',
+    permission: null,
     destination: 'index.html#branches',
     state: STATE_BACKEND_ONLY,
-    source: 'services/modulePlatform/moduleRegistry.js:198-202'
+    source: 'services/modulePlatform/moduleRegistry.js:198-202 — permission-mapping incomplete (no canonical branches permission)'
   },
   {
     id: 'integrations',
@@ -308,10 +325,10 @@ const TENANT_SERVICES = [
     },
     category: 'integrations',
     scope: SCOPE_TENANT,
-    permission: 'manageIntegrations',
+    permission: null,
     destination: 'index.html#integrations',
     state: STATE_BACKEND_ONLY,
-    source: 'services/modulePlatform/moduleRegistry.js:204-208'
+    source: 'services/modulePlatform/moduleRegistry.js:204-208 — permission-mapping incomplete (no canonical integrations permission)'
   },
   {
     id: 'documents',
@@ -322,7 +339,7 @@ const TENANT_SERVICES = [
     },
     category: 'admin',
     scope: SCOPE_TENANT,
-    permission: 'viewAudit',
+    permission: 'audit.view',
     destination: 'index.html#documents',
     state: STATE_BACKEND_ONLY,
     source: 'services/modulePlatform/moduleRegistry.js:210-217'
@@ -336,7 +353,7 @@ const TENANT_SERVICES = [
     },
     category: 'admin',
     scope: SCOPE_TENANT,
-    permission: 'manageSettings',
+    permission: 'settings.view',
     destination: 'index.html#backup',
     state: STATE_BACKEND_ONLY,
     source: 'services/modulePlatform/moduleRegistry.js:219-227'
@@ -350,10 +367,10 @@ const TENANT_SERVICES = [
     },
     category: 'integrations',
     scope: SCOPE_TENANT,
-    permission: 'viewHealth',
+    permission: null,
     destination: 'index.html#health',
-    state: STATE_READY,
-    source: 'services/modulePlatform/moduleRegistry.js:229-243'
+    state: STATE_NOT_VERIFIED,
+    source: 'services/modulePlatform/moduleRegistry.js:229-243 — permission-mapping incomplete (no canonical health permission)'
   },
   {
     id: 'business_marketplace',
@@ -364,7 +381,7 @@ const TENANT_SERVICES = [
     },
     category: 'integrations',
     scope: SCOPE_TENANT,
-    permission: 'manageSettings',
+    permission: 'settings.view',
     destination: 'index.html#business-marketplace',
     state: STATE_PARTIAL,
     source: 'services/modulePlatform/moduleRegistry.js:245-249'
@@ -378,7 +395,7 @@ const TENANT_SERVICES = [
     },
     category: 'entertainment',
     scope: SCOPE_TENANT,
-    permission: 'manageSettings',
+    permission: 'settings.view',
     destination: 'index.html#playstation',
     state: STATE_PARTIAL,
     source: 'services/modulePlatform/moduleRegistry.js:251-255'
@@ -392,7 +409,7 @@ const TENANT_SERVICES = [
     },
     category: 'entertainment',
     scope: SCOPE_TENANT,
-    permission: 'manageSettings',
+    permission: 'settings.view',
     destination: 'index.html#car-rental',
     state: STATE_PARTIAL,
     source: 'services/modulePlatform/moduleRegistry.js:257-261'
@@ -434,7 +451,7 @@ const TENANT_SERVICES = [
     },
     category: 'admin',
     scope: SCOPE_TENANT,
-    permission: 'manageSettings',
+    permission: 'settings.view',
     destination: 'index.html#settings',
     state: STATE_READY,
     source: 'services/modulePlatform/moduleRegistry.js:284-292'
@@ -443,6 +460,9 @@ const TENANT_SERVICES = [
 
 // Master/platform services from navigationBuilder.js MASTER_NAV groups.
 // These are platform-scoped and only visible to platform-authorized callers.
+// `platformPermission` is an exact canonical platform permission string from
+// backend/permissions/platformRegistry.js. Services without a verified
+// platformPermission mapping (null) are withheld from the API response.
 const MASTER_SERVICES = [
   {
     id: 'platform_master',
@@ -453,7 +473,7 @@ const MASTER_SERVICES = [
     },
     category: 'platform',
     scope: SCOPE_MASTER,
-    permission: null,
+    platformPermission: 'platform.dashboard.view',
     destination: 'platform.html',
     state: STATE_PARTIAL,
     source: 'services/modulePlatform/navigationBuilder.js:46-126 (MASTER_NAV)'
@@ -467,7 +487,7 @@ const MASTER_SERVICES = [
     },
     category: 'platform',
     scope: SCOPE_MASTER,
-    permission: null,
+    platformPermission: 'platform.dashboard.view',
     destination: 'platform.html',
     state: STATE_PARTIAL,
     source: 'services/modulePlatform/navigationBuilder.js:47'
@@ -481,7 +501,7 @@ const MASTER_SERVICES = [
     },
     category: 'platform',
     scope: SCOPE_MASTER,
-    permission: null,
+    platformPermission: 'platform.companies.view',
     destination: null,
     state: STATE_NOT_VERIFIED,
     source: 'services/modulePlatform/navigationBuilder.js:49-61 (MASTER_NAV)'
@@ -495,7 +515,7 @@ const MASTER_SERVICES = [
     },
     category: 'platform',
     scope: SCOPE_MASTER,
-    permission: null,
+    platformPermission: 'platform.users.view',
     destination: null,
     state: STATE_NOT_VERIFIED,
     source: 'services/modulePlatform/navigationBuilder.js:62'
@@ -509,7 +529,7 @@ const MASTER_SERVICES = [
     },
     category: 'platform',
     scope: SCOPE_MASTER,
-    permission: null,
+    platformPermission: 'platform.licenses.view',
     destination: null,
     state: STATE_NOT_VERIFIED,
     source: 'services/modulePlatform/navigationBuilder.js:63-70 (MASTER_NAV)'
@@ -523,7 +543,7 @@ const MASTER_SERVICES = [
     },
     category: 'platform',
     scope: SCOPE_MASTER,
-    permission: null,
+    platformPermission: 'platform.integrations.view',
     destination: null,
     state: STATE_NOT_VERIFIED,
     source: 'services/modulePlatform/navigationBuilder.js:71-77 (MASTER_NAV)'
@@ -537,10 +557,10 @@ const MASTER_SERVICES = [
     },
     category: 'platform',
     scope: SCOPE_MASTER,
-    permission: null,
+    platformPermission: null,
     destination: null,
     state: STATE_NOT_VERIFIED,
-    source: 'services/modulePlatform/navigationBuilder.js:78-81 (MASTER_NAV)'
+    source: 'services/modulePlatform/navigationBuilder.js:78-81 (MASTER_NAV) — permission-mapping incomplete'
   },
   {
     id: 'platform_backups',
@@ -551,10 +571,10 @@ const MASTER_SERVICES = [
     },
     category: 'platform',
     scope: SCOPE_MASTER,
-    permission: null,
+    platformPermission: null,
     destination: null,
     state: STATE_NOT_VERIFIED,
-    source: 'services/modulePlatform/navigationBuilder.js:82-92 (MASTER_NAV)'
+    source: 'services/modulePlatform/navigationBuilder.js:82-92 (MASTER_NAV) — permission-mapping incomplete'
   },
   {
     id: 'platform_audit',
@@ -565,7 +585,7 @@ const MASTER_SERVICES = [
     },
     category: 'platform',
     scope: SCOPE_MASTER,
-    permission: null,
+    platformPermission: 'platform.audit.view',
     destination: null,
     state: STATE_READY,
     source: 'services/modulePlatform/navigationBuilder.js:93-98 (MASTER_NAV)'
@@ -579,7 +599,7 @@ const MASTER_SERVICES = [
     },
     category: 'platform',
     scope: SCOPE_MASTER,
-    permission: null,
+    platformPermission: 'platform.dashboard.view',
     destination: 'platform.html',
     state: STATE_PARTIAL,
     source: 'services/modulePlatform/navigationBuilder.js:99-126 (MASTER_NAV)'
